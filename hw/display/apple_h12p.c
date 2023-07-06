@@ -124,6 +124,8 @@ void apple_h12p_create(MachineState *machine)
     assert(set_dtb_prop(child, "display-timing-info", sizeof(dispTimingInfo), &dispTimingInfo));
     uint32_t data = 0xD;
     assert(set_dtb_prop(child, "bics-param-set", sizeof(data), &data));
+    uint32_t dot_pitch = 326;
+    assert(set_dtb_prop(child, "dot-pitch", sizeof(dot_pitch), &dot_pitch));
     assert(set_dtb_prop(child, "function-brightness_update", 0, ""));
 
     DTBProp *prop = find_dtb_prop(child, "reg");
@@ -243,8 +245,8 @@ static const VMStateDescription vmstate_apple_h12p = {
 };
 
 static Property apple_h12p_props[] = {
-    DEFINE_PROP_UINT32("width", AppleH12PState, width, 480),
-    DEFINE_PROP_UINT32("height", AppleH12PState, height, 680),
+    DEFINE_PROP_UINT32("width", AppleH12PState, width, 828),
+    DEFINE_PROP_UINT32("height", AppleH12PState, height, 1792),
     DEFINE_PROP_END_OF_LIST()
 };
 

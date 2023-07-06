@@ -16,7 +16,7 @@
 #include "qemu/timer.h"
 
 #define T8030_DISPLAY_BASE (0x8F7FB4000)
-#define T8030_DISPLAY_SIZE (35 * 1024 * 1024)
+#define T8030_DISPLAY_SIZE (67 * 1024 * 1024)
 
 #define TYPE_APPLE_H12P "apple-h12p"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleH12PState, APPLE_H12P);

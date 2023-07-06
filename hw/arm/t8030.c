@@ -105,7 +105,7 @@
 #define T8030_SIO_DATA_SIZE     (0xf8000)
 #define T8030_SIO_DATA_REMAP    (0x220000)
 
-#define T8030_PANIC_BASE        (0x8ffeb0000)
+#define T8030_PANIC_BASE        (0x8fc2b4000)
 #define T8030_PANIC_SIZE        (0x100000)
 
 #define NOP_INST 0xd503201f
