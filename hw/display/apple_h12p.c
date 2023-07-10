@@ -32,6 +32,10 @@ static void h12p_up_write(void *opaque, hwaddr addr, uint64_t data, unsigned siz
             s->genpipe0_plane_end = (uint32_t)data;
             info_report("[H12P] plane0 end: 0x" TARGET_FMT_plx, data);
             break;
+        case REG_GENPIPE0_PLANE_STRIDE:
+            s->genpipe0_plane_stride = (uint32_t)data;
+            info_report("[H12P] plane0 stride: 0x" TARGET_FMT_plx, data);
+            break;
         case REG_GENPIPE1_PLANE_START:
             s->genpipe1_plane_start = (uint32_t)data;
             info_report("[H12P] plane1 start: 0x" TARGET_FMT_plx, data);
@@ -39,6 +43,10 @@ static void h12p_up_write(void *opaque, hwaddr addr, uint64_t data, unsigned siz
         case REG_GENPIPE1_PLANE_END:
             s->genpipe1_plane_end = (uint32_t)data;
             info_report("[H12P] plane1 end: 0x" TARGET_FMT_plx, data);
+            break;
+        case REG_GENPIPE1_PLANE_STRIDE:
+            s->genpipe1_plane_stride = (uint32_t)data;
+            info_report("[H12P] plane1 stride: 0x" TARGET_FMT_plx, data);
             break;
         case REG_UPPIPE_INT_FILTER:
             s->uppipe_int_filter &= ~(uint32_t)data;
@@ -71,11 +79,17 @@ static uint64_t h12p_up_read(void *opaque, hwaddr addr, unsigned size)
         case REG_GENPIPE0_PLANE_END:
             ret = s->genpipe0_plane_end;
             break;
+        case REG_GENPIPE0_PLANE_STRIDE:
+            ret = s->genpipe0_plane_stride;
+            break;
         case REG_GENPIPE1_PLANE_START:
             ret = s->genpipe1_plane_start;
             break;
         case REG_GENPIPE1_PLANE_END:
             ret = s->genpipe1_plane_end;
+            break;
+        case REG_GENPIPE1_PLANE_STRIDE:
+            ret = s->genpipe1_plane_stride;
             break;
         case REG_GENPIPE0_FRAME_SIZE:
             QEMU_FALLTHROUGH;
@@ -215,18 +229,22 @@ static void h12p_gfx_update(void *opaque)
     }
 
     if (!s->frame_processed) {
-        size_t size = s->genpipe0_plane_end - s->genpipe0_plane_start;
-        g_autofree uint8_t *buf = g_malloc(size);
-        if (dma_memory_read(&s->dma_as, s->genpipe0_plane_start, buf, size, MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
-            error_report("Failed to read framebuffer");
-            return;
+        size_t size0 = 0;
+        g_autofree uint8_t *buf0 = NULL;
+        if (s->genpipe0_plane_start && s->genpipe0_plane_end && s->genpipe0_plane_stride) {
+            size0 = s->genpipe0_plane_end - s->genpipe0_plane_start;
+            buf0 = g_malloc(size0);
+            if (dma_memory_read(&s->dma_as, s->genpipe0_plane_start, buf0, size0, MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
+                error_report("Failed to read framebuffer");
+                return;
+            }
         }
-        size_t size2 = 0;
-        g_autofree uint8_t *buf2 = NULL;
-        if (s->genpipe1_plane_end && s->genpipe1_plane_start) {
-            size2 = s->genpipe1_plane_end - s->genpipe1_plane_start;
-            buf2 = g_malloc(size2);
-            if (dma_memory_read(&s->dma_as, s->genpipe1_plane_start, buf2, size2, MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
+        size_t size1 = 0;
+        g_autofree uint8_t *buf1 = NULL;
+        if (s->genpipe1_plane_start && s->genpipe1_plane_end && s->genpipe1_plane_stride && s->genpipe0_plane_stride) {
+            size1 = s->genpipe1_plane_end - s->genpipe1_plane_start;
+            buf1 = g_malloc(size1);
+            if (dma_memory_read(&s->dma_as, s->genpipe1_plane_start, buf1, size1, MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
                 error_report("Failed to read framebuffer2");
                 return;
             }
@@ -234,11 +252,10 @@ static void h12p_gfx_update(void *opaque)
 
         uint8_t *dest = surface_data(surface);
         for (size_t i = 0; i < s->height; i++) {
-            //h12p_draw_row(s, dest, buf + i * stride, s->width, 0);
-            //dest += stride;
-            h12p_draw_row(s, dest + i * stride, buf + i * stride, s->width, 0);
-            if (size2 && buf2 != NULL)
-                h12p_draw_row(s, dest + i * stride, buf2 + i * stride, s->width, 0);
+            if (size0 && buf0 != NULL)
+                h12p_draw_row(s, dest + i * stride, buf0 + i * stride, s->width, 0);
+            if (size1 && buf1 != NULL)
+                h12p_draw_row(s, dest + i * stride, buf1 + i * stride, s->width, 0);
         }
 
         dpy_gfx_update_full(s->console);
@@ -256,6 +273,7 @@ static void apple_h12p_realize(DeviceState *dev, Error **errp)
 {
     AppleH12PState *s = APPLE_H12P(dev);
 
+    s->uppipe_int_filter = s->genpipe0_plane_start = s->genpipe0_plane_end = s->genpipe0_plane_stride = s->genpipe1_plane_start = s->genpipe1_plane_end = s->genpipe1_plane_stride = s->frame_processed = 0;
     s->console = graphic_console_init(dev, 0, &apple_h12p_ops, s);
     qemu_console_resize(s->console, s->width, s->height);
 }

@@ -30,8 +30,10 @@ OBJECT_DECLARE_SIMPLE_TYPE(AppleH12PState, APPLE_H12P);
 #define GENPIPE_DFB_PIXEL_FORMAT_BGRA (0x11110)
 #define REG_GENPIPE0_PLANE_START      (0x50030)
 #define REG_GENPIPE0_PLANE_END        (0x50040)
+#define REG_GENPIPE0_PLANE_STRIDE     (0x50060)
 #define REG_GENPIPE1_PLANE_START      (0x58030)
 #define REG_GENPIPE1_PLANE_END        (0x58040)
+#define REG_GENPIPE1_PLANE_STRIDE     (0x58060)
 #define REG_GENPIPE0_FRAME_SIZE       (0x50080)
 #define REG_GENPIPE1_FRAME_SIZE       (0x58080)
 #define REG_UPPIPE_INT_FILTER         (0x45818)
@@ -48,7 +50,7 @@ struct AppleH12PState {
     AddressSpace dma_as;
     MemoryRegionSection vram_section;
     qemu_irq irqs[9];
-    uint32_t uppipe_int_filter, genpipe0_plane_start, genpipe0_plane_end, genpipe1_plane_start, genpipe1_plane_end;
+    uint32_t uppipe_int_filter, genpipe0_plane_start, genpipe0_plane_end, genpipe0_plane_stride, genpipe1_plane_start, genpipe1_plane_end, genpipe1_plane_stride;
     bool frame_processed;
     uint8_t regs[0x200000];
     QemuConsole *console;
