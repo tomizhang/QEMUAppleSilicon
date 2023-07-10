@@ -48,7 +48,7 @@ struct AppleH12PState {
     AddressSpace dma_as;
     MemoryRegionSection vram_section;
     qemu_irq irqs[9];
-    uint32_t uppipe_int_filter, genpipe0_plane_start, genpipe0_plane_end;
+    uint32_t uppipe_int_filter, genpipe0_plane_start, genpipe0_plane_end, genpipe1_plane_start, genpipe1_plane_end;
     bool frame_processed;
     uint8_t regs[0x200000];
     QemuConsole *console;
