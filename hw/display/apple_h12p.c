@@ -32,6 +32,14 @@ static void h12p_up_write(void *opaque, hwaddr addr, uint64_t data, unsigned siz
             s->genpipe0_plane_end = (uint32_t)data;
             info_report("[H12P] plane0 end: 0x" TARGET_FMT_plx, data);
             break;
+        case REG_GENPIPE1_PLANE_START:
+            s->genpipe1_plane_start = (uint32_t)data;
+            info_report("[H12P] plane1 start: 0x" TARGET_FMT_plx, data);
+            break;
+        case REG_GENPIPE1_PLANE_END:
+            s->genpipe1_plane_end = (uint32_t)data;
+            info_report("[H12P] plane1 end: 0x" TARGET_FMT_plx, data);
+            break;
         case REG_UPPIPE_INT_FILTER:
             s->uppipe_int_filter &= ~(uint32_t)data;
             break;
@@ -62,6 +70,12 @@ static uint64_t h12p_up_read(void *opaque, hwaddr addr, unsigned size)
             break;
         case REG_GENPIPE0_PLANE_END:
             ret = s->genpipe0_plane_end;
+            break;
+        case REG_GENPIPE1_PLANE_START:
+            ret = s->genpipe1_plane_start;
+            break;
+        case REG_GENPIPE1_PLANE_END:
+            ret = s->genpipe1_plane_end;
             break;
         case REG_GENPIPE0_FRAME_SIZE:
             QEMU_FALLTHROUGH;
@@ -124,6 +138,8 @@ void apple_h12p_create(MachineState *machine)
     assert(set_dtb_prop(child, "display-timing-info", sizeof(dispTimingInfo), &dispTimingInfo));
     uint32_t data = 0xD;
     assert(set_dtb_prop(child, "bics-param-set", sizeof(data), &data));
+    uint32_t dot_pitch = 326;
+    assert(set_dtb_prop(child, "dot-pitch", sizeof(dot_pitch), &dot_pitch));
     assert(set_dtb_prop(child, "function-brightness_update", 0, ""));
 
     DTBProp *prop = find_dtb_prop(child, "reg");
@@ -205,11 +221,24 @@ static void h12p_gfx_update(void *opaque)
             error_report("Failed to read framebuffer");
             return;
         }
+        size_t size2 = 0;
+        g_autofree uint8_t *buf2 = NULL;
+        if (s->genpipe1_plane_end && s->genpipe1_plane_start) {
+            size2 = s->genpipe1_plane_end - s->genpipe1_plane_start;
+            buf2 = g_malloc(size2);
+            if (dma_memory_read(&s->dma_as, s->genpipe1_plane_start, buf2, size2, MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
+                error_report("Failed to read framebuffer2");
+                return;
+            }
+        }
 
         uint8_t *dest = surface_data(surface);
         for (size_t i = 0; i < s->height; i++) {
-            h12p_draw_row(s, dest, buf + i * stride, s->width, 0);
-            dest += stride;
+            //h12p_draw_row(s, dest, buf + i * stride, s->width, 0);
+            //dest += stride;
+            h12p_draw_row(s, dest + i * stride, buf + i * stride, s->width, 0);
+            if (size2 && buf2 != NULL)
+                h12p_draw_row(s, dest + i * stride, buf2 + i * stride, s->width, 0);
         }
 
         dpy_gfx_update_full(s->console);
@@ -243,8 +272,12 @@ static const VMStateDescription vmstate_apple_h12p = {
 };
 
 static Property apple_h12p_props[] = {
-    DEFINE_PROP_UINT32("width", AppleH12PState, width, 480),
-    DEFINE_PROP_UINT32("height", AppleH12PState, height, 680),
+    // iPhone 4/4S
+    DEFINE_PROP_UINT32("width", AppleH12PState, width, 640),
+    DEFINE_PROP_UINT32("height", AppleH12PState, height, 960),
+    // iPhone 11
+    //DEFINE_PROP_UINT32("width", AppleH12PState, width, 828),
+    //DEFINE_PROP_UINT32("height", AppleH12PState, height, 1792),
     DEFINE_PROP_END_OF_LIST()
 };
 

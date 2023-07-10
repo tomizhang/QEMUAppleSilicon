@@ -16,7 +16,7 @@
 #include "qemu/timer.h"
 
 #define T8030_DISPLAY_BASE (0x8F7FB4000)
-#define T8030_DISPLAY_SIZE (35 * 1024 * 1024)
+#define T8030_DISPLAY_SIZE (67 * 1024 * 1024)
 
 #define TYPE_APPLE_H12P "apple-h12p"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleH12PState, APPLE_H12P);
@@ -48,7 +48,7 @@ struct AppleH12PState {
     AddressSpace dma_as;
     MemoryRegionSection vram_section;
     qemu_irq irqs[9];
-    uint32_t uppipe_int_filter, genpipe0_plane_start, genpipe0_plane_end;
+    uint32_t uppipe_int_filter, genpipe0_plane_start, genpipe0_plane_end, genpipe1_plane_start, genpipe1_plane_end;
     bool frame_processed;
     uint8_t regs[0x200000];
     QemuConsole *console;

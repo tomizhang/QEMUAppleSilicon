@@ -105,7 +105,7 @@
 #define T8030_SIO_DATA_SIZE     (0xf8000)
 #define T8030_SIO_DATA_REMAP    (0x220000)
 
-#define T8030_PANIC_BASE        (0x8ffeb0000)
+#define T8030_PANIC_BASE        (0x8fc2b4000)
 #define T8030_PANIC_SIZE        (0x100000)
 
 #define NOP_INST 0xd503201f
@@ -1737,6 +1737,8 @@ static void t8030_machine_init(MachineState *machine)
     assert(set_dtb_prop(child, "graphics-featureset-class", 7, "MTL1,2"));
     assert(set_dtb_prop(child, "graphics-featureset-fallbacks", 15, "MTL1,2:GLES2,0"));
     assert(set_dtb_prop(tms->device_tree, "target-type", 4, "sim")); // TODO: implement PMP
+    data = 1;
+    assert(set_dtb_prop(child, "device-color-policy", sizeof(data), &data));
 
     t8030_cpu_setup(machine);
 
