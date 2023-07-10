@@ -1738,6 +1738,9 @@ static void t8030_machine_init(MachineState *machine)
     assert(set_dtb_prop(child, "oled-display", sizeof(data), &data));
     assert(set_dtb_prop(child, "graphics-featureset-class", 7, "MTL1,2"));
     assert(set_dtb_prop(child, "graphics-featureset-fallbacks", 15, "MTL1,2:GLES2,0"));
+    assert(set_dtb_prop(tms->device_tree, "target-type", 4, "sim")); // TODO: implement PMP
+    data = 1;
+    assert(set_dtb_prop(child, "device-color-policy", sizeof(data), &data));
 
     t8030_cpu_setup(machine);
 
