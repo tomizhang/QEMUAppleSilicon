@@ -112,8 +112,8 @@ struct source_version_command {
 #define PLATFORM_WATCHOS 4
 #define PLATFORM_BRIDGEOS 5
 
-#define BUILD_VERSION_MAJOR(_v) ((_v)&0xffff0000) >> 16
-#define BUILD_VERSION_MINOR(_v) ((_v)&0x0000ff00) >> 8
+#define BUILD_VERSION_MAJOR(_v) (((_v)&0xffff0000) >> 16)
+#define BUILD_VERSION_MINOR(_v) (((_v)&0x0000ff00) >> 8)
 
 struct build_version_command {
     uint32_t cmd; /* LC_BUILD_VERSION */
@@ -361,4 +361,5 @@ void macho_load_trustcache(void *trustcache, uint64_t size, AddressSpace *as,
 
 void macho_load_ramdisk(const char *filename, AddressSpace *as,
                         MemoryRegion *mem, hwaddr pa, uint64_t *size);
+
 #endif

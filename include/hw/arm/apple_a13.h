@@ -47,6 +47,7 @@ typedef struct AppleA13State {
     uint64_t ipi_sr;
     hwaddr cluster_reg[2];
     qemu_irq fast_ipi;
+    A13_CPREG_VAR_DEF(ARM64_REG_EHID3);
     A13_CPREG_VAR_DEF(ARM64_REG_EHID4);
     A13_CPREG_VAR_DEF(ARM64_REG_EHID10);
     A13_CPREG_VAR_DEF(ARM64_REG_HID0);
@@ -62,6 +63,9 @@ typedef struct AppleA13State {
     A13_CPREG_VAR_DEF(ARM64_REG_HID14);
     A13_CPREG_VAR_DEF(ARM64_REG_HID16);
     A13_CPREG_VAR_DEF(ARM64_REG_LSU_ERR_STS);
+    A13_CPREG_VAR_DEF(IMP_BARRIER_LBSY_BST_SYNC_W0_EL0);
+    A13_CPREG_VAR_DEF(IMP_BARRIER_LBSY_BST_SYNC_W1_EL0);
+    A13_CPREG_VAR_DEF(ARM64_REG_3_3_15_7);
     A13_CPREG_VAR_DEF(PMC0);
     A13_CPREG_VAR_DEF(PMC1);
     A13_CPREG_VAR_DEF(PMCR0);
@@ -93,11 +97,15 @@ typedef struct AppleA13Cluster {
     QTAILQ_ENTRY(AppleA13Cluster) next;
     A13_CPREG_VAR_DEF(CTRR_A_LWR_EL1);
     A13_CPREG_VAR_DEF(CTRR_A_UPR_EL1);
+    A13_CPREG_VAR_DEF(CTRR_B_LWR_EL1);
+    A13_CPREG_VAR_DEF(CTRR_B_UPR_EL1);
     A13_CPREG_VAR_DEF(CTRR_CTL_EL1);
     A13_CPREG_VAR_DEF(CTRR_LOCK_EL1);
 } AppleA13Cluster;
 
-AppleA13State *apple_a13_cpu_create(DTBNode *node);
+AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
+                                    uint32_t phys_id, uint32_t cluster_id,
+                                    uint8_t cluster_type);
 bool apple_a13_cpu_is_sleep(AppleA13State *tcpu);
 bool apple_a13_cpu_is_powered_off(AppleA13State *tcpu);
 void apple_a13_cpu_start(AppleA13State *tcpu);

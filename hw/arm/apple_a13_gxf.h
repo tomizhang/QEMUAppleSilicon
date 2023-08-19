@@ -11,4 +11,4 @@ void apple_a13_init_gxf(AppleA13State *cpu);
 
 void apple_a13_init_gxf_override(AppleA13State *cpu);
 
-#endif /* HW_ARM_APPLE_A13_GXF_H */
+#endif

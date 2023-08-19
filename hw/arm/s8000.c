@@ -668,14 +668,14 @@ static void s8000_create_sep(MachineState *machine)
     DTBProp *prop;
     uint64_t *reg;
     S8000MachineState *tms = S8000_MACHINE(machine);
-    SysBusDevice *sep;
+    AppleSEPState *sep;
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
     assert(child != NULL);
     child = find_dtb_node(child, "sep");
     assert(child != NULL);
 
-    sep = apple_sep_create(child, tms->build_version);
+    sep = apple_sep_create(child, -1, A9_MAX_CPU + 1, tms->build_version);
     assert(sep);
 
     object_property_add_child(OBJECT(machine), "sep", OBJECT(sep));
@@ -686,19 +686,21 @@ static void s8000_create_sep(MachineState *machine)
     /*
     0: AppleA7IOP akfRegMap
     */
-    sysbus_mmio_map(sep, 1, tms->soc_base_pa + reg[0]);
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 1, tms->soc_base_pa + reg[0]);
 
     prop = find_dtb_prop(child, "interrupts");
     assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_connect_irq(sep, i, qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+        sysbus_connect_irq(SYS_BUS_DEVICE(sep), i,
+                           qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
     }
+
     assert(object_property_add_const_link(OBJECT(sep), "dma-mr",
                                           OBJECT(tms->sysmem)));
 
-    sysbus_realize_and_unref(sep, &error_fatal);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(sep), &error_fatal);
 }
 
 static void apple_a9_reset(void *opaque)
@@ -836,9 +838,7 @@ static void s8000_machine_class_init(ObjectClass *klass, void *data)
     mc->desc = "S8000";
     mc->init = s8000_machine_init;
     mc->reset = s8000_machine_reset;
-    mc->max_cpus = A9_MAX_CPU;
-    // this disables the error message "Failed to query for block devices!"
-    // when starting qemu - must keep at least one device
+    mc->max_cpus = A9_MAX_CPU + 1;
     mc->no_sdcard = 1;
     mc->no_floppy = 1;
     mc->no_cdrom = 1;

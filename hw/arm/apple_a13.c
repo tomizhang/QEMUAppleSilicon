@@ -486,6 +486,7 @@ static void apple_a13_ipi_write_cr(CPUARMState *env, const ARMCPRegInfo *ri,
 }
 
 static const ARMCPRegInfo apple_a13_cp_reginfo_tcg[] = {
+    A13_CPREG_DEF(ARM64_REG_EHID3, 3, 0, 15, 3, 1, PL1_RW, 0),
     A13_CPREG_DEF(ARM64_REG_EHID4, 3, 0, 15, 4, 1, PL1_RW, 0),
     A13_CPREG_DEF(ARM64_REG_EHID10, 3, 0, 15, 10, 1, PL1_RW, 0),
     A13_CPREG_DEF(ARM64_REG_HID0, 3, 0, 15, 0, 0, PL1_RW, 0),
@@ -501,6 +502,10 @@ static const ARMCPRegInfo apple_a13_cp_reginfo_tcg[] = {
     A13_CPREG_DEF(ARM64_REG_HID14, 3, 0, 15, 15, 0, PL1_RW, 0),
     A13_CPREG_DEF(ARM64_REG_HID16, 3, 0, 15, 15, 2, PL1_RW, 0),
     A13_CPREG_DEF(ARM64_REG_LSU_ERR_STS, 3, 3, 15, 0, 0, PL1_RW, 0),
+    A13_CPREG_DEF(IMP_BARRIER_LBSY_BST_SYNC_W0_EL0, 3, 3, 15, 15, 0, PL1_RW, 0),
+    A13_CPREG_DEF(IMP_BARRIER_LBSY_BST_SYNC_W1_EL0, 3, 3, 15, 15, 1, PL1_RW, 0),
+    A13_CPREG_DEF(ARM64_REG_3_3_15_7, 3, 3, 15, 7, 0, PL1_RW,
+                  0x8000000000332211ULL),
     A13_CPREG_DEF(PMC0, 3, 2, 15, 0, 0, PL1_RW, 0),
     A13_CPREG_DEF(PMC1, 3, 2, 15, 1, 0, PL1_RW, 0),
     A13_CPREG_DEF(PMCR0, 3, 1, 15, 0, 0, PL1_RW, 0),
@@ -517,57 +522,66 @@ static const ARMCPRegInfo apple_a13_cp_reginfo_tcg[] = {
     A13_CPREG_DEF(UPMSR, 3, 7, 15, 6, 4, PL1_RW, 0),
     A13_CLUSTER_CPREG_DEF(CTRR_A_LWR_EL1, 3, 4, 15, 2, 3, PL1_RW),
     A13_CLUSTER_CPREG_DEF(CTRR_A_UPR_EL1, 3, 4, 15, 2, 4, PL1_RW),
+    A13_CLUSTER_CPREG_DEF(CTRR_B_LWR_EL1, 3, 4, 15, 1, 7, PL1_RW),
+    A13_CLUSTER_CPREG_DEF(CTRR_B_UPR_EL1, 3, 4, 15, 1, 6, PL1_RW),
     A13_CLUSTER_CPREG_DEF(CTRR_CTL_EL1, 3, 4, 15, 2, 5, PL1_RW),
     A13_CLUSTER_CPREG_DEF(CTRR_LOCK_EL1, 3, 4, 15, 2, 2, PL1_RW),
-
-    { .cp = CP_REG_ARM64_SYSREG_CP,
-      .name = "ARM64_REG_IPI_RR_LOCAL",
-      .opc0 = 3,
-      .opc1 = 5,
-      .crn = 15,
-      .crm = 0,
-      .opc2 = 0,
-      .access = PL1_W,
-      .type = ARM_CP_IO | ARM_CP_NO_RAW,
-      .state = ARM_CP_STATE_AA64,
-      .readfn = arm_cp_read_zero,
-      .writefn = apple_a13_ipi_rr_local },
-    { .cp = CP_REG_ARM64_SYSREG_CP,
-      .name = "ARM64_REG_IPI_RR_GLOBAL",
-      .opc0 = 3,
-      .opc1 = 5,
-      .crn = 15,
-      .crm = 0,
-      .opc2 = 1,
-      .access = PL1_W,
-      .type = ARM_CP_IO | ARM_CP_NO_RAW,
-      .state = ARM_CP_STATE_AA64,
-      .readfn = arm_cp_read_zero,
-      .writefn = apple_a13_ipi_rr_global },
-    { .cp = CP_REG_ARM64_SYSREG_CP,
-      .name = "ARM64_REG_IPI_SR",
-      .opc0 = 3,
-      .opc1 = 5,
-      .crn = 15,
-      .crm = 1,
-      .opc2 = 1,
-      .access = PL1_RW,
-      .type = ARM_CP_IO | ARM_CP_NO_RAW,
-      .state = ARM_CP_STATE_AA64,
-      .readfn = apple_a13_ipi_read_sr,
-      .writefn = apple_a13_ipi_write_sr },
-    { .cp = CP_REG_ARM64_SYSREG_CP,
-      .name = "ARM64_REG_IPI_CR",
-      .opc0 = 3,
-      .opc1 = 5,
-      .crn = 15,
-      .crm = 3,
-      .opc2 = 1,
-      .access = PL1_RW,
-      .type = ARM_CP_IO,
-      .state = ARM_CP_STATE_AA64,
-      .readfn = apple_a13_ipi_read_cr,
-      .writefn = apple_a13_ipi_write_cr },
+    {
+        .cp = CP_REG_ARM64_SYSREG_CP,
+        .name = "ARM64_REG_IPI_RR_LOCAL",
+        .opc0 = 3,
+        .opc1 = 5,
+        .crn = 15,
+        .crm = 0,
+        .opc2 = 0,
+        .access = PL1_W,
+        .type = ARM_CP_IO | ARM_CP_NO_RAW,
+        .state = ARM_CP_STATE_AA64,
+        .readfn = arm_cp_read_zero,
+        .writefn = apple_a13_ipi_rr_local,
+    },
+    {
+        .cp = CP_REG_ARM64_SYSREG_CP,
+        .name = "ARM64_REG_IPI_RR_GLOBAL",
+        .opc0 = 3,
+        .opc1 = 5,
+        .crn = 15,
+        .crm = 0,
+        .opc2 = 1,
+        .access = PL1_W,
+        .type = ARM_CP_IO | ARM_CP_NO_RAW,
+        .state = ARM_CP_STATE_AA64,
+        .readfn = arm_cp_read_zero,
+        .writefn = apple_a13_ipi_rr_global,
+    },
+    {
+        .cp = CP_REG_ARM64_SYSREG_CP,
+        .name = "ARM64_REG_IPI_SR",
+        .opc0 = 3,
+        .opc1 = 5,
+        .crn = 15,
+        .crm = 1,
+        .opc2 = 1,
+        .access = PL1_RW,
+        .type = ARM_CP_IO | ARM_CP_NO_RAW,
+        .state = ARM_CP_STATE_AA64,
+        .readfn = apple_a13_ipi_read_sr,
+        .writefn = apple_a13_ipi_write_sr,
+    },
+    {
+        .cp = CP_REG_ARM64_SYSREG_CP,
+        .name = "ARM64_REG_IPI_CR",
+        .opc0 = 3,
+        .opc1 = 5,
+        .crn = 15,
+        .crm = 3,
+        .opc2 = 1,
+        .access = PL1_RW,
+        .type = ARM_CP_IO,
+        .state = ARM_CP_STATE_AA64,
+        .readfn = apple_a13_ipi_read_cr,
+        .writefn = apple_a13_ipi_write_cr,
+    },
 };
 
 static void apple_a13_add_cpregs(AppleA13State *tcpu)
@@ -625,7 +639,9 @@ static void apple_a13_instance_init(Object *obj)
                                    OBJ_PROP_FLAG_READWRITE);
 }
 
-AppleA13State *apple_a13_cpu_create(DTBNode *node)
+AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
+                                    uint32_t phys_id, uint32_t cluster_id,
+                                    uint8_t cluster_type)
 {
     DeviceState *dev;
     AppleA13State *tcpu;
@@ -641,20 +657,27 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node)
     tcpu = APPLE_A13(dev);
     cpu = ARM_CPU(tcpu);
 
-    prop = find_dtb_prop(node, "name");
-    dev->id = g_strdup((char *)prop->value);
+    if (node != NULL) {
+        prop = find_dtb_prop(node, "name");
+        dev->id = g_strdup((char *)prop->value);
 
-    prop = find_dtb_prop(node, "cpu-id");
-    assert(prop->length == 4);
-    tcpu->cpu_id = *(unsigned int *)prop->value;
+        prop = find_dtb_prop(node, "cpu-id");
+        assert(prop->length == 4);
+        tcpu->cpu_id = *(unsigned int *)prop->value;
 
-    prop = find_dtb_prop(node, "reg");
-    assert(prop->length == 4);
-    tcpu->phys_id = *(unsigned int *)prop->value;
+        prop = find_dtb_prop(node, "reg");
+        assert(prop->length == 4);
+        tcpu->phys_id = *(unsigned int *)prop->value;
 
-    prop = find_dtb_prop(node, "cluster-id");
-    assert(prop->length == 4);
-    tcpu->cluster_id = *(unsigned int *)prop->value;
+        prop = find_dtb_prop(node, "cluster-id");
+        assert(prop->length == 4);
+        tcpu->cluster_id = *(unsigned int *)prop->value;
+    } else {
+        dev->id = g_strdup(name);
+        tcpu->cpu_id = cpu_id;
+        tcpu->phys_id = phys_id;
+        tcpu->cluster_id = cluster_id;
+    }
 
     mpidr = 0LL | tcpu->phys_id | (1LL << 31);
 
@@ -664,8 +687,11 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node)
     cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, VARIANT, 0x1);
     cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, REVISION, 0x1);
 
-    prop = find_dtb_prop(node, "cluster-type");
-    switch (prop->value[0]) {
+    if (node) {
+        prop = find_dtb_prop(node, "cluster-type");
+        cluster_type = *prop->value;
+    }
+    switch (cluster_type) {
     case 'P':
         mpidr |= 1 << MPIDR_AFF2_SHIFT;
         cpu->midr =
@@ -682,47 +708,50 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node)
     tcpu->mpidr = mpidr;
     object_property_set_uint(obj, "mp-affinity", mpidr, &error_fatal);
 
-    /* remove debug regs from device tree */
-    prop = find_dtb_prop(node, "reg-private");
-    if (prop != NULL) {
-        remove_dtb_prop(node, prop);
-    }
-
-    prop = find_dtb_prop(node, "cpu-uttdbg-reg");
-    if (prop != NULL) {
-        remove_dtb_prop(node, prop);
-    }
-
-    /* need to set the cpu freqs instead of iBoot */
-    freq = 24000000;
-
-    if (tcpu->cpu_id == 0) {
-        prop = find_dtb_prop(node, "state");
+    if (node != NULL) {
+        /* remove debug regs from device tree */
+        prop = find_dtb_prop(node, "reg-private");
         if (prop != NULL) {
             remove_dtb_prop(node, prop);
         }
-        set_dtb_prop(node, "state", 8, (uint8_t *)"running");
+
+        prop = find_dtb_prop(node, "cpu-uttdbg-reg");
+        if (prop != NULL) {
+            remove_dtb_prop(node, prop);
+        }
+    }
+
+    if (tcpu->cpu_id == 0 || node == NULL) {
+        if (node != NULL) {
+            prop = find_dtb_prop(node, "state");
+            if (prop != NULL) {
+                remove_dtb_prop(node, prop);
+            }
+            set_dtb_prop(node, "state", 8, (uint8_t *)"running");
+        }
     } else {
         object_property_set_bool(obj, "start-powered-off", true, NULL);
     }
 
     /* XXX: QARMA is too slow */
     object_property_set_bool(obj, "pauth-impdef", true, NULL);
-#if 0
-    object_property_set_bool(obj, "start-powered-off", true, NULL);
-#endif
 
-    set_dtb_prop(node, "timebase-frequency", sizeof(uint64_t),
-                 (uint8_t *)&freq);
-    set_dtb_prop(node, "fixed-frequency", sizeof(uint64_t), (uint8_t *)&freq);
-    set_dtb_prop(node, "peripheral-frequency", sizeof(uint64_t),
-                 (uint8_t *)&freq);
-    set_dtb_prop(node, "memory-frequency", sizeof(uint64_t), (uint8_t *)&freq);
-    set_dtb_prop(node, "bus-frequency", sizeof(uint32_t), (uint8_t *)&freq);
-    set_dtb_prop(node, "clock-frequency", sizeof(uint32_t), (uint8_t *)&freq);
+    if (node != NULL) {
+        /* need to set the cpu freqs instead of iBoot */
+        freq = 24000000;
+
+        set_dtb_prop(node, "timebase-frequency", sizeof(freq),
+                     (uint8_t *)&freq);
+        set_dtb_prop(node, "fixed-frequency", sizeof(freq), (uint8_t *)&freq);
+        set_dtb_prop(node, "peripheral-frequency", sizeof(freq),
+                     (uint8_t *)&freq);
+        set_dtb_prop(node, "memory-frequency", sizeof(freq), (uint8_t *)&freq);
+        set_dtb_prop(node, "bus-frequency", sizeof(uint32_t), (uint8_t *)&freq);
+        set_dtb_prop(node, "clock-frequency", sizeof(uint32_t),
+                     (uint8_t *)&freq);
+    }
 
     object_property_set_bool(obj, "has_el3", false, NULL);
-
     object_property_set_bool(obj, "has_el2", false, NULL);
 
     memory_region_init(&tcpu->memory, obj, "cpu-memory", UINT64_MAX);
@@ -730,36 +759,38 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node)
                              0, UINT64_MAX);
     memory_region_add_subregion_overlap(&tcpu->memory, 0, &tcpu->sysmem, -2);
 
-    prop = find_dtb_prop(node, "cpu-impl-reg");
-    if (prop) {
-        assert(prop->length == 16);
+    if (node != NULL) {
+        prop = find_dtb_prop(node, "cpu-impl-reg");
+        if (prop) {
+            assert(prop->length == 16);
 
-        reg = (uint64_t *)prop->value;
+            reg = (uint64_t *)prop->value;
 
-        memory_region_init_ram_device_ptr(&tcpu->impl_reg, obj,
-                                          TYPE_APPLE_A13 ".impl-reg", reg[1],
-                                          g_malloc0(reg[1]));
-        memory_region_add_subregion(get_system_memory(), reg[0],
-                                    &tcpu->impl_reg);
-    }
+            memory_region_init_ram_device_ptr(&tcpu->impl_reg, obj,
+                                              TYPE_APPLE_A13 ".impl-reg",
+                                              reg[1], g_malloc0(reg[1]));
+            memory_region_add_subregion(get_system_memory(), reg[0],
+                                        &tcpu->impl_reg);
+        }
 
-    prop = find_dtb_prop(node, "coresight-reg");
-    if (prop) {
-        assert(prop->length == 16);
+        prop = find_dtb_prop(node, "coresight-reg");
+        if (prop) {
+            assert(prop->length == 16);
 
-        reg = (uint64_t *)prop->value;
+            reg = (uint64_t *)prop->value;
 
-        memory_region_init_ram_device_ptr(&tcpu->coresight_reg, obj,
-                                          TYPE_APPLE_A13 ".coresight-reg",
-                                          reg[1], g_malloc0(reg[1]));
-        memory_region_add_subregion(get_system_memory(), reg[0],
-                                    &tcpu->coresight_reg);
-    }
+            memory_region_init_ram_device_ptr(&tcpu->coresight_reg, obj,
+                                              TYPE_APPLE_A13 ".coresight-reg",
+                                              reg[1], g_malloc0(reg[1]));
+            memory_region_add_subregion(get_system_memory(), reg[0],
+                                        &tcpu->coresight_reg);
+        }
 
-    prop = find_dtb_prop(node, "cpm-impl-reg");
-    if (prop) {
-        assert(prop->length == 16);
-        memcpy(tcpu->cluster_reg, prop->value, 16);
+        prop = find_dtb_prop(node, "cpm-impl-reg");
+        if (prop) {
+            assert(prop->length == 16);
+            memcpy(tcpu->cluster_reg, prop->value, 16);
+        }
     }
     return tcpu;
 }
@@ -779,6 +810,7 @@ static const VMStateDescription vmstate_apple_a13 = {
     .minimum_version_id = 1,
     .fields =
         (VMStateField[]){
+            VMSTATE_A13_CPREG(ARM64_REG_EHID3),
             VMSTATE_A13_CPREG(ARM64_REG_EHID4),
             VMSTATE_A13_CPREG(ARM64_REG_EHID10),
             VMSTATE_A13_CPREG(ARM64_REG_HID0),
@@ -830,6 +862,8 @@ static const VMStateDescription vmstate_apple_a13_cluster = {
             VMSTATE_UINT64(ipi_cr, AppleA13Cluster),
             VMSTATE_A13_CLUSTER_CPREG(CTRR_A_LWR_EL1),
             VMSTATE_A13_CLUSTER_CPREG(CTRR_A_UPR_EL1),
+            VMSTATE_A13_CLUSTER_CPREG(CTRR_B_LWR_EL1),
+            VMSTATE_A13_CLUSTER_CPREG(CTRR_B_UPR_EL1),
             VMSTATE_A13_CLUSTER_CPREG(CTRR_CTL_EL1),
             VMSTATE_A13_CLUSTER_CPREG(CTRR_LOCK_EL1),
             VMSTATE_END_OF_LIST(),

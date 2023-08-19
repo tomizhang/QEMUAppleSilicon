@@ -2,7 +2,7 @@
  *
  * Copyright (c) 2019 Jonathan Afek <jonyafek@me.com>
  * Copyright (c) 2021 Nguyen Hoang Trung (TrungNguyen1909)
- * Copyright (c) 2023 ChefKiss Inc.
+ * Copyright (c) 2023 Visual Ehrmanntraut.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -80,16 +80,18 @@ static const char *KEEP_COMP[] = {
     "usb-drd,t8030\0usb-drd,t8027\0$",
     "disp0,t8030\0$",
     "roswell\0$",
+    "iop,t8030\0iop,t8015\0$",
+    "iop-nub,sep\0$",
 };
 
 static const char *REM_NAMES[] = {
-    "backlight\0$",     "dockchannel-uart\0$", "sep\0$",
-    "pmp\0$",           "aop-gpio\0$",         "dotara\0$",
-    "baseband-spmi\0$", "stockholm-spmi\0$",   "dart-aop\0$",
-    "dart-pmp\0$",      "dart-sep\0$",         "dart-rsm\0$",
-    "dart-scaler\0$",   "dart-jpeg0\0$",       "dart-jpeg1\0$",
-    "dart-isp\0$",      "dart-ave\0$",         "dart-avd\0$",
-    "dart-ane\0$",      "dart-apcie2\0$",      "dart-apcie3\0$",
+    "backlight\0$",      "dockchannel-uart\0$", "pmp\0$",
+    "aop-gpio\0$",       "dotara\0$",           "baseband-spmi\0$",
+    "stockholm-spmi\0$", "dart-aop\0$",         "dart-pmp\0$",
+    "dart-rsm\0$",       "dart-scaler\0$",      "dart-jpeg0\0$",
+    "dart-jpeg1\0$",     "dart-isp\0$",         "dart-ave\0$",
+    "dart-avd\0$",       "dart-ane\0$",         "dart-apcie2\0$",
+    "dart-apcie3\0$",
 };
 
 static const char *REM_DEV_TYPES[] = { "backlight\0$", "pmp\0$", "wlan\0$",
@@ -419,10 +421,8 @@ void macho_populate_dtb(DTBNode *root, macho_boot_info_t info)
     set_dtb_prop(child, "security-domain", sizeof(data), &data);
     set_dtb_prop(child, "chip-epoch", sizeof(data), &data);
     set_dtb_prop(child, "amfi-allows-trust-cache-load", sizeof(data), &data);
-    data = 0;
-    set_dtb_prop(child, "debug-enabled", sizeof(data), &data);
-    data = 0;
-    prop = set_dtb_prop(child, "protected-data-access", sizeof(data), &data);
+    // data = 1;
+    // set_dtb_prop(child, "debug-enabled", sizeof(data), &data);
 
     child = get_dtb_node(root, "chosen/manifest-properties");
     set_dtb_prop(child, "BNCH", sizeof(info->boot_nonce_hash),
@@ -431,22 +431,7 @@ void macho_populate_dtb(DTBNode *root, macho_boot_info_t info)
     child = get_dtb_node(root, "filesystems");
     child = get_dtb_node(child, "fstab");
 
-    /* TODO: SEP xART */
-    remove_dtb_node_by_name(child, "xart-vol");
-
     remove_dtb_node_by_name(child, "baseband-vol");
-
-    child = get_dtb_node(root, "defaults");
-    assert(child);
-    data = 1;
-    // TODO: Workaround: AppleKeyStore SEP(?)
-    set_dtb_prop(child, "no-effaceable-storage", sizeof(data), &data);
-
-    child = get_dtb_node(root, "product");
-    assert(child);
-    data = 1;
-    // TODO: Workaround: AppleKeyStore SEP(?)
-    set_dtb_prop(child, "boot-ios-diagnostics", sizeof(data), &data);
 
     macho_dtb_node_process(root, NULL);
 

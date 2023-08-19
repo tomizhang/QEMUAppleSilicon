@@ -73,7 +73,6 @@ static uint32_t key_size(uint8_t len)
     default:
         return 0;
     }
-    return 0;
 }
 
 static QCryptoCipherAlgorithm key_algo(uint8_t mode)
@@ -88,7 +87,6 @@ static QCryptoCipherAlgorithm key_algo(uint8_t mode)
     default:
         return QCRYPTO_CIPHER_ALG__MAX;
     }
-    return QCRYPTO_CIPHER_ALG__MAX;
 }
 
 static QCryptoCipherMode key_mode(block_mode_t mode)
@@ -103,7 +101,6 @@ static QCryptoCipherMode key_mode(block_mode_t mode)
     default:
         return QCRYPTO_CIPHER_MODE__MAX;
     }
-    return QCRYPTO_CIPHER_MODE__MAX;
 }
 
 static void apple_aes_reset(DeviceState *s);
@@ -117,12 +114,10 @@ static void aes_update_irq(AppleAESState *s)
             qemu_irq_raise(s->irq);
             trace_apple_aes_update_irq(1);
         }
-    } else {
-        if (s->last_level) {
-            s->last_level = 0;
-            qemu_irq_lower(s->irq);
-            trace_apple_aes_update_irq(0);
-        }
+    } else if (s->last_level) {
+        s->last_level = 0;
+        qemu_irq_lower(s->irq);
+        trace_apple_aes_update_irq(0);
     }
 }
 
@@ -374,8 +369,13 @@ static void aes_security_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
 static uint64_t aes_security_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
-    /* Disable platform keys since we don't know them */
-    return 0xff;
+    switch (addr) {
+    case 0x20:
+        return 0x4; // board-id ; match with t8030.c
+    default:
+        /* We don't know the rest */
+        return 0xff;
+    }
 }
 
 static void aes_reg_write(void *opaque, hwaddr addr, uint64_t data,
@@ -400,31 +400,35 @@ static void aes_reg_write(void *opaque, hwaddr addr, uint64_t data,
     old = *mmio;
 
     switch (addr) {
-    case rAES_VERSION:
-    case rAES_STATUS:
-    case rAES_KEY_ID:
-    case rAES_AXI_STATUS:
-    case rAES_COMMAND_FIFO_STATUS:
-    case rAES_COMMAND_FIFO_COUNT:
-    case rAES_FLAG_COMMAND:
-    case rAES_SKG_KEY:
+    case REG_AES_VERSION:
+        QEMU_FALLTHROUGH;
+    case REG_AES_STATUS:
+        QEMU_FALLTHROUGH;
+    case REG_AES_KEY_ID:
+        QEMU_FALLTHROUGH;
+    case REG_AES_AXI_STATUS:
+        QEMU_FALLTHROUGH;
+    case REG_AES_COMMAND_FIFO_STATUS:
+        QEMU_FALLTHROUGH;
+    case REG_AES_COMMAND_FIFO_COUNT:
+        QEMU_FALLTHROUGH;
+    case REG_AES_FLAG_COMMAND:
+        QEMU_FALLTHROUGH;
+    case REG_AES_SKG_KEY:
         nowrite = true;
         val = old;
         break;
-
-    case rAES_INT_STATUS:
+    case REG_AES_INT_STATUS:
         nowrite = true;
         val = qatomic_and_fetch(&s->reg.int_status.raw, ~val);
-
         QEMU_FALLTHROUGH;
-
-    case rAES_INT_ENABLE:
+    case REG_AES_INT_ENABLE:
         iflg = 1;
         break;
-    case rAES_WATERMARKS:
+    case REG_AES_WATERMARKS:
         aes_update_command_fifo_status(s);
         break;
-    case rAES_CONTROL:
+    case REG_AES_CONTROL:
         switch (val) {
         case AES_BLK_CONTROL_START:
             aes_start(s);
@@ -440,13 +444,13 @@ static void aes_reg_write(void *opaque, hwaddr addr, uint64_t data,
             break;
         default:
             qemu_log_mask(LOG_GUEST_ERROR,
-                          "rAES_CONTROL: Invalid write: 0x%x\n", val);
+                          "REG_AES_CONTROL: Invalid write: 0x%x\n", val);
             break;
         }
         nowrite = true;
         val = old;
         break;
-    case rAES_COMMAND_FIFO:
+    case REG_AES_COMMAND_FIFO:
         if (s->data_len > s->data_read) {
             s->data[s->data_read] = val;
             s->data_read++;
@@ -498,7 +502,7 @@ static void aes_reg_write(void *opaque, hwaddr addr, uint64_t data,
                 qatomic_or(&s->reg.int_status.raw, AES_BLK_INT_INVALID_COMMAND);
                 iflg = 1;
                 qemu_log_mask(LOG_GUEST_ERROR,
-                              "rAES_COMMAND_FIFO: Unknown opcode: 0x%x\n",
+                              "REG_AES_COMMAND_FIFO: Unknown opcode: 0x%x\n",
                               COMMAND_OPCODE(val));
                 break;
             }
@@ -526,7 +530,7 @@ static void aes_reg_write(void *opaque, hwaddr addr, uint64_t data,
         s->reg.command_fifo_status.level++;
         aes_update_command_fifo_status(s);
         break;
-    case rAES_CONFIG:
+    case REG_AES_CONFIG:
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR,
@@ -557,18 +561,31 @@ static uint64_t aes_reg_read(void *opaque, hwaddr addr, unsigned size)
         return 0;
     }
 
+    s->reg.status.text_dpa_random_seeded = 1;
+    s->reg.status.key_unwrap_dpa_random_seeded = 1;
+    s->reg.status.dpa_seeded_unk0 = 1;
+    s->reg.status.dpa_seeded_unk1 = 1;
+    s->reg.status.dpa_seeded_unk2 = 1;
+    s->reg.status.dpa_seeded_unk3 = 1;
+    s->reg.status.dpa_seeded_unk4 = 1;
+    s->reg.status.dpa_seeded_unk5 = 1;
     mmio = &s->reg.raw[addr >> 2];
 
     switch (addr) {
-    case rAES_INT_STATUS:
-    case rAES_COMMAND_FIFO_STATUS:
-    case rAES_FLAG_COMMAND:
+    case REG_AES_INT_STATUS:
+        QEMU_FALLTHROUGH;
+    case REG_AES_COMMAND_FIFO_STATUS:
+        QEMU_FALLTHROUGH;
+    case REG_AES_FLAG_COMMAND:
         val = qatomic_read(mmio);
         break;
     default:
         val = s->reg.raw[addr >> 2];
         break;
     }
+#if 0
+    qemu_log_mask(LOG_UNIMP, "AES reg READ @ 0x%llx value: 0x%llx\n", addr, val);
+#endif
 
     trace_apple_aes_reg_read(addr, val);
     return val;

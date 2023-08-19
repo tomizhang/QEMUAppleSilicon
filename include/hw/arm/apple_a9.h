@@ -66,4 +66,4 @@ typedef struct AppleA9State {
 AppleA9State *apple_a9_create(DTBNode *node);
 bool apple_a9_is_sleep(AppleA9State *tcpu);
 void apple_a9_wakeup(AppleA9State *tcpu);
-#endif /* HW_ARM_APPLE_A9_H */
+#endif

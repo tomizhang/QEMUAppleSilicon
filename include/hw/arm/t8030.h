@@ -83,5 +83,7 @@ typedef struct {
     MemoryRegion amcc;
     uint8_t amcc_reg[0x100000];
     bool kaslr_off;
+    bool force_dfu;
 } T8030MachineState;
+
 #endif

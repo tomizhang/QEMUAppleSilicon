@@ -322,6 +322,10 @@ static void apple_gpio_reg_write(void *opaque, hwaddr addr, uint64_t data,
         return apple_gpio_int_write(s, (addr - rGPIOINT(0, 0)) >> 6, addr,
                                     data);
 
+    case rGPIO_NPL_IN_EN:
+        s->npl = data;
+        break;
+
     default:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: Bad offset 0x" HWADDR_FMT_plx ": " HWADDR_FMT_plx
@@ -344,6 +348,9 @@ static uint64_t apple_gpio_reg_read(void *opaque, hwaddr addr, unsigned size)
 
     case rGPIO_NPL_IN_EN:
         return s->npl;
+
+    case 0xC4C:
+        return 0xFF;
 
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",

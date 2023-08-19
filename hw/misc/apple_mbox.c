@@ -1,4 +1,5 @@
 #include "qemu/osdep.h"
+#include "hw/core/cpu.h"
 #include "hw/irq.h"
 #include "hw/misc/apple_mbox.h"
 #include "hw/qdev-properties.h"
@@ -426,8 +427,7 @@ static void iop_handle_management_msg(void *opaque, uint32_t ep,
         m.ping.seg = msg->ping.seg;
         m.ping.timestamp = msg->ping.timestamp;
         apple_mbox_send_control_message(s, 0, m.raw);
-        goto end;
-        break;
+        return;
     }
     case MSG_TYPE_POWERACK: {
         struct apple_mbox_mgmt_msg m = { 0 };
@@ -435,11 +435,10 @@ static void iop_handle_management_msg(void *opaque, uint32_t ep,
         m.type = MSG_TYPE_POWERACK;
         m.power.state = msg->power.state;
         apple_mbox_send_control_message(s, 0, m.raw);
-        goto end;
-        break;
+        return;
+    }
     default:
         break;
-    }
     }
     switch (s->ep0_status) {
     case EP0_IDLE:
@@ -510,8 +509,6 @@ static void iop_handle_management_msg(void *opaque, uint32_t ep,
         IOP_LOG_MGMT_MSG(s, msg);
         break;
     }
-end:
-    return;
 }
 
 static void apple_mbox_bh(void *opaque)
@@ -606,6 +603,10 @@ static void apple_mbox_reg_write(void *opaque, hwaddr addr, uint64_t data,
             memcpy(msg->data, &s->regs[REG_A7V4_A2I_SEND0], 16);
             apple_mbox_inbox_push(s, msg);
             iop_update_irq(s);
+            if (!strncmp(s->role, "SEP", 4)) {
+                CPUState *cpu = first_cpu;
+                cpu_dump_state(cpu, stderr, CPU_DUMP_CODE);
+            }
         }
         if (iflg) {
             ap_update_irq(s);
@@ -997,9 +998,7 @@ AppleMboxState *apple_mbox_create(const char *role, void *opaque,
     if (mmio_size > REG_SIZE) {
         mmio_size = REG_SIZE;
     }
-    /*
-     * 0: AppleA7IOP akfRegMap
-     */
+
     memory_region_init_io(&s->mmio, OBJECT(dev), &apple_mbox_reg_ops, s, name,
                           mmio_size);
     sysbus_init_mmio(sbd, &s->mmio);
