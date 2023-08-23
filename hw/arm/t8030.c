@@ -143,24 +143,24 @@ static void t8030_create_s3c_uart(const T8030MachineState *tms, uint32_t port,
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io/uart0");
     char name[32] = { 0 };
 
-    assert(port < T8030_NUM_UARTS);
+    g_assert(port < T8030_NUM_UARTS);
 
-    assert(child != NULL);
+    g_assert(child);
     snprintf(name, sizeof(name), "uart%d", port);
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop != NULL);
+    g_assert(prop);
 
     uart_offset = (hwaddr *)prop->value;
     base = tms->soc_base_pa + uart_offset[0] + uart_offset[1] * port;
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
 
     vector = *(uint32_t *)prop->value + port;
     dev = apple_uart_create(base, 15, 0, chr,
                             qdev_get_gpio_in(DEVICE(tms->aic), vector));
-    assert(dev);
+    g_assert(dev);
     dev->id = g_strdup(name);
 }
 
@@ -368,7 +368,7 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     last_range = xnu_pf_segment(hdr, "__PRELINK_INFO");
 
     extradata_size = align_16k_high(info->dtb_size + info->trustcache_size);
-    assert(extradata_size < L2_GRANULE);
+    g_assert(extradata_size < L2_GRANULE);
 
     get_kaslr_slides(tms, &slide_phys, &slide_virt);
 
@@ -599,7 +599,7 @@ static void t8030_memory_setup(MachineState *machine)
     }
 
     // hdr = tms->kernel;
-    // assert(hdr);
+    // g_assert(hdr);
 
     // macho_allocate_segment_records(memory_map, hdr);
 
@@ -800,9 +800,9 @@ static void t8030_cpu_setup(MachineState *machine)
     t8030_cluster_setup(machine);
 
     root = find_dtb_node(tms->device_tree, "cpus");
-    assert(root);
+    g_assert(root);
 
-    for (iter = root->child_nodes, i = 0; iter != NULL; iter = next, i++) {
+    for (iter = root->child_nodes, i = 0; iter; iter = next, i++) {
         uint32_t cluster_id;
         DTBNode *node;
 
@@ -834,19 +834,19 @@ static void t8030_create_aic(MachineState *machine)
     DTBNode *child;
     DTBNode *timebase;
 
-    assert(soc != NULL);
+    g_assert(soc);
     child = find_dtb_node(soc, "aic");
-    assert(child != NULL);
+    g_assert(child);
     timebase = find_dtb_node(soc, "aic-timebase");
-    assert(timebase);
+    g_assert(timebase);
 
     tms->aic = apple_aic_create(machine->smp.cpus - 1, child, timebase);
     object_property_add_child(OBJECT(machine), "aic", OBJECT(tms->aic));
-    assert(tms->aic);
+    g_assert(tms->aic);
     sysbus_realize(tms->aic, &error_fatal);
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop != NULL);
+    g_assert(prop);
 
     reg = (hwaddr *)prop->value;
 
@@ -868,12 +868,12 @@ static void t8030_pmgr_setup(MachineState *machine)
     T8030MachineState *tms = T8030_MACHINE(machine);
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
-    assert(child != NULL);
+    g_assert(child);
     child = find_dtb_node(child, "pmgr");
-    assert(child != NULL);
+    g_assert(child);
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
 
     reg = (uint64_t *)prop->value;
 
@@ -965,11 +965,11 @@ static void t8030_amcc_setup(MachineState *machine)
     uint64_t data64;
 
     child = get_dtb_node(tms->device_tree, "chosen");
-    assert(child);
+    g_assert(child);
     child = get_dtb_node(child, "lock-regs");
-    assert(child);
+    g_assert(child);
     child = get_dtb_node(child, "amcc");
-    assert(child);
+    g_assert(child);
     data = 1;
     set_dtb_prop(child, "aperture-count", 4, &data);
     data = 0x100000;
@@ -1021,17 +1021,17 @@ static void t8030_create_dart(MachineState *machine, const char *name)
     T8030MachineState *tms = T8030_MACHINE(machine);
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
-    assert(child);
+    g_assert(child);
     child = find_dtb_node(child, name);
     if (!child)
         return;
 
     dart = apple_dart_create(child);
-    assert(dart);
+    g_assert(dart);
     object_property_add_child(OBJECT(machine), name, OBJECT(dart));
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
 
     reg = (uint64_t *)prop->value;
 
@@ -1040,7 +1040,7 @@ static void t8030_create_dart(MachineState *machine, const char *name)
     }
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
@@ -1059,16 +1059,16 @@ static void t8030_create_sart(MachineState *machine)
     DTBProp *prop;
     SysBusDevice *sart;
 
-    assert(child != NULL);
+    g_assert(child);
     child = find_dtb_node(child, "sart-ans");
-    assert(child != NULL);
+    g_assert(child);
 
     sart = apple_sart_create(child);
-    assert(sart);
+    g_assert(sart);
     object_property_add_child(OBJECT(machine), "sart-ans", OBJECT(sart));
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
 
     sysbus_mmio_map(sart, 0, tms->soc_base_pa + reg[0]);
@@ -1088,11 +1088,11 @@ static void t8030_create_ans(MachineState *machine)
     DTBNode *iop_nub;
     struct xnu_iop_segment_range segranges[2] = { 0 };
 
-    assert(child != NULL);
+    g_assert(child);
     child = find_dtb_node(child, "ans");
-    assert(child != NULL);
+    g_assert(child);
     iop_nub = find_dtb_node(child, "iop-ans-nub");
-    assert(iop_nub != NULL);
+    g_assert(iop_nub);
 
     prop = find_dtb_prop(iop_nub, "region-base");
     *(uint64_t *)prop->value = T8030_ANS_DATA_BASE;
@@ -1121,13 +1121,13 @@ static void t8030_create_ans(MachineState *machine)
         object_property_get_link(OBJECT(machine), "sart-ans", &error_fatal));
 
     ans = apple_ans_create(child, tms->rtbuddyv2_protocol_version);
-    assert(ans);
-    assert(object_property_add_const_link(
+    g_assert(ans);
+    g_assert(object_property_add_const_link(
         OBJECT(ans), "dma-mr", OBJECT(sysbus_mmio_get_region(sart, 1))));
 
     object_property_add_child(OBJECT(machine), "ans", OBJECT(ans));
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
 
     for (i = 0; i < 4; i++) {
@@ -1135,8 +1135,8 @@ static void t8030_create_ans(MachineState *machine)
     }
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
-    assert(prop->length == 20);
+    g_assert(prop);
+    g_assert(prop->length == 20);
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
@@ -1157,17 +1157,17 @@ static void t8030_create_gpio(MachineState *machine, const char *name)
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
     child = find_dtb_node(child, name);
-    assert(child);
+    g_assert(child);
     gpio = apple_gpio_create(child);
-    assert(gpio);
+    g_assert(gpio);
     object_property_add_child(OBJECT(machine), name, OBJECT(gpio));
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
     sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, tms->soc_base_pa + reg[0]);
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
 
     ints = (uint32_t *)prop->value;
 
@@ -1191,15 +1191,15 @@ static void t8030_create_i2c(MachineState *machine, const char *name)
     if (!child)
         return;
     i2c = apple_i2c_create(name);
-    assert(i2c);
+    g_assert(i2c);
     object_property_add_child(OBJECT(machine), name, OBJECT(i2c));
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
     sysbus_mmio_map(i2c, 0, tms->soc_base_pa + reg[0]);
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
 
     sysbus_connect_irq(
         i2c, 0, qdev_get_gpio_in(DEVICE(tms->aic), *(uint32_t *)prop->value));
@@ -1222,7 +1222,7 @@ static void t8030_create_spi(MachineState *machine, uint32_t port)
     uint32_t irq = spi_irqs[port];
     uint32_t cs_pin = spi_cs_pins[port];
 
-    assert(port < T8030_NUM_SPIS);
+    g_assert(port < T8030_NUM_SPIS);
     snprintf(name, sizeof(name), "spi%d", port);
     child = find_dtb_node(child, name);
 
@@ -1232,21 +1232,21 @@ static void t8030_create_spi(MachineState *machine, uint32_t port)
         spi = SYS_BUS_DEVICE(qdev_new(TYPE_APPLE_SPI));
         DEVICE(spi)->id = g_strdup(name);
     }
-    assert(spi);
+    g_assert(spi);
     object_property_add_child(OBJECT(machine), name, OBJECT(spi));
 
     sio = object_property_get_link(OBJECT(machine), "sio", &error_fatal);
-    assert(object_property_add_const_link(OBJECT(spi), "sio", sio));
+    g_assert(object_property_add_const_link(OBJECT(spi), "sio", sio));
     sysbus_realize_and_unref(SYS_BUS_DEVICE(spi), &error_fatal);
 
     if (child) {
         prop = find_dtb_prop(child, "reg");
-        assert(prop);
+        g_assert(prop);
         reg = (uint64_t *)prop->value;
         base = tms->soc_base_pa + reg[0];
 
         prop = find_dtb_prop(child, "interrupts");
-        assert(prop);
+        g_assert(prop);
         ints = (uint32_t *)prop->value;
         irq = ints[0];
     }
@@ -1266,7 +1266,7 @@ static void t8030_create_spi(MachineState *machine, uint32_t port)
     if (cs_pin != -1) {
         gpio = DEVICE(
             object_property_get_link(OBJECT(machine), "gpio", &error_fatal));
-        assert(gpio);
+        g_assert(gpio);
         qdev_connect_gpio_out(
             gpio, cs_pin, qdev_get_gpio_in_named(DEVICE(spi), SSI_GPIO_CS, 0));
     }
@@ -1297,34 +1297,34 @@ static void t8030_create_usb(MachineState *machine)
     object_property_add_child(OBJECT(machine), "atc", OBJECT(atc));
 
     prop = find_dtb_prop(dart_mapper, "reg");
-    assert(prop);
-    assert(prop->length == 4);
+    g_assert(prop);
+    g_assert(prop->length == 4);
     iommu = apple_dart_instance_iommu_mr(dart, 1, *(uint32_t *)prop->value);
-    assert(iommu);
+    g_assert(iommu);
 
-    assert(
+    g_assert(
         object_property_add_const_link(OBJECT(atc), "dma-xhci", OBJECT(iommu)));
-    assert(
+    g_assert(
         object_property_add_const_link(OBJECT(atc), "dma-drd", OBJECT(iommu)));
 
     prop = find_dtb_prop(dart_dwc2_mapper, "reg");
-    assert(prop);
-    assert(prop->length == 4);
+    g_assert(prop);
+    g_assert(prop->length == 4);
     iommu = apple_dart_instance_iommu_mr(dart, 1, *(uint32_t *)prop->value);
-    assert(iommu);
+    g_assert(iommu);
 
-    assert(
+    g_assert(
         object_property_add_const_link(OBJECT(atc), "dma-otg", OBJECT(iommu)));
 
     prop = find_dtb_prop(phy, "reg");
-    assert(prop);
+    g_assert(prop);
     sysbus_mmio_map(SYS_BUS_DEVICE(atc), 0,
                     tms->soc_base_pa + ((uint64_t *)prop->value)[0]);
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(atc), &error_fatal);
 
     prop = find_dtb_prop(drd, "interrupts");
-    assert(prop);
+    g_assert(prop);
     ints = (uint32_t *)prop->value;
     for (int i = 0; i < 4; i++) {
         sysbus_connect_irq(SYS_BUS_DEVICE(atc), i,
@@ -1345,23 +1345,23 @@ static void t8030_create_wdt(MachineState *machine)
     SysBusDevice *wdt;
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
-    assert(child != NULL);
+    g_assert(child);
     child = find_dtb_node(child, "wdt");
-    assert(child != NULL);
+    g_assert(child);
 
     wdt = apple_wdt_create(child);
-    assert(wdt);
+    g_assert(wdt);
 
     object_property_add_child(OBJECT(machine), "wdt", OBJECT(wdt));
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
 
     sysbus_mmio_map(wdt, 0, tms->soc_base_pa + reg[0]);
     sysbus_mmio_map(wdt, 1, tms->soc_base_pa + reg[2]);
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
@@ -1398,39 +1398,39 @@ static void t8030_create_aes(MachineState *machine)
     DTBNode *dart_sio = find_dtb_node(child, "dart-sio");
     DTBNode *dart_aes_mapper = find_dtb_node(dart_sio, "mapper-aes");
 
-    assert(child != NULL);
+    g_assert(child);
     child = find_dtb_node(child, "aes");
-    assert(child != NULL);
-    assert(dart_sio);
-    assert(dart_aes_mapper);
+    g_assert(child);
+    g_assert(dart_sio);
+    g_assert(dart_aes_mapper);
 
     aes = apple_aes_create(child);
-    assert(aes);
+    g_assert(aes);
 
     object_property_add_child(OBJECT(machine), "aes", OBJECT(aes));
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
 
     sysbus_mmio_map(aes, 0, tms->soc_base_pa + reg[0]);
     sysbus_mmio_map(aes, 1, tms->soc_base_pa + reg[2]);
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
-    assert(prop->length == 4);
+    g_assert(prop);
+    g_assert(prop->length == 4);
     ints = (uint32_t *)prop->value;
 
     sysbus_connect_irq(aes, 0, qdev_get_gpio_in(DEVICE(tms->aic), *ints));
 
     dart = APPLE_DART(
         object_property_get_link(OBJECT(machine), "dart-sio", &error_fatal));
-    assert(dart);
+    g_assert(dart);
 
     prop = find_dtb_prop(dart_aes_mapper, "reg");
 
     dma_mr = apple_dart_iommu_mr(dart, *(uint32_t *)prop->value);
-    assert(dma_mr);
-    assert(
+    g_assert(dma_mr);
+    g_assert(
         object_property_add_const_link(OBJECT(aes), "dma-mr", OBJECT(dma_mr)));
 
     sysbus_realize_and_unref(aes, &error_fatal);
@@ -1445,17 +1445,17 @@ static void t8030_create_spmi(MachineState *machine, const char *name)
     T8030MachineState *tms = T8030_MACHINE(machine);
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
-    assert(child);
+    g_assert(child);
     child = find_dtb_node(child, name);
     if (!child)
         return;
 
     spmi = apple_spmi_create(child);
-    assert(spmi);
+    g_assert(spmi);
     object_property_add_child(OBJECT(machine), name, OBJECT(spmi));
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
 
     reg = (uint64_t *)prop->value;
 
@@ -1463,7 +1463,7 @@ static void t8030_create_spmi(MachineState *machine, const char *name)
                     (tms->soc_base_pa + reg[2]) & ~(APPLE_SPMI_MMIO_SIZE - 1));
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
     ints = (uint32_t *)prop->value;
     /* XXX: Only the second interrupt's parent is AIC */
     sysbus_connect_irq(SYS_BUS_DEVICE(spmi), 0,
@@ -1482,25 +1482,25 @@ static void t8030_create_pmu(MachineState *machine, const char *parent,
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
     uint32_t *ints;
 
-    assert(child);
+    g_assert(child);
     child = find_dtb_node(child, parent);
     if (!child)
         return;
 
     spmi = APPLE_SPMI(
         object_property_get_link(OBJECT(machine), parent, &error_fatal));
-    assert(spmi);
+    g_assert(spmi);
 
     child = find_dtb_node(child, name);
     if (!child)
         return;
 
     pmu = apple_spmi_pmu_create(child);
-    assert(pmu);
+    g_assert(pmu);
     object_property_add_child(OBJECT(machine), name, OBJECT(pmu));
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     qdev_connect_gpio_out(pmu, 0, qdev_get_gpio_in(DEVICE(spmi), ints[0]));
@@ -1520,11 +1520,11 @@ static void t8030_create_smc(MachineState *machine)
     DTBNode *iop_nub;
     struct xnu_iop_segment_range segranges[2] = { 0 };
 
-    assert(child != NULL);
+    g_assert(child);
     child = find_dtb_node(child, "smc");
-    assert(child != NULL);
+    g_assert(child);
     iop_nub = find_dtb_node(child, "iop-smc-nub");
-    assert(iop_nub != NULL);
+    g_assert(iop_nub);
 
     set_dtb_prop(iop_nub, "segment-names", 14, "__TEXT;__DATA");
 
@@ -1548,11 +1548,11 @@ static void t8030_create_smc(MachineState *machine)
     set_dtb_prop(iop_nub, "sram-addr", 8, &data);
 
     smc = apple_smc_create(child, tms->rtbuddyv2_protocol_version);
-    assert(smc);
+    g_assert(smc);
 
     object_property_add_child(OBJECT(machine), "smc", OBJECT(smc));
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
 
     for (int i = 0; i < prop->length / 16; i++) {
@@ -1562,7 +1562,7 @@ static void t8030_create_smc(MachineState *machine)
     sysbus_mmio_map(smc, 2, T8030_SMC_SRAM_BASE);
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
@@ -1588,11 +1588,11 @@ static void t8030_create_sio(MachineState *machine)
     DTBNode *dart_sio = find_dtb_node(child, "dart-sio");
     DTBNode *dart_sio_mapper = find_dtb_node(dart_sio, "mapper-sio");
 
-    assert(child != NULL);
+    g_assert(child);
     child = find_dtb_node(child, "sio");
-    assert(child != NULL);
+    g_assert(child);
     iop_nub = find_dtb_node(child, "iop-sio-nub");
-    assert(iop_nub != NULL);
+    g_assert(iop_nub);
 
     set_dtb_prop(child, "segment-names", 14, "__TEXT;__DATA");
     set_dtb_prop(iop_nub, "segment-names", 14, "__TEXT;__DATA");
@@ -1613,11 +1613,11 @@ static void t8030_create_sio(MachineState *machine)
     set_dtb_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
 
     sio = apple_sio_create(child, tms->rtbuddyv2_protocol_version);
-    assert(sio);
+    g_assert(sio);
 
     object_property_add_child(OBJECT(machine), "sio", OBJECT(sio));
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
 
     for (int i = 0; i < 2; i++) {
@@ -1625,7 +1625,7 @@ static void t8030_create_sio(MachineState *machine)
     }
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
@@ -1634,13 +1634,13 @@ static void t8030_create_sio(MachineState *machine)
 
     dart = APPLE_DART(
         object_property_get_link(OBJECT(machine), "dart-sio", &error_fatal));
-    assert(dart);
+    g_assert(dart);
 
     prop = find_dtb_prop(dart_sio_mapper, "reg");
 
     dma_mr = apple_dart_iommu_mr(dart, *(uint32_t *)prop->value);
-    assert(dma_mr);
-    assert(
+    g_assert(dma_mr);
+    g_assert(
         object_property_add_const_link(OBJECT(sio), "dma-mr", OBJECT(dma_mr)));
 
     sysbus_realize_and_unref(sio, &error_fatal);
@@ -1653,10 +1653,10 @@ static void t8030_roswell_create(MachineState *machine)
     DTBProp *prop;
 
     child = find_dtb_node(tms->device_tree, "arm-io/i2c3/roswell");
-    assert(child != NULL);
+    g_assert(child);
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop != NULL);
+    g_assert(prop);
     apple_roswell_create(machine, *(uint32_t *)prop->value);
 }
 
@@ -1672,22 +1672,22 @@ static void t8030_create_sep(MachineState *machine)
     AppleDARTState *dart;
 
     armio = find_dtb_node(tms->device_tree, "arm-io");
-    assert(armio != NULL);
+    g_assert(armio);
     child = find_dtb_node(armio, "sep");
-    assert(child != NULL);
+    g_assert(child);
 
     sep = apple_sep_create(child, T8030_SEPROM_BASE, A13_MAX_CPU + 1,
                            tms->build_version, true);
-    assert(sep != NULL);
+    g_assert(sep);
     object_property_add_child(OBJECT(machine), "sep", OBJECT(sep));
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop != NULL);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 0, tms->soc_base_pa + reg[0]);
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop != NULL);
+    g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (int i = 0; i < prop->length / sizeof(uint32_t); i++) {
@@ -1697,18 +1697,18 @@ static void t8030_create_sep(MachineState *machine)
 
     dart = APPLE_DART(
         object_property_get_link(OBJECT(machine), "dart-sep", &error_fatal));
-    assert(dart != NULL);
+    g_assert(dart);
     child = find_dtb_node(armio, "dart-sep");
-    assert(child != NULL);
+    g_assert(child);
     child = find_dtb_node(child, "mapper-sep");
-    assert(child != NULL);
+    g_assert(child);
     prop = find_dtb_prop(child, "reg");
-    assert(prop != NULL);
+    g_assert(prop);
     sep->dma_mr =
         MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->value));
-    assert(sep->dma_mr != NULL);
-    assert(object_property_add_const_link(OBJECT(sep), "dma-mr",
-                                          OBJECT(sep->dma_mr)));
+    g_assert(sep->dma_mr);
+    g_assert(object_property_add_const_link(OBJECT(sep), "dma-mr",
+                                            OBJECT(sep->dma_mr)));
     sep->dma_as = g_new0(AddressSpace, 1);
     address_space_init(sep->dma_as, sep->dma_mr, "sep.dma");
 
@@ -1808,7 +1808,7 @@ static void t8030_machine_init(MachineState *machine)
                  0);
 
     // hdr = macho_load_file(machine->kernel_filename);
-    // assert(hdr);
+    // g_assert(hdr);
     // tms->kernel = hdr;
     // xnu_header = hdr;
     // build_version = macho_build_version(hdr);
@@ -1852,7 +1852,7 @@ static void t8030_machine_init(MachineState *machine)
     data = 266666666;
     set_dtb_prop(tms->device_tree, "clock-frequency", 4, &data);
     child = find_dtb_node(tms->device_tree, "arm-io");
-    assert(child != NULL);
+    g_assert(child);
 
     data = 0x20;
     set_dtb_prop(child, "chip-revision", 4, &data);
@@ -1860,7 +1860,7 @@ static void t8030_machine_init(MachineState *machine)
     set_dtb_prop(child, "clock-frequencies", sizeof(clock_freq), clock_freq);
 
     prop = find_dtb_prop(child, "ranges");
-    assert(prop != NULL);
+    g_assert(prop);
 
     ranges = (hwaddr *)prop->value;
     tms->soc_base_pa = ranges[1];
@@ -1907,17 +1907,17 @@ static void t8030_machine_init(MachineState *machine)
     child = get_dtb_node(tms->device_tree, "product");
 
     uint64_t data64 = 0x100000027;
-    assert(
+    g_assert(
         set_dtb_prop(child, "display-corner-radius", sizeof(data64), &data64));
     data = 0x1;
-    assert(set_dtb_prop(child, "oled-display", sizeof(data), &data));
-    assert(set_dtb_prop(child, "graphics-featureset-class", 7, "MTL1,2"));
-    assert(set_dtb_prop(child, "graphics-featureset-fallbacks", 15,
-                        "MTL1,2:GLES2,0"));
+    g_assert(set_dtb_prop(child, "oled-display", sizeof(data), &data));
+    g_assert(set_dtb_prop(child, "graphics-featureset-class", 7, "MTL1,2"));
+    g_assert(set_dtb_prop(child, "graphics-featureset-fallbacks", 15,
+                          "MTL1,2:GLES2,0"));
     // TODO: PMP
-    assert(set_dtb_prop(tms->device_tree, "target-type", 4, "sim"));
+    g_assert(set_dtb_prop(tms->device_tree, "target-type", 4, "sim"));
     data = 0;
-    assert(set_dtb_prop(child, "device-color-policy", sizeof(data), &data));
+    g_assert(set_dtb_prop(child, "device-color-policy", sizeof(data), &data));
 
     t8030_cpu_setup(machine);
 
@@ -2106,7 +2106,7 @@ static bool t8030_get_kaslr_off(Object *obj, Error **errp)
 
 static ram_addr_t t8030_machine_fixup_ram_size(ram_addr_t size)
 {
-    assert(size == T8030_DRAM_SIZE);
+    g_assert(size == T8030_DRAM_SIZE);
     return size;
 }
 

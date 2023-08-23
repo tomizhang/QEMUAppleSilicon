@@ -45,7 +45,7 @@ static void *align_4_high_ptr(void *ptr)
 
 static DTBProp *read_dtb_prop(uint8_t **dtb_blob)
 {
-    assert(dtb_blob && *dtb_blob);
+    g_assert(dtb_blob && *dtb_blob);
     *dtb_blob = align_4_high_ptr(*dtb_blob);
     DTBProp *prop = g_new0(DTBProp, 1);
     memcpy(&prop->name[0], *dtb_blob, DTB_PROP_NAME_LEN);
@@ -59,7 +59,7 @@ static DTBProp *read_dtb_prop(uint8_t **dtb_blob)
 
     if (prop->length) {
         prop->value = g_malloc0(prop->length);
-        assert(prop->value);
+        g_assert(prop->value);
         memcpy(&prop->value[0], *dtb_blob, prop->length);
         *dtb_blob += prop->length;
     }
@@ -82,7 +82,7 @@ static DTBNode *read_dtb_node(uint8_t **dtb_blob)
 {
     uint32_t i = 0;
 
-    assert(dtb_blob && *dtb_blob);
+    g_assert(dtb_blob && *dtb_blob);
 
     *dtb_blob = align_4_high_ptr(*dtb_blob);
     DTBNode *node = g_new0(DTBNode, 1);
@@ -91,7 +91,7 @@ static DTBNode *read_dtb_node(uint8_t **dtb_blob)
     node->child_node_count = *(uint32_t *)*dtb_blob;
     *dtb_blob += sizeof(uint32_t);
 
-    assert(node->prop_count > 0);
+    g_assert(node->prop_count > 0);
 
     for (i = 0; i < node->prop_count; i++) {
         DTBProp *prop = read_dtb_prop(dtb_blob);
@@ -131,7 +131,7 @@ DTBNode *load_dtb(uint8_t *dtb_blob)
 
 static void save_prop(DTBProp *prop, uint8_t **buf)
 {
-    assert(prop && buf && *buf);
+    g_assert(prop && buf && *buf);
 
     *buf = align_4_high_ptr(*buf);
     memcpy(*buf, &prop->name[0], DTB_PROP_NAME_LEN);
@@ -144,7 +144,7 @@ static void save_prop(DTBProp *prop, uint8_t **buf)
 
 static void save_node(DTBNode *node, uint8_t **buf)
 {
-    assert(node && buf && *buf);
+    g_assert(node && buf && *buf);
 
     *buf = align_4_high_ptr(*buf);
 
@@ -158,23 +158,23 @@ static void save_node(DTBNode *node, uint8_t **buf)
 
 void remove_dtb_node(DTBNode *parent, DTBNode *node)
 {
-    assert(parent && node);
+    g_assert(parent && node);
     GList *iter;
     bool found = false;
 
-    for (iter = parent->child_nodes; iter != NULL; iter = iter->next) {
+    for (iter = parent->child_nodes; iter; iter = iter->next) {
         if (node == iter->data) {
             found = true;
             break;
         }
     }
-    assert(found);
+    g_assert(found);
 
     delete_dtb_node(node);
     parent->child_nodes = g_list_delete_link(parent->child_nodes, iter);
 
     // sanity
-    assert(parent->child_node_count > 0);
+    g_assert(parent->child_node_count > 0);
 
     parent->child_node_count--;
 }
@@ -192,22 +192,22 @@ bool remove_dtb_node_by_name(DTBNode *parent, const char *name)
 
 void remove_dtb_prop(DTBNode *node, DTBProp *prop)
 {
-    assert(node && prop);
+    g_assert(node && prop);
     GList *iter;
     bool found = false;
 
-    for (iter = node->props; iter != NULL; iter = iter->next) {
+    for (iter = node->props; iter; iter = iter->next) {
         if (prop == iter->data) {
             found = true;
             break;
         }
     }
-    assert(found);
+    g_assert(found);
     delete_prop(prop);
     node->props = g_list_delete_link(node->props, iter);
 
     // sanity
-    assert(node->prop_count > 0);
+    g_assert(node->prop_count > 0);
 
     node->prop_count--;
 }
@@ -216,7 +216,7 @@ DTBProp *set_dtb_prop(DTBNode *n, const char *name, uint32_t size,
                       const void *val)
 {
     DTBProp *prop;
-    assert(n && name && val);
+    g_assert(n && name && val);
 
     prop = find_dtb_prop(n, name);
 
@@ -239,11 +239,11 @@ DTBProp *set_dtb_prop(DTBNode *n, const char *name, uint32_t size,
 
 void save_dtb(uint8_t *buf, DTBNode *root)
 {
-    assert(buf && root);
+    g_assert(buf && root);
 
-    // TODO: handle cases where the buffer is not 4 bytes aligned
-    // though this is never expected to happen and the code is simpler this way
-    assert(align_4_high_ptr(buf) == buf);
+    // TODO: handle cases where the buffer is not 4 bytes aligned though this is
+    // never expected to happen and the code is simpler this way
+    g_assert(align_4_high_ptr(buf) == buf);
 
     save_node(root, &buf);
 }
@@ -252,7 +252,7 @@ static uint64_t find_dtb_prop_size(DTBProp *prop)
 {
     uint64_t size = 0;
 
-    assert(prop);
+    g_assert(prop);
 
     size = align_4_high_num(sizeof(prop->name) + sizeof(prop->length) +
                             prop->length);
@@ -261,24 +261,24 @@ static uint64_t find_dtb_prop_size(DTBProp *prop)
 
 uint64_t get_dtb_node_buffer_size(DTBNode *node)
 {
-    uint64_t size = 0;
-    DTBProp *prop = NULL;
-    DTBNode *child = NULL;
-    GList *iter = NULL;
+    uint64_t size;
+    DTBProp *prop;
+    DTBNode *child;
+    GList *iter;
 
-    assert(node);
+    g_assert(node);
 
-    size += sizeof(node->prop_count) + sizeof(node->child_node_count);
+    size = sizeof(node->prop_count) + sizeof(node->child_node_count);
 
-    for (iter = node->props; iter != NULL; iter = iter->next) {
+    for (iter = node->props; iter; iter = iter->next) {
         prop = (DTBProp *)iter->data;
-        assert(prop);
+        g_assert(prop);
         size += find_dtb_prop_size(prop);
     }
 
-    for (iter = node->child_nodes; iter != NULL; iter = iter->next) {
+    for (iter = node->child_nodes; iter; iter = iter->next) {
         child = (DTBNode *)iter->data;
-        assert(child);
+        g_assert(child);
         size += get_dtb_node_buffer_size(child);
     }
 
@@ -287,14 +287,15 @@ uint64_t get_dtb_node_buffer_size(DTBNode *node)
 
 DTBProp *find_dtb_prop(DTBNode *node, const char *name)
 {
-    assert(node && name);
-    GList *iter = NULL;
-    DTBProp *prop = NULL;
+    GList *iter;
+    DTBProp *prop;
 
-    for (iter = node->props; iter != NULL; iter = iter->next) {
+    g_assert(node && name);
+
+    for (iter = node->props; iter; iter = iter->next) {
         prop = (DTBProp *)iter->data;
 
-        assert(prop);
+        g_assert(prop);
 
         if (!strncmp((const char *)prop->name, name, DTB_PROP_NAME_LEN)) {
             return prop;
@@ -314,17 +315,17 @@ DTBNode *find_dtb_node(DTBNode *node, const char *path)
     const char *next;
     bool found = true;
 
-    assert(node && path);
+    g_assert(node && path);
 
-    while (node && found && ((next = strsep(&s, "/")) != NULL)) {
+    while (node && found && ((next = strsep(&s, "/")))) {
         if (strlen(next) == 0) {
             continue;
         }
         found = false;
-        for (iter = node->child_nodes; iter != NULL; iter = iter->next) {
+        for (iter = node->child_nodes; iter; iter = iter->next) {
             child = (DTBNode *)iter->data;
 
-            assert(child);
+            g_assert(child);
 
             prop = find_dtb_prop(child, "name");
 
@@ -350,17 +351,17 @@ DTBNode *get_dtb_node(DTBNode *node, const char *path)
     char *s = to_free;
     const char *name;
 
-    assert(node && path);
+    g_assert(node && path);
 
-    while (node && ((name = strsep(&s, "/")) != NULL)) {
+    while (node && ((name = strsep(&s, "/")))) {
         bool found = false;
         if (strlen(name) == 0) {
             continue;
         }
-        for (iter = node->child_nodes; iter != NULL; iter = iter->next) {
+        for (iter = node->child_nodes; iter; iter = iter->next) {
             child = (DTBNode *)iter->data;
 
-            assert(child);
+            g_assert(child);
 
             prop = find_dtb_prop(child, "name");
 

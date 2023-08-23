@@ -85,6 +85,11 @@ static const ARMCPRegInfo a9_cp_reginfo_tcg[] = {
     A9_CPREG_DEF(L2C_ERR_INF, 3, 3, 15, 10, 0, PL1_RW, 0),
     A9_CPREG_DEF(FED_ERR_STS, 3, 4, 15, 0, 0, PL1_RW, 0),
     A9_CPREG_DEF(CYC_CFG, 3, 5, 15, 4, 0, PL1_RW, 0),
+    A9_CPREG_DEF(SCTLR_EL3, 3, 6, 1, 0, 0, PL1_RW, 0),
+    A9_CPREG_DEF(SCR_EL3, 3, 6, 1, 1, 0, PL1_RW, 0),
+    A9_CPREG_DEF(VBAR_EL3, 3, 6, 12, 0, 0, PL1_RW, 0),
+    A9_CPREG_DEF(RVBAR_EL3, 3, 6, 12, 0, 1, PL1_RW, 0),
+    A9_CPREG_DEF(RMR_EL3, 3, 6, 12, 0, 2, PL1_RW, 0),
     A9_CPREG_DEF(MMU_ERR_STS, 3, 6, 15, 0, 0, PL1_RW, 0),
 };
 
@@ -158,16 +163,16 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
     dev = DEVICE(obj);
     tcpu = APPLE_A9(dev);
 
-    if (node != NULL) {
+    if (node) {
         prop = find_dtb_prop(node, "name");
         dev->id = g_strdup((char *)prop->value);
 
         prop = find_dtb_prop(node, "cpu-id");
-        assert(prop->length == 4);
+        g_assert(prop->length == 4);
         tcpu->cpu_id = *(unsigned int *)prop->value;
 
         prop = find_dtb_prop(node, "reg");
-        assert(prop->length == 4);
+        g_assert(prop->length == 4);
         tcpu->phys_id = *(unsigned int *)prop->value;
     } else {
         dev->id = g_strdup(name);
@@ -180,44 +185,41 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     object_property_set_uint(obj, "mp-affinity", tcpu->mpidr, &error_fatal);
 
-    if (node != NULL) {
+    if (node) {
         /* remove debug regs from device tree */
         prop = find_dtb_prop(node, "reg-private");
-        if (prop != NULL) {
+        if (prop) {
             remove_dtb_prop(node, prop);
         }
 
         prop = find_dtb_prop(node, "cpu-uttdbg-reg");
-        if (prop != NULL) {
+        if (prop) {
             remove_dtb_prop(node, prop);
         }
     }
 
     if (tcpu->cpu_id == 0 || node == NULL) {
-        if (node != NULL) {
-            prop = find_dtb_prop(node, "state");
-            if (prop != NULL) {
-                remove_dtb_prop(node, prop);
-            }
+        if (node) {
             set_dtb_prop(node, "state", 8, (uint8_t *)"running");
         }
+        object_property_set_bool(obj, "start-powered-off", false, NULL);
     } else {
         object_property_set_bool(obj, "start-powered-off", true, NULL);
     }
 
-    if (node != NULL) {
+    if (node) {
         // need to set the cpu freqs instead of iBoot
         freq = 24000000;
 
         prop = find_dtb_prop(node, "timebase-frequency");
-        if (prop != NULL) {
+        if (prop) {
             remove_dtb_prop(node, prop);
         }
         set_dtb_prop(node, "timebase-frequency", sizeof(freq),
                      (uint8_t *)&freq);
 
         prop = find_dtb_prop(node, "fixed-frequency");
-        if (prop != NULL) {
+        if (prop) {
             remove_dtb_prop(node, prop);
         }
         set_dtb_prop(node, "fixed-frequency", sizeof(freq), (uint8_t *)&freq);
@@ -228,10 +230,10 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
                              0, UINT64_MAX);
     memory_region_add_subregion_overlap(&tcpu->memory, 0, &tcpu->sysmem, -2);
 
-    if (node != NULL) {
+    if (node) {
         prop = find_dtb_prop(node, "cpu-impl-reg");
-        assert(prop);
-        assert(prop->length == 16);
+        g_assert(prop);
+        g_assert(prop->length == 16);
 
         reg = (uint64_t *)prop->value;
 
@@ -242,8 +244,8 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
                                     &tcpu->impl_reg);
 
         prop = find_dtb_prop(node, "coresight-reg");
-        assert(prop);
-        assert(prop->length == 16);
+        g_assert(prop);
+        g_assert(prop->length == 16);
 
         reg = (uint64_t *)prop->value;
 
@@ -280,7 +282,10 @@ static const VMStateDescription vmstate_apple_a9 = {
             VMSTATE_A9_CPREG(PMMMAP),      VMSTATE_A9_CPREG(LSU_ERR_STS),
             VMSTATE_A9_CPREG(LSU_ERR_ADR), VMSTATE_A9_CPREG(L2C_ERR_INF),
             VMSTATE_A9_CPREG(FED_ERR_STS), VMSTATE_A9_CPREG(CYC_CFG),
-            VMSTATE_A9_CPREG(MMU_ERR_STS), VMSTATE_END_OF_LIST(),
+            VMSTATE_A9_CPREG(SCTLR_EL3),   VMSTATE_A9_CPREG(SCR_EL3),
+            VMSTATE_A9_CPREG(VBAR_EL3),    VMSTATE_A9_CPREG(RVBAR_EL3),
+            VMSTATE_A9_CPREG(RMR_EL3),     VMSTATE_A9_CPREG(MMU_ERR_STS),
+            VMSTATE_END_OF_LIST(),
         }
 };
 

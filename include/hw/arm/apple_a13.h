@@ -35,7 +35,10 @@ typedef struct AppleA13Class {
 } AppleA13Class;
 
 typedef struct AppleA13State {
+    /*< private >*/
     ARMCPU parent_obj;
+
+    /*< public >*/
     MemoryRegion impl_reg;
     MemoryRegion coresight_reg;
     MemoryRegion memory;

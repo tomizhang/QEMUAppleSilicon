@@ -95,28 +95,28 @@ static void s8000_create_s3c_uart(const S8000MachineState *tms, Chardev *chr)
     hwaddr *uart_offset;
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
-    assert(child != NULL);
+    g_assert(child);
 
     child = find_dtb_node(child, "uart0");
-    assert(child != NULL);
+    g_assert(child);
 
     // make sure this node has the boot-console prop
     prop = find_dtb_prop(child, "boot-console");
-    assert(prop != NULL);
+    g_assert(prop);
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop != NULL);
+    g_assert(prop);
 
     uart_offset = (hwaddr *)prop->value;
     base = tms->soc_base_pa + uart_offset[0];
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
 
     vector = *(uint32_t *)prop->value;
     dev = exynos4210_uart_create(base, 256, 0, chr,
                                  qdev_get_gpio_in(DEVICE(tms->aic), vector));
-    assert(dev);
+    g_assert(dev);
 }
 
 static void s8000_patch_kernel(struct mach_header_64 *hdr)
@@ -269,12 +269,12 @@ static void s8000_cpu_setup(MachineState *machine)
     GList *next = NULL;
 
     root = find_dtb_node(tms->device_tree, "cpus");
-    assert(root);
+    g_assert(root);
     object_initialize_child(OBJECT(machine), "cluster", &tms->cluster,
                             TYPE_CPU_CLUSTER);
     qdev_prop_set_uint32(DEVICE(&tms->cluster), "cluster-id", 0);
 
-    for (iter = root->child_nodes, i = 0; iter != NULL; iter = next, i++) {
+    for (iter = root->child_nodes, i = 0; iter; iter = next, i++) {
         DTBNode *node;
 
         next = iter->next;
@@ -305,19 +305,19 @@ static void s8000_create_aic(MachineState *machine)
     DTBNode *child;
     DTBNode *timebase;
 
-    assert(soc != NULL);
+    g_assert(soc);
     child = find_dtb_node(soc, "aic");
-    assert(child != NULL);
+    g_assert(child);
     timebase = find_dtb_node(soc, "aic-timebase");
-    assert(timebase);
+    g_assert(timebase);
 
     tms->aic = apple_aic_create(machine->smp.cpus - 1, child, timebase);
     object_property_add_child(OBJECT(machine), "aic", OBJECT(tms->aic));
-    assert(tms->aic);
+    g_assert(tms->aic);
     sysbus_realize(tms->aic, &error_fatal);
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop != NULL);
+    g_assert(prop);
 
     reg = (hwaddr *)prop->value;
 
@@ -339,12 +339,12 @@ static void s8000_pmgr_setup(MachineState *machine)
     S8000MachineState *tms = S8000_MACHINE(machine);
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
-    assert(child != NULL);
+    g_assert(child);
     child = find_dtb_node(child, "pmgr");
-    assert(child != NULL);
+    g_assert(child);
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
 
     reg = (uint64_t *)prop->value;
 
@@ -376,17 +376,17 @@ static void s8000_create_dart(MachineState *machine, const char *name)
     S8000MachineState *tms = S8000_MACHINE(machine);
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
-    assert(child);
+    g_assert(child);
     child = find_dtb_node(child, name);
     if (!child)
         return;
 
     dart = apple_dart_create(child);
-    assert(dart);
+    g_assert(dart);
     object_property_add_child(OBJECT(machine), name, OBJECT(dart));
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
 
     reg = (uint64_t *)prop->value;
 
@@ -395,7 +395,7 @@ static void s8000_create_dart(MachineState *machine, const char *name)
     }
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
@@ -417,17 +417,17 @@ static void s8000_create_gpio(MachineState *machine, const char *name)
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
     child = find_dtb_node(child, name);
-    assert(child);
+    g_assert(child);
     gpio = apple_gpio_create(child);
-    assert(gpio);
+    g_assert(gpio);
     object_property_add_child(OBJECT(machine), name, OBJECT(gpio));
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
     sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, tms->soc_base_pa + reg[0]);
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
 
     ints = (uint32_t *)prop->value;
 
@@ -450,17 +450,17 @@ static void s8000_create_i2c(MachineState *machine, const char *name)
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
     child = find_dtb_node(child, name);
-    assert(child);
+    g_assert(child);
     i2c = apple_i2c_create(name);
-    assert(i2c);
+    g_assert(i2c);
     object_property_add_child(OBJECT(machine), name, OBJECT(i2c));
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
     sysbus_mmio_map(i2c, 0, tms->soc_base_pa + reg[0]);
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
 
     ints = (uint32_t *)prop->value;
 
@@ -479,7 +479,7 @@ static void s8000_create_spi0(MachineState *machine)
     const char *name = "spi0";
 
     spi = qdev_new(TYPE_APPLE_SPI);
-    assert(spi);
+    g_assert(spi);
     DEVICE(spi)->id = g_strdup(name);
 
     object_property_add_child(OBJECT(machine), name, OBJECT(spi));
@@ -506,18 +506,18 @@ static void s8000_create_spi(MachineState *machine, const char *name)
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
     child = find_dtb_node(child, name);
-    assert(child);
+    g_assert(child);
     spi = apple_spi_create(child);
-    assert(spi);
+    g_assert(spi);
     object_property_add_child(OBJECT(machine), name, OBJECT(spi));
     sysbus_realize_and_unref(SYS_BUS_DEVICE(spi), &error_fatal);
 
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
     sysbus_mmio_map(SYS_BUS_DEVICE(spi), 0, tms->soc_base_pa + reg[0]);
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
 
     // The second sysbus IRQ is the cs line
     // TODO: Connect this to gpio over spi_cs0?
@@ -535,18 +535,18 @@ static void s8000_create_usb(MachineState *machine)
     DeviceState *otg;
 
     phy = get_dtb_node(child, "otgphyctrl");
-    assert(phy);
+    g_assert(phy);
 
     complex = get_dtb_node(child, "usb-complex");
-    assert(complex);
+    g_assert(complex);
 
     device = get_dtb_node(complex, "usb-device");
-    assert(device);
+    g_assert(device);
 
     otg = apple_otg_create(complex);
     object_property_add_child(OBJECT(machine), "otg", OBJECT(otg));
     prop = find_dtb_prop(phy, "reg");
-    assert(prop);
+    g_assert(prop);
     sysbus_mmio_map(SYS_BUS_DEVICE(otg), 0,
                     tms->soc_base_pa + ((uint64_t *)prop->value)[0]);
     sysbus_mmio_map(SYS_BUS_DEVICE(otg), 1,
@@ -566,7 +566,7 @@ static void s8000_create_usb(MachineState *machine)
     sysbus_realize_and_unref(SYS_BUS_DEVICE(otg), &error_fatal);
 
     prop = find_dtb_prop(device, "interrupts");
-    assert(prop);
+    g_assert(prop);
     sysbus_connect_irq(
         SYS_BUS_DEVICE(otg), 0,
         qdev_get_gpio_in(DEVICE(tms->aic), ((uint32_t *)prop->value)[0]));
@@ -583,23 +583,23 @@ static void s8000_create_wdt(MachineState *machine)
     SysBusDevice *wdt;
     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
-    assert(child != NULL);
+    g_assert(child);
     child = find_dtb_node(child, "wdt");
-    assert(child != NULL);
+    g_assert(child);
 
     wdt = apple_wdt_create(child);
-    assert(wdt);
+    g_assert(wdt);
 
     object_property_add_child(OBJECT(machine), "wdt", OBJECT(wdt));
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
 
     sysbus_mmio_map(wdt, 0, tms->soc_base_pa + reg[0]);
     sysbus_mmio_map(wdt, 1, tms->soc_base_pa + reg[2]);
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
@@ -625,67 +625,71 @@ static void s8000_create_wdt(MachineState *machine)
 
 static void s8000_create_aes(MachineState *machine)
 {
-    uint32_t *ints;
+    S8000MachineState *tms;
+    DTBNode *child;
+    SysBusDevice *aes;
     DTBProp *prop;
     uint64_t *reg;
-    S8000MachineState *tms = S8000_MACHINE(machine);
-    SysBusDevice *aes;
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    uint32_t *ints;
 
-    assert(child != NULL);
+    tms = S8000_MACHINE(machine);
+    child = find_dtb_node(tms->device_tree, "arm-io");
+    g_assert(child);
     child = find_dtb_node(child, "aes");
-    assert(child != NULL);
+    g_assert(child);
 
     aes = apple_aes_create(child);
-    assert(aes);
+    g_assert(aes);
 
     object_property_add_child(OBJECT(machine), "aes", OBJECT(aes));
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
 
     sysbus_mmio_map(aes, 0, tms->soc_base_pa + reg[0]);
     sysbus_mmio_map(aes, 1, tms->soc_base_pa + reg[2]);
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
-    assert(prop->length == 4);
+    g_assert(prop);
+    g_assert(prop->length == 4);
     ints = (uint32_t *)prop->value;
 
     sysbus_connect_irq(aes, 0, qdev_get_gpio_in(DEVICE(tms->aic), *ints));
 
-    assert(object_property_add_const_link(OBJECT(aes), "dma-mr",
-                                          OBJECT(tms->sysmem)));
+    g_assert(object_property_add_const_link(OBJECT(aes), "dma-mr",
+                                            OBJECT(tms->sysmem)));
 
     sysbus_realize_and_unref(aes, &error_fatal);
 }
 
 static void s8000_create_sep(MachineState *machine)
 {
-    int i;
-    uint32_t *ints;
+    S8000MachineState *tms;
+    DTBNode *child;
+    AppleSEPState *sep;
     DTBProp *prop;
     uint64_t *reg;
-    S8000MachineState *tms = S8000_MACHINE(machine);
-    AppleSEPState *sep;
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    uint32_t *ints;
+    int i;
 
-    assert(child != NULL);
+    tms = S8000_MACHINE(machine);
+    child = find_dtb_node(tms->device_tree, "arm-io");
+    g_assert(child);
     child = find_dtb_node(child, "sep");
-    assert(child != NULL);
+    g_assert(child);
 
     sep = apple_sep_create(child, 0, A9_MAX_CPU + 1, tms->build_version, false);
-    assert(sep);
+    g_assert(sep);
 
     object_property_add_child(OBJECT(machine), "sep", OBJECT(sep));
     prop = find_dtb_prop(child, "reg");
-    assert(prop);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
 
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 2, tms->soc_base_pa + reg[0]);
 
     prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
+    g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
@@ -693,8 +697,8 @@ static void s8000_create_sep(MachineState *machine)
                            qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
     }
 
-    assert(object_property_add_const_link(OBJECT(sep), "dma-mr",
-                                          OBJECT(tms->sysmem)));
+    g_assert(object_property_add_const_link(OBJECT(sep), "dma-mr",
+                                            OBJECT(tms->sysmem)));
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(sep), &error_fatal);
 }
@@ -768,10 +772,10 @@ static void s8000_machine_init(MachineState *machine)
 
     tms->device_tree = load_dtb_from_file(machine->dtb);
     child = find_dtb_node(tms->device_tree, "arm-io");
-    assert(child != NULL);
+    g_assert(child);
 
     prop = find_dtb_prop(child, "ranges");
-    assert(prop != NULL);
+    g_assert(prop);
 
     ranges = (hwaddr *)prop->value;
     tms->soc_base_pa = ranges[1];

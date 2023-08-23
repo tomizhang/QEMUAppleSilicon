@@ -389,7 +389,7 @@ static IOMMUTLBEntry apple_dart_translate(IOMMUMemoryRegion *mr, hwaddr addr,
         .perm = IOMMU_NONE,
     };
 
-    assert(sid < DART_MAX_STREAMS);
+    g_assert(sid < DART_MAX_STREAMS);
     qemu_mutex_lock(&o->mutex);
     sid = o->remap[sid] & 0xf;
 
@@ -580,12 +580,12 @@ AppleDARTState *apple_dart_create(DTBNode *node)
     }
 
     prop = find_dtb_prop(node, "instance");
-    assert(prop);
-    assert((prop->length / 12) * 12 == prop->length);
+    g_assert(prop);
+    g_assert((prop->length / 12) * 12 == prop->length);
     instance = (uint32_t *)prop->value;
 
     prop = find_dtb_prop(node, "reg");
-    assert(prop);
+    g_assert(prop);
 
     reg = (uint64_t *)prop->value;
 

@@ -226,9 +226,8 @@ static void apple_a13_cluster_reset(DeviceState *dev)
 static int add_cpu_to_cluster(Object *obj, void *opaque)
 {
     AppleA13Cluster *cluster = APPLE_A13_CLUSTER(opaque);
-    CPUState *cpu = (CPUState *)object_dynamic_cast(obj, TYPE_CPU);
-    AppleA13State *tcpu =
-        (AppleA13State *)object_dynamic_cast(obj, TYPE_APPLE_A13);
+    CPUState *cpu = CPU(obj);
+    AppleA13State *tcpu = APPLE_A13(obj);
 
     if (cpu) {
         cpu->cluster_index = CPU_CLUSTER(cluster)->cluster_id;
@@ -260,7 +259,7 @@ static void apple_a13_cluster_tick(AppleA13Cluster *c)
 
     for (i = 0; i < A13_MAX_CPU; i++) { /* source */
         for (j = 0; j < A13_MAX_CPU; j++) { /* target */
-            if (c->cpus[j] != NULL && c->deferredIPI[i][j] &&
+            if (c->cpus[j] && c->deferredIPI[i][j] &&
                 !apple_a13_cpu_is_powered_off(c->cpus[j])) {
                 apple_a13_cluster_deliver_ipi(c, j, i, IPI_RR_TYPE_DEFERRED);
                 break;
@@ -270,7 +269,7 @@ static void apple_a13_cluster_tick(AppleA13Cluster *c)
 
     for (i = 0; i < A13_MAX_CPU; i++) { /* source */
         for (j = 0; j < A13_MAX_CPU; j++) { /* target */
-            if (c->cpus[j] != NULL && c->noWakeIPI[i][j] &&
+            if (c->cpus[j] && c->noWakeIPI[i][j] &&
                 !apple_a13_cpu_is_sleep(c->cpus[j]) &&
                 !apple_a13_cpu_is_powered_off(c->cpus[j])) {
                 apple_a13_cluster_deliver_ipi(c, j, i, IPI_RR_TYPE_NOWAKE);
@@ -384,11 +383,12 @@ static void apple_a13_ipi_rr_global(CPUARMState *env, const ARMCPRegInfo *ri,
     int i;
 
     for (i = 0; i < A13_MAX_CPU; i++) {
-        if (c->cpus[i] != NULL) {
-            if (c->cpus[i]->phys_id == phys_id) {
-                cpu_id = i;
-                break;
-            }
+        if (c->cpus[i] == NULL) {
+            continue;
+        }
+        if (c->cpus[i]->phys_id == phys_id) {
+            cpu_id = i;
+            break;
         }
     }
 
@@ -431,7 +431,7 @@ static uint64_t apple_a13_ipi_read_sr(CPUARMState *env, const ARMCPRegInfo *ri)
 {
     AppleA13State *tcpu = APPLE_A13(env_archcpu(env));
 
-    assert(env_archcpu(env)->mp_affinity == tcpu->mpidr);
+    g_assert(env_archcpu(env)->mp_affinity == tcpu->mpidr);
     return tcpu->ipi_sr;
 }
 
@@ -656,20 +656,20 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
     tcpu = APPLE_A13(dev);
     cpu = ARM_CPU(tcpu);
 
-    if (node != NULL) {
+    if (node) {
         prop = find_dtb_prop(node, "name");
         dev->id = g_strdup((char *)prop->value);
 
         prop = find_dtb_prop(node, "cpu-id");
-        assert(prop->length == 4);
+        g_assert(prop->length == 4);
         tcpu->cpu_id = *(unsigned int *)prop->value;
 
         prop = find_dtb_prop(node, "reg");
-        assert(prop->length == 4);
+        g_assert(prop->length == 4);
         tcpu->phys_id = *(unsigned int *)prop->value;
 
         prop = find_dtb_prop(node, "cluster-id");
-        assert(prop->length == 4);
+        g_assert(prop->length == 4);
         tcpu->cluster_id = *(unsigned int *)prop->value;
     } else {
         dev->id = g_strdup(name);
@@ -703,36 +703,33 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     object_property_set_uint(obj, "mp-affinity", tcpu->mpidr, &error_fatal);
 
-    if (node != NULL) {
+    if (node) {
         /* remove debug regs from device tree */
         prop = find_dtb_prop(node, "reg-private");
-        if (prop != NULL) {
+        if (prop) {
             remove_dtb_prop(node, prop);
         }
 
         prop = find_dtb_prop(node, "cpu-uttdbg-reg");
-        if (prop != NULL) {
+        if (prop) {
             remove_dtb_prop(node, prop);
         }
     }
 
     if (tcpu->cpu_id == 0 || node == NULL) {
-        if (node != NULL) {
-            prop = find_dtb_prop(node, "state");
-            if (prop != NULL) {
-                remove_dtb_prop(node, prop);
-            }
+        if (node) {
             set_dtb_prop(node, "state", 8, (uint8_t *)"running");
         }
+        object_property_set_bool(obj, "start-powered-off", false, NULL);
     } else {
         object_property_set_bool(obj, "start-powered-off", true, NULL);
     }
 
-    /* XXX: QARMA is too slow */
+    // XXX: QARMA is too slow
     object_property_set_bool(obj, "pauth-impdef", true, NULL);
 
-    if (node != NULL) {
-        /* need to set the cpu freqs instead of iBoot */
+    // need to set the cpu freqs instead of iBoot
+    if (node) {
         freq = 266666666;
 
         set_dtb_prop(node, "timebase-frequency", sizeof(freq),
@@ -754,10 +751,10 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
                              0, UINT64_MAX);
     memory_region_add_subregion_overlap(&tcpu->memory, 0, &tcpu->sysmem, -2);
 
-    if (node != NULL) {
+    if (node) {
         prop = find_dtb_prop(node, "cpu-impl-reg");
         if (prop) {
-            assert(prop->length == 16);
+            g_assert(prop->length == 16);
 
             reg = (uint64_t *)prop->value;
 
@@ -770,7 +767,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
         prop = find_dtb_prop(node, "coresight-reg");
         if (prop) {
-            assert(prop->length == 16);
+            g_assert(prop->length == 16);
 
             reg = (uint64_t *)prop->value;
 
@@ -783,7 +780,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
         prop = find_dtb_prop(node, "cpm-impl-reg");
         if (prop) {
-            assert(prop->length == 16);
+            g_assert(prop->length == 16);
             memcpy(tcpu->cluster_reg, prop->value, 16);
         }
     }

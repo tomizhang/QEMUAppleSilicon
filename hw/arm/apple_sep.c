@@ -55,7 +55,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     object_property_add_child(OBJECT(dev), DEVICE(s->cpu)->id, OBJECT(s->cpu));
 
     prop = find_dtb_prop(node, "reg");
-    assert(prop != NULL);
+    g_assert(prop);
     reg = (uint64_t *)prop->value;
 
     s->mbox = apple_mbox_create("SEP", s, reg[1],
@@ -64,7 +64,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     apple_mbox_set_real(s->mbox, true);
 
     qdev_connect_gpio_out_named(DEVICE(s->mbox), APPLE_MBOX_IOP_IRQ, 0,
-                                qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_FIQ));
+                                qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_IRQ));
 
     object_property_add_child(OBJECT(s), "mbox", OBJECT(s->mbox));
 
