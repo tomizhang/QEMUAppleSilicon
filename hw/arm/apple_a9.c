@@ -125,7 +125,6 @@ static void apple_a9_realize(DeviceState *dev, Error **errp)
 
 static void apple_a9_reset(DeviceState *dev)
 {
-    AppleA9State *tcpu = APPLE_A9(dev);
     AppleA9Class *tclass = APPLE_A9_GET_CLASS(dev);
     tclass->parent_reset(dev);
 }
@@ -145,107 +144,115 @@ static void apple_a9_instance_init(Object *obj)
     cpu->midr = t;
 }
 
-AppleA9State *apple_a9_create(DTBNode *node)
+AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
+                              uint32_t phys_id)
 {
     DeviceState *dev;
     AppleA9State *tcpu;
-    ARMCPU *cpu;
     Object *obj;
     DTBProp *prop;
-    uint64_t mpidr;
     uint64_t freq;
     uint64_t *reg;
 
     obj = object_new(TYPE_APPLE_A9);
     dev = DEVICE(obj);
     tcpu = APPLE_A9(dev);
-    cpu = ARM_CPU(tcpu);
 
-    prop = find_dtb_prop(node, "name");
-    dev->id = g_strdup((char *)prop->value);
+    if (node != NULL) {
+        prop = find_dtb_prop(node, "name");
+        dev->id = g_strdup((char *)prop->value);
 
-    prop = find_dtb_prop(node, "cpu-id");
-    assert(prop->length == 4);
-    tcpu->cpu_id = *(unsigned int *)prop->value;
+        prop = find_dtb_prop(node, "cpu-id");
+        assert(prop->length == 4);
+        tcpu->cpu_id = *(unsigned int *)prop->value;
 
-    prop = find_dtb_prop(node, "reg");
-    assert(prop->length == 4);
-    tcpu->phys_id = *(unsigned int *)prop->value;
-
-    mpidr =
-        0LL | tcpu->phys_id | (tcpu->phys_id << MPIDR_AFF2_SHIFT) | (1LL << 31);
-    mpidr |= 1 << MPIDR_AFF2_SHIFT;
-
-    tcpu->mpidr = mpidr;
-    object_property_set_uint(obj, "mp-affinity", mpidr, &error_fatal);
-
-    /* remove debug regs from device tree */
-    prop = find_dtb_prop(node, "reg-private");
-    if (prop != NULL) {
-        remove_dtb_prop(node, prop);
+        prop = find_dtb_prop(node, "reg");
+        assert(prop->length == 4);
+        tcpu->phys_id = *(unsigned int *)prop->value;
+    } else {
+        dev->id = g_strdup(name);
+        tcpu->cpu_id = cpu_id;
+        tcpu->phys_id = phys_id;
     }
 
-    prop = find_dtb_prop(node, "cpu-uttdbg-reg");
-    if (prop != NULL) {
-        remove_dtb_prop(node, prop);
-    }
+    tcpu->mpidr = tcpu->phys_id | (tcpu->phys_id << MPIDR_AFF2_SHIFT) |
+                  (1LL << 31) | (1 << MPIDR_AFF2_SHIFT);
 
-    /* need to set the cpu freqs instead of iBoot */
-    freq = 24000000;
+    object_property_set_uint(obj, "mp-affinity", tcpu->mpidr, &error_fatal);
 
-    if (tcpu->cpu_id == 0) {
-        prop = find_dtb_prop(node, "state");
+    if (node != NULL) {
+        /* remove debug regs from device tree */
+        prop = find_dtb_prop(node, "reg-private");
         if (prop != NULL) {
             remove_dtb_prop(node, prop);
         }
-        set_dtb_prop(node, "state", 8, (uint8_t *)"running");
+
+        prop = find_dtb_prop(node, "cpu-uttdbg-reg");
+        if (prop != NULL) {
+            remove_dtb_prop(node, prop);
+        }
+    }
+
+    if (tcpu->cpu_id == 0 || node == NULL) {
+        if (node != NULL) {
+            prop = find_dtb_prop(node, "state");
+            if (prop != NULL) {
+                remove_dtb_prop(node, prop);
+            }
+            set_dtb_prop(node, "state", 8, (uint8_t *)"running");
+        }
     } else {
         object_property_set_bool(obj, "start-powered-off", true, NULL);
     }
-#if 0
-    object_property_set_bool(obj, "start-powered-off", true, NULL);
-#endif
 
-    prop = find_dtb_prop(node, "timebase-frequency");
-    if (prop != NULL) {
-        remove_dtb_prop(node, prop);
-    }
-    set_dtb_prop(node, "timebase-frequency", sizeof(uint64_t),
-                 (uint8_t *)&freq);
+    if (node != NULL) {
+        // need to set the cpu freqs instead of iBoot
+        freq = 24000000;
 
-    prop = find_dtb_prop(node, "fixed-frequency");
-    if (prop != NULL) {
-        remove_dtb_prop(node, prop);
+        prop = find_dtb_prop(node, "timebase-frequency");
+        if (prop != NULL) {
+            remove_dtb_prop(node, prop);
+        }
+        set_dtb_prop(node, "timebase-frequency", sizeof(freq),
+                     (uint8_t *)&freq);
+
+        prop = find_dtb_prop(node, "fixed-frequency");
+        if (prop != NULL) {
+            remove_dtb_prop(node, prop);
+        }
+        set_dtb_prop(node, "fixed-frequency", sizeof(freq), (uint8_t *)&freq);
     }
-    set_dtb_prop(node, "fixed-frequency", sizeof(uint64_t), (uint8_t *)&freq);
 
     memory_region_init(&tcpu->memory, obj, "cpu-memory", UINT64_MAX);
     memory_region_init_alias(&tcpu->sysmem, obj, "sysmem", get_system_memory(),
                              0, UINT64_MAX);
     memory_region_add_subregion_overlap(&tcpu->memory, 0, &tcpu->sysmem, -2);
 
-    prop = find_dtb_prop(node, "cpu-impl-reg");
-    assert(prop);
-    assert(prop->length == 16);
+    if (node != NULL) {
+        prop = find_dtb_prop(node, "cpu-impl-reg");
+        assert(prop);
+        assert(prop->length == 16);
 
-    reg = (uint64_t *)prop->value;
+        reg = (uint64_t *)prop->value;
 
-    memory_region_init_ram_device_ptr(&tcpu->impl_reg, obj,
-                                      TYPE_APPLE_A9 ".impl-reg", reg[1],
-                                      g_malloc0(reg[1]));
-    memory_region_add_subregion(get_system_memory(), reg[0], &tcpu->impl_reg);
+        memory_region_init_ram_device_ptr(&tcpu->impl_reg, obj,
+                                          TYPE_APPLE_A9 ".impl-reg", reg[1],
+                                          g_malloc0(reg[1]));
+        memory_region_add_subregion(get_system_memory(), reg[0],
+                                    &tcpu->impl_reg);
 
-    prop = find_dtb_prop(node, "coresight-reg");
-    assert(prop);
-    assert(prop->length == 16);
+        prop = find_dtb_prop(node, "coresight-reg");
+        assert(prop);
+        assert(prop->length == 16);
 
-    reg = (uint64_t *)prop->value;
+        reg = (uint64_t *)prop->value;
 
-    memory_region_init_ram_device_ptr(&tcpu->coresight_reg, obj,
-                                      TYPE_APPLE_A9 ".coresight-reg", reg[1],
-                                      g_malloc0(reg[1]));
-    memory_region_add_subregion(get_system_memory(), reg[0],
-                                &tcpu->coresight_reg);
+        memory_region_init_ram_device_ptr(&tcpu->coresight_reg, obj,
+                                          TYPE_APPLE_A9 ".coresight-reg",
+                                          reg[1], g_malloc0(reg[1]));
+        memory_region_add_subregion(get_system_memory(), reg[0],
+                                    &tcpu->coresight_reg);
+    }
 
     return tcpu;
 }

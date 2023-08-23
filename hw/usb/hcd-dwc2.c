@@ -44,6 +44,9 @@
 #include "qemu/units.h"
 #include "trace.h"
 
+// #define SOC_DMA_BASE (0x100000000ULL)
+#define SOC_DMA_BASE (0x0ULL)
+
 #define USB_HZ_FS 12000000
 #define USB_HZ_HS 96000000
 #define USB_FRMINTVL 12000
@@ -1247,7 +1250,7 @@ static void dwc2_device_process_packet(DWC2State *s, USBPacket *p)
                 qemu_sglist_init(&sglist, DEVICE(s), MAX_DMA_DESC_NUM_GENERIC,
                                  &s->dma_as);
                 while (dma_memory_read(
-                           &s->dma_as, s->diepdma(ep) | 0x100000000ULL, &desc,
+                           &s->dma_as, s->diepdma(ep) | SOC_DMA_BASE, &desc,
                            sizeof(desc), MEMTXATTRS_UNSPECIFIED) == MEMTX_OK) {
                     uint32_t amtDone = 0;
                     if (DEV_DMA_BUFF_STS_GET(desc.status)) {
@@ -1269,9 +1272,9 @@ static void dwc2_device_process_packet(DWC2State *s, USBPacket *p)
                     desc.status &= ~DEV_DMA_BUFF_STS_MASK;
                     desc.status |= DEV_DMA_BUFF_STS_DMADONE
                                    << DEV_DMA_BUFF_STS_SHIFT;
-                    dma_memory_write(&s->dma_as,
-                                     s->diepdma(ep) | 0x100000000ULL, &desc,
-                                     sizeof(desc), MEMTXATTRS_UNSPECIFIED);
+                    dma_memory_write(&s->dma_as, s->diepdma(ep) | SOC_DMA_BASE,
+                                     &desc, sizeof(desc),
+                                     MEMTXATTRS_UNSPECIFIED);
                     s->diepdma(ep) += sizeof(desc);
                     if (desc.status & DEV_DMA_L) {
                         break;
@@ -1315,7 +1318,7 @@ static void dwc2_device_process_packet(DWC2State *s, USBPacket *p)
                     g_autofree void *buffer = g_malloc0(amtDone);
                     if (s->diepdma(ep)) {
                         dma_memory_read(&s->dma_as,
-                                        s->diepdma(ep) | 0x100000000ULL, buffer,
+                                        s->diepdma(ep) | SOC_DMA_BASE, buffer,
                                         amtDone, MEMTXATTRS_UNSPECIFIED);
                         s->diepdma(ep) += amtDone;
                     }
@@ -1417,7 +1420,7 @@ static void dwc2_device_process_packet(DWC2State *s, USBPacket *p)
                 qemu_sglist_init(&sglist, DEVICE(s), MAX_DMA_DESC_NUM_GENERIC,
                                  &s->dma_as);
                 while (dma_memory_read(
-                           &s->dma_as, s->doepdma(ep) | 0x100000000ULL, &desc,
+                           &s->dma_as, s->doepdma(ep) | SOC_DMA_BASE, &desc,
                            sizeof(desc), MEMTXATTRS_UNSPECIFIED) == MEMTX_OK) {
                     uint32_t amtDone = 0;
                     if (DEV_DMA_BUFF_STS_GET(desc.status)) {
@@ -1445,9 +1448,9 @@ static void dwc2_device_process_packet(DWC2State *s, USBPacket *p)
                     desc.status &= ~DEV_DMA_BUFF_STS_MASK;
                     desc.status |= DEV_DMA_BUFF_STS_DMADONE
                                    << DEV_DMA_BUFF_STS_SHIFT;
-                    dma_memory_write(&s->dma_as,
-                                     s->doepdma(ep) | 0x100000000ULL, &desc,
-                                     sizeof(desc), MEMTXATTRS_UNSPECIFIED);
+                    dma_memory_write(&s->dma_as, s->doepdma(ep) | SOC_DMA_BASE,
+                                     &desc, sizeof(desc),
+                                     MEMTXATTRS_UNSPECIFIED);
                     ioc |= (desc.status & DEV_DMA_IOC) != 0;
 
                     s->doepdma(ep) += sizeof(desc);
@@ -1488,9 +1491,9 @@ static void dwc2_device_process_packet(DWC2State *s, USBPacket *p)
                     if (s->doepdma(ep)) {
                         fprintf(stderr, "DWC2 testval0: 0x%llx\n",
                                 *(uint64_t *)&(s->doepdma(ep)));
-                        dma_memory_write(
-                            &s->dma_as, s->doepdma(ep) | 0x100000000ULL, buffer,
-                            amtDone, MEMTXATTRS_UNSPECIFIED);
+                        dma_memory_write(&s->dma_as,
+                                         s->doepdma(ep) | SOC_DMA_BASE, buffer,
+                                         amtDone, MEMTXATTRS_UNSPECIFIED);
                         s->doepdma(ep) += amtDone;
                     }
 #if 0

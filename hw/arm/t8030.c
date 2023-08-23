@@ -47,8 +47,6 @@
 #include "hw/misc/apple_smc.h"
 #include "hw/misc/unimp.h"
 #include "hw/nvram/apple_nvram.h"
-#include "hw/or-irq.h"
-#include "hw/platform-bus.h"
 #include "hw/spmi/apple_spmi.h"
 #include "hw/spmi/apple_spmi_pmu.h"
 #include "hw/ssi/apple_spi.h"
@@ -56,18 +54,14 @@
 #include "hw/usb/apple_otg.h"
 #include "hw/usb/apple_typec.h"
 #include "hw/watchdog/apple_wdt.h"
-#include "qapi/error.h"
 #include "qapi/visitor.h"
-#include "qemu/cutils.h"
 #include "qemu/error-report.h"
 #include "qemu/guest-random.h"
 #include "qemu/log.h"
 #include "qemu/units.h"
-#include "sysemu/block-backend.h"
 #include "sysemu/reset.h"
 #include "sysemu/runstate.h"
 #include "sysemu/sysemu.h"
-#include "arm-powerctl.h"
 
 #define T8030_SROM_BASE (0x100000000ULL)
 #define T8030_SROM_SIZE (0x80000ULL)
@@ -76,8 +70,8 @@
 #define T8030_DRAM_BASE (0x800000000ULL)
 #define T8030_DRAM_SIZE (4ULL * GiB)
 
-#define T8030_SEP0_BASE (0x240000000ULL)
-#define T8030_SEP0_SIZE (0x004000000ULL)
+#define T8030_SEPROM_BASE (0x240000000ULL)
+#define T8030_SEPROM_SIZE (0x4000000ULL)
 
 #define T8030_GPIO_FORCE_DFU (161)
 
@@ -115,12 +109,6 @@
 
 #define T8030_PANIC_BASE (0x8FC2B4000)
 #define T8030_PANIC_SIZE (0x100000)
-
-#define NOP_INST 0xD503201F
-#define MOV_W0_01_INST 0x52800020
-#define MOV_X13_0_INST 0xD280000D
-#define RET_INST 0xD65F03C0
-#define RETAB_INST 0xD65F0FFF
 
 #define T8030_AMCC_BASE (0x200000000)
 #define T8030_AMCC_SIZE (0x100000)
@@ -494,15 +482,18 @@ static void t8030_memory_setup(MachineState *machine)
     }
     address_space_rw(nsas, T8030_SROM_BASE, MEMTXATTRS_UNSPECIFIED,
                      (uint8_t *)securerom, fsize, 1);
+
     char sepfw[] = "/Users/visual/Developer/iOSDev/AppleSEPROM-Sicily-A0";
     if (!g_file_get_contents(sepfw, &seprom, &fsize, NULL)) {
         error_report("Could not load data from file '%s'", sepfw);
         exit(EXIT_FAILURE);
     }
-    address_space_rw(nsas, T8030_SEP0_BASE, MEMTXATTRS_UNSPECIFIED,
+    address_space_rw(nsas, T8030_SEPROM_BASE, MEMTXATTRS_UNSPECIFIED,
                      (uint8_t *)seprom, fsize, 1);
+
     uint64_t value = 0x8000000000000000;
-    address_space_write(nsas, 0x242140108, MEMTXATTRS_UNSPECIFIED, &value, 8);
+    address_space_write(nsas, 0x242140108, MEMTXATTRS_UNSPECIFIED, &value,
+                        sizeof(value));
 
     nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
     if (!nvram) {
@@ -1685,8 +1676,8 @@ static void t8030_create_sep(MachineState *machine)
     child = find_dtb_node(armio, "sep");
     assert(child != NULL);
 
-    sep = apple_sep_create(child, T8030_SEP0_BASE, A13_MAX_CPU + 1,
-                           tms->build_version);
+    sep = apple_sep_create(child, T8030_SEPROM_BASE, A13_MAX_CPU + 1,
+                           tms->build_version, true);
     assert(sep != NULL);
     object_property_add_child(OBJECT(machine), "sep", OBJECT(sep));
 
@@ -1751,20 +1742,18 @@ static void t8030_cpu_reset(void *opaque)
 
     CPU_FOREACH (cpu) {
         AppleA13State *tcpu = APPLE_A13(cpu);
-        if (tcpu) {
-            object_property_set_uint(OBJECT(cpu), "rvbar",
-                                     tms->bootinfo.entry & ~0xfff,
-                                     &error_abort);
-            object_property_set_uint(OBJECT(cpu), "pauth-mlo", m_lo,
-                                     &error_abort);
-            object_property_set_uint(OBJECT(cpu), "pauth-mhi", m_hi,
-                                     &error_abort);
-            if (tcpu->cpu_id == 0) {
-                run_on_cpu(cpu, t8030_cpu_reset_work, RUN_ON_CPU_HOST_PTR(tms));
-            } else if (tcpu->cpu_id != A13_MAX_CPU + 1) {
-                run_on_cpu(cpu, (run_on_cpu_func)cpu_reset, RUN_ON_CPU_NULL);
-            }
+        if (tcpu == NULL || tcpu->cpu_id == A13_MAX_CPU + 1) {
+            continue;
         }
+        object_property_set_uint(OBJECT(cpu), "rvbar",
+                                 tms->bootinfo.entry & ~0xFFF, &error_abort);
+        object_property_set_uint(OBJECT(cpu), "pauth-mlo", m_lo, &error_abort);
+        object_property_set_uint(OBJECT(cpu), "pauth-mhi", m_hi, &error_abort);
+        if (tcpu->cpu_id == 0) {
+            run_on_cpu(cpu, t8030_cpu_reset_work, RUN_ON_CPU_HOST_PTR(tms));
+            continue;
+        }
+        run_on_cpu(cpu, (run_on_cpu_func)cpu_reset, RUN_ON_CPU_NULL);
     }
 }
 
@@ -1815,8 +1804,8 @@ static void t8030_machine_init(MachineState *machine)
     allocate_ram(tms->sysmem, "SROM", T8030_SROM_BASE, T8030_SROM_SIZE, 0);
     allocate_ram(tms->sysmem, "SRAM", T8030_SRAM_BASE, T8030_SRAM_SIZE, 0);
     allocate_ram(tms->sysmem, "DRAM", T8030_DRAM_BASE, T8030_DRAM_SIZE, 0);
-    allocate_ram(tms->sysmem, "SEP0", T8030_SEP0_BASE, T8030_SEP0_SIZE, 0);
-    // allocate_ram(tms->sysmem, "SEP1", T8030_SEP1_BASE, T8030_SEP1_SIZE, 0);
+    allocate_ram(tms->sysmem, "SEPROM", T8030_SEPROM_BASE, T8030_SEPROM_SIZE,
+                 0);
 
     // hdr = macho_load_file(machine->kernel_filename);
     // assert(hdr);
@@ -1916,8 +1905,7 @@ static void t8030_machine_init(MachineState *machine)
     set_dtb_prop(child, "display-scale", sizeof(display_scale), &display_scale);
 
     child = get_dtb_node(tms->device_tree, "product");
-    /* TODO: SEP, iOS 15 data encryption */
-    set_dtb_prop(child, "product-name", 8, "FastSim");
+
     uint64_t data64 = 0x100000027;
     assert(
         set_dtb_prop(child, "display-corner-radius", sizeof(data64), &data64));
@@ -1926,8 +1914,8 @@ static void t8030_machine_init(MachineState *machine)
     assert(set_dtb_prop(child, "graphics-featureset-class", 7, "MTL1,2"));
     assert(set_dtb_prop(child, "graphics-featureset-fallbacks", 15,
                         "MTL1,2:GLES2,0"));
-    assert(set_dtb_prop(tms->device_tree, "target-type", 4,
-                        "sim")); // TODO: implement PMP
+    // TODO: PMP
+    assert(set_dtb_prop(tms->device_tree, "target-type", 4, "sim"));
     data = 0;
     assert(set_dtb_prop(child, "device-color-policy", sizeof(data), &data));
 

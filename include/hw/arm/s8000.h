@@ -28,14 +28,14 @@
 
 #include "qemu/osdep.h"
 #include "exec/hwaddr.h"
-#include "hw/boards.h"
+#include "exec/memory.h"
+#include "hw/arm/apple_a9.h"
 #include "hw/arm/boot.h"
 #include "hw/arm/xnu.h"
-#include "exec/memory.h"
-#include "cpu.h"
-#include "sysemu/kvm.h"
+#include "hw/boards.h"
 #include "hw/cpu/cluster.h"
-#include "hw/arm/apple_a9.h"
+#include "sysemu/kvm.h"
+#include "cpu.h"
 
 #define TYPE_S8000 "s8000"
 
@@ -44,13 +44,11 @@
 #define S8000_MACHINE(obj) \
     OBJECT_CHECK(S8000MachineState, (obj), TYPE_S8000_MACHINE)
 
-typedef struct
-{
+typedef struct {
     MachineClass parent;
 } S8000MachineClass;
 
-typedef struct
-{
+typedef struct {
     MachineState parent;
     hwaddr soc_base_pa;
     hwaddr soc_size;

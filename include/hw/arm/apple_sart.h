@@ -18,4 +18,4 @@ OBJECT_DECLARE_SIMPLE_TYPE(AppleSARTIOMMUMemoryRegion,
 
 SysBusDevice *apple_sart_create(DTBNode *node);
 
-#endif /* HW_ARM_APPLE_SART_H */
+#endif

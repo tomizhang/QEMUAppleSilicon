@@ -22,4 +22,4 @@ IOMMUMemoryRegion *apple_dart_instance_iommu_mr(AppleDARTState *s,
                                                 uint32_t sid);
 AppleDARTState *apple_dart_create(DTBNode *node);
 
-#endif /* HW_ARM_APPLE_DART_H */
+#endif

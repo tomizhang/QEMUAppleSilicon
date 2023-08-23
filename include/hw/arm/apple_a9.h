@@ -63,7 +63,8 @@ typedef struct AppleA9State {
     A9_CPREG_VAR_DEF(MMU_ERR_STS);
 } AppleA9State;
 
-AppleA9State *apple_a9_create(DTBNode *node);
+AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
+                              uint32_t phys_id);
 bool apple_a9_is_sleep(AppleA9State *tcpu);
 void apple_a9_wakeup(AppleA9State *tcpu);
 #endif

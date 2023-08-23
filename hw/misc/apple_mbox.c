@@ -9,13 +9,14 @@
 #include "qemu/main-loop.h"
 #include "trace.h"
 
-#define IOP_LOG_MSG(s, msg)                                                   \
-    do {                                                                      \
-        qemu_log_mask(LOG_GUEST_ERROR,                                        \
-                      "%s: message: type=0x%x ep=%u QWORD0=0x" HWADDR_FMT_plx \
-                      " QWORD1=0x" HWADDR_FMT_plx " ep0_state=0x%x\n",        \
-                      s->role, msg->mgmt_msg.type, msg->endpoint,             \
-                      msg->data[0], msg->data[1], s->ep0_status);             \
+#define IOP_LOG_MSG(s, t, msg)                                           \
+    do {                                                                 \
+        qemu_log_mask(                                                   \
+            LOG_GUEST_ERROR,                                             \
+            "%s: %s message: type=0x%x ep=%u QWORD0=0x" HWADDR_FMT_plx   \
+            " QWORD1=0x" HWADDR_FMT_plx " ep0_state=0x%x\n",             \
+            s->role, t, msg->mgmt_msg.type, msg->endpoint, msg->data[0], \
+            msg->data[1], s->ep0_status);                                \
     } while (0)
 
 #define IOP_LOG_MGMT_MSG(s, msg)                                   \
@@ -251,47 +252,31 @@ static inline uint32_t iop_outbox_flags(AppleMboxState *s)
 
 static void iop_update_irq(AppleMboxState *s)
 {
-    if (s->real) {
-        if (!apple_mbox_empty(s) && ((s->iop_int_mask & 0x10) == 0)) {
-            qemu_irq_raise(s->iop_irq);
-        } else {
-            qemu_irq_lower(s->iop_irq);
-        }
-    }
+    // qemu_set_irq(s->iop_irq, s->real && !apple_mbox_empty(s) &&
+    //                              ((s->iop_int_mask & 0x10) == 0));
+    qemu_set_irq(s->iop_irq, s->real && !apple_mbox_empty(s));
 }
 
 static void ap_update_irq(AppleMboxState *s)
 {
     if (apple_mbox_outbox_empty(s)) {
-        if ((s->int_mask & REG_A7V2_I2A_EMPTY) == 0) {
-            qemu_irq_raise(s->irqs[APPLE_MBOX_IRQ_OUTBOX_EMPTY]);
-        } else {
-            qemu_irq_lower(s->irqs[APPLE_MBOX_IRQ_OUTBOX_EMPTY]);
-        }
+        qemu_set_irq(s->irqs[APPLE_MBOX_IRQ_OUTBOX_EMPTY],
+                     (s->int_mask & REG_A7V2_I2A_EMPTY) == 0);
         qemu_irq_lower(s->irqs[APPLE_MBOX_IRQ_OUTBOX_NON_EMPTY]);
     } else {
+        qemu_set_irq(s->irqs[APPLE_MBOX_IRQ_OUTBOX_NON_EMPTY],
+                     (s->int_mask & REG_A7V2_I2A_NON_EMPTY) == 0);
         qemu_irq_lower(s->irqs[APPLE_MBOX_IRQ_OUTBOX_EMPTY]);
-        if ((s->int_mask & REG_A7V2_I2A_NON_EMPTY) == 0) {
-            qemu_irq_raise(s->irqs[APPLE_MBOX_IRQ_OUTBOX_NON_EMPTY]);
-        } else {
-            qemu_irq_lower(s->irqs[APPLE_MBOX_IRQ_OUTBOX_NON_EMPTY]);
-        }
     }
 
     if (apple_mbox_empty(s)) {
-        if ((s->int_mask & REG_A7V2_A2I_EMPTY) == 0) {
-            qemu_irq_raise(s->irqs[APPLE_MBOX_IRQ_INBOX_EMPTY]);
-        } else {
-            qemu_irq_lower(s->irqs[APPLE_MBOX_IRQ_INBOX_EMPTY]);
-        }
+        qemu_set_irq(s->irqs[APPLE_MBOX_IRQ_INBOX_EMPTY],
+                     (s->int_mask & REG_A7V2_A2I_EMPTY) == 0);
         qemu_irq_lower(s->irqs[APPLE_MBOX_IRQ_INBOX_NON_EMPTY]);
     } else {
+        qemu_set_irq(s->irqs[APPLE_MBOX_IRQ_INBOX_NON_EMPTY],
+                     (s->int_mask & REG_A7V2_A2I_NON_EMPTY) == 0);
         qemu_irq_lower(s->irqs[APPLE_MBOX_IRQ_INBOX_EMPTY]);
-        if ((s->int_mask & REG_A7V2_A2I_NON_EMPTY) == 0) {
-            qemu_irq_raise(s->irqs[APPLE_MBOX_IRQ_INBOX_NON_EMPTY]);
-        } else {
-            qemu_irq_lower(s->irqs[APPLE_MBOX_IRQ_INBOX_NON_EMPTY]);
-        }
     }
 }
 
@@ -534,7 +519,7 @@ static void apple_mbox_bh(void *opaque)
                 qemu_log_mask(LOG_GUEST_ERROR,
                               "%s: Unexpected message to endpoint %u\n",
                               s->role, msg->endpoint);
-                IOP_LOG_MSG(s, msg);
+                IOP_LOG_MSG(s, "sent", msg);
             }
             g_free(msg);
         }
@@ -548,7 +533,7 @@ static void apple_mbox_reg_write(void *opaque, hwaddr addr, uint64_t data,
     bool doorbell = false;
     bool iflg = false;
 
-    s->int_mask = 0;
+    // s->int_mask = 0;
     WITH_QEMU_LOCK_GUARD(&s->mutex)
     {
         switch (addr) {
@@ -602,11 +587,8 @@ static void apple_mbox_reg_write(void *opaque, hwaddr addr, uint64_t data,
             msg = g_new0(struct apple_mbox_msg, 1);
             memcpy(msg->data, &s->regs[REG_A7V4_A2I_SEND0], 16);
             apple_mbox_inbox_push(s, msg);
+            IOP_LOG_MSG(s, "received", msg);
             iop_update_irq(s);
-            if (!strncmp(s->role, "SEP", 4)) {
-                CPUState *cpu = first_cpu;
-                cpu_dump_state(cpu, stderr, CPU_DUMP_CODE);
-            }
         }
         if (iflg) {
             ap_update_irq(s);
@@ -629,6 +611,7 @@ static uint64_t apple_mbox_reg_read(void *opaque, hwaddr addr, unsigned size)
             if (!m) {
                 break;
             }
+            IOP_LOG_MSG(s, "sent", m);
             m->flags = iop_outbox_flags(s);
 
             memcpy(&s->regs[REG_A7V4_I2A_RECV0], m->data, 16);
@@ -664,6 +647,11 @@ static uint64_t apple_mbox_reg_read(void *opaque, hwaddr addr, unsigned size)
             break;
         }
     }
+
+    // qemu_log_mask(LOG_GUEST_ERROR,
+    //               "%s: AppleA7IOP AKF reg READ @ 0x" HWADDR_FMT_plx
+    //               " value: 0x" HWADDR_FMT_plx "\n",
+    //               s->role, addr, ret);
 
     return ret;
 }
@@ -704,6 +692,7 @@ static void apple_mbox_v2_reg_write(void *opaque, hwaddr addr, uint64_t data,
             break;
 
         case REG_A7V2_A2I_SEND0:
+            QEMU_FALLTHROUGH;
         case REG_A7V2_A2I_SEND1: {
             if (addr + size == REG_A7V2_A2I_SEND0 + 8) {
                 doorbell = true;
@@ -711,6 +700,7 @@ static void apple_mbox_v2_reg_write(void *opaque, hwaddr addr, uint64_t data,
             break;
         }
         case REG_A7V2_A2I_CTRL:
+            QEMU_FALLTHROUGH;
         case REG_A7V2_I2A_CTRL:
             data &= REG_A7V2_CTRL_ENABLE;
             break;
@@ -738,6 +728,7 @@ static void apple_mbox_v2_reg_write(void *opaque, hwaddr addr, uint64_t data,
             msg = g_new0(struct apple_mbox_msg, 1);
             memcpy(msg->data, &s->regs[REG_A7V2_A2I_SEND0], 8);
             apple_mbox_inbox_push(s, msg);
+            IOP_LOG_MSG(s, "received", msg);
             iop_update_irq(s);
         }
         if (iflg) {
@@ -762,6 +753,7 @@ static uint64_t apple_mbox_v2_reg_read(void *opaque, hwaddr addr, unsigned size)
             if (!m) {
                 break;
             }
+            IOP_LOG_MSG(s, "received", m);
             m->flags = iop_outbox_flags(s);
 
             memcpy(&s->regs[REG_A7V2_I2A_RECV0], m->data, 8);
@@ -816,8 +808,11 @@ static void apple_mbox_iop_reg_write(void *opaque, hwaddr addr, uint64_t data,
     {
         switch (addr) {
         case REG_IOP_I2A_SEND0:
+            QEMU_FALLTHROUGH;
         case REG_IOP_I2A_SEND1:
+            QEMU_FALLTHROUGH;
         case REG_IOP_I2A_SEND2:
+            QEMU_FALLTHROUGH;
         case REG_IOP_I2A_SEND3: {
             if (addr + size == REG_IOP_I2A_SEND0 + 16) {
                 doorbell = true;
@@ -848,6 +843,7 @@ static void apple_mbox_iop_reg_write(void *opaque, hwaddr addr, uint64_t data,
             msg = g_new0(struct apple_mbox_msg, 1);
             memcpy(msg->data, &s->iop_regs[REG_IOP_I2A_SEND0], 16);
             apple_mbox_push(s, msg);
+            IOP_LOG_MSG(s, "received", msg);
         }
 
         if (iflg) {

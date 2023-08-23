@@ -27,8 +27,8 @@ OBJECT_DECLARE_SIMPLE_TYPE(AppleA13Cluster, APPLE_A13_CLUSTER)
 typedef struct AppleA13Class {
     /*< private >*/
     ARMCPUClass base_class;
-    /*< public >*/
 
+    /*< public >*/
     DeviceRealize parent_realize;
     DeviceUnrealize parent_unrealize;
     DeviceReset parent_reset;
@@ -72,6 +72,7 @@ typedef struct AppleA13State {
     A13_CPREG_VAR_DEF(PMCR1);
     A13_CPREG_VAR_DEF(PMSR);
     A13_CPREG_VAR_DEF(S3_4_c15_c0_5);
+    A13_CPREG_VAR_DEF(SYS_HCR_EL2);
     A13_CPREG_VAR_DEF(AMX_STATUS_EL1);
     A13_CPREG_VAR_DEF(AMX_CTL_EL1);
     A13_CPREG_VAR_DEF(ARM64_REG_CYC_OVRD);

@@ -76,7 +76,7 @@
 #define USEC_PER_SEC 1000000ull /* microseconds per second */
 #define NSEC_PER_SEC 1000000000ull /* nanoseconds per second */
 #define NSEC_PER_MSEC 1000000ull /* nanoseconds per millisecond */
-#define RTCLOCK_SEC_DIVISOR 24000000ull
+#define RTCLOCK_SEC_DIVISOR 266666666ull
 
 static void absolutetime_to_nanoseconds(uint64_t abstime, uint64_t *result)
 {
@@ -517,6 +517,7 @@ static const ARMCPRegInfo apple_a13_cp_reginfo_tcg[] = {
     A13_CPREG_DEF(ARM64_REG_CYC_OVRD, 3, 5, 15, 5, 0, PL1_RW, 0),
     A13_CPREG_DEF(ARM64_REG_ACC_CFG, 3, 5, 15, 4, 0, PL1_RW, 0),
     A13_CPREG_DEF(S3_5_c15_c10_1, 3, 5, 15, 10, 1, PL0_RW, 0),
+    A13_CPREG_DEF(SYS_HCR_EL2, 3, 4, 1, 1, 0, PL1_RW, 0),
     A13_CPREG_DEF(UPMPCM, 3, 7, 15, 5, 4, PL1_RW, 0),
     A13_CPREG_DEF(UPMCR0, 3, 7, 15, 0, 4, PL1_RW, 0),
     A13_CPREG_DEF(UPMSR, 3, 7, 15, 6, 4, PL1_RW, 0),
@@ -624,7 +625,6 @@ static void apple_a13_realize(DeviceState *dev, Error **errp)
 
 static void apple_a13_reset(DeviceState *dev)
 {
-    AppleA13State *tcpu = APPLE_A13(dev);
     AppleA13Class *tclass = APPLE_A13_GET_CLASS(dev);
     tclass->parent_reset(dev);
 }
@@ -632,7 +632,7 @@ static void apple_a13_reset(DeviceState *dev)
 static void apple_a13_instance_init(Object *obj)
 {
     ARMCPU *cpu = ARM_CPU(obj);
-    object_property_set_uint(obj, "cntfrq", 24000000, &error_fatal);
+    object_property_set_uint(obj, "cntfrq", 266666666, &error_fatal);
     object_property_add_uint64_ptr(obj, "pauth-mlo", &cpu->m_key_lo,
                                    OBJ_PROP_FLAG_READWRITE);
     object_property_add_uint64_ptr(obj, "pauth-mhi", &cpu->m_key_hi,
@@ -648,7 +648,6 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
     ARMCPU *cpu;
     Object *obj;
     DTBProp *prop;
-    uint64_t mpidr;
     uint64_t freq;
     uint64_t *reg;
 
@@ -679,10 +678,9 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
         tcpu->cluster_id = cluster_id;
     }
 
-    mpidr = 0LL | tcpu->phys_id | (1LL << 31);
+    tcpu->mpidr = tcpu->phys_id | (1LL << 31);
 
-    cpu->midr = 0;
-    cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, IMPLEMENTER, 0x61); /* Apple */
+    cpu->midr = FIELD_DP64(0, MIDR_EL1, IMPLEMENTER, 0x61); /* Apple */
     /* chip-revision = (variant << 4) | (revision) */
     cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, VARIANT, 0x1);
     cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, REVISION, 0x1);
@@ -692,21 +690,18 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
         cluster_type = *prop->value;
     }
     switch (cluster_type) {
-    case 'P':
-        mpidr |= 1 << MPIDR_AFF2_SHIFT;
-        cpu->midr =
-            FIELD_DP64(cpu->midr, MIDR_EL1, PARTNUM, 0x12); /* Lightning */
+    case 'P': // Lightning
+        tcpu->mpidr |= (1 << MPIDR_AFF2_SHIFT);
+        cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, PARTNUM, 0x12);
         break;
-    case 'E':
-        cpu->midr =
-            FIELD_DP64(cpu->midr, MIDR_EL1, PARTNUM, 0x13); /* Thunder */
+    case 'E': // Thunder
+        cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, PARTNUM, 0x13);
         break;
     default:
         break;
     }
 
-    tcpu->mpidr = mpidr;
-    object_property_set_uint(obj, "mp-affinity", mpidr, &error_fatal);
+    object_property_set_uint(obj, "mp-affinity", tcpu->mpidr, &error_fatal);
 
     if (node != NULL) {
         /* remove debug regs from device tree */
@@ -738,7 +733,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     if (node != NULL) {
         /* need to set the cpu freqs instead of iBoot */
-        freq = 24000000;
+        freq = 266666666;
 
         set_dtb_prop(node, "timebase-frequency", sizeof(freq),
                      (uint8_t *)&freq);
@@ -837,6 +832,7 @@ static const VMStateDescription vmstate_apple_a13 = {
             VMSTATE_A13_CPREG(ARM64_REG_CYC_OVRD),
             VMSTATE_A13_CPREG(ARM64_REG_ACC_CFG),
             VMSTATE_A13_CPREG(S3_5_c15_c10_1),
+            VMSTATE_A13_CPREG(SYS_HCR_EL2),
             VMSTATE_A13_CPREG(UPMPCM),
             VMSTATE_A13_CPREG(UPMCR0),
             VMSTATE_A13_CPREG(UPMSR),
