@@ -226,7 +226,7 @@ static void apple_a13_cluster_reset(DeviceState *dev)
 static int add_cpu_to_cluster(Object *obj, void *opaque)
 {
     AppleA13Cluster *cluster = APPLE_A13_CLUSTER(opaque);
-    CPUState *cpu = CPU(obj);
+    CPUState *cpu = (CPUState *)object_dynamic_cast(obj, TYPE_CPU);
     AppleA13State *tcpu = APPLE_A13(obj);
 
     if (cpu) {
