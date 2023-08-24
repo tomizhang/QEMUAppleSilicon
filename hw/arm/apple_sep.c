@@ -44,10 +44,10 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
 
     sbd = SYS_BUS_DEVICE(dev);
     if (modern) {
-        s->cpu = ARM_CPU(
-            apple_a13_cpu_create(NULL, g_strdup("SEP"), cpu_id, 0, -1, 'P'));
+        s->cpu = ARM_CPU(apple_a13_cpu_create(NULL, g_strdup("sep-cpu"), cpu_id,
+                                              0, -1, 'P'));
     } else {
-        s->cpu = ARM_CPU(apple_a9_create(NULL, g_strdup("SEP"), cpu_id, 0));
+        s->cpu = ARM_CPU(apple_a9_create(NULL, g_strdup("sep-cpu"), cpu_id, 0));
         object_property_set_bool(OBJECT(s->cpu), "aarch64", false, NULL);
         unset_feature(&s->cpu->env, ARM_FEATURE_AARCH64);
     }
@@ -63,16 +63,13 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
                                 &sep_mailbox_ops);
     apple_mbox_set_real(s->mbox, true);
 
-    qdev_connect_gpio_out_named(DEVICE(s->mbox), APPLE_MBOX_IOP_IRQ, 0,
-                                qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_IRQ));
-
     object_property_add_child(OBJECT(s), "mbox", OBJECT(s->mbox));
 
     sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox), 0));
     sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox), 1));
     sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox), 2));
     sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->mbox));
-    // sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->cpu));
+    sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->cpu));
 
     return s;
 }
@@ -95,6 +92,9 @@ static void apple_sep_realize(DeviceState *dev, Error **errp)
     AppleSEPState *s = APPLE_SEP(dev);
     sysbus_realize(SYS_BUS_DEVICE(s->mbox), errp);
     qdev_realize(DEVICE(s->cpu), NULL, errp);
+
+    qdev_connect_gpio_out_named(DEVICE(s->mbox), APPLE_MBOX_IOP_IRQ, 0,
+                                qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_IRQ));
 }
 
 static void apple_sep_unrealize(DeviceState *dev)

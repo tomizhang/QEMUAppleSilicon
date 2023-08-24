@@ -1684,7 +1684,7 @@ static void t8030_create_sep(MachineState *machine)
     prop = find_dtb_prop(child, "reg");
     g_assert(prop);
     reg = (uint64_t *)prop->value;
-    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 0, tms->soc_base_pa + reg[0]);
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), APPLE_MBOX_AP_MMIO, tms->soc_base_pa + reg[0]);
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);

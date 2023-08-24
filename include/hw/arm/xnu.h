@@ -278,7 +278,7 @@ typedef struct macho_boot_info {
     char *ticket_data;
     uint64_t ticket_length;
     uint8_t boot_nonce_hash[XNU_BNCH_SIZE];
-} * macho_boot_info_t;
+} *macho_boot_info_t;
 
 struct mach_header_64 *macho_load_file(const char *filename);
 

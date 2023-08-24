@@ -16,7 +16,6 @@
 #define APPLE_MBOX_IOP_MMIO 1
 #define APPLE_MBOX_AP_v2_MMIO 2
 
-
 typedef struct AppleMboxState AppleMboxState;
 
 #define TYPE_APPLE_MBOX "apple.mbox"

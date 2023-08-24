@@ -168,7 +168,7 @@ typedef struct QEMU_PACKED apple_mbox_mgmt_msg {
             uint8_t type : 4;
         };
     };
-} * apple_mbox_mgmt_msg_t;
+} *apple_mbox_mgmt_msg_t;
 
 typedef struct apple_mbox_msg {
     union QEMU_PACKED {
@@ -183,7 +183,7 @@ typedef struct apple_mbox_msg {
         };
     };
     QTAILQ_ENTRY(apple_mbox_msg) entry;
-} * apple_mbox_msg_t;
+} *apple_mbox_msg_t;
 
 typedef struct apple_mbox_ep_handler_data {
     AppleMboxEPHandler *handler;
