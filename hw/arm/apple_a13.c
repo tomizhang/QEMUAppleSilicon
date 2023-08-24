@@ -227,16 +227,19 @@ static int add_cpu_to_cluster(Object *obj, void *opaque)
 {
     AppleA13Cluster *cluster = APPLE_A13_CLUSTER(opaque);
     CPUState *cpu = (CPUState *)object_dynamic_cast(obj, TYPE_CPU);
-    AppleA13State *tcpu = APPLE_A13(obj);
+    AppleA13State *tcpu =
+        (AppleA13State *)object_dynamic_cast(obj, TYPE_APPLE_A13);
 
-    if (cpu) {
-        cpu->cluster_index = CPU_CLUSTER(cluster)->cluster_id;
-        if (tcpu) {
-            cluster->base = tcpu->cluster_reg[0];
-            cluster->size = tcpu->cluster_reg[1];
-            cluster->cpus[tcpu->cpu_id] = tcpu;
-        }
+    if (!cpu) {
+        return 0;
     }
+    cpu->cluster_index = CPU_CLUSTER(cluster)->cluster_id;
+    if (!tcpu) {
+        return 0;
+    }
+    cluster->base = tcpu->cluster_reg[0];
+    cluster->size = tcpu->cluster_reg[1];
+    cluster->cpus[tcpu->cpu_id] = tcpu;
     return 0;
 }
 
