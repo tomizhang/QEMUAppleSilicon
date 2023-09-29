@@ -164,7 +164,6 @@ static void t8030_create_s3c_uart(const T8030MachineState *tms, uint32_t port,
 
 static void t8030_patch_kernel(struct mach_header_64 *hdr)
 {
-    *(uint32_t *)vtop_static(0xFFFFFFF0077142C8) = 0;
     kpf();
 }
 
