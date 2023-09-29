@@ -370,11 +370,12 @@ static void aes_security_reg_write(void *opaque, hwaddr addr, uint64_t data,
 static uint64_t aes_security_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     switch (addr) {
-    case 0x20:
-        return 0x4; // board-id ; match with t8030.c
-    default:
-        /* We don't know the rest */
-        return 0xff;
+    case 0x20: //! board-id
+        return 0x4;
+    case 0x34: //? bit 24 = is fresh boot?
+        return (1 << 24) | (1 << 25);
+    default: //! We don't know the rest
+        return 0xFF;
     }
 }
 

@@ -72,6 +72,8 @@ typedef struct {
     video_boot_args video;
     char *trustcache_filename;
     char *ticket_filename;
+    char *seprom_filename;
+    char *sepfw_filename;
     BootMode boot_mode;
     uint32_t rtbuddyv2_protocol_version;
     uint32_t build_version;

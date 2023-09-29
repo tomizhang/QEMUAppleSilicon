@@ -393,16 +393,13 @@ SysBusDevice *apple_sio_create(DTBNode *node, uint32_t protocol_version)
 
     reg = (uint64_t *)prop->value;
 
-    /*
-     * 0: AppleA7IOP akfRegMap
-     * 1: AppleASCWrapV2 coreRegisterMap
-     */
     s->mbox =
         apple_mbox_create("SIO", s, reg[1], protocol_version, &sio_mailbox_ops);
     object_property_add_child(OBJECT(s), "mbox", OBJECT(s->mbox));
     apple_mbox_register_endpoint(s->mbox, 1, &apple_sio_handle_endpoint);
 
-    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox), 0));
+    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox),
+                                                 APPLE_MBOX_MMIO_V3));
 
     memory_region_init_io(&s->ascv2_iomem, OBJECT(dev), &ascv2_core_reg_ops, s,
                           TYPE_APPLE_SIO ".ascv2-core-reg", reg[3]);

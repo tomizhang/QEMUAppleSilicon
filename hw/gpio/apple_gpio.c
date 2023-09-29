@@ -239,7 +239,7 @@ static void apple_gpio_cfg_write(AppleGPIOState *s, unsigned int pin,
                                  hwaddr addr, uint32_t value)
 {
     if (pin >= s->npins) {
-        qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
+        qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
         return;
     }
@@ -253,7 +253,7 @@ static uint32_t apple_gpio_cfg_read(AppleGPIOState *s, unsigned int pin,
     uint32_t val;
 
     if (pin >= s->npins) {
-        qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
+        qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
         return 0;
     }
@@ -274,7 +274,7 @@ static void apple_gpio_int_write(AppleGPIOState *s, unsigned int group,
     unsigned int offset;
 
     if (group >= s->nirqgrps) {
-        qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
+        qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
         return;
     }
@@ -294,7 +294,7 @@ static uint32_t apple_gpio_int_read(AppleGPIOState *s, unsigned int group,
     unsigned int offset;
 
     if (group >= s->nirqgrps) {
-        qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
+        qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
         return 0;
     }
@@ -327,7 +327,7 @@ static void apple_gpio_reg_write(void *opaque, hwaddr addr, uint64_t data,
         break;
 
     default:
-        qemu_log_mask(LOG_GUEST_ERROR,
+        qemu_log_mask(LOG_UNIMP,
                       "%s: Bad offset 0x" HWADDR_FMT_plx ": " HWADDR_FMT_plx
                       "\n",
                       __func__, addr, data);
@@ -353,7 +353,7 @@ static uint64_t apple_gpio_reg_read(void *opaque, hwaddr addr, unsigned size)
         return 0xFF;
 
     default:
-        qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
+        qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
     }
 

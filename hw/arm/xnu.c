@@ -403,7 +403,7 @@ void macho_populate_dtb(DTBNode *root, macho_boot_info_t info)
     set_dtb_prop(child, "dram-size", 8, &info->dram_size);
     prop = find_dtb_prop(child, "firmware-version");
     remove_dtb_prop(child, prop);
-    set_dtb_prop(child, "firmware-version", 11, "qemu-t8030");
+    set_dtb_prop(child, "firmware-version", 28, "ChefKiss QEMU Apple Silicon");
 
     if (info->nvram_size > XNU_MAX_NVRAM_SIZE) {
         info->nvram_size = XNU_MAX_NVRAM_SIZE;
@@ -476,6 +476,15 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
     if ((info->trustcache_pa) && (info->trustcache_size)) {
         ((uint64_t *)prop->value)[0] = info->trustcache_pa;
         ((uint64_t *)prop->value)[1] = info->trustcache_size;
+    } else {
+        remove_dtb_prop(child, prop);
+    }
+
+    prop = find_dtb_prop(child, "SEPFW");
+    assert(prop);
+    if (info->sepfw_pa && info->sepfw_size) {
+        ((uint64_t *)prop->value)[0] = info->sepfw_pa;
+        ((uint64_t *)prop->value)[1] = info->sepfw_size;
     } else {
         remove_dtb_prop(child, prop);
     }

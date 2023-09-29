@@ -18,13 +18,205 @@
  */
 
 #include "qemu/osdep.h"
+#include "crypto/random.h"
 #include "hw/arm/apple_a13.h"
 #include "hw/arm/apple_a9.h"
 #include "hw/arm/apple_sep.h"
 #include "hw/arm/xnu.h"
 #include "hw/core/cpu.h"
 #include "qapi/error.h"
+#include "qemu/error-report.h"
 #include "qemu/log.h"
+#include "qemu/units.h"
+
+static void trng_reg_write(void *opaque, hwaddr addr, uint64_t data,
+                           unsigned size)
+{
+    switch (addr) {
+    default:
+        qemu_log_mask(LOG_UNIMP,
+                      "TRNG: Unknown write at 0x" HWADDR_FMT_plx
+                      " with value 0x" HWADDR_FMT_plx "\n",
+                      addr, data);
+        break;
+    }
+}
+
+static uint64_t trng_reg_read(void *opaque, hwaddr addr, unsigned size)
+{
+    uint64_t ret = 0;
+
+    switch (addr) {
+    case 0x00:
+    case 0x04:
+    case 0x08:
+    case 0x0C: { //! Fetch random bytes?
+        uint64_t ret = 0;
+        qcrypto_random_bytes(&ret, size, NULL);
+        return ret;
+    }
+    case 0x10: // ????
+        return 0x1;
+    case 0x14: // ????
+        return 0x100000;
+    default:
+        qemu_log_mask(LOG_UNIMP, "TRNG: Unknown read at 0x" HWADDR_FMT_plx "\n",
+                      addr);
+        break;
+    }
+
+    return ret;
+}
+
+static const MemoryRegionOps trng_reg_ops = {
+    .write = trng_reg_write,
+    .read = trng_reg_read,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid.min_access_size = 4,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
+    .valid.unaligned = false,
+};
+
+static void misc0_reg_write(void *opaque, hwaddr addr, uint64_t data,
+                            unsigned size)
+{
+    switch (addr) {
+    default:
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP MISC0: Unknown write at 0x" HWADDR_FMT_plx
+                      " with value 0x" HWADDR_FMT_plx "\n",
+                      addr, data);
+        break;
+    }
+}
+
+static uint64_t misc0_reg_read(void *opaque, hwaddr addr, unsigned size)
+{
+    uint64_t ret = 0;
+
+    switch (addr) {
+    case 0xc: // ???? bit1 clear, bit0 set
+        return (0 << 1) | (1 << 0);
+    case 0xf4: // ????
+        return 0x0;
+    default:
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP MISC0: Unknown read at 0x" HWADDR_FMT_plx "\n",
+                      addr);
+        break;
+    }
+
+    return ret;
+}
+
+static const MemoryRegionOps misc0_reg_ops = {
+    .write = misc0_reg_write,
+    .read = misc0_reg_read,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid.min_access_size = 4,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
+    .valid.unaligned = false,
+};
+
+static void misc1_reg_write(void *opaque, hwaddr addr, uint64_t data,
+                            unsigned size)
+{
+    AppleSEPState *s = APPLE_SEP(opaque);
+    switch (addr) {
+    case 0x20:
+        memcpy(&s->misc1_regs[addr], &data, size);
+        break;
+    default:
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP MISC1: Unknown write at 0x" HWADDR_FMT_plx
+                      " with value 0x" HWADDR_FMT_plx "\n",
+                      addr, data);
+        break;
+    }
+}
+
+static uint64_t misc1_reg_read(void *opaque, hwaddr addr, unsigned size)
+{
+    AppleSEPState *s = APPLE_SEP(opaque);
+    uint64_t ret = 0;
+
+    switch (addr) {
+    case 0xc: // ???? bit1 clear, bit0 set
+        return (0 << 1) | (1 << 0);
+    case 0x20:
+        // return 0x1;
+        memcpy(&ret, &s->misc1_regs[addr], size);
+        return ret;
+    case 0xe4: // ????
+        return 0x0;
+    case 0x280: // ????
+        return 0x1;
+    default:
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP MISC1: Unknown read at 0x" HWADDR_FMT_plx "\n",
+                      addr);
+        break;
+    }
+
+    return ret;
+}
+
+static const MemoryRegionOps misc1_reg_ops = {
+    .write = misc1_reg_write,
+    .read = misc1_reg_read,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid.min_access_size = 4,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
+    .valid.unaligned = false,
+};
+
+static void misc2_reg_write(void *opaque, hwaddr addr, uint64_t data,
+                            unsigned size)
+{
+    switch (addr) {
+    default:
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP MISC2: Unknown write at 0x" HWADDR_FMT_plx
+                      " with value 0x" HWADDR_FMT_plx "\n",
+                      addr, data);
+        break;
+    }
+}
+
+static uint64_t misc2_reg_read(void *opaque, hwaddr addr, unsigned size)
+{
+    uint64_t ret = 0;
+
+    switch (addr) {
+    case 0x24: // ????
+        return 0x0;
+    default:
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP MISC2: Unknown read at 0x" HWADDR_FMT_plx "\n",
+                      addr);
+        break;
+    }
+
+    return ret;
+}
+
+static const MemoryRegionOps misc2_reg_ops = {
+    .write = misc2_reg_write,
+    .read = misc2_reg_read,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid.min_access_size = 4,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
+    .valid.unaligned = false,
+};
+
 
 static const struct AppleMboxOps sep_mailbox_ops = {};
 
@@ -65,12 +257,29 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
 
     object_property_add_child(OBJECT(s), "mbox", OBJECT(s->mbox));
 
-    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox), 0));
-    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox), 1));
-    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox), 2));
+    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox),
+                                                 modern ? APPLE_MBOX_MMIO_V3 :
+                                                          APPLE_MBOX_MMIO_V2));
     sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->mbox));
     sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->cpu));
 
+    memory_region_init_io(&s->trng_mr, OBJECT(dev), &trng_reg_ops, s,
+                          "sep.trng", 0x100);
+    sysbus_init_mmio(sbd, &s->trng_mr);
+    memory_region_init_io(&s->misc0_mr, OBJECT(dev), &misc0_reg_ops, s,
+                          "sep.misc0", 0x100);
+    sysbus_init_mmio(sbd, &s->misc0_mr);
+    memory_region_init_io(&s->misc1_mr, OBJECT(dev), &misc1_reg_ops, s,
+                          "sep.misc1", 0x1000);
+    sysbus_init_mmio(sbd, &s->misc1_mr);
+    memory_region_init_io(&s->misc2_mr, OBJECT(dev), &misc2_reg_ops, s,
+                          "sep.misc2", 0x100);
+    sysbus_init_mmio(sbd, &s->misc2_mr);
+    DTBNode *child = find_dtb_node(node, "iop-sep-nub");
+    assert(child);
+    //! SEPFW needs to be loaded by restore, supposedly
+    // uint32_t data = 1;
+    // set_dtb_prop(child, "sepfw-loaded", sizeof(data), &data);
     return s;
 }
 

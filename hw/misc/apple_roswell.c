@@ -36,10 +36,10 @@ void apple_roswell_create(MachineState *machine, uint8_t addr)
     i2c_slave_create_simple(i2c->bus, TYPE_APPLE_ROSWELL, addr);
 }
 
-static void apple_roswell_class_init(ObjectClass *oc, void *data)
+static void apple_roswell_class_init(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(oc);
-    I2CSlaveClass *c = I2C_SLAVE_CLASS(oc);
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    I2CSlaveClass *c = I2C_SLAVE_CLASS(klass);
 
     dc->desc = "Apple Roswell";
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);

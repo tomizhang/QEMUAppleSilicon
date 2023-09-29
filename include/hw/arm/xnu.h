@@ -270,6 +270,8 @@ typedef struct macho_boot_info {
     uint64_t ramdisk_size;
     hwaddr trustcache_pa;
     uint64_t trustcache_size;
+    hwaddr sepfw_pa;
+    uint64_t sepfw_size;
     hwaddr bootargs_pa;
     hwaddr dram_base;
     uint64_t dram_size;

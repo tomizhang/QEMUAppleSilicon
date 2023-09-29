@@ -33,6 +33,7 @@
 #include "hw/arm/boot.h"
 #include "hw/arm/t8030-config.c.inc"
 #include "hw/arm/t8030.h"
+#include "hw/arm/xnu_mem.h"
 #include "hw/arm/xnu_pf.h"
 #include "hw/block/apple_ans.h"
 #include "hw/char/apple_uart.h"
@@ -75,11 +76,8 @@
 
 #define T8030_GPIO_FORCE_DFU (161)
 
-/*
- * This is from /chosen/carveout-memory-map/region-id-24
- */
-#define T8030_KERNEL_REGION_BASE (0x801964000)
-#define T8030_KERNEL_REGION_SIZE (0xF09CC000)
+#define T8030_KERNEL_REGION_BASE (T8030_DRAM_BASE + 0x8000000)
+#define T8030_KERNEL_REGION_SIZE (0x3F00000)
 
 #define T8030_SPI_BASE(_x) (0x35100000 + (_x)*APPLE_SPI_MMIO_SIZE)
 
@@ -166,8 +164,7 @@ static void t8030_create_s3c_uart(const T8030MachineState *tms, uint32_t port,
 
 static void t8030_patch_kernel(struct mach_header_64 *hdr)
 {
-    // disable_kprintf_output = 0
-    //  *(uint32_t *)vtop_static(0xFFFFFFF0077142C8) = 0;
+    *(uint32_t *)vtop_static(0xFFFFFFF0077142C8) = 0;
     kpf();
 }
 
@@ -266,7 +263,7 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     phys_ptr += slide_phys;
     g_virt_base += slide_virt - slide_phys;
 
-    /* TrustCache */
+    //! TrustCache
     info->trustcache_pa =
         vtop_static(text_range->va + slide_virt) - info->trustcache_size;
 
@@ -297,7 +294,7 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
         AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - T8030_DRAM_BASE) >> 14;
     }
 
-    /* ramdisk */
+    //! ramdisk
     if (machine->initrd_filename) {
         info->ramdisk_pa = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
@@ -306,17 +303,26 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
         phys_ptr += info->ramdisk_size;
     }
 
-    /* Kernel boot args */
+    //! Kernel boot args
     info->bootargs_pa = phys_ptr;
     phys_ptr += align_16k_high(0x4000);
 
-    /* device tree */
+    //! device tree
     info->dtb_pa = phys_ptr;
     dtb_va = ptov_static(info->dtb_pa);
     phys_ptr += align_16k_high(info->dtb_size);
 
+    if (tms->sepfw_filename) {
+        info->sepfw_pa = phys_ptr;
+        macho_load_raw_file(tms->sepfw_filename, nsas, sysmem, "sepfw",
+                            info->sepfw_pa, &info->sepfw_size);
+        info->sepfw_size = align_16k_high(15 * MiB);
+        phys_ptr += info->sepfw_size;
+    }
+
     mem_size =
-        T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE);
+        machine->maxram_size -
+        (T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE));
 
     macho_load_dtb(tms->device_tree, nsas, sysmem, "DeviceTree", info);
 
@@ -386,11 +392,11 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     phys_ptr += slide_phys;
     phys_ptr -= extradata_size;
 
-    /* device tree */
+    //! device tree
     info->dtb_pa = phys_ptr;
     phys_ptr += info->dtb_size;
 
-    /* TrustCache */
+    //! TrustCache
     info->trustcache_pa = phys_ptr;
     macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
                           info->trustcache_pa);
@@ -423,7 +429,7 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
 
     dtb_va = ptov_static(info->dtb_pa);
 
-    /* ramdisk */
+    //! ramdisk
     if (machine->initrd_filename) {
         info->ramdisk_pa = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
@@ -432,7 +438,7 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
         phys_ptr += info->ramdisk_size;
     }
 
-    /* Kernel boot args */
+    //! Kernel boot args
     info->bootargs_pa = phys_ptr;
     phys_ptr += align_16k_high(0x4000);
 
@@ -460,7 +466,7 @@ static void t8030_memory_setup(MachineState *machine)
     DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
     g_autofree char *cmdline = NULL;
     AddressSpace *nsas = &address_space_memory;
-    g_autofree char *securerom = NULL;
+    // g_autofree char *securerom = NULL;
     g_autofree char *seprom = NULL;
     unsigned long fsize = 0;
 
@@ -471,29 +477,37 @@ static void t8030_memory_setup(MachineState *machine)
     info->dram_base = T8030_DRAM_BASE;
     info->dram_size = T8030_DRAM_SIZE;
 
-    if (!machine->firmware) {
-        error_report("Please set firmware to SecureROM's path");
+    // if (!machine->firmware) {
+    //     error_report("Please set firmware to SecureROM's path");
+    //     exit(EXIT_FAILURE);
+    // }
+
+    // if (!g_file_get_contents(machine->firmware, &securerom, &fsize, NULL)) {
+    //     error_report("Could not load data from file '%s'",
+    //     machine->firmware); exit(EXIT_FAILURE);
+    // }
+    // address_space_rw(nsas, T8030_SROM_BASE, MEMTXATTRS_UNSPECIFIED,
+    //                  (uint8_t *)securerom, fsize, 1);
+
+    if (tms->seprom_filename == NULL) {
+        error_report("Please set path to SEPROM");
         exit(EXIT_FAILURE);
     }
 
-    if (!g_file_get_contents(machine->firmware, &securerom, &fsize, NULL)) {
-        error_report("Could not load data from file '%s'", machine->firmware);
-        exit(EXIT_FAILURE);
-    }
-    address_space_rw(nsas, T8030_SROM_BASE, MEMTXATTRS_UNSPECIFIED,
-                     (uint8_t *)securerom, fsize, 1);
-
-    char sepfw[] = "/Users/visual/Developer/iOSDev/AppleSEPROM-Sicily-A0";
-    if (!g_file_get_contents(sepfw, &seprom, &fsize, NULL)) {
-        error_report("Could not load data from file '%s'", sepfw);
+    if (!g_file_get_contents(tms->seprom_filename, &seprom, &fsize, NULL)) {
+        error_report("Could not load data from file '%s'",
+                     tms->seprom_filename);
         exit(EXIT_FAILURE);
     }
     address_space_rw(nsas, T8030_SEPROM_BASE, MEMTXATTRS_UNSPECIFIED,
                      (uint8_t *)seprom, fsize, 1);
 
     uint64_t value = 0x8000000000000000;
-    address_space_write(nsas, 0x242140108, MEMTXATTRS_UNSPECIFIED, &value,
-                        sizeof(value));
+    address_space_write(nsas, tms->soc_base_pa + 0x42140108,
+                        MEMTXATTRS_UNSPECIFIED, &value, sizeof(value));
+    uint32_t value32 = 0x1;
+    address_space_write(nsas, tms->soc_base_pa + 0x41448000,
+                        MEMTXATTRS_UNSPECIFIED, &value32, sizeof(value32));
 
     nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
     if (!nvram) {
@@ -518,6 +532,7 @@ static void t8030_memory_setup(MachineState *machine)
 
     fprintf(stderr, "auto-boot=%s\n",
             env_get_bool(nvram, "auto-boot", false) ? "true" : "false");
+
     switch (tms->boot_mode) {
     case kBootModeAuto:
         if (!env_get_bool(nvram, "auto-boot", false)) {
@@ -552,11 +567,11 @@ static void t8030_memory_setup(MachineState *machine)
     }
 
     if (xnu_contains_boot_arg(cmdline, "-restore", false)) {
-        /* HACK: Use DEV Hardware model to restore without FDR errors */
-        set_dtb_prop(tms->device_tree, "compatible", 28,
+        //! HACK: Use DEV Hardware model to restore without FDR errors
+        set_dtb_prop(tms->device_tree, "compatible", 29,
                      "N104DEV\0iPhone12,1\0AppleARM\0$");
     } else {
-        set_dtb_prop(tms->device_tree, "compatible", 27,
+        set_dtb_prop(tms->device_tree, "compatible", 28,
                      "N104AP\0iPhone12,1\0AppleARM\0$");
     }
 
@@ -581,7 +596,7 @@ static void t8030_memory_setup(MachineState *machine)
         panic_reg[0] = panic_base;
         panic_reg[1] = panic_size;
 
-        set_dtb_prop(pram, "reg", 16, &panic_reg);
+        set_dtb_prop(pram, "reg", sizeof(panic_reg), &panic_reg);
         DTBNode *chosen = find_dtb_node(tms->device_tree, "chosen");
         set_dtb_prop(chosen, "embedded-panic-log-size", 8, &panic_size);
         tms->panic_base = panic_base;
@@ -595,28 +610,28 @@ static void t8030_memory_setup(MachineState *machine)
         uint64_t vram_size = T8030_DISPLAY_SIZE;
         vram_reg[0] = vram_base;
         vram_reg[1] = vram_size;
-        set_dtb_prop(vram, "reg", 16, &vram_reg);
+        set_dtb_prop(vram, "reg", sizeof(vram_reg), &vram_reg);
     }
 
-    // hdr = tms->kernel;
-    // g_assert(hdr);
+    hdr = tms->kernel;
+    g_assert(hdr);
 
-    // macho_allocate_segment_records(memory_map, hdr);
+    macho_allocate_segment_records(memory_map, hdr);
 
-    // macho_populate_dtb(tms->device_tree, info);
+    macho_populate_dtb(tms->device_tree, info);
 
-    // switch (hdr->filetype) {
-    // case MH_EXECUTE:
-    //     t8030_load_classic_kc(tms, cmdline);
-    //     break;
-    // case MH_FILESET:
-    //     t8030_load_fileset_kc(tms, cmdline);
-    //     break;
-    // default:
-    //     error_setg(&error_abort, "%s: Unsupported kernelcache type: 0x%x\n",
-    //                __func__, hdr->filetype);
-    //     break;
-    // }
+    switch (hdr->filetype) {
+    case MH_EXECUTE:
+        t8030_load_classic_kc(tms, cmdline);
+        break;
+    case MH_FILESET:
+        t8030_load_fileset_kc(tms, cmdline);
+        break;
+    default:
+        error_setg(&error_abort, "%s: Unsupported kernelcache type: 0x%x\n",
+                   __func__, hdr->filetype);
+        break;
+    }
 }
 
 static void pmgr_unk_reg_write(void *opaque, hwaddr addr, uint64_t data,
@@ -647,11 +662,11 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         return 0xA55AC33C; // IBFL | 0x10
     case 0x3D2BC008:
         return 0xA55AC33C; // security domain | 0x1
-    case 0x3D2BC010:
-        return (1 << 5); // _rCFG_FUSE0 ; (security epoch & 0x7F) << 5
     case 0x3D2BC00C:
         // return 0xA55AC33C; // security domain | 0x2
         return 0xA050C030; // security domain | 0x0
+    case 0x3D2BC010:
+        return (1 << 5); // _rCFG_FUSE0 ; (security epoch & 0x7F) << 5
     case 0x3D2BC030:
         // return 0xFFFFFFFF; // CPRV
         // return 0x7 << 6; // LOW NIBBLE
@@ -668,9 +683,18 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x3D2BC404:
         // return 0xA55AC33C; // CPFM | 0x01 ; IBFL_base == 0x0C
         return 0xA050C030; // CPFM | 0x00 ; IBFL_base == 0x04
+    case 0x3D2BC604: //?
+        return 0xA050C030;
+    case 0x3D2E8000: // ????
+        return 0x32B3; // memory encryption AMK (Authentication Master Key)
+                       // disabled
+        // return 0xC2E9; // memory encryption AMK (Authentication Master Key)
+        // enabled
+    case 0x3D2D0034: //?
+        return (1 << 24) | (1 << 25);
     default:
         if (((base + addr) & 0x10E70000) == 0x10E70000) {
-            return (108 << 4) | 0x200000; // ????
+            return (108 << 4) | 0x200000; //?
         }
         return 0;
     }
@@ -692,9 +716,10 @@ static void pmgr_reg_write(void *opaque, hwaddr addr, uint64_t data,
         value = (value & 0xF) << 4 | (value & 0xF);
     }
 #if 1
-    fprintf(stderr,
-            "PMGR reg WRITE @ 0x" TARGET_FMT_lx " value: 0x" TARGET_FMT_lx "\n",
-            addr, data);
+    qemu_log_mask(LOG_UNIMP,
+                  "PMGR reg WRITE @ 0x" TARGET_FMT_lx " value: 0x" TARGET_FMT_lx
+                  "\n",
+                  addr, data);
 #endif
     switch (addr) {
     case 0xD4004:
@@ -709,11 +734,11 @@ static uint64_t pmgr_reg_read(void *opaque, hwaddr addr, unsigned size)
     T8030MachineState *tms = T8030_MACHINE(opaque);
     uint64_t result = 0;
     switch (addr) {
-    case 0xF0010: /* AppleT8030PMGR::commonSramCheck */
+    case 0xF0010: //! AppleT8030PMGR::commonSramCheck
         result = 0x5000;
         break;
-    case 0x80C00:
-        result = 0xF0;
+    case 0x80C00: //! SEP Power State, Manual & Actual: Run Max
+        result = 0xFF;
         break;
 #if 0
     case 0xBC008:
@@ -753,9 +778,38 @@ static void amcc_reg_write(void *opaque, hwaddr addr, uint64_t data,
 static uint64_t amcc_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     T8030MachineState *tms = T8030_MACHINE(opaque);
-    uint64_t result = 0;
-    memcpy(&result, tms->amcc_reg + addr, size);
-    return result;
+    switch (addr) {
+    case 0x6A0:
+    case 0x406A0:
+    case 0x806A0:
+    case 0xC06A0:
+        return 0x0;
+    case 0x6A4:
+        // return 0x1003;
+    case 0x406A4:
+        // return 0x2003;
+    case 0x806A4:
+        // return 0x3003;
+    case 0xC06A4:
+        // return 0x3;
+        return 0x1003; // 0x1003 == 0x1004000
+        // return 0x4003;
+    case 0x6A8:
+    case 0x406A8:
+    case 0x806A8:
+    case 0xC06A8:
+        return 0x1;
+    case 0x6B8:
+    case 0x406B8:
+    case 0x806B8:
+    case 0xC06B8:
+        return 0x1;
+    default: {
+        uint64_t result = 0;
+        memcpy(&result, tms->amcc_reg + addr, size);
+        return result;
+    }
+    }
 }
 
 static const MemoryRegionOps amcc_reg_ops = {
@@ -971,40 +1025,40 @@ static void t8030_amcc_setup(MachineState *machine)
     child = get_dtb_node(child, "amcc");
     g_assert(child);
     data = 1;
-    set_dtb_prop(child, "aperture-count", 4, &data);
+    set_dtb_prop(child, "aperture-count", sizeof(data), &data);
     data = 0x100000;
-    set_dtb_prop(child, "aperture-size", 4, &data);
+    set_dtb_prop(child, "aperture-size", sizeof(data), &data);
     data = AMCC_PLANE_COUNT;
-    set_dtb_prop(child, "plane-count", 4, &data);
+    set_dtb_prop(child, "plane-count", sizeof(data), &data);
     data = AMCC_PLANE_STRIDE;
-    set_dtb_prop(child, "plane-stride", 4, &data);
+    set_dtb_prop(child, "plane-stride", sizeof(data), &data);
     data64 = T8030_AMCC_BASE;
-    set_dtb_prop(child, "aperture-phys-addr", 8, &data64);
+    set_dtb_prop(child, "aperture-phys-addr", sizeof(data64), &data64);
     data = 0x1c00;
-    set_dtb_prop(child, "cache-status-reg-offset", 4, &data);
+    set_dtb_prop(child, "cache-status-reg-offset", sizeof(data), &data);
     data = 0x1f;
-    set_dtb_prop(child, "cache-status-reg-mask", 4, &data);
+    set_dtb_prop(child, "cache-status-reg-mask", sizeof(data), &data);
     data = 0;
-    set_dtb_prop(child, "cache-status-reg-value", 4, &data);
+    set_dtb_prop(child, "cache-status-reg-value", sizeof(data), &data);
     child = get_dtb_node(child, "amcc-ctrr-a");
 
     data = 14;
-    set_dtb_prop(child, "page-size-shift", 4, &data);
+    set_dtb_prop(child, "page-size-shift", sizeof(data), &data);
 
     data = AMCC_LOWER(0);
-    set_dtb_prop(child, "lower-limit-reg-offset", 4, &data);
+    set_dtb_prop(child, "lower-limit-reg-offset", sizeof(data), &data);
     data = 0xffffffff;
-    set_dtb_prop(child, "lower-limit-reg-mask", 4, &data);
+    set_dtb_prop(child, "lower-limit-reg-mask", sizeof(data), &data);
     data = AMCC_UPPER(0);
-    set_dtb_prop(child, "upper-limit-reg-offset", 4, &data);
+    set_dtb_prop(child, "upper-limit-reg-offset", sizeof(data), &data);
     data = 0xffffffff;
-    set_dtb_prop(child, "upper-limit-reg-mask", 4, &data);
+    set_dtb_prop(child, "upper-limit-reg-mask", sizeof(data), &data);
     data = 0x68c;
-    set_dtb_prop(child, "lock-reg-offset", 4, &data);
+    set_dtb_prop(child, "lock-reg-offset", sizeof(data), &data);
     data = 1;
-    set_dtb_prop(child, "lock-reg-mask", 4, &data);
+    set_dtb_prop(child, "lock-reg-mask", sizeof(data), &data);
     data = 1;
-    set_dtb_prop(child, "lock-reg-value", 4, &data);
+    set_dtb_prop(child, "lock-reg-value", sizeof(data), &data);
 
     memory_region_init_io(&tms->amcc, OBJECT(machine), &amcc_reg_ops, tms,
                           "amcc", T8030_AMCC_SIZE);
@@ -1114,7 +1168,7 @@ static void t8030_create_ans(MachineState *machine)
     segranges[1].size = T8030_ANS_DATA_SIZE;
     segranges[1].flag = 0x0;
 
-    set_dtb_prop(iop_nub, "segment-ranges", 64, segranges);
+    set_dtb_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
 
     t8030_create_sart(machine);
     sart = SYS_BUS_DEVICE(
@@ -1252,7 +1306,7 @@ static void t8030_create_spi(MachineState *machine, uint32_t port)
     }
     sysbus_mmio_map(spi, 0, base);
 
-    /* The second sysbus IRQ is the cs line */
+    //! The second sysbus IRQ is the cs line
     sysbus_connect_irq(SYS_BUS_DEVICE(spi), 0,
                        qdev_get_gpio_in(DEVICE(tms->aic), irq));
 
@@ -1368,7 +1422,7 @@ static void t8030_create_wdt(MachineState *machine)
         sysbus_connect_irq(wdt, i, qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
     }
 
-    /* TODO: MCC */
+    //! TODO: MCC
     prop = find_dtb_prop(child, "function-panic_flush_helper");
     if (prop) {
         remove_dtb_prop(child, prop);
@@ -1380,7 +1434,7 @@ static void t8030_create_wdt(MachineState *machine)
     }
 
     value = 1;
-    set_dtb_prop(child, "no-pmu", 4, (uint8_t *)&value);
+    set_dtb_prop(child, "no-pmu", sizeof(value), &value);
 
     sysbus_realize_and_unref(wdt, &error_fatal);
 }
@@ -1465,7 +1519,7 @@ static void t8030_create_spmi(MachineState *machine, const char *name)
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
     ints = (uint32_t *)prop->value;
-    /* XXX: Only the second interrupt's parent is AIC */
+    //! XXX: Only the second interrupt's parent is AIC
     sysbus_connect_irq(SYS_BUS_DEVICE(spmi), 0,
                        qdev_get_gpio_in(DEVICE(tms->aic), ints[1]));
 
@@ -1540,12 +1594,12 @@ static void t8030_create_smc(MachineState *machine)
     segranges[1].size = T8030_SMC_DATA_SIZE;
     segranges[1].flag = 0x0;
 
-    set_dtb_prop(iop_nub, "segment-ranges", 64, segranges);
+    set_dtb_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
 
     data = T8030_SMC_REGION_SIZE;
-    set_dtb_prop(iop_nub, "region-size", 8, &data);
+    set_dtb_prop(iop_nub, "region-size", sizeof(data), &data);
     data = T8030_SMC_SRAM_BASE;
-    set_dtb_prop(iop_nub, "sram-addr", 8, &data);
+    set_dtb_prop(iop_nub, "sram-addr", sizeof(data), &data);
 
     smc = apple_smc_create(child, tms->rtbuddyv2_protocol_version);
     g_assert(smc);
@@ -1679,12 +1733,21 @@ static void t8030_create_sep(MachineState *machine)
     sep = apple_sep_create(child, T8030_SEPROM_BASE, A13_MAX_CPU + 1,
                            tms->build_version, true);
     g_assert(sep);
+
     object_property_add_child(OBJECT(machine), "sep", OBJECT(sep));
 
     prop = find_dtb_prop(child, "reg");
     g_assert(prop);
     reg = (uint64_t *)prop->value;
-    sysbus_mmio_map(SYS_BUS_DEVICE(sep), APPLE_MBOX_AP_MMIO, tms->soc_base_pa + reg[0]);
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 0, tms->soc_base_pa + reg[0]);
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 1,
+                    tms->soc_base_pa + 0x41180000); // TRNG
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 2,
+                    tms->soc_base_pa + 0x41080000); // MISC0
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 3,
+                    tms->soc_base_pa + 0x41040000); // MISC1
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 4,
+                    tms->soc_base_pa + 0x410C4000); // MISC2
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
@@ -1717,17 +1780,17 @@ static void t8030_create_sep(MachineState *machine)
 
 static void t8030_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 {
-    // T8030MachineState *tms = data.host_ptr;
-    // CPUARMState *env;
+    T8030MachineState *tms = data.host_ptr;
+    CPUARMState *env;
     AppleA13State *tcpu = APPLE_A13(cpu);
     if (!tcpu) {
         return;
     }
     cpu_reset(cpu);
-    // env = &ARM_CPU(cpu)->env;
-    // env->xregs[0] = tms->bootinfo.bootargs_pa;
-    // cpu_set_pc(cpu, tms->bootinfo.entry);
-    cpu_set_pc(cpu, T8030_SROM_BASE);
+    env = &ARM_CPU(cpu)->env;
+    env->xregs[0] = tms->bootinfo.bootargs_pa;
+    cpu_set_pc(cpu, tms->bootinfo.entry);
+    // cpu_set_pc(cpu, T8030_SROM_BASE);
 }
 
 static void t8030_cpu_reset(void *opaque)
@@ -1788,74 +1851,77 @@ static void t8030_machine_init_done(Notifier *notifier, void *data)
 
 static void t8030_machine_init(MachineState *machine)
 {
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *tms;
     struct mach_header_64 *hdr;
     uint64_t kernel_low = 0, kernel_high = 0;
     uint32_t build_version;
     uint32_t data;
-    uint8_t buffer[0x40] = { 0 };
-    uint32_t display_rotation = 0;
-    uint32_t display_scale = 2;
+    uint64_t data64;
+    uint8_t buffer[0x40];
     DTBNode *child;
     DTBProp *prop;
     hwaddr *ranges;
 
+    memset(buffer, 0, sizeof(buffer));
+
+    tms = T8030_MACHINE(machine);
     tms->sysmem = get_system_memory();
-    allocate_ram(tms->sysmem, "SROM", T8030_SROM_BASE, T8030_SROM_SIZE, 0);
-    allocate_ram(tms->sysmem, "SRAM", T8030_SRAM_BASE, T8030_SRAM_SIZE, 0);
+    // allocate_ram(tms->sysmem, "SROM", T8030_SROM_BASE, T8030_SROM_SIZE, 0);
+    // allocate_ram(tms->sysmem, "SRAM", T8030_SRAM_BASE, T8030_SRAM_SIZE, 0);
     allocate_ram(tms->sysmem, "DRAM", T8030_DRAM_BASE, T8030_DRAM_SIZE, 0);
     allocate_ram(tms->sysmem, "SEPROM", T8030_SEPROM_BASE, T8030_SEPROM_SIZE,
                  0);
+    allocate_ram(tms->sysmem, "DRAM_3", 0x300000000ULL, 0x100000000ULL, 0);
 
-    // hdr = macho_load_file(machine->kernel_filename);
-    // g_assert(hdr);
-    // tms->kernel = hdr;
-    // xnu_header = hdr;
-    // build_version = macho_build_version(hdr);
-    // fprintf(stderr, "Loading %s %u.%u...\n", macho_platform_string(hdr),
-    //         BUILD_VERSION_MAJOR(build_version),
-    //         BUILD_VERSION_MINOR(build_version));
-    // tms->build_version = build_version;
+    hdr = macho_load_file(machine->kernel_filename);
+    g_assert(hdr);
+    tms->kernel = hdr;
+    xnu_header = hdr;
+    build_version = macho_build_version(hdr);
+    fprintf(stderr, "Loading %s %u.%u...\n", macho_platform_string(hdr),
+            BUILD_VERSION_MAJOR(build_version),
+            BUILD_VERSION_MINOR(build_version));
+    tms->build_version = build_version;
 
-    // if (tms->rtbuddyv2_protocol_version == 0) {
-    //     switch (BUILD_VERSION_MAJOR(build_version)) {
-    //     case 13:
-    //         tms->rtbuddyv2_protocol_version = 10;
-    //         break;
-    //     case 14:
-    //         tms->rtbuddyv2_protocol_version = 11;
-    //         break;
-    //     case 15:
-    //         QEMU_FALLTHROUGH;
-    //     case 16:
-    //         tms->rtbuddyv2_protocol_version = 12;
-    //         break;
-    //     default:
-    //         break;
-    //     }
-    // }
+    if (tms->rtbuddyv2_protocol_version == 0) {
+        switch (BUILD_VERSION_MAJOR(build_version)) {
+        case 13:
+            tms->rtbuddyv2_protocol_version = 10;
+            break;
+        case 14:
+            tms->rtbuddyv2_protocol_version = 11;
+            break;
+        case 15:
+            QEMU_FALLTHROUGH;
+        case 16:
+            tms->rtbuddyv2_protocol_version = 12;
+            break;
+        default:
+            break;
+        }
+    }
 
-    // macho_highest_lowest(hdr, &kernel_low, &kernel_high);
-    // fprintf(stderr,
-    //         "kernel_low: 0x" TARGET_FMT_lx "\n"
-    //         "kernel_high: 0x" TARGET_FMT_lx "\n",
-    //         kernel_low, kernel_high);
+    macho_highest_lowest(hdr, &kernel_low, &kernel_high);
+    fprintf(stderr,
+            "kernel_low: 0x" TARGET_FMT_lx "\n"
+            "kernel_high: 0x" TARGET_FMT_lx "\n",
+            kernel_low, kernel_high);
 
-    // g_virt_base = kernel_low;
-    // g_phys_base = (hwaddr)macho_get_buffer(hdr);
+    g_virt_base = kernel_low;
+    g_phys_base = (hwaddr)macho_get_buffer(hdr);
 
-    // t8030_patch_kernel(hdr);
+    t8030_patch_kernel(hdr);
 
     tms->device_tree = load_dtb_from_file(machine->dtb);
-    // tms->trustcache = load_trustcache_from_file(tms->trustcache_filename,
-    //                                             &tms->bootinfo.trustcache_size);
-    data = 266666666;
-    set_dtb_prop(tms->device_tree, "clock-frequency", 4, &data);
+    tms->trustcache = load_trustcache_from_file(tms->trustcache_filename,
+                                                &tms->bootinfo.trustcache_size);
+    data = 24000000;
+    set_dtb_prop(tms->device_tree, "clock-frequency", sizeof(data), &data);
     child = find_dtb_node(tms->device_tree, "arm-io");
     g_assert(child);
 
     data = 0x20;
-    set_dtb_prop(child, "chip-revision", 4, &data);
+    set_dtb_prop(child, "chip-revision", sizeof(data), &data);
 
     set_dtb_prop(child, "clock-frequencies", sizeof(clock_freq), clock_freq);
 
@@ -1898,15 +1964,15 @@ static void t8030_machine_init(MachineState *machine)
     }
     set_dtb_prop(child, "unique-chip-id", 8, &tms->ecid);
 
-    /* update the display parameters */
-    set_dtb_prop(child, "display-rotation", sizeof(display_rotation),
-                 &display_rotation);
-
-    set_dtb_prop(child, "display-scale", sizeof(display_scale), &display_scale);
+    //! Update the display parameters
+    data = 0;
+    set_dtb_prop(child, "display-rotation", sizeof(data), &data);
+    data = 2;
+    set_dtb_prop(child, "display-scale", sizeof(data), &data);
 
     child = get_dtb_node(tms->device_tree, "product");
 
-    uint64_t data64 = 0x100000027;
+    data64 = 0x100000027;
     g_assert(
         set_dtb_prop(child, "display-corner-radius", sizeof(data64), &data64));
     data = 0x1;
@@ -1979,39 +2045,80 @@ static void t8030_machine_init(MachineState *machine)
 static void t8030_set_trustcache_filename(Object *obj, const char *value,
                                           Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
 
+    tms = T8030_MACHINE(obj);
     g_free(tms->trustcache_filename);
     tms->trustcache_filename = g_strdup(value);
 }
 
 static char *t8030_get_trustcache_filename(Object *obj, Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
 
+    tms = T8030_MACHINE(obj);
     return g_strdup(tms->trustcache_filename);
 }
 
 static void t8030_set_ticket_filename(Object *obj, const char *value,
                                       Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
 
+    tms = T8030_MACHINE(obj);
     g_free(tms->ticket_filename);
     tms->ticket_filename = g_strdup(value);
 }
 
 static char *t8030_get_ticket_filename(Object *obj, Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
 
+    tms = T8030_MACHINE(obj);
     return g_strdup(tms->ticket_filename);
+}
+
+static void t8030_set_seprom_filename(Object *obj, const char *value,
+                                      Error **errp)
+{
+    T8030MachineState *tms;
+
+    tms = T8030_MACHINE(obj);
+    g_free(tms->seprom_filename);
+    tms->seprom_filename = g_strdup(value);
+}
+
+static char *t8030_get_seprom_filename(Object *obj, Error **errp)
+{
+    T8030MachineState *tms;
+
+    tms = T8030_MACHINE(obj);
+    return g_strdup(tms->seprom_filename);
+}
+
+static void t8030_set_sepfw_filename(Object *obj, const char *value,
+                                     Error **errp)
+{
+    T8030MachineState *tms;
+
+    tms = T8030_MACHINE(obj);
+    g_free(tms->sepfw_filename);
+    tms->sepfw_filename = g_strdup(value);
+}
+
+static char *t8030_get_sepfw_filename(Object *obj, Error **errp)
+{
+    T8030MachineState *tms;
+
+    tms = T8030_MACHINE(obj);
+    return g_strdup(tms->sepfw_filename);
 }
 
 static void t8030_set_boot_mode(Object *obj, const char *value, Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
 
+    tms = T8030_MACHINE(obj);
     if (g_str_equal(value, "auto")) {
         tms->boot_mode = kBootModeAuto;
     } else if (g_str_equal(value, "manual")) {
@@ -2028,8 +2135,9 @@ static void t8030_set_boot_mode(Object *obj, const char *value, Error **errp)
 
 static char *t8030_get_boot_mode(Object *obj, Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
 
+    tms = T8030_MACHINE(obj);
     switch (tms->boot_mode) {
     case kBootModeManual:
         return g_strdup("manual");
@@ -2048,9 +2156,11 @@ static void t8030_get_rtbuddyv2_protocol_version(Object *obj, Visitor *v,
                                                  const char *name, void *opaque,
                                                  Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
-    int64_t value = tms->rtbuddyv2_protocol_version;
+    T8030MachineState *tms;
+    int64_t value;
 
+    tms = T8030_MACHINE(obj);
+    value = tms->rtbuddyv2_protocol_version;
     visit_type_int(v, name, &value, errp);
 }
 
@@ -2058,9 +2168,10 @@ static void t8030_set_rtbuddyv2_protocol_version(Object *obj, Visitor *v,
                                                  const char *name, void *opaque,
                                                  Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
     int64_t value;
 
+    tms = T8030_MACHINE(obj);
     if (!visit_type_int(v, name, &value, errp)) {
         return;
     }
@@ -2071,17 +2182,21 @@ static void t8030_set_rtbuddyv2_protocol_version(Object *obj, Visitor *v,
 static void t8030_get_ecid(Object *obj, Visitor *v, const char *name,
                            void *opaque, Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
-    int64_t value = tms->ecid;
+    T8030MachineState *tms;
+    int64_t value;
 
+    tms = T8030_MACHINE(obj);
+    value = tms->ecid;
     visit_type_int(v, name, &value, errp);
 }
 
 static void t8030_set_ecid(Object *obj, Visitor *v, const char *name,
                            void *opaque, Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
     int64_t value;
+
+    tms = T8030_MACHINE(obj);
 
     if (!visit_type_int(v, name, &value, errp)) {
         return;
@@ -2092,15 +2207,17 @@ static void t8030_set_ecid(Object *obj, Visitor *v, const char *name,
 
 static void t8030_set_kaslr_off(Object *obj, bool value, Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
 
+    tms = T8030_MACHINE(obj);
     tms->kaslr_off = value;
 }
 
 static bool t8030_get_kaslr_off(Object *obj, Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
 
+    tms = T8030_MACHINE(obj);
     return tms->kaslr_off;
 }
 
@@ -2110,18 +2227,20 @@ static ram_addr_t t8030_machine_fixup_ram_size(ram_addr_t size)
     return size;
 }
 
-static void t8030_set_force_dfu(Object *obj, const char *value, Error **errp)
+static void t8030_set_force_dfu(Object *obj, bool value, Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
 
-    tms->force_dfu = g_str_equal(value, "true") || strtoul(value, NULL, 0);
+    tms = T8030_MACHINE(obj);
+    tms->force_dfu = value;
 }
 
-static char *t8030_get_force_dfu(Object *obj, Error **errp)
+static bool t8030_get_force_dfu(Object *obj, Error **errp)
 {
-    T8030MachineState *tms = T8030_MACHINE(obj);
+    T8030MachineState *tms;
 
-    return g_strdup(tms->force_dfu ? "true" : "false");
+    tms = T8030_MACHINE(obj);
+    return tms->force_dfu;
 }
 
 static void t8030_machine_class_init(ObjectClass *klass, void *data)
@@ -2141,16 +2260,22 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
     mc->default_ram_size = T8030_DRAM_SIZE;
     mc->fixup_ram_size = t8030_machine_fixup_ram_size;
 
-    object_class_property_add_str(klass, "trustcache-filename",
+    object_class_property_add_str(klass, "trustcache",
                                   t8030_get_trustcache_filename,
                                   t8030_set_trustcache_filename);
-    object_class_property_set_description(klass, "trustcache-filename",
-                                          "Trustcache filename to be loaded");
-    object_class_property_add_str(klass, "ticket-filename",
-                                  t8030_get_ticket_filename,
+    object_class_property_set_description(klass, "trustcache",
+                                          "Trustcache to be loaded");
+    object_class_property_add_str(klass, "ticket", t8030_get_ticket_filename,
                                   t8030_set_ticket_filename);
-    object_class_property_set_description(klass, "ticket-filename",
-                                          "APTicket filename to be loaded");
+    object_class_property_set_description(klass, "ticket",
+                                          "APTicket to be loaded");
+    object_class_property_add_str(klass, "seprom", t8030_get_seprom_filename,
+                                  t8030_set_seprom_filename);
+    object_class_property_set_description(klass, "seprom",
+                                          "SEPROM to be loaded");
+    object_class_property_add_str(klass, "sepfw", t8030_get_sepfw_filename,
+                                  t8030_set_sepfw_filename);
+    object_class_property_set_description(klass, "sepfw", "SEPFW to be loaded");
     object_class_property_add_str(klass, "boot-mode", t8030_get_boot_mode,
                                   t8030_set_boot_mode);
     object_class_property_set_description(klass, "boot-mode",
@@ -2166,8 +2291,8 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
     object_class_property_add_bool(klass, "kaslr-off", t8030_get_kaslr_off,
                                    t8030_set_kaslr_off);
     object_class_property_set_description(klass, "kaslr-off", "Disable KASLR");
-    object_class_property_add_str(klass, "force-dfu", t8030_get_force_dfu,
-                                  t8030_set_force_dfu);
+    object_class_property_add_bool(klass, "force-dfu", t8030_get_force_dfu,
+                                   t8030_set_force_dfu);
     object_class_property_set_description(klass, "force-dfu", "Force DFU");
 }
 

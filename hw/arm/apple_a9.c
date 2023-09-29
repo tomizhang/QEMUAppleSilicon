@@ -26,7 +26,7 @@
         .access = p_access, .resetvalue = p_reset, .state = ARM_CP_STATE_AA64, \
         .type = ARM_CP_OVERRIDE,                                               \
         .fieldoffset = offsetof(AppleA9State, A9_CPREG_VAR_NAME(p_name)) -     \
-                       offsetof(ARMCPU, env)                                   \
+                       offsetof(ARMCPU, env),                                  \
     }
 
 #define MPIDR_AFF0_SHIFT 0
@@ -200,29 +200,19 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     if (tcpu->cpu_id == 0 || node == NULL) {
         if (node) {
-            set_dtb_prop(node, "state", 8, (uint8_t *)"running");
+            set_dtb_prop(node, "state", 8, "running");
         }
         object_property_set_bool(obj, "start-powered-off", false, NULL);
     } else {
         object_property_set_bool(obj, "start-powered-off", true, NULL);
     }
 
+    //! Need to set the CPU frequencies instead of iBoot
     if (node) {
-        // need to set the cpu freqs instead of iBoot
         freq = 24000000;
 
-        prop = find_dtb_prop(node, "timebase-frequency");
-        if (prop) {
-            remove_dtb_prop(node, prop);
-        }
-        set_dtb_prop(node, "timebase-frequency", sizeof(freq),
-                     (uint8_t *)&freq);
-
-        prop = find_dtb_prop(node, "fixed-frequency");
-        if (prop) {
-            remove_dtb_prop(node, prop);
-        }
-        set_dtb_prop(node, "fixed-frequency", sizeof(freq), (uint8_t *)&freq);
+        set_dtb_prop(node, "timebase-frequency", sizeof(freq), &freq);
+        set_dtb_prop(node, "fixed-frequency", sizeof(freq), &freq);
     }
 
     memory_region_init(&tcpu->memory, obj, "cpu-memory", UINT64_MAX);

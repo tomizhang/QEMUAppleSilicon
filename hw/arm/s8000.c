@@ -50,6 +50,7 @@
 #include "qemu/cutils.h"
 #include "qemu/error-report.h"
 #include "qemu/log.h"
+#include "qemu/units.h"
 #include "sysemu/block-backend.h"
 #include "sysemu/reset.h"
 #include "sysemu/runstate.h"
@@ -60,11 +61,12 @@
 #define S8000_SRAM_BASE (0x180000000ULL)
 #define S8000_SRAM_SIZE (0x400000ULL)
 #define S8000_DRAM_BASE (0x800000000ULL)
+#define S8000_DRAM_SIZE (2 * GiB)
 #define S8000_SPI0_BASE (0x00A080000ULL)
 #define S8000_SPI0_IRQ (188)
 
 #define S8000_SEPROM_BASE (0x20D000000ULL)
-#define S8000_SEPROM_SIZE (0x1000000ULL)
+#define S8000_SEPROM_SIZE (0x001000000ULL)
 
 #define S8000_GPIO_HOLD_KEY (97)
 #define S8000_GPIO_MENU_KEY (96)
@@ -72,18 +74,18 @@
 #define S8000_GPIO_FORCE_DFU (123)
 #define S8000_GPIO_DFU_STATUS (136)
 
-static void s8000_wake_up_cpus(MachineState *machine, uint64_t cpu_mask)
-{
-    S8000MachineState *tms = S8000_MACHINE(machine);
-    int i;
+// static void s8000_wake_up_cpus(MachineState *machine, uint64_t cpu_mask)
+// {
+//     S8000MachineState *tms = S8000_MACHINE(machine);
+//     int i;
 
-    for (i = 0; i < machine->smp.cpus - 1; i++) {
-        if (test_bit(i, (unsigned long *)&cpu_mask) &&
-            apple_a9_is_sleep(tms->cpus[i])) {
-            apple_a9_wakeup(tms->cpus[i]);
-        }
-    }
-}
+//     for (i = 0; i < machine->smp.cpus - 1; i++) {
+//         if (test_bit(i, (unsigned long *)&cpu_mask) &&
+//             apple_a9_is_sleep(tms->cpus[i])) {
+//             apple_a9_wakeup(tms->cpus[i]);
+//         }
+//     }
+// }
 
 static void s8000_create_s3c_uart(const S8000MachineState *tms, Chardev *chr)
 {
@@ -119,9 +121,9 @@ static void s8000_create_s3c_uart(const S8000MachineState *tms, Chardev *chr)
     g_assert(dev);
 }
 
-static void s8000_patch_kernel(struct mach_header_64 *hdr)
-{
-}
+// static void s8000_patch_kernel(struct mach_header_64 *hdr)
+// {
+// }
 
 static bool s8000_check_panic(MachineState *machine)
 {
@@ -169,17 +171,18 @@ static void s8000_memory_setup(MachineState *machine)
     address_space_rw(nsas, S8000_SROM_BASE, MEMTXATTRS_UNSPECIFIED,
                      (uint8_t *)securerom, fsize, true);
 
-    char sepfw[] =
-        "/Users/visual/Developer/iOSDev/AppleSEPROM-230.0.0.4.1 (S8000)";
-    if (!g_file_get_contents(sepfw, &seprom, &fsize, NULL)) {
-        error_report("Could not load data from file '%s'", sepfw);
+    if (tms->seprom_filename == NULL) {
+        error_report("Please set path to SEPROM");
+        exit(EXIT_FAILURE);
+    }
+
+    if (!g_file_get_contents(tms->seprom_filename, &seprom, &fsize, NULL)) {
+        error_report("Could not load data from file '%s'",
+                     tms->seprom_filename);
         exit(EXIT_FAILURE);
     }
     address_space_rw(nsas, S8000_SEPROM_BASE, MEMTXATTRS_UNSPECIFIED,
                      (uint8_t *)seprom, fsize, true);
-    // address_space_rw(nsas, 0, MEMTXATTRS_UNSPECIFIED, (uint8_t *)seprom,
-    // fsize,
-    //                  true);
 }
 
 static void pmgr_unk_reg_write(void *opaque, hwaddr addr, uint64_t data,
@@ -196,20 +199,24 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     hwaddr base = (hwaddr)opaque;
 
-    qemu_log_mask(LOG_UNIMP,
-                  "PMGR reg READ unk @ 0x" TARGET_FMT_lx
-                  " base: 0x" TARGET_FMT_lx "\n",
-                  base + addr, base);
     switch (base + addr) {
-    case 0x102BC000: // CFG_FUSE0
+    case 0x102BC000: //! CFG_FUSE0
         return (1 << 2);
-    case 0x102BC200: // CFG_FUSE0_RAW
-        return 0;
-    case 0x102BC080: // ECID_LO
+    case 0x102BC200: //! CFG_FUSE0_RAW
+        return 0x0;
+    case 0x102BC080: //! ECID_LO
         return 0x13371337;
-    case 0x102BC084: // ECID_HI
+    case 0x102BC084: //! ECID_HI
         return 0xDEADBEEF;
+    case 0x102E8000: // ????
+        return 0x4;
+    case 0x102BC104: // ???? bit 24 => is fresh boot?
+        return (1 << 24) | (1 << 25);
     default:
+        qemu_log_mask(LOG_UNIMP,
+                      "PMGR reg READ unk @ 0x" TARGET_FMT_lx
+                      " base: 0x" TARGET_FMT_lx "\n",
+                      base + addr, base);
         break;
     }
     return 0;
@@ -236,7 +243,7 @@ static void pmgr_reg_write(void *opaque, hwaddr addr, uint64_t data,
     }
 
     switch (addr) {
-    case 0x80400: // SEP_PS
+    case 0x80400: //! SEP Power State, Manual & Actual: Run Max
         value = 0xFF;
         break;
     default:
@@ -366,45 +373,46 @@ static void s8000_pmgr_setup(MachineState *machine)
     }
 }
 
-static void s8000_create_dart(MachineState *machine, const char *name)
-{
-    AppleDARTState *dart = NULL;
-    DTBProp *prop;
-    uint64_t *reg;
-    uint32_t *ints;
-    int i;
-    S8000MachineState *tms = S8000_MACHINE(machine);
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+// static void s8000_create_dart(MachineState *machine, const char *name)
+// {
+//     AppleDARTState *dart = NULL;
+//     DTBProp *prop;
+//     uint64_t *reg;
+//     uint32_t *ints;
+//     int i;
+//     S8000MachineState *tms = S8000_MACHINE(machine);
+//     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
 
-    g_assert(child);
-    child = find_dtb_node(child, name);
-    if (!child)
-        return;
+//     g_assert(child);
+//     child = find_dtb_node(child, name);
+//     if (!child)
+//         return;
 
-    dart = apple_dart_create(child);
-    g_assert(dart);
-    object_property_add_child(OBJECT(machine), name, OBJECT(dart));
+//     dart = apple_dart_create(child);
+//     g_assert(dart);
+//     object_property_add_child(OBJECT(machine), name, OBJECT(dart));
 
-    prop = find_dtb_prop(child, "reg");
-    g_assert(prop);
+//     prop = find_dtb_prop(child, "reg");
+//     g_assert(prop);
 
-    reg = (uint64_t *)prop->value;
+//     reg = (uint64_t *)prop->value;
 
-    for (int i = 0; i < prop->length / 16; i++) {
-        sysbus_mmio_map(SYS_BUS_DEVICE(dart), i, tms->soc_base_pa + reg[i * 2]);
-    }
+//     for (int i = 0; i < prop->length / 16; i++) {
+//         sysbus_mmio_map(SYS_BUS_DEVICE(dart), i, tms->soc_base_pa + reg[i *
+//         2]);
+//     }
 
-    prop = find_dtb_prop(child, "interrupts");
-    g_assert(prop);
-    ints = (uint32_t *)prop->value;
+//     prop = find_dtb_prop(child, "interrupts");
+//     g_assert(prop);
+//     ints = (uint32_t *)prop->value;
 
-    for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_connect_irq(SYS_BUS_DEVICE(dart), i,
-                           qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
-    }
+//     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
+//         sysbus_connect_irq(SYS_BUS_DEVICE(dart), i,
+//                            qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+//     }
 
-    sysbus_realize_and_unref(SYS_BUS_DEVICE(dart), &error_fatal);
-}
+//     sysbus_realize_and_unref(SYS_BUS_DEVICE(dart), &error_fatal);
+// }
 
 static void s8000_create_gpio(MachineState *machine, const char *name)
 {
@@ -618,7 +626,7 @@ static void s8000_create_wdt(MachineState *machine)
     }
 
     value = 1;
-    set_dtb_prop(child, "no-pmu", 4, (uint8_t *)&value);
+    set_dtb_prop(child, "no-pmu", sizeof(value), &value);
 
     sysbus_realize_and_unref(wdt, &error_fatal);
 }
@@ -666,7 +674,6 @@ static void s8000_create_sep(MachineState *machine)
 {
     S8000MachineState *tms;
     DTBNode *child;
-    AppleSEPState *sep;
     DTBProp *prop;
     uint64_t *reg;
     uint32_t *ints;
@@ -678,30 +685,33 @@ static void s8000_create_sep(MachineState *machine)
     child = find_dtb_node(child, "sep");
     g_assert(child);
 
-    sep = apple_sep_create(child, 0, A9_MAX_CPU + 1, tms->build_version, false);
-    g_assert(sep);
+    tms->sep = SYS_BUS_DEVICE(
+        apple_sep_create(child, 0, A9_MAX_CPU + 1, tms->build_version, false));
+    g_assert(tms->sep);
 
-    object_property_add_child(OBJECT(machine), "sep", OBJECT(sep));
+    object_property_add_child(OBJECT(machine), "sep", OBJECT(tms->sep));
     prop = find_dtb_prop(child, "reg");
     g_assert(prop);
     reg = (uint64_t *)prop->value;
 
-    sysbus_mmio_map(SYS_BUS_DEVICE(sep), APPLE_MBOX_AP_v2_MMIO,
-                    tms->soc_base_pa + reg[0]);
+    sysbus_mmio_map_overlap(SYS_BUS_DEVICE(tms->sep), 0,
+                            tms->soc_base_pa + reg[0], 2);
+    sysbus_mmio_map_overlap(SYS_BUS_DEVICE(tms->sep), 1,
+                            tms->soc_base_pa + 0xD500000, 2);
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_connect_irq(SYS_BUS_DEVICE(sep), i,
+        sysbus_connect_irq(SYS_BUS_DEVICE(tms->sep), i,
                            qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
     }
 
-    g_assert(object_property_add_const_link(OBJECT(sep), "dma-mr",
+    g_assert(object_property_add_const_link(OBJECT(tms->sep), "dma-mr",
                                             OBJECT(tms->sysmem)));
 
-    sysbus_realize_and_unref(SYS_BUS_DEVICE(sep), &error_fatal);
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(tms->sep), &error_fatal);
 }
 
 static void apple_a9_reset(void *opaque)
@@ -767,7 +777,7 @@ static void s8000_machine_init(MachineState *machine)
     allocate_ram(tms->sysmem, "SEPROM", S8000_SEPROM_BASE, S8000_SEPROM_SIZE,
                  0);
     MemoryRegion *mr = g_new0(MemoryRegion, 1);
-    memory_region_init_alias(mr, OBJECT(tms), "redir", tms->sysmem,
+    memory_region_init_alias(mr, OBJECT(tms), "s8000.seprom.alias", tms->sysmem,
                              S8000_SEPROM_BASE, S8000_SEPROM_SIZE);
     memory_region_add_subregion_overlap(tms->sysmem, 0, mr, 1);
 
@@ -814,24 +824,51 @@ static void s8000_machine_init(MachineState *machine)
     qemu_add_machine_init_done_notifier(&tms->init_done_notifier);
 }
 
-static void s8000_set_force_dfu(Object *obj, const char *value, Error **errp)
+static ram_addr_t s8000_machine_fixup_ram_size(ram_addr_t size)
 {
-    S8000MachineState *tms = S8000_MACHINE(obj);
-
-    tms->force_dfu = g_str_equal(value, "true") || strtoul(value, NULL, 0);
+    g_assert(size == S8000_DRAM_SIZE);
+    return size;
 }
 
-static char *s8000_get_force_dfu(Object *obj, Error **errp)
+static void s8000_set_seprom_filename(Object *obj, const char *value,
+                                      Error **errp)
 {
-    S8000MachineState *tms = S8000_MACHINE(obj);
+    S8000MachineState *tms;
 
-    return g_strdup(tms->force_dfu ? "true" : "false");
+    tms = S8000_MACHINE(obj);
+    g_free(tms->seprom_filename);
+    tms->seprom_filename = g_strdup(value);
+}
+
+static char *s8000_get_seprom_filename(Object *obj, Error **errp)
+{
+    S8000MachineState *tms;
+
+    tms = S8000_MACHINE(obj);
+    return g_strdup(tms->seprom_filename);
+}
+
+static void s8000_set_force_dfu(Object *obj, bool value, Error **errp)
+{
+    S8000MachineState *tms;
+
+    tms = S8000_MACHINE(obj);
+    tms->force_dfu = value;
+}
+
+static bool s8000_get_force_dfu(Object *obj, Error **errp)
+{
+    S8000MachineState *tms;
+
+    tms = S8000_MACHINE(obj);
+    return tms->force_dfu;
 }
 
 static void s8000_machine_class_init(ObjectClass *klass, void *data)
 {
-    MachineClass *mc = MACHINE_CLASS(klass);
+    MachineClass *mc;
 
+    mc = MACHINE_CLASS(klass);
     mc->desc = "S8000";
     mc->init = s8000_machine_init;
     mc->reset = s8000_machine_reset;
@@ -842,9 +879,15 @@ static void s8000_machine_class_init(ObjectClass *klass, void *data)
     mc->no_parallel = 1;
     mc->default_cpu_type = TYPE_APPLE_A9;
     mc->minimum_page_bits = 14;
+    mc->default_ram_size = S8000_DRAM_SIZE;
+    mc->fixup_ram_size = s8000_machine_fixup_ram_size;
 
-    object_class_property_add_str(klass, "force-dfu", s8000_get_force_dfu,
-                                  s8000_set_force_dfu);
+    object_class_property_add_str(klass, "seprom", s8000_get_seprom_filename,
+                                  s8000_set_seprom_filename);
+    object_class_property_set_description(klass, "seprom",
+                                          "SEPROM to be loaded");
+    object_class_property_add_bool(klass, "force-dfu", s8000_get_force_dfu,
+                                   s8000_set_force_dfu);
     object_class_property_set_description(klass, "force-dfu", "Force DFU");
 }
 

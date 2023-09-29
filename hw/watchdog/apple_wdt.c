@@ -151,7 +151,7 @@ static void wdt_reg_write(void *opaque, hwaddr addr, uint64_t data,
     bool nowrite = false;
 
     if (addr >= REG_SIZE) {
-        qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
+        qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
         return;
     }
@@ -191,7 +191,7 @@ static uint64_t wdt_reg_read(void *opaque, hwaddr addr, unsigned size)
     uint32_t *mmio = NULL;
 
     if (addr >= REG_SIZE) {
-        qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
+        qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
         return 0;
     }

@@ -39,6 +39,7 @@ static void apple_genpipev2_write(GenPipeState *s, hwaddr addr, uint64_t data)
     case GENPIPEV2_GP_CONFIG_CONTROL:
         s->config_control = (uint32_t)data;
         break;
+
     case GENPIPEV2_PLANE_START:
         s->plane_start = (uint32_t)data;
 #ifdef DEBUG_DISPLAYPIPE_V2
@@ -46,6 +47,7 @@ static void apple_genpipev2_write(GenPipeState *s, hwaddr addr, uint64_t data)
                     data);
 #endif
         break;
+
     case GENPIPEV2_PLANE_END:
         s->plane_end = (uint32_t)data;
 #ifdef DEBUG_DISPLAYPIPE_V2
@@ -53,6 +55,7 @@ static void apple_genpipev2_write(GenPipeState *s, hwaddr addr, uint64_t data)
                     data);
 #endif
         break;
+
     case GENPIPEV2_PLANE_STRIDE:
         s->plane_stride = (uint32_t)data;
 #ifdef DEBUG_DISPLAYPIPE_V2
@@ -60,6 +63,7 @@ static void apple_genpipev2_write(GenPipeState *s, hwaddr addr, uint64_t data)
                     data);
 #endif
         break;
+
     default:
         break;
     }
@@ -380,9 +384,9 @@ static Property apple_displaypipe_v2_props[] = {
     DEFINE_PROP_END_OF_LIST()
 };
 
-static void apple_displaypipe_v2_class_init(ObjectClass *oc, void *data)
+static void apple_displaypipe_v2_class_init(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(oc);
+    DeviceClass *dc = DEVICE_CLASS(klass);
 
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
     device_class_set_props(dc, apple_displaypipe_v2_props);

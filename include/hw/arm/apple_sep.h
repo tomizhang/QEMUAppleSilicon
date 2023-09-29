@@ -42,6 +42,11 @@ struct AppleSEPState {
     AppleMboxState *mbox;
     MemoryRegion *dma_mr;
     AddressSpace *dma_as;
+    MemoryRegion trng_mr;
+    MemoryRegion misc0_mr;
+    MemoryRegion misc1_mr;
+    MemoryRegion misc2_mr;
+    uint8_t misc1_regs[REG_SIZE];
 };
 
 AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,

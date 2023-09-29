@@ -478,10 +478,10 @@ SysBusDevice *apple_smc_create(DTBNode *node, uint32_t protocol_version)
 
 
     child = find_dtb_node(node, "iop-smc-nub");
-    assert(child);
+    g_assert(child);
 
     prop = find_dtb_prop(node, "reg");
-    assert(prop);
+    g_assert(prop);
 
     reg = (uint64_t *)prop->value;
 
@@ -495,7 +495,8 @@ SysBusDevice *apple_smc_create(DTBNode *node, uint32_t protocol_version)
     apple_mbox_register_endpoint(s->mbox, kSMCKeyEndpoint,
                                  &apple_smc_handle_key_endpoint);
 
-    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox), 0));
+    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox),
+                                                 APPLE_MBOX_MMIO_V3));
 
     s->iomems[1] = g_new(MemoryRegion, 1);
     memory_region_init_io(s->iomems[1], OBJECT(dev), &ascv2_core_reg_ops, s,
@@ -503,8 +504,8 @@ SysBusDevice *apple_smc_create(DTBNode *node, uint32_t protocol_version)
     sysbus_init_mmio(sbd, s->iomems[1]);
 
     prop = find_dtb_prop(child, "sram-addr");
-    assert(prop != NULL);
-    assert(prop->length = 8);
+    g_assert(prop != NULL);
+    g_assert(prop->length == 8);
 
     s->sram_addr = *(uint64_t *)prop->value;
     s->iomems[2] = g_new(MemoryRegion, 1);

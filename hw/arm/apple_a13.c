@@ -76,7 +76,7 @@
 #define USEC_PER_SEC 1000000ull /* microseconds per second */
 #define NSEC_PER_SEC 1000000000ull /* nanoseconds per second */
 #define NSEC_PER_MSEC 1000000ull /* nanoseconds per millisecond */
-#define RTCLOCK_SEC_DIVISOR 266666666ull
+#define RTCLOCK_SEC_DIVISOR 24000000ull
 
 static void absolutetime_to_nanoseconds(uint64_t abstime, uint64_t *result)
 {
@@ -635,7 +635,7 @@ static void apple_a13_reset(DeviceState *dev)
 static void apple_a13_instance_init(Object *obj)
 {
     ARMCPU *cpu = ARM_CPU(obj);
-    object_property_set_uint(obj, "cntfrq", 266666666, &error_fatal);
+    object_property_set_uint(obj, "cntfrq", 24000000, &error_fatal);
     object_property_add_uint64_ptr(obj, "pauth-mlo", &cpu->m_key_lo,
                                    OBJ_PROP_FLAG_READWRITE);
     object_property_add_uint64_ptr(obj, "pauth-mhi", &cpu->m_key_hi,
@@ -721,7 +721,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     if (tcpu->cpu_id == 0 || node == NULL) {
         if (node) {
-            set_dtb_prop(node, "state", 8, (uint8_t *)"running");
+            set_dtb_prop(node, "state", 8, "running");
         }
         object_property_set_bool(obj, "start-powered-off", false, NULL);
     } else {
@@ -731,19 +731,16 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
     // XXX: QARMA is too slow
     object_property_set_bool(obj, "pauth-impdef", true, NULL);
 
-    // need to set the cpu freqs instead of iBoot
+    //! Need to set the CPU frequencies instead of iBoot
     if (node) {
-        freq = 266666666;
+        freq = 24000000;
 
-        set_dtb_prop(node, "timebase-frequency", sizeof(freq),
-                     (uint8_t *)&freq);
-        set_dtb_prop(node, "fixed-frequency", sizeof(freq), (uint8_t *)&freq);
-        set_dtb_prop(node, "peripheral-frequency", sizeof(freq),
-                     (uint8_t *)&freq);
-        set_dtb_prop(node, "memory-frequency", sizeof(freq), (uint8_t *)&freq);
-        set_dtb_prop(node, "bus-frequency", sizeof(uint32_t), (uint8_t *)&freq);
-        set_dtb_prop(node, "clock-frequency", sizeof(uint32_t),
-                     (uint8_t *)&freq);
+        set_dtb_prop(node, "timebase-frequency", sizeof(freq), &freq);
+        set_dtb_prop(node, "fixed-frequency", sizeof(freq), &freq);
+        set_dtb_prop(node, "peripheral-frequency", sizeof(freq), &freq);
+        set_dtb_prop(node, "memory-frequency", sizeof(freq), &freq);
+        set_dtb_prop(node, "bus-frequency", sizeof(freq), &freq);
+        set_dtb_prop(node, "clock-frequency", sizeof(freq), &freq);
     }
 
     object_property_set_bool(obj, "has_el3", false, NULL);

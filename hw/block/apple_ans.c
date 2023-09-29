@@ -215,11 +215,6 @@ SysBusDevice *apple_ans_create(DTBNode *node, uint32_t protocol_version)
 
     reg = (uint64_t *)prop->value;
 
-    /*
-     * 0: AppleA7IOP akfRegMap
-     * 1: AppleASCWrapV2 coreRegisterMap
-     * 2: AppleA7IOP autoBootRegMap
-     */
     s->mbox = apple_mbox_create("ANS2", s, reg[1], protocol_version,
                                 &ans_mailbox_ops);
     object_property_add_child(OBJECT(s), "mbox", OBJECT(s->mbox));

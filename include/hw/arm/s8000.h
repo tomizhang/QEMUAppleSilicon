@@ -57,11 +57,13 @@ typedef struct {
     AppleA9State *cpus[A9_MAX_CPU];
     CPUClusterState cluster;
     SysBusDevice *aic;
+    SysBusDevice *sep;
     MemoryRegion *sysmem;
     struct mach_header_64 *kernel;
     DTBNode *device_tree;
     struct macho_boot_info bootinfo;
     video_boot_args video;
+    char *seprom_filename;
     uint32_t build_version;
     Notifier init_done_notifier;
     hwaddr panic_base;
