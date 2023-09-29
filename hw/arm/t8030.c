@@ -665,7 +665,8 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         // return 0xA55AC33C; // security domain | 0x2
         return 0xA050C030; // security domain | 0x0
     case 0x3D2BC010:
-        return (1 << 5); // _rCFG_FUSE0 ; (security epoch & 0x7F) << 5
+        return (1 << 5) | (1 << 31); // _rCFG_FUSE0 ; (security epoch & 0x7F) <<
+                                     // 5 ;; (1 << 31) for SEP
     case 0x3D2BC030:
         // return 0xFFFFFFFF; // CPRV
         // return 0x7 << 6; // LOW NIBBLE

@@ -82,8 +82,11 @@ static const MemoryRegionOps trng_reg_ops = {
 static void misc0_reg_write(void *opaque, hwaddr addr, uint64_t data,
                             unsigned size)
 {
+    AppleSEPState *s = APPLE_SEP(opaque);
+
     switch (addr) {
     default:
+        memcpy(&s->misc0_regs[addr], &data, size);
         qemu_log_mask(LOG_UNIMP,
                       "SEP MISC0: Unknown write at 0x" HWADDR_FMT_plx
                       " with value 0x" HWADDR_FMT_plx "\n",
@@ -94,6 +97,7 @@ static void misc0_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
 static uint64_t misc0_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
+    AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
     switch (addr) {
@@ -102,6 +106,7 @@ static uint64_t misc0_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0xf4: // ????
         return 0x0;
     default:
+        memcpy(&ret, &s->misc0_regs[addr], size);
         qemu_log_mask(LOG_UNIMP,
                       "SEP MISC0: Unknown read at 0x" HWADDR_FMT_plx "\n",
                       addr);
@@ -127,10 +132,10 @@ static void misc1_reg_write(void *opaque, hwaddr addr, uint64_t data,
 {
     AppleSEPState *s = APPLE_SEP(opaque);
     switch (addr) {
-    case 0x20:
-        memcpy(&s->misc1_regs[addr], &data, size);
-        break;
+    // case 0x20:
+    //     break;
     default:
+        memcpy(&s->misc1_regs[addr], &data, size);
         qemu_log_mask(LOG_UNIMP,
                       "SEP MISC1: Unknown write at 0x" HWADDR_FMT_plx
                       " with value 0x" HWADDR_FMT_plx "\n",
@@ -147,15 +152,14 @@ static uint64_t misc1_reg_read(void *opaque, hwaddr addr, unsigned size)
     switch (addr) {
     case 0xc: // ???? bit1 clear, bit0 set
         return (0 << 1) | (1 << 0);
-    case 0x20:
-        // return 0x1;
-        memcpy(&ret, &s->misc1_regs[addr], size);
-        return ret;
+    // case 0x20:
+    // return 0x1;
     case 0xe4: // ????
         return 0x0;
     case 0x280: // ????
         return 0x1;
     default:
+        memcpy(&ret, &s->misc1_regs[addr], size);
         qemu_log_mask(LOG_UNIMP,
                       "SEP MISC1: Unknown read at 0x" HWADDR_FMT_plx "\n",
                       addr);
@@ -179,8 +183,10 @@ static const MemoryRegionOps misc1_reg_ops = {
 static void misc2_reg_write(void *opaque, hwaddr addr, uint64_t data,
                             unsigned size)
 {
+    AppleSEPState *s = APPLE_SEP(opaque);
     switch (addr) {
     default:
+        memcpy(&s->misc2_regs[addr], &data, size);
         qemu_log_mask(LOG_UNIMP,
                       "SEP MISC2: Unknown write at 0x" HWADDR_FMT_plx
                       " with value 0x" HWADDR_FMT_plx "\n",
@@ -191,12 +197,14 @@ static void misc2_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
 static uint64_t misc2_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
+    AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
     switch (addr) {
     case 0x24: // ????
         return 0x0;
     default:
+        memcpy(&ret, &s->misc2_regs[addr], size);
         qemu_log_mask(LOG_UNIMP,
                       "SEP MISC2: Unknown read at 0x" HWADDR_FMT_plx "\n",
                       addr);
