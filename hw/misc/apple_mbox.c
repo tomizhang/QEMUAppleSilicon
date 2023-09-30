@@ -487,7 +487,7 @@ static void apple_mbox_v3_reg_write(void *opaque, hwaddr addr,
                 msg = g_new0(struct apple_mbox_msg, 1);
                 memcpy(msg->data, &s->regs[REG_V3_A2I_PUSH0], 16);
                 apple_mbox_inbox_push(s, msg);
-                IOP_LOG_MSG(s, "IOP received", msg);
+                IOP_LOG_MSG(s, "AP sent", msg);
             }
             break;
         }
