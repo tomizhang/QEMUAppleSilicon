@@ -167,7 +167,11 @@ static void iop_update_irq(AppleMboxState *s)
         qemu_set_irq(s->iop_irq, (apple_mbox_inbox_empty(s) &&
                                   !(s->iop_int_mask & V2_A2I_EMPTY)) ||
                                      (!apple_mbox_inbox_empty(s) &&
-                                      !(s->iop_int_mask & V2_A2I_NONEMPTY)));
+                                      !(s->iop_int_mask & V2_A2I_NONEMPTY)) ||
+                                     (apple_mbox_outbox_empty(s) &&
+                                      !(s->iop_int_mask & V2_I2A_EMPTY)) ||
+                                     (!apple_mbox_outbox_empty(s) &&
+                                      !(s->iop_int_mask & V2_I2A_NONEMPTY)));
     }
     smp_mb();
 }
@@ -547,6 +551,10 @@ static uint64_t apple_mbox_v3_reg_read(void *opaque, hwaddr addr, unsigned size)
         memcpy(&ret, &s->regs[addr], size);
 
         switch (addr) {
+        case REG_V3_INT_MASK_SET:
+            return s->int_mask;
+        case REG_V3_INT_MASK_CLR:
+            return ~s->int_mask;
         case REG_V3_I2A_POP_0_LOW:
             msg = apple_mbox_outbox_pop(s);
             if (!msg) {
@@ -566,6 +574,10 @@ static uint64_t apple_mbox_v3_reg_read(void *opaque, hwaddr addr, unsigned size)
             QEMU_FALLTHROUGH;
         case REG_V3_I2A_POP_1_HIGH:
             break;
+        case REG_V3_IOP_INT_MASK_SET:
+            return s->iop_int_mask;
+        case REG_V3_IOP_INT_MASK_CLR:
+            return ~s->iop_int_mask;
         case REG_V3_A2I_CTRL:
             QEMU_FALLTHROUGH;
         case REG_V3_IOP_A2I_CTRL:
@@ -720,6 +732,10 @@ static uint64_t apple_mbox_v2_reg_read(void *opaque, hwaddr addr, unsigned size)
         memcpy(&ret, &s->regs[addr], size);
 
         switch (addr) {
+        case REG_V2_INT_MASK_SET:
+            return s->int_mask;
+        case REG_V2_INT_MASK_CLR:
+            return ~s->int_mask;
         case REG_V2_I2A_POP_LOW:
             m = apple_mbox_outbox_pop(s);
             if (!m) {
@@ -735,6 +751,10 @@ static uint64_t apple_mbox_v2_reg_read(void *opaque, hwaddr addr, unsigned size)
             break;
         case REG_V2_I2A_POP_HIGH:
             break;
+        case REG_V2_IOP_INT_MASK_SET:
+            return s->iop_int_mask;
+        case REG_V2_IOP_INT_MASK_CLR:
+            return ~s->iop_int_mask;
         case REG_V2_A2I_CTRL:
             QEMU_FALLTHROUGH;
         case REG_V2_IOP_A2I_CTRL:
