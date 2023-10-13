@@ -35,7 +35,7 @@ static void trng_reg_write(void *opaque, hwaddr addr, uint64_t data,
     switch (addr) {
     default:
         qemu_log_mask(LOG_UNIMP,
-                      "TRNG: Unknown write at 0x" HWADDR_FMT_plx
+                      "SEP TRNG: Unknown write at 0x" HWADDR_FMT_plx
                       " with value 0x" HWADDR_FMT_plx "\n",
                       addr, data);
         break;
@@ -60,8 +60,8 @@ static uint64_t trng_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x14: // ????
         return 0x100000;
     default:
-        qemu_log_mask(LOG_UNIMP, "TRNG: Unknown read at 0x" HWADDR_FMT_plx "\n",
-                      addr);
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP TRNG: Unknown read at 0x" HWADDR_FMT_plx "\n", addr);
         break;
     }
 

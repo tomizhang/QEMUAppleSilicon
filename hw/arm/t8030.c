@@ -315,7 +315,7 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
         info->sepfw_pa = phys_ptr;
         macho_load_raw_file(tms->sepfw_filename, nsas, sysmem, "sepfw",
                             info->sepfw_pa, &info->sepfw_size);
-        info->sepfw_size = align_16k_high(15 * MiB);
+        info->sepfw_size = align_16k_high(8 * MiB);
         phys_ptr += info->sepfw_size;
     }
 
@@ -1956,7 +1956,7 @@ static void t8030_machine_init(MachineState *machine)
     child = get_dtb_node(tms->device_tree, "chosen");
     data = 0x8030;
     set_dtb_prop(child, "chip-id", 4, &data);
-    data = 0x4; // board-id ; match with apple_aes.c
+    data = 0x4; //! board-id ; match with apple_aes.c
     set_dtb_prop(child, "board-id", 4, &data);
 
     if (tms->ecid == 0) {
