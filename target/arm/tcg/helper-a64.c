@@ -762,7 +762,7 @@ void HELPER(exception_return)(CPUARMState *env, uint64_t new_pc)
 {
     int cur_el = arm_current_el(env);
     unsigned int spsr_idx = aarch64_banked_spsr_index(cur_el);
-    uint32_t spsr = 0;
+    uint32_t spsr;
     int new_el;
     bool return_to_aa64;
 

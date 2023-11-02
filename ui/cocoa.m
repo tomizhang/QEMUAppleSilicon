@@ -1563,7 +1563,7 @@ static CGEventRef handleTapEvent(CGEventTapProxy proxy, CGEventType type, CGEven
     g_free(icon_path_c);
     NSImage *icon = [[NSImage alloc] initWithContentsOfFile:icon_path];
     NSString *version = @"QEMU emulator version " QEMU_FULL_VERSION;
-    NSString *copyright = @QEMU_COPYRIGHT;
+    NSString *copyright = @QEMU_COPYRIGHT "\n\nChefKiss Apple Silicon fork\nCopyright (c) 2023 Visual Ehrmanntraut and contributors";
     NSDictionary *options;
     if (icon) {
         options = @{

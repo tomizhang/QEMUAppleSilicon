@@ -25,10 +25,17 @@
 #include "block/nvme.h"
 
 #define NVME_MAX_CONTROLLERS 256
-#define NVME_MAX_NAMESPACES  16
+#define NVME_MAX_NAMESPACES  256
 #define NVME_EUI64_DEFAULT ((uint64_t)0x5254000000000000)
 #define NVME_FDP_MAX_EVENTS 63
 #define NVME_FDP_MAXPIDS 128
+
+/*
+ * The controller only supports Submission and Completion Queue Entry Sizes of
+ * 64 and 16 bytes respectively.
+ */
+#define NVME_SQES 7
+#define NVME_CQES 4
 
 QEMU_BUILD_BUG_ON(NVME_MAX_NAMESPACES > NVME_NSID_BROADCAST - 1);
 
@@ -395,13 +402,8 @@ typedef struct NvmeRequest {
     struct NvmeSQueue       *sq;
     struct NvmeNamespace    *ns;
     BlockAIOCB              *aiocb;
-    uint32_t                nsid; /* migration only */
-    uint16_t                sqid; /* migration only */
     uint16_t                status;
     void                    *opaque;
-    bool                    aer;
-    uint8_t                 aer_id;
-    uint8_t                 id;
     NvmeCqe                 cqe;
     NvmeCmd                 cmd;
     BlockAcctCookie         acct;
@@ -465,18 +467,16 @@ typedef struct NvmeSQueue {
     struct NvmeCtrl *ctrl;
     uint16_t    sqid;
     uint16_t    cqid;
-    uint32_t    entry_size;
     uint32_t    head;
     uint32_t    tail;
-    uint32_t    restored_size; /* migration use */
     uint32_t    size;
     uint64_t    dma_addr;
     uint64_t    db_addr;
     uint64_t    ei_addr;
     QEMUBH      *bh;
-    NvmeRequest **io_req;
     EventNotifier notifier;
     bool        ioeventfd_enabled;
+    NvmeRequest *io_req;
     QTAILQ_HEAD(, NvmeRequest) req_list;
     QTAILQ_HEAD(, NvmeRequest) out_req_list;
     QTAILQ_ENTRY(NvmeSQueue) entry;
@@ -541,8 +541,6 @@ typedef struct NvmeCtrl {
     uint32_t    page_size;
     uint16_t    page_bits;
     uint16_t    max_prp_ents;
-    uint16_t    cqe_size;
-    uint16_t    sqe_size;
     uint32_t    max_q_ents;
     uint8_t     outstanding_aers;
     uint32_t    irq_status;
@@ -563,7 +561,6 @@ typedef struct NvmeCtrl {
         uint8_t      *buf;
         bool         cmse;
         hwaddr       cba;
-        uint32_t     size;
     } cmb;
 
     struct {
@@ -573,7 +570,6 @@ typedef struct NvmeCtrl {
     } pmr;
 
     uint8_t     aer_mask;
-    uint8_t     num_aer;
     NvmeRequest **aer_reqs;
     QTAILQ_HEAD(, NvmeAsyncEvent) aer_queue;
     int         aer_queued;
@@ -589,11 +585,9 @@ typedef struct NvmeCtrl {
     NvmeNamespace   namespace;
     NvmeNamespace   *namespaces[NVME_MAX_NAMESPACES + 1];
     NvmeSQueue      **sq;
-    unsigned long   *sq_map;
     NvmeCQueue      **cq;
-    unsigned long   *cq_map;
-    NvmeSQueue      *admin_sq;
-    NvmeCQueue      *admin_cq;
+    NvmeSQueue      admin_sq;
+    NvmeCQueue      admin_cq;
     NvmeIdCtrl      id_ctrl;
 
     struct {

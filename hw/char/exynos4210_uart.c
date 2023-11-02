@@ -616,7 +616,7 @@ static void exynos4210_uart_reset(DeviceState *dev)
 
 static int exynos4210_uart_post_load(void *opaque, int version_id)
 {
-    Exynos4210UartState *s = EXYNOS4210_UART(opaque);
+    Exynos4210UartState *s = (Exynos4210UartState *)opaque;
 
     exynos4210_uart_update_parameters(s);
     exynos4210_uart_rx_timeout_set(s);

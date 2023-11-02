@@ -9127,6 +9127,17 @@ void register_cp_regs_for_features(ARMCPU *cpu)
             sctlr.type |= ARM_CP_SUPPRESS_TB_END;
         }
         define_one_arm_cp_reg(cpu, &sctlr);
+
+        if (arm_feature(env, ARM_FEATURE_PMSA) &&
+            arm_feature(env, ARM_FEATURE_V8)) {
+            ARMCPRegInfo vsctlr = {
+                .name = "VSCTLR", .state = ARM_CP_STATE_AA32,
+                .cp = 15, .opc1 = 4, .crn = 2, .crm = 0, .opc2 = 0,
+                .access = PL2_RW, .resetvalue = 0x0,
+                .fieldoffset = offsetoflow32(CPUARMState, cp15.vsctlr),
+            };
+            define_one_arm_cp_reg(cpu, &vsctlr);
+        }
     }
     if (arm_feature(env, ARM_FEATURE_AARCH64)) {
         ARMCPRegInfo vmsa_lock_el1 = {
