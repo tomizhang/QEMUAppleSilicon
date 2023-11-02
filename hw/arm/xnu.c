@@ -1,26 +1,23 @@
 /*
+ * General Apple XNU utilities.
  *
  * Copyright (c) 2019 Jonathan Afek <jonyafek@me.com>
  * Copyright (c) 2021 Nguyen Hoang Trung (TrungNguyen1909)
- * Copyright (c) 2023 Visual Ehrmanntraut.
+ * Copyright (c) 2023 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023 Christian Inci (chris-pcguy).
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- * THE SOFTWARE.
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "qemu/osdep.h"
@@ -34,8 +31,9 @@
 #include "sysemu/sysemu.h"
 #include "img4.h"
 #include "lzfse.h"
+#include "lzss.h"
 
-struct mach_header_64 *xnu_header;
+MachoHeader64 *xnu_header;
 
 static const char *KEEP_COMP[] = {
     "uart-1,samsung\0$",
@@ -236,7 +234,7 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
 static void
 extract_im4p_payload(const char *filename,
                      char *payload_type /* must be at least 4 bytes long */,
-                     uint8_t **data, uint32_t *length)
+                     uint8_t **data, uint32_t *length, uint8_t **secure_monitor)
 {
     uint8_t *file_data = NULL;
     unsigned long fsize;
@@ -350,6 +348,45 @@ extract_im4p_payload(const char *filename,
 
             g_free(payload_data);
             g_free(file_data);
+        } else if (payload_data[0] == (uint8_t)'c' &&
+                   payload_data[1] == (uint8_t)'o' &&
+                   payload_data[2] == (uint8_t)'m' &&
+                   payload_data[3] == (uint8_t)'p' &&
+                   payload_data[4] == (uint8_t)'l' &&
+                   payload_data[5] == (uint8_t)'z' &&
+                   payload_data[6] == (uint8_t)'s' &&
+                   payload_data[7] == (uint8_t)'s') {
+            LzssCompHeader *comp_hdr = (LzssCompHeader *)payload_data;
+            size_t uncompressed_size = be32_to_cpu(comp_hdr->uncompressed_size);
+            size_t compressed_size = be32_to_cpu(comp_hdr->compressed_size);
+            uint8_t *decode_buffer = g_malloc0(uncompressed_size);
+            int decoded_length =
+                decompress_lzss(decode_buffer, comp_hdr->data, compressed_size);
+            if (decoded_length == 0 || decoded_length != uncompressed_size) {
+                error_report("Could not decompress LZSS-compressed data in "
+                             "file '%s' correctly.",
+                             filename);
+                exit(EXIT_FAILURE);
+            }
+
+            size_t monitor_off = compressed_size + sizeof(LzssCompHeader);
+            if (secure_monitor && monitor_off < len) {
+                size_t monitor_size = len - monitor_off;
+                info_report("Secure monitor in payload detected, size 0x%zX!",
+                            monitor_size);
+                uint8_t *monitor = g_malloc0(monitor_size);
+                memcpy(monitor,
+                       payload_data +
+                           (compressed_size + sizeof(LzssCompHeader)),
+                       monitor_size);
+                *secure_monitor = monitor;
+            }
+
+            *data = decode_buffer;
+            *length = decoded_length;
+
+            g_free(payload_data);
+            g_free(file_data);
         } else {
             *data = payload_data;
             *length = len;
@@ -370,7 +407,7 @@ DTBNode *load_dtb_from_file(char *filename)
     uint32_t fsize;
     char payload_type[4];
 
-    extract_im4p_payload(filename, payload_type, &file_data, &fsize);
+    extract_im4p_payload(filename, payload_type, &file_data, &fsize, NULL);
 
     if (strncmp(payload_type, "dtre", 4) != 0 &&
         strncmp(payload_type, "raw", 4) != 0) {
@@ -386,7 +423,7 @@ DTBNode *load_dtb_from_file(char *filename)
     return root;
 }
 
-void macho_populate_dtb(DTBNode *root, macho_boot_info_t info)
+void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
 {
     DTBNode *child = NULL;
     DTBProp *prop = NULL;
@@ -446,11 +483,11 @@ void macho_populate_dtb(DTBNode *root, macho_boot_info_t info)
     set_dtb_prop(child, "BootArgs", sizeof(memmap), &memmap);
     set_dtb_prop(child, "DeviceTree", sizeof(memmap), &memmap);
 
-    info->dtb_size = align_16k_high(get_dtb_node_buffer_size(root));
+    info->device_tree_size = align_16k_high(get_dtb_node_buffer_size(root));
 }
 
 void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
-                    const char *name, macho_boot_info_t info)
+                    const char *name, AppleBootInfo *info)
 {
     DTBNode *child;
     DTBProp *prop;
@@ -459,8 +496,8 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
     child = get_dtb_node(root, "chosen/memory-map");
     prop = find_dtb_prop(child, "DeviceTree");
     assert(prop);
-    ((uint64_t *)prop->value)[0] = info->dtb_pa;
-    ((uint64_t *)prop->value)[1] = info->dtb_size;
+    ((uint64_t *)prop->value)[0] = info->device_tree_pa;
+    ((uint64_t *)prop->value)[1] = info->device_tree_size;
 
     prop = find_dtb_prop(child, "RAMDisk");
     assert(prop);
@@ -482,17 +519,17 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
 
     prop = find_dtb_prop(child, "SEPFW");
     assert(prop);
-    if (info->sepfw_pa && info->sepfw_size) {
-        ((uint64_t *)prop->value)[0] = info->sepfw_pa;
-        ((uint64_t *)prop->value)[1] = info->sepfw_size;
+    if (info->sep_fw_pa && info->sep_fw_size) {
+        ((uint64_t *)prop->value)[0] = info->sep_fw_pa;
+        ((uint64_t *)prop->value)[1] = info->sep_fw_size;
     } else {
         remove_dtb_prop(child, prop);
     }
 
     prop = find_dtb_prop(child, "BootArgs");
     assert(prop);
-    ((uint64_t *)prop->value)[0] = info->bootargs_pa;
-    ((uint64_t *)prop->value)[1] = sizeof(struct xnu_arm64_boot_args);
+    ((uint64_t *)prop->value)[0] = info->kern_boot_args_pa;
+    ((uint64_t *)prop->value)[1] = sizeof(AppleKernelBootArgs);
 
     if (info->ticket_data && info->ticket_length) {
         QCryptoHashAlgorithm alg = QCRYPTO_HASH_ALG_SHA1;
@@ -521,10 +558,11 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
         }
     }
 
-    assert(info->dtb_size >= get_dtb_node_buffer_size(root));
-    buf = g_malloc0(info->dtb_size);
+    assert(info->device_tree_size >= get_dtb_node_buffer_size(root));
+    buf = g_malloc0(info->device_tree_size);
     save_dtb(buf, root);
-    allocate_and_copy(mem, as, name, info->dtb_pa, info->dtb_size, buf);
+    allocate_and_copy(mem, as, name, info->device_tree_pa,
+                      info->device_tree_size, buf);
 }
 
 uint8_t *load_trustcache_from_file(const char *filename, uint64_t *size)
@@ -538,7 +576,7 @@ uint8_t *load_trustcache_from_file(const char *filename, uint64_t *size)
     uint32_t trustcache_version, trustcache_entry_count, expected_file_size;
     uint32_t trustcache_entry_size = 0;
 
-    extract_im4p_payload(filename, payload_type, &file_data, &length);
+    extract_im4p_payload(filename, payload_type, &file_data, &length, NULL);
 
     if (strncmp(payload_type, "trst", 4) != 0 &&
         strncmp(payload_type, "rtsc", 4) != 0 &&
@@ -610,7 +648,7 @@ void macho_load_ramdisk(const char *filename, AddressSpace *as,
     uint32_t length = 0;
     char payload_type[4];
 
-    extract_im4p_payload(filename, payload_type, &file_data, &length);
+    extract_im4p_payload(filename, payload_type, &file_data, &length, NULL);
     if (strncmp(payload_type, "rdsk", 4) != 0 &&
         strncmp(payload_type, "raw", 4) != 0) {
         error_report("Couldn't parse ASN.1 data in file '%s' because it is not "
@@ -698,58 +736,67 @@ bool xnu_contains_boot_arg(const char *bootArgs, const char *arg,
     return false;
 }
 
-void macho_setup_bootargs(const char *name, AddressSpace *as, MemoryRegion *mem,
-                          hwaddr bootargs_pa, hwaddr virt_base,
-                          hwaddr phys_base, hwaddr mem_size,
-                          hwaddr top_of_kernel_data_pa, hwaddr dtb_va,
-                          hwaddr dtb_size, video_boot_args v_bootargs,
-                          const char *cmdline)
+void apple_monitor_setup_boot_args(const char *name, AddressSpace *as,
+                                   MemoryRegion *mem, hwaddr addr,
+                                   hwaddr virt_base, hwaddr phys_base,
+                                   hwaddr mem_size, hwaddr kern_args,
+                                   hwaddr kern_entry, hwaddr kern_phys_base)
 {
-    struct xnu_arm64_boot_args boot_args;
+    AppleMonitorBootArgs boot_args;
 
     memset(&boot_args, 0, sizeof(boot_args));
-    boot_args.Revision = xnu_arm64_kBootArgsRevision2;
-    boot_args.Version = xnu_arm64_kBootArgsVersion2;
-    boot_args.virtBase = virt_base;
-    boot_args.physBase = phys_base;
-    boot_args.memSize = mem_size;
+    boot_args.version = BOOT_ARGS_VERSION_2;
+    boot_args.virt_base = virt_base;
+    boot_args.phys_base = phys_base;
+    boot_args.mem_size = mem_size;
+    boot_args.kern_args = kern_args;
+    boot_args.kern_entry = kern_entry;
+    boot_args.kern_phys_base = kern_phys_base;
+    boot_args.kern_phys_slide = 0;
+    boot_args.kern_virt_slide = 0;
 
-    boot_args.Video.v_baseAddr = v_bootargs.v_baseAddr;
-    boot_args.Video.v_depth = v_bootargs.v_depth;
-    boot_args.Video.v_display = v_bootargs.v_display;
-    boot_args.Video.v_height = v_bootargs.v_height;
-    boot_args.Video.v_rowBytes = v_bootargs.v_rowBytes;
-    boot_args.Video.v_width = v_bootargs.v_width;
-
-    boot_args.topOfKernelData = top_of_kernel_data_pa;
-    boot_args.deviceTreeP = dtb_va;
-    boot_args.deviceTreeLength = dtb_size;
-    boot_args.memSizeActual = 0;
-    boot_args.bootFlags = 1;
-    if (cmdline) {
-        g_strlcpy(boot_args.CommandLine, cmdline,
-                  sizeof(boot_args.CommandLine));
-    }
-
-    allocate_and_copy(mem, as, name, bootargs_pa, sizeof(boot_args),
-                      &boot_args);
+    allocate_and_copy(mem, as, name, addr, sizeof(boot_args), &boot_args);
 }
 
-void macho_highest_lowest(struct mach_header_64 *mh, uint64_t *lowaddr,
+void macho_setup_bootargs(const char *name, AddressSpace *as, MemoryRegion *mem,
+                          hwaddr addr, hwaddr virt_base, hwaddr phys_base,
+                          hwaddr mem_size, hwaddr kernel_top, hwaddr dtb_va,
+                          hwaddr dtb_size, AppleVideoArgs video_args,
+                          const char *cmdline)
+{
+    AppleKernelBootArgs boot_args;
+
+    memset(&boot_args, 0, sizeof(boot_args));
+    boot_args.revision = BOOT_ARGS_VERSION_2;
+    boot_args.version = BOOT_ARGS_REVISION_2;
+    boot_args.virt_base = virt_base;
+    boot_args.phys_base = phys_base;
+    boot_args.mem_size = mem_size;
+    memcpy(&boot_args.video_args, &video_args, sizeof(boot_args.video_args));
+    boot_args.kernel_top = kernel_top;
+    boot_args.device_tree_ptr = dtb_va;
+    boot_args.device_tree_length = dtb_size;
+
+    if (cmdline) {
+        g_strlcpy(boot_args.cmdline, cmdline, sizeof(boot_args.cmdline));
+    }
+
+    allocate_and_copy(mem, as, name, addr, sizeof(boot_args), &boot_args);
+}
+
+void macho_highest_lowest(MachoHeader64 *mh, uint64_t *lowaddr,
                           uint64_t *highaddr)
 {
-    struct load_command *cmd =
-        (struct load_command *)((uint8_t *)mh + sizeof(struct mach_header_64));
+    MachoLoadCommand *cmd =
+        (MachoLoadCommand *)((uint8_t *)mh + sizeof(MachoHeader64));
     // iterate all the segments once to find highest and lowest addresses
-    uint64_t low_addr_temp = ~0;
-    uint64_t high_addr_temp = 0;
+    uint64_t low_addr_temp = ~0, high_addr_temp = 0;
     unsigned int index;
 
-    for (index = 0; index < mh->ncmds; index++) {
+    for (index = 0; index < mh->n_cmds; index++) {
         switch (cmd->cmd) {
         case LC_SEGMENT_64: {
-            struct segment_command_64 *segCmd =
-                (struct segment_command_64 *)cmd;
+            MachoSegmentCommand64 *segCmd = (MachoSegmentCommand64 *)cmd;
 
             if (segCmd->vmaddr < low_addr_temp) {
                 low_addr_temp = segCmd->vmaddr;
@@ -763,29 +810,29 @@ void macho_highest_lowest(struct mach_header_64 *mh, uint64_t *lowaddr,
         default:
             break;
         }
-        cmd = (struct load_command *)((char *)cmd + cmd->cmdsize);
+        cmd = (MachoLoadCommand *)((char *)cmd + cmd->cmd_size);
     }
     if (lowaddr) {
-        *lowaddr = (low_addr_temp)&0xfffffffffff00000ULL;
+        *lowaddr = (low_addr_temp)&0xFFFFFFFFFFF00000ull;
     }
     if (highaddr) {
         *highaddr = high_addr_temp;
     }
 }
 
-void macho_text_base(struct mach_header_64 *mh, uint64_t *base)
+void macho_text_base(MachoHeader64 *mh, uint64_t *base)
 {
-    struct load_command *cmd =
-        (struct load_command *)((uint8_t *)mh + sizeof(struct mach_header_64));
+    MachoLoadCommand *cmd =
+        (MachoLoadCommand *)((uint8_t *)mh + sizeof(MachoHeader64));
     unsigned int index;
     *base = 0;
-    for (index = 0; index < mh->ncmds; index++) {
+    for (index = 0; index < mh->n_cmds; index++) {
         switch (cmd->cmd) {
         case LC_SEGMENT_64: {
-            struct segment_command_64 *segCmd =
-                (struct segment_command_64 *)cmd;
+            MachoSegmentCommand64 *segCmd = (MachoSegmentCommand64 *)cmd;
 
-            if (segCmd->vmaddr && segCmd->fileoff == 0) {
+            if (segCmd->vmaddr && segCmd->fileoff == 0 &&
+                !strncmp(segCmd->segname, "__TEXT", 7)) {
                 *base = segCmd->vmaddr;
             }
             break;
@@ -794,18 +841,20 @@ void macho_text_base(struct mach_header_64 *mh, uint64_t *base)
         default:
             break;
         }
-        cmd = (struct load_command *)((char *)cmd + cmd->cmdsize);
+        cmd = (MachoLoadCommand *)((char *)cmd + cmd->cmd_size);
     }
 }
 
-struct mach_header_64 *macho_load_file(const char *filename)
+MachoHeader64 *macho_load_file(const char *filename,
+                               MachoHeader64 **secure_monitor)
 {
     uint32_t len;
     uint8_t *data = NULL;
     char payload_type[4];
-    struct mach_header_64 *mh = NULL;
+    MachoHeader64 *mh = NULL;
 
-    extract_im4p_payload(filename, payload_type, &data, &len);
+    extract_im4p_payload(filename, payload_type, &data, &len,
+                         (uint8_t **)secure_monitor);
 
     if (strncmp(payload_type, "krnl", 4) != 0 &&
         strncmp(payload_type, "raw", 4) != 0) {
@@ -820,17 +869,17 @@ struct mach_header_64 *macho_load_file(const char *filename)
     return mh;
 }
 
-struct mach_header_64 *macho_parse(uint8_t *data, uint32_t len)
+MachoHeader64 *macho_parse(uint8_t *data, uint32_t len)
 {
     uint8_t *phys_base = NULL;
-    struct mach_header_64 *mh;
-    struct load_command *cmd;
+    MachoHeader64 *mh;
+    MachoLoadCommand *cmd;
     uint64_t lowaddr = 0, highaddr = 0;
     uint64_t virt_base = 0;
     uint64_t text_base = 0;
     int index;
 
-    mh = (struct mach_header_64 *)data;
+    mh = (MachoHeader64 *)data;
     if (mh->magic != MACH_MAGIC_64) {
         error_report("%s: Invalid Mach-O object: mh->magic != MACH_MAGIC_64",
                      __func__);
@@ -842,13 +891,12 @@ struct mach_header_64 *macho_parse(uint8_t *data, uint32_t len)
 
     phys_base = g_malloc0(highaddr - lowaddr);
     virt_base = lowaddr;
-    cmd = (struct load_command *)(data + sizeof(struct mach_header_64));
+    cmd = (MachoLoadCommand *)(data + sizeof(MachoHeader64));
 
-    for (index = 0; index < mh->ncmds; index++) {
+    for (index = 0; index < mh->n_cmds; index++) {
         switch (cmd->cmd) {
         case LC_SEGMENT_64: {
-            struct segment_command_64 *segCmd =
-                (struct segment_command_64 *)cmd;
+            MachoSegmentCommand64 *segCmd = (MachoSegmentCommand64 *)cmd;
             if (segCmd->vmsize == 0) {
                 break;
             }
@@ -857,7 +905,8 @@ struct mach_header_64 *macho_parse(uint8_t *data, uint32_t len)
                              __func__);
                 exit(EXIT_FAILURE);
             }
-            if (segCmd->fileoff == 0) {
+            if (segCmd->vmaddr && segCmd->fileoff == 0 &&
+                !strncmp(segCmd->segname, "__TEXT", 7)) {
                 text_base = segCmd->vmaddr;
             }
             memcpy(phys_base + segCmd->vmaddr - virt_base,
@@ -869,27 +918,27 @@ struct mach_header_64 *macho_parse(uint8_t *data, uint32_t len)
             break;
         }
 
-        cmd = (struct load_command *)((char *)cmd + cmd->cmdsize);
+        cmd = (MachoLoadCommand *)((char *)cmd + cmd->cmd_size);
     }
 
-    return (struct mach_header_64 *)(phys_base + text_base - virt_base);
+    return (MachoHeader64 *)(phys_base + text_base - virt_base);
 }
 
-uint32_t macho_build_version(struct mach_header_64 *mh)
+uint32_t macho_build_version(MachoHeader64 *mh)
 {
-    struct load_command *cmd;
+    MachoLoadCommand *cmd;
     int index;
 
-    if (mh->filetype == MH_FILESET) {
+    if (mh->file_type == MH_FILESET) {
         mh = macho_get_fileset_header(mh, "com.apple.kernel");
     }
-    cmd = (struct load_command *)((char *)mh + sizeof(struct mach_header_64));
+    cmd = (MachoLoadCommand *)((char *)mh + sizeof(MachoHeader64));
 
-    for (index = 0; index < mh->ncmds; index++) {
+    for (index = 0; index < mh->n_cmds; index++) {
         switch (cmd->cmd) {
         case LC_BUILD_VERSION: {
-            struct build_version_command *buildVerCmd =
-                (struct build_version_command *)cmd;
+            MachoBuildVersionCommand *buildVerCmd =
+                (MachoBuildVersionCommand *)cmd;
             return buildVerCmd->sdk;
             break;
         }
@@ -898,26 +947,26 @@ uint32_t macho_build_version(struct mach_header_64 *mh)
             break;
         }
 
-        cmd = (struct load_command *)((char *)cmd + cmd->cmdsize);
+        cmd = (MachoLoadCommand *)((char *)cmd + cmd->cmd_size);
     }
     return 0;
 }
 
-uint32_t macho_platform(struct mach_header_64 *mh)
+uint32_t macho_platform(MachoHeader64 *mh)
 {
-    struct load_command *cmd;
+    MachoLoadCommand *cmd;
     int index;
 
-    if (mh->filetype == MH_FILESET) {
+    if (mh->file_type == MH_FILESET) {
         mh = macho_get_fileset_header(mh, "com.apple.kernel");
     }
-    cmd = (struct load_command *)((char *)mh + sizeof(struct mach_header_64));
+    cmd = (MachoLoadCommand *)((char *)mh + sizeof(MachoHeader64));
 
-    for (index = 0; index < mh->ncmds; index++) {
+    for (index = 0; index < mh->n_cmds; index++) {
         switch (cmd->cmd) {
         case LC_BUILD_VERSION: {
-            struct build_version_command *buildVerCmd =
-                (struct build_version_command *)cmd;
+            MachoBuildVersionCommand *buildVerCmd =
+                (MachoBuildVersionCommand *)cmd;
             return buildVerCmd->platform;
             break;
         }
@@ -926,12 +975,12 @@ uint32_t macho_platform(struct mach_header_64 *mh)
             break;
         }
 
-        cmd = (struct load_command *)((char *)cmd + cmd->cmdsize);
+        cmd = (MachoLoadCommand *)((char *)cmd + cmd->cmd_size);
     }
     return 0;
 }
 
-char *macho_platform_string(struct mach_header_64 *mh)
+char *macho_platform_string(MachoHeader64 *mh)
 {
     uint32_t platform = macho_platform(mh);
     switch (platform) {
@@ -950,38 +999,35 @@ char *macho_platform_string(struct mach_header_64 *mh)
     }
 }
 
-static struct segment_command_64 *
-macho_get_firstseg(struct mach_header_64 *header)
+static MachoSegmentCommand64 *macho_get_firstseg(MachoHeader64 *header)
 {
-    struct segment_command_64 *sgp;
+    MachoSegmentCommand64 *sgp;
     uint32_t i;
 
-    sgp = (struct segment_command_64 *)((char *)header +
-                                        sizeof(struct mach_header_64));
+    sgp = (MachoSegmentCommand64 *)((char *)header + sizeof(MachoHeader64));
 
-    for (i = 0; i < header->ncmds; i++) {
+    for (i = 0; i < header->n_cmds; i++) {
         if (sgp->cmd == LC_SEGMENT_64) {
             return sgp;
         }
 
-        sgp = (struct segment_command_64 *)((char *)sgp + sgp->cmdsize);
+        sgp = (MachoSegmentCommand64 *)((char *)sgp + sgp->cmd_size);
     }
 
     // not found
     return NULL;
 }
 
-static struct segment_command_64 *
-macho_get_nextseg(struct mach_header_64 *header, struct segment_command_64 *seg)
+static MachoSegmentCommand64 *macho_get_nextseg(MachoHeader64 *header,
+                                                MachoSegmentCommand64 *seg)
 {
-    struct segment_command_64 *sgp;
+    MachoSegmentCommand64 *sgp;
     uint32_t i;
     bool found = false;
 
-    sgp = (struct segment_command_64 *)((char *)header +
-                                        sizeof(struct mach_header_64));
+    sgp = (MachoSegmentCommand64 *)((char *)header + sizeof(MachoHeader64));
 
-    for (i = 0; i < header->ncmds; i++) {
+    for (i = 0; i < header->n_cmds; i++) {
         if (found && sgp->cmd == LC_SEGMENT_64) {
             return sgp;
         }
@@ -989,48 +1035,48 @@ macho_get_nextseg(struct mach_header_64 *header, struct segment_command_64 *seg)
             found = true;
         }
 
-        sgp = (struct segment_command_64 *)((char *)sgp + sgp->cmdsize);
+        sgp = (MachoSegmentCommand64 *)((char *)sgp + sgp->cmd_size);
     }
 
     // not found
     return NULL;
 }
 
-static struct section_64 *firstsect(struct segment_command_64 *seg)
+static MachoSection64 *firstsect(MachoSegmentCommand64 *seg)
 {
-    return (struct section_64 *)(seg + 1);
+    return (MachoSection64 *)(seg + 1);
 }
 
-static struct section_64 *nextsect(struct section_64 *sp)
+static MachoSection64 *nextsect(MachoSection64 *sp)
 {
     return sp + 1;
 }
 
-static struct section_64 *endsect(struct segment_command_64 *seg)
+static MachoSection64 *endsect(MachoSegmentCommand64 *seg)
 {
-    struct section_64 *sp;
+    MachoSection64 *sp;
 
-    sp = (struct section_64 *)((char *)seg + sizeof(struct segment_command_64));
+    sp = (MachoSection64 *)((char *)seg + sizeof(MachoSegmentCommand64));
     return &sp[seg->nsects];
 }
 
-static void macho_process_symbols(struct mach_header_64 *mh, uint64_t slide)
+static void macho_process_symbols(MachoHeader64 *mh, uint64_t slide)
 {
-    struct load_command *cmd;
+    MachoLoadCommand *cmd;
     uint8_t *data = macho_get_buffer(mh);
     uint64_t kernel_low, kernel_high;
     unsigned int index;
     macho_highest_lowest(mh, &kernel_low, &kernel_high);
 
-    cmd = (struct load_command *)((char *)mh + sizeof(struct mach_header_64));
-    for (index = 0; index < mh->ncmds; index++) {
+    cmd = (MachoLoadCommand *)((char *)mh + sizeof(MachoHeader64));
+    for (index = 0; index < mh->n_cmds; index++) {
         if (cmd->cmd == LC_SYMTAB) {
-            struct symtab_command *symtab = (struct symtab_command *)cmd;
-            struct segment_command_64 *linkedit_seg =
+            MachoSymtabCommand *symtab = (MachoSymtabCommand *)cmd;
+            MachoSegmentCommand64 *linkedit_seg =
                 macho_get_segment(mh, "__LINKEDIT");
             void *base;
             uint32_t off;
-            struct nlist_64 *sym;
+            MachoNList64 *sym;
             if (linkedit_seg == NULL) {
                 fprintf(stderr, "%s: cannot find __LINKEDIT segment\n",
                         __func__);
@@ -1038,7 +1084,7 @@ static void macho_process_symbols(struct mach_header_64 *mh, uint64_t slide)
             }
             base = (data + linkedit_seg->vmaddr - kernel_low);
             off = linkedit_seg->fileoff;
-            sym = (struct nlist_64 *)(base + symtab->symoff - off);
+            sym = (MachoNList64 *)(base + symtab->sym_off - off);
             for (int i = 0; i < symtab->nsyms; i++) {
                 if (sym[i].n_type & N_STAB) {
                     continue;
@@ -1046,22 +1092,20 @@ static void macho_process_symbols(struct mach_header_64 *mh, uint64_t slide)
                 sym[i].n_value += slide;
             }
         }
-        cmd = (struct load_command *)((char *)cmd + cmd->cmdsize);
+        cmd = (MachoLoadCommand *)((char *)cmd + cmd->cmd_size);
     }
 }
 
-void macho_allocate_segment_records(DTBNode *memory_map,
-                                    struct mach_header_64 *mh)
+void macho_allocate_segment_records(DTBNode *memory_map, MachoHeader64 *mh)
 {
     unsigned int index;
-    struct load_command *cmd;
+    MachoLoadCommand *cmd;
 
-    cmd = (struct load_command *)((char *)mh + sizeof(struct mach_header_64));
-    for (index = 0; index < mh->ncmds; index++) {
+    cmd = (MachoLoadCommand *)((char *)mh + sizeof(MachoHeader64));
+    for (index = 0; index < mh->n_cmds; index++) {
         switch (cmd->cmd) {
         case LC_SEGMENT_64: {
-            struct segment_command_64 *segCmd =
-                (struct segment_command_64 *)cmd;
+            MachoSegmentCommand64 *segCmd = (MachoSegmentCommand64 *)cmd;
             char region_name[32] = { 0 };
 
             snprintf(region_name, sizeof(region_name), "Kernel-%s",
@@ -1078,51 +1122,54 @@ void macho_allocate_segment_records(DTBNode *memory_map,
             break;
         }
 
-        cmd = (struct load_command *)((char *)cmd + cmd->cmdsize);
+        cmd = (MachoLoadCommand *)((char *)cmd + cmd->cmd_size);
     }
 }
 
-hwaddr arm_load_macho(struct mach_header_64 *mh, AddressSpace *as,
-                      MemoryRegion *mem, DTBNode *memory_map, hwaddr phys_base,
+hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
+                      DTBNode *memory_map, hwaddr phys_base,
                       uint64_t virt_slide)
 {
     uint8_t *data = NULL;
     unsigned int index;
-    struct load_command *cmd;
+    MachoLoadCommand *cmd;
     hwaddr pc = 0;
     data = macho_get_buffer(mh);
     uint64_t kernel_low, kernel_high;
     macho_highest_lowest(mh, &kernel_low, &kernel_high);
-    bool is_fileset = mh->filetype == MH_FILESET;
+    bool is_fileset = mh->file_type == MH_FILESET;
 
-    cmd = (struct load_command *)((char *)mh + sizeof(struct mach_header_64));
+    cmd = (MachoLoadCommand *)(mh + 1);
     if (!is_fileset) {
         macho_process_symbols(mh, virt_slide);
     }
-    for (index = 0; index < mh->ncmds; index++) {
+    for (index = 0; index < mh->n_cmds; index++) {
         switch (cmd->cmd) {
         case LC_SEGMENT_64: {
-            struct segment_command_64 *segCmd =
-                (struct segment_command_64 *)cmd;
-            char region_name[32] = { 0 };
+            MachoSegmentCommand64 *segCmd = (MachoSegmentCommand64 *)cmd;
+            char region_name[64] = { 0 };
             void *load_from = (void *)(data + segCmd->vmaddr - kernel_low);
             hwaddr load_to = (phys_base + segCmd->vmaddr - kernel_low);
-
-            snprintf(region_name, sizeof(region_name), "Kernel-%s",
-                     segCmd->segname);
-            struct MemoryMapFileInfo {
-                uint64_t paddr;
-                uint64_t length;
-            } file_info = { load_to, segCmd->vmsize };
-            set_dtb_prop(memory_map, region_name, sizeof(file_info),
-                         &file_info);
+            if (memory_map) {
+                snprintf(region_name, sizeof(region_name), "Kernel-%s",
+                         segCmd->segname);
+                struct MemoryMapFileInfo {
+                    uint64_t paddr;
+                    uint64_t length;
+                } file_info = { load_to, segCmd->vmsize };
+                set_dtb_prop(memory_map, region_name, sizeof(file_info),
+                             &file_info);
+            } else {
+                snprintf(region_name, sizeof(region_name), "TrustZone-%s",
+                         segCmd->segname);
+            }
 
             if (segCmd->vmsize == 0) {
                 break;
             }
 
             if (!is_fileset) {
-                struct section_64 *sp;
+                MachoSection64 *sp;
                 for (sp = firstsect(segCmd); sp != endsect(segCmd);
                      sp = nextsect(sp)) {
                     if ((sp->flags & SECTION_TYPE) ==
@@ -1141,12 +1188,12 @@ hwaddr arm_load_macho(struct mach_header_64 *mh, AddressSpace *as,
 
             if (!is_fileset) {
                 if (strcmp(segCmd->segname, "__TEXT") == 0) {
-                    struct mach_header_64 *mh = load_from;
-                    struct segment_command_64 *seg;
+                    MachoHeader64 *mh = load_from;
+                    MachoSegmentCommand64 *seg;
                     assert(mh->magic == MACH_MAGIC_64);
                     for (seg = macho_get_firstseg(mh); seg != NULL;
                          seg = macho_get_nextseg(mh, seg)) {
-                        struct section_64 *sp;
+                        MachoSection64 *sp;
                         seg->vmaddr += virt_slide;
                         for (sp = firstsect(seg); sp != endsect(seg);
                              sp = nextsect(sp)) {
@@ -1157,19 +1204,26 @@ hwaddr arm_load_macho(struct mach_header_64 *mh, AddressSpace *as,
             }
 
 
-#if 0
-            fprintf(stderr, "%s: Loading %s to 0x%llx \n", __func__, region_name, load_to);
-#endif
+            // #if 0
+            fprintf(
+                stderr,
+                "%s: Loading %s to 0x%llx (filesize: 0x%llX vmsize: 0x%llX)\n",
+                __func__, region_name, load_to, segCmd->filesize,
+                segCmd->vmsize);
+            // #endif
+            uint8_t *buf = g_malloc0(segCmd->vmsize);
+            memcpy(buf, load_from, segCmd->filesize);
             allocate_and_copy(mem, as, region_name, load_to, segCmd->vmsize,
-                              load_from);
+                              buf);
+            g_free(buf);
 
             if (!is_fileset) {
                 if (strcmp(segCmd->segname, "__TEXT") == 0) {
-                    struct mach_header_64 *mh = load_from;
-                    struct segment_command_64 *seg;
+                    MachoHeader64 *mh = load_from;
+                    MachoSegmentCommand64 *seg;
                     for (seg = macho_get_firstseg(mh); seg != NULL;
                          seg = macho_get_nextseg(mh, seg)) {
-                        struct section_64 *sp;
+                        MachoSection64 *sp;
                         seg->vmaddr -= virt_slide;
                         for (sp = firstsect(seg); sp != endsect(seg);
                              sp = nextsect(sp)) {
@@ -1180,7 +1234,7 @@ hwaddr arm_load_macho(struct mach_header_64 *mh, AddressSpace *as,
             }
 
             if (!is_fileset) {
-                struct section_64 *sp;
+                MachoSection64 *sp;
                 for (sp = firstsect(segCmd); sp != endsect(segCmd);
                      sp = nextsect(sp)) {
                     if ((sp->flags & SECTION_TYPE) ==
@@ -1213,7 +1267,7 @@ hwaddr arm_load_macho(struct mach_header_64 *mh, AddressSpace *as,
             break;
         }
 
-        cmd = (struct load_command *)((char *)cmd + cmd->cmdsize);
+        cmd = (MachoLoadCommand *)((char *)cmd + cmd->cmd_size);
     }
 
     if (!is_fileset) {
@@ -1223,7 +1277,7 @@ hwaddr arm_load_macho(struct mach_header_64 *mh, AddressSpace *as,
     return pc;
 }
 
-uint8_t *macho_get_buffer(struct mach_header_64 *hdr)
+uint8_t *macho_get_buffer(MachoHeader64 *hdr)
 {
     uint64_t lowaddr = 0, highaddr = 0, text_base = 0;
 
@@ -1233,22 +1287,22 @@ uint8_t *macho_get_buffer(struct mach_header_64 *hdr)
     return (uint8_t *)((uint8_t *)hdr - text_base + lowaddr);
 }
 
-void macho_free(struct mach_header_64 *hdr)
+void macho_free(MachoHeader64 *hdr)
 {
     g_free(macho_get_buffer(hdr));
 }
 
-struct fileset_entry_command *macho_get_fileset(struct mach_header_64 *header,
-                                                const char *entry)
+MachoFilesetEntryCommand *macho_get_fileset(MachoHeader64 *header,
+                                            const char *entry)
 {
-    if (header->filetype != MH_FILESET) {
+    if (header->file_type != MH_FILESET) {
         return NULL;
     }
-    struct fileset_entry_command *fileset;
-    fileset = (struct fileset_entry_command *)((char *)header +
-                                               sizeof(struct mach_header_64));
+    MachoFilesetEntryCommand *fileset;
+    fileset =
+        (MachoFilesetEntryCommand *)((char *)header + sizeof(MachoHeader64));
 
-    for (uint32_t i = 0; i < header->ncmds; i++) {
+    for (uint32_t i = 0; i < header->n_cmds; i++) {
         if (fileset->cmd == LC_FILESET_ENTRY) {
             const char *entry_id = (char *)fileset + fileset->entry_id;
             if (strcmp(entry_id, entry) == 0) {
@@ -1256,44 +1310,43 @@ struct fileset_entry_command *macho_get_fileset(struct mach_header_64 *header,
             }
         }
 
-        fileset = (struct fileset_entry_command *)((char *)fileset +
-                                                   fileset->cmdsize);
+        fileset =
+            (MachoFilesetEntryCommand *)((char *)fileset + fileset->cmd_size);
     }
     return NULL;
 }
 
-struct mach_header_64 *macho_get_fileset_header(struct mach_header_64 *header,
-                                                const char *entry)
+MachoHeader64 *macho_get_fileset_header(MachoHeader64 *header,
+                                        const char *entry)
 {
-    struct fileset_entry_command *fileset = macho_get_fileset(header, entry);
-    struct mach_header_64 *sub_header;
+    MachoFilesetEntryCommand *fileset = macho_get_fileset(header, entry);
+    MachoHeader64 *sub_header;
     if (fileset == NULL) {
         return NULL;
     }
-    sub_header = (struct mach_header_64 *)((char *)header + fileset->fileoff);
+    sub_header = (MachoHeader64 *)((char *)header + fileset->file_off);
     return sub_header;
 }
 
-struct segment_command_64 *macho_get_segment(struct mach_header_64 *header,
-                                             const char *segname)
+MachoSegmentCommand64 *macho_get_segment(MachoHeader64 *header,
+                                         const char *segname)
 {
     uint32_t i;
 
-    if (header->filetype == MH_FILESET) {
+    if (header->file_type == MH_FILESET) {
         return macho_get_segment(
             macho_get_fileset_header(header, "com.apple.kernel"), segname);
     } else {
-        struct segment_command_64 *sgp;
-        sgp = (struct segment_command_64 *)((char *)header +
-                                            sizeof(struct mach_header_64));
+        MachoSegmentCommand64 *sgp;
+        sgp = (MachoSegmentCommand64 *)((char *)header + sizeof(MachoHeader64));
 
-        for (i = 0; i < header->ncmds; i++) {
+        for (i = 0; i < header->n_cmds; i++) {
             if (sgp->cmd == LC_SEGMENT_64) {
                 if (strncmp(sgp->segname, segname, sizeof(sgp->segname)) == 0)
                     return sgp;
             }
 
-            sgp = (struct segment_command_64 *)((char *)sgp + sgp->cmdsize);
+            sgp = (MachoSegmentCommand64 *)((char *)sgp + sgp->cmd_size);
         }
     }
 
@@ -1301,29 +1354,29 @@ struct segment_command_64 *macho_get_segment(struct mach_header_64 *header,
     return NULL;
 }
 
-struct section_64 *macho_get_section(struct segment_command_64 *seg,
-                                     const char *sectname)
+MachoSection64 *macho_get_section(MachoSegmentCommand64 *seg,
+                                  const char *sect_name)
 {
-    struct section_64 *sp;
+    MachoSection64 *sp;
     uint32_t i;
 
-    sp = (struct section_64 *)((char *)seg + sizeof(struct segment_command_64));
+    sp = (MachoSection64 *)((char *)seg + sizeof(MachoSegmentCommand64));
 
     for (i = 0; i < seg->nsects; i++) {
-        if (strncmp(sp->sectname, sectname, sizeof(sp->sectname)) == 0) {
+        if (strncmp(sp->sect_name, sect_name, sizeof(sp->sect_name)) == 0) {
             return sp;
         }
 
-        sp = (struct section_64 *)((char *)sp + sizeof(struct section_64));
+        sp = (MachoSection64 *)((char *)sp + sizeof(MachoSection64));
     }
 
     // not found
     return NULL;
 }
 
-static bool xnu_is_slid(struct mach_header_64 *header)
+static bool xnu_is_slid(MachoHeader64 *header)
 {
-    struct segment_command_64 *seg = macho_get_segment(header, "__TEXT");
+    MachoSegmentCommand64 *seg = macho_get_segment(header, "__TEXT");
     if (seg && seg->vmaddr == 0xFFFFFFF007004000ULL) {
         return false;
     }
@@ -1331,7 +1384,7 @@ static bool xnu_is_slid(struct mach_header_64 *header)
     return true;
 }
 
-uint64_t xnu_slide_hdr_va(struct mach_header_64 *header, uint64_t hdr_va)
+uint64_t xnu_slide_hdr_va(MachoHeader64 *header, uint64_t hdr_va)
 {
     if (xnu_is_slid(header)) {
         return hdr_va;
@@ -1340,7 +1393,7 @@ uint64_t xnu_slide_hdr_va(struct mach_header_64 *header, uint64_t hdr_va)
     return hdr_va + xnu_slide_value(header);
 }
 
-uint64_t xnu_slide_value(struct mach_header_64 *header)
+uint64_t xnu_slide_value(MachoHeader64 *header)
 {
     uint64_t text_va_base = ((uint64_t)header) - g_phys_base + g_virt_base;
     uint64_t slide = text_va_base - 0xFFFFFFF007004000ULL;
@@ -1373,9 +1426,8 @@ static bool has_been_rebased(void)
     //    correctly rebased.
     //
     if (rebase_status == -1) {
-        struct segment_command_64 *seg =
-            macho_get_segment(xnu_header, "__TEXT");
-        struct section_64 *sec =
+        MachoSegmentCommand64 *seg = macho_get_segment(xnu_header, "__TEXT");
+        MachoSection64 *sec =
             seg ? macho_get_section(seg, "__thread_starts") : NULL;
         rebase_status = sec->size == 0 ? 1 : 0;
     }

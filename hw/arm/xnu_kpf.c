@@ -1,5 +1,6 @@
 #include "hw/arm/xnu.h"
 #include "hw/arm/xnu_pf.h"
+#include "qemu/error-report.h"
 
 #define NOP 0xd503201f
 #define RET 0xd65f03c0
@@ -36,8 +37,7 @@ static uint32_t *find_prev_insn(uint32_t *from, uint32_t num, uint32_t insn,
     return NULL;
 }
 
-static bool kpf_apfs_rootauth(struct xnu_pf_patch *patch,
-                              uint32_t *opcode_stream)
+static bool kpf_apfs_rootauth(ApplePfPatch *patch, uint32_t *opcode_stream)
 {
     opcode_stream[0] = NOP;
     opcode_stream[1] = 0x52800000; /* mov w0, 0 */
@@ -46,15 +46,14 @@ static bool kpf_apfs_rootauth(struct xnu_pf_patch *patch,
     return true;
 }
 
-static bool kpf_apfs_vfsop_mount(struct xnu_pf_patch *patch,
-                                 uint32_t *opcode_stream)
+static bool kpf_apfs_vfsop_mount(ApplePfPatch *patch, uint32_t *opcode_stream)
 {
     opcode_stream[0] = 0x52800000; /* mov w0, 0 */
     puts("KPF: found apfs_vfsop_mount");
     return true;
 }
 
-static void kpf_apfs_patches(xnu_pf_patchset_t *patchset)
+static void kpf_apfs_patches(ApplePfPatchset *patchset)
 {
     /*
      * This patch bypass root authentication
@@ -105,8 +104,7 @@ static void kpf_apfs_patches(xnu_pf_patchset_t *patchset)
                      (void *)kpf_apfs_vfsop_mount);
 }
 
-static bool kpf_amfi_callback(struct xnu_pf_patch *patch,
-                              uint32_t *opcode_stream)
+static bool kpf_amfi_callback(ApplePfPatch *patch, uint32_t *opcode_stream)
 {
     /* possibly AMFI patch
      * this is here to patch out the trustcache checks
@@ -191,7 +189,7 @@ static bool kpf_amfi_callback(struct xnu_pf_patch *patch,
     return found_something;
 }
 
-static void kpf_amfi_patch(xnu_pf_patchset_t *xnu_text_exec_patchset)
+static void kpf_amfi_patch(ApplePfPatchset *xnu_text_exec_patchset)
 {
     /* This patch leads to AMFI believing that everything is in trustcache
      * this is done by searching for the sequence below (example from an iPhone
@@ -218,7 +216,7 @@ static void kpf_amfi_patch(xnu_pf_patchset_t *xnu_text_exec_patchset)
 
 static bool kpf_found_trustcache = false;
 
-static bool kpf_trustcache_callback(struct xnu_pf_patch *patch,
+static bool kpf_trustcache_callback(ApplePfPatch *patch,
                                     uint32_t *opcode_stream)
 {
     if (kpf_found_trustcache) {
@@ -239,7 +237,7 @@ static bool kpf_trustcache_callback(struct xnu_pf_patch *patch,
     return true;
 }
 
-static void kpf_trustcache_patch(xnu_pf_patchset_t *patchset)
+static void kpf_trustcache_patch(ApplePfPatchset *patchset)
 {
     // This patch leads to AMFI believing that everything is in trustcache.
     uint64_t matches[] = {
@@ -253,7 +251,7 @@ static void kpf_trustcache_patch(xnu_pf_patchset_t *patchset)
                      (void *)kpf_trustcache_callback);
 }
 
-static bool kpf_amfi_sha1(struct xnu_pf_patch *patch, uint32_t *opcode_stream)
+static bool kpf_amfi_sha1(ApplePfPatch *patch, uint32_t *opcode_stream)
 {
     uint32_t *cmp = find_next_insn(opcode_stream, 0x10, 0x7100081f,
                                    0xFFFFFFFF); /* cmp w0, 2 */
@@ -267,7 +265,7 @@ static bool kpf_amfi_sha1(struct xnu_pf_patch *patch, uint32_t *opcode_stream)
     return true;
 }
 
-static void kpf_amfi_kext_patches(xnu_pf_patchset_t *patchset)
+static void kpf_amfi_kext_patches(ApplePfPatchset *patchset)
 {
     /* this patch allows us to run binaries with SHA1 signatures
      * this is done by searching for the sequence below
@@ -296,8 +294,7 @@ static void kpf_amfi_kext_patches(xnu_pf_patchset_t *patchset)
 }
 
 bool kpf_has_done_mac_mount;
-static bool kpf_mac_mount_callback(struct xnu_pf_patch *patch,
-                                   uint32_t *opcode_stream)
+static bool kpf_mac_mount_callback(ApplePfPatch *patch, uint32_t *opcode_stream)
 {
     puts("KPF: Found mac_mount");
     uint32_t *mac_mount = &opcode_stream[0];
@@ -338,7 +335,7 @@ static bool kpf_mac_mount_callback(struct xnu_pf_patch *patch,
     return true;
 }
 
-static void kpf_mac_mount_patch(xnu_pf_patchset_t *xnu_text_exec_patchset)
+static void kpf_mac_mount_patch(ApplePfPatchset *xnu_text_exec_patchset)
 {
     /*
      * This patch makes sure that we can remount the rootfs and that we can
@@ -367,23 +364,22 @@ static void kpf_mac_mount_patch(xnu_pf_patchset_t *xnu_text_exec_patchset)
 
 void kpf(void)
 {
-    struct mach_header_64 *hdr = xnu_header;
-    xnu_pf_patchset_t *xnu_text_exec_patchset =
+    MachoHeader64 *hdr = xnu_header;
+    ApplePfPatchset *xnu_text_exec_patchset =
         xnu_pf_patchset_create(XNU_PF_ACCESS_32BIT);
-    g_autofree xnu_pf_range_t *text_exec_range =
-        xnu_pf_get_actual_text_exec(hdr);
-    xnu_pf_patchset_t *xnu_ppl_text_patchset =
+    g_autofree ApplePfRange *text_exec_range = xnu_pf_get_actual_text_exec(hdr);
+    ApplePfPatchset *xnu_ppl_text_patchset =
         xnu_pf_patchset_create(XNU_PF_ACCESS_32BIT);
-    g_autofree xnu_pf_range_t *ppltext_exec_range =
+    g_autofree ApplePfRange *ppltext_exec_range =
         xnu_pf_section(hdr, "__PPLTEXT", "__text");
 
-    xnu_pf_patchset_t *apfs_patchset;
-    struct mach_header_64 *apfs_header;
-    g_autofree xnu_pf_range_t *apfs_text_exec_range = NULL;
+    ApplePfPatchset *apfs_patchset;
+    MachoHeader64 *apfs_header;
+    g_autofree ApplePfRange *apfs_text_exec_range = NULL;
 
-    struct mach_header_64 *amfi_header;
-    xnu_pf_patchset_t *amfi_patchset;
-    g_autofree xnu_pf_range_t *amfi_text_exec_range = NULL;
+    MachoHeader64 *amfi_header;
+    ApplePfPatchset *amfi_patchset;
+    g_autofree ApplePfRange *amfi_text_exec_range = NULL;
 
 
     apfs_patchset = xnu_pf_patchset_create(XNU_PF_ACCESS_32BIT);
@@ -409,6 +405,10 @@ void kpf(void)
 
     kpf_amfi_patch(xnu_ppl_text_patchset);
     kpf_trustcache_patch(xnu_ppl_text_patchset);
-    xnu_pf_apply(ppltext_exec_range, xnu_ppl_text_patchset);
+    if (ppltext_exec_range) {
+        xnu_pf_apply(ppltext_exec_range, xnu_ppl_text_patchset);
+    } else {
+        info_report("warning: failed to find __PPLTEXT");
+    }
     xnu_pf_patchset_destroy(xnu_ppl_text_patchset);
 }

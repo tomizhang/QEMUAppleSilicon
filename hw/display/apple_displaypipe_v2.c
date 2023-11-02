@@ -1,7 +1,8 @@
 /*
  * Apple Display Pipe V2 Controller.
  *
- * Copyright (c) 2023 Visual Ehrmanntraut.
+ * Copyright (c) 2023 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -205,17 +206,17 @@ void apple_displaypipe_v2_create(MachineState *machine, const char *name)
     DeviceState *dev = qdev_new(TYPE_APPLE_DISPLAYPIPE_V2);
     SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
     AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(sbd);
-    tms->video.v_baseAddr = T8030_DISPLAY_BASE;
-    tms->video.v_rowBytes = s->width * 4;
-    tms->video.v_width = s->width;
-    tms->video.v_height = s->height;
-    tms->video.v_depth = 32 | ((2 - 1) << 16);
-    tms->video.v_display = 1;
+    tms->video_args.base_addr = T8030_DISPLAY_BASE;
+    tms->video_args.row_bytes = s->width * 4;
+    tms->video_args.width = s->width;
+    tms->video_args.height = s->height;
+    tms->video_args.depth = 32 | ((2 - 1) << 16);
+    tms->video_args.display = 1;
     s->id = name;
 
     if (xnu_contains_boot_arg(machine->kernel_cmdline, "-s", false) ||
         xnu_contains_boot_arg(machine->kernel_cmdline, "-v", false)) {
-        tms->video.v_display = 0;
+        tms->video_args.display = 0;
     }
 
     DTBNode *armio = find_dtb_node(tms->device_tree, "arm-io");
@@ -272,7 +273,7 @@ void apple_displaypipe_v2_create(MachineState *machine, const char *name)
 
     memory_region_init_ram(&s->vram, OBJECT(sbd), "vram", T8030_DISPLAY_SIZE,
                            &error_fatal);
-    memory_region_add_subregion_overlap(tms->sysmem, tms->video.v_baseAddr,
+    memory_region_add_subregion_overlap(tms->sysmem, tms->video_args.base_addr,
                                         &s->vram, 1);
     object_property_add_const_link(OBJECT(sbd), "vram", OBJECT(&s->vram));
     object_property_add_child(OBJECT(machine), name, OBJECT(sbd));

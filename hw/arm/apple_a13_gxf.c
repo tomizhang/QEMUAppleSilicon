@@ -7,9 +7,6 @@
 #include "target/arm/cpu.h"
 #include "target/arm/internals.h"
 
-CPAccessResult access_tvm_trvm(CPUARMState *env, const ARMCPRegInfo *ri,
-                               bool isread);
-
 static CPAccessResult access_gxf(CPUARMState *env, const ARMCPRegInfo *ri,
                                  bool isread)
 {

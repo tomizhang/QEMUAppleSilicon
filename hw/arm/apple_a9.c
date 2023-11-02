@@ -1,3 +1,23 @@
+/*
+ * Apple A9 CPU.
+ *
+ * Copyright (c) 2023 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023 Christian Inci (chris-pcguy).
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "qemu/osdep.h"
 #include "exec/address-spaces.h"
 #include "hw/arm/apple_a9.h"
@@ -60,6 +80,7 @@ void apple_a9_wakeup(AppleA9State *tcpu)
 
 static const ARMCPRegInfo a9_cp_reginfo_tcg[] = {
     A9_CPREG_DEF(HID11, 3, 0, 15, 13, 0, PL1_RW, 0),
+    A9_CPREG_DEF(HID3, 3, 0, 15, 3, 0, PL1_RW, 0),
     A9_CPREG_DEF(HID4, 3, 0, 15, 4, 0, PL1_RW, 0),
     A9_CPREG_DEF(HID5, 3, 0, 15, 5, 0, PL1_RW, 0),
     A9_CPREG_DEF(HID7, 3, 0, 15, 7, 0, PL1_RW, 0),
@@ -67,7 +88,6 @@ static const ARMCPRegInfo a9_cp_reginfo_tcg[] = {
     A9_CPREG_DEF(PMCR0, 3, 1, 15, 0, 0, PL1_RW, 0),
     A9_CPREG_DEF(PMCR1, 3, 1, 15, 1, 0, PL1_RW, 0),
     A9_CPREG_DEF(PMCR2, 3, 1, 15, 2, 0, PL1_RW, 0),
-    A9_CPREG_DEF(PMCR3, 3, 1, 15, 3, 0, PL1_RW, 0),
     A9_CPREG_DEF(PMCR4, 3, 1, 15, 4, 0, PL1_RW, 0),
     A9_CPREG_DEF(PMESR0, 3, 1, 15, 5, 0, PL1_RW, 0),
     A9_CPREG_DEF(PMESR1, 3, 1, 15, 6, 0, PL1_RW, 0),
@@ -80,15 +100,12 @@ static const ARMCPRegInfo a9_cp_reginfo_tcg[] = {
     A9_CPREG_DEF(PMTRHLD4, 3, 2, 15, 13, 0, PL1_RW, 0),
     A9_CPREG_DEF(PMTRHLD2, 3, 2, 15, 14, 0, PL1_RW, 0),
     A9_CPREG_DEF(PMMMAP, 3, 2, 15, 15, 0, PL1_RW, 0),
+    A9_CPREG_DEF(SYS_LSU_ERR_STS, 3, 3, 15, 0, 0, PL1_RW, 0),
     A9_CPREG_DEF(LSU_ERR_STS, 3, 3, 15, 8, 0, PL1_RW, 0),
     A9_CPREG_DEF(LSU_ERR_ADR, 3, 3, 15, 9, 0, PL1_RW, 0),
     A9_CPREG_DEF(L2C_ERR_INF, 3, 3, 15, 10, 0, PL1_RW, 0),
     A9_CPREG_DEF(FED_ERR_STS, 3, 4, 15, 0, 0, PL1_RW, 0),
     A9_CPREG_DEF(CYC_CFG, 3, 5, 15, 4, 0, PL1_RW, 0),
-    A9_CPREG_DEF(SCTLR_EL3, 3, 6, 1, 0, 0, PL1_RW, 0),
-    A9_CPREG_DEF(SCR_EL3, 3, 6, 1, 1, 0, PL1_RW, 0),
-    A9_CPREG_DEF(VBAR_EL3, 3, 6, 12, 0, 0, PL1_RW, 0),
-    A9_CPREG_DEF(RVBAR_EL3, 3, 6, 12, 0, 1, PL1_RW, 0),
     A9_CPREG_DEF(RMR_EL3, 3, 6, 12, 0, 2, PL1_RW, 0),
     A9_CPREG_DEF(MMU_ERR_STS, 3, 6, 15, 0, 0, PL1_RW, 0),
 };
@@ -140,6 +157,10 @@ static void apple_a9_instance_init(Object *obj)
     uint64_t t;
 
     object_property_set_uint(obj, "cntfrq", 24000000, &error_fatal);
+    object_property_add_uint64_ptr(obj, "pauth-mlo", &cpu->m_key_lo,
+                                   OBJ_PROP_FLAG_READWRITE);
+    object_property_add_uint64_ptr(obj, "pauth-mhi", &cpu->m_key_hi,
+                                   OBJ_PROP_FLAG_READWRITE);
     cpu->dtb_compatible = "apple,twister";
     t = FIELD_DP64(0, MIDR_EL1, IMPLEMENTER, 0);
     t = FIELD_DP64(t, MIDR_EL1, ARCHITECTURE, 0xf);
@@ -215,6 +236,9 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
         set_dtb_prop(node, "fixed-frequency", sizeof(freq), &freq);
     }
 
+    // object_property_set_bool(obj, "has_el3", true, NULL);
+    // object_property_set_bool(obj, "has_el2", false, NULL);
+
     memory_region_init(&tcpu->memory, obj, "cpu-memory", UINT64_MAX);
     memory_region_init_alias(&tcpu->sysmem, obj, "sysmem", get_system_memory(),
                              0, UINT64_MAX);
@@ -259,23 +283,21 @@ static const VMStateDescription vmstate_apple_a9 = {
     .minimum_version_id = 1,
     .fields =
         (VMStateField[]){
-            VMSTATE_A9_CPREG(HID11),       VMSTATE_A9_CPREG(HID4),
-            VMSTATE_A9_CPREG(HID5),        VMSTATE_A9_CPREG(HID7),
-            VMSTATE_A9_CPREG(HID8),        VMSTATE_A9_CPREG(PMCR0),
-            VMSTATE_A9_CPREG(PMCR1),       VMSTATE_A9_CPREG(PMCR2),
-            VMSTATE_A9_CPREG(PMCR3),       VMSTATE_A9_CPREG(PMCR4),
+            VMSTATE_A9_CPREG(HID11),       VMSTATE_A9_CPREG(HID3),
+            VMSTATE_A9_CPREG(HID4),        VMSTATE_A9_CPREG(HID5),
+            VMSTATE_A9_CPREG(HID7),        VMSTATE_A9_CPREG(HID8),
+            VMSTATE_A9_CPREG(PMCR0),       VMSTATE_A9_CPREG(PMCR1),
+            VMSTATE_A9_CPREG(PMCR2),       VMSTATE_A9_CPREG(PMCR4),
             VMSTATE_A9_CPREG(PMESR0),      VMSTATE_A9_CPREG(PMESR1),
             VMSTATE_A9_CPREG(OPMAT0),      VMSTATE_A9_CPREG(OPMAT1),
             VMSTATE_A9_CPREG(OPMSK0),      VMSTATE_A9_CPREG(OPMSK1),
             VMSTATE_A9_CPREG(PMSR),        VMSTATE_A9_CPREG(PMTRHLD6),
             VMSTATE_A9_CPREG(PMTRHLD4),    VMSTATE_A9_CPREG(PMTRHLD2),
-            VMSTATE_A9_CPREG(PMMMAP),      VMSTATE_A9_CPREG(LSU_ERR_STS),
-            VMSTATE_A9_CPREG(LSU_ERR_ADR), VMSTATE_A9_CPREG(L2C_ERR_INF),
-            VMSTATE_A9_CPREG(FED_ERR_STS), VMSTATE_A9_CPREG(CYC_CFG),
-            VMSTATE_A9_CPREG(SCTLR_EL3),   VMSTATE_A9_CPREG(SCR_EL3),
-            VMSTATE_A9_CPREG(VBAR_EL3),    VMSTATE_A9_CPREG(RVBAR_EL3),
-            VMSTATE_A9_CPREG(RMR_EL3),     VMSTATE_A9_CPREG(MMU_ERR_STS),
-            VMSTATE_END_OF_LIST(),
+            VMSTATE_A9_CPREG(PMMMAP),      VMSTATE_A9_CPREG(SYS_LSU_ERR_STS),
+            VMSTATE_A9_CPREG(LSU_ERR_STS), VMSTATE_A9_CPREG(LSU_ERR_ADR),
+            VMSTATE_A9_CPREG(L2C_ERR_INF), VMSTATE_A9_CPREG(FED_ERR_STS),
+            VMSTATE_A9_CPREG(CYC_CFG),     VMSTATE_A9_CPREG(RMR_EL3),
+            VMSTATE_A9_CPREG(MMU_ERR_STS), VMSTATE_END_OF_LIST(),
         }
 };
 
