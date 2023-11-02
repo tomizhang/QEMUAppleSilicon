@@ -450,9 +450,6 @@ static uint32_t arm_debug_exception_fsr(CPUARMState *env)
     } else if (arm_feature(env, ARM_FEATURE_LPAE) &&
                (env->cp15.tcr_el[target_el] & TTBCR_EAE)) {
         using_lpae = true;
-    } else if (arm_feature(env, ARM_FEATURE_PMSA) &&
-               arm_feature(env, ARM_FEATURE_V8)) {
-        using_lpae = true;
     } else {
         using_lpae = false;
     }
