@@ -665,38 +665,6 @@ void macho_load_ramdisk(const char *filename, AddressSpace *as,
     g_free(file_data);
 }
 
-void macho_map_raw_file(const char *filename, AddressSpace *as,
-                        MemoryRegion *mem, const char *name, hwaddr file_pa,
-                        uint64_t *size)
-{
-    Error *err = NULL;
-    MemoryRegion *mr = NULL;
-    struct stat file_info;
-
-    if (stat(filename, &file_info)) {
-        fprintf(stderr,
-                "Couldn't get file size for mmapping. Loading into RAM.\n");
-        goto load_fallback;
-    }
-
-    mr = g_new(MemoryRegion, 1);
-    *size = file_info.st_size;
-
-    memory_region_init_ram_from_file(mr, NULL, name, *size & (~0xffffUL), 0, 0,
-                                     filename, false, &err);
-    if (err) {
-        error_report_err(err);
-        fprintf(stderr, "Couldn't mmap file. Loading into RAM.\n");
-        goto load_fallback;
-    }
-    memory_region_add_subregion(mem, file_pa, mr);
-    return;
-
-load_fallback:
-    g_free(mr);
-    macho_load_raw_file(filename, as, mem, name, file_pa, size);
-}
-
 void macho_load_raw_file(const char *filename, AddressSpace *as,
                          MemoryRegion *mem, const char *name, hwaddr file_pa,
                          uint64_t *size)

@@ -269,7 +269,6 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
                                                  modern ? APPLE_MBOX_MMIO_V3 :
                                                           APPLE_MBOX_MMIO_V2));
     sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->mbox));
-    sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->cpu));
 
     memory_region_init_io(&s->trng_mr, OBJECT(dev), &trng_reg_ops, s,
                           "sep.trng", 0x100);

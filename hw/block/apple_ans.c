@@ -241,7 +241,7 @@ SysBusDevice *apple_ans_create(DTBNode *node, uint32_t protocol_version)
 
     object_initialize_child(OBJECT(dev), "nvme", &s->nvme, TYPE_NVME);
 
-    object_property_set_str(OBJECT(&s->nvme), "serial", "QEMUT8030ANS",
+    object_property_set_str(OBJECT(&s->nvme), "serial", "QEMUAPPLESILICONANS",
                             &error_fatal);
     object_property_set_bool(OBJECT(&s->nvme), "is-apple-ans", true,
                              &error_fatal);

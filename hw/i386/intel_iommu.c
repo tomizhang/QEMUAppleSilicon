@@ -64,8 +64,8 @@ struct vtd_as_key {
 struct vtd_iotlb_key {
     uint64_t gfn;
     uint32_t pasid;
-    uint32_t level;
     uint16_t sid;
+    uint8_t level;
 };
 
 static void vtd_address_space_refresh_all(IntelIOMMUState *s);
@@ -221,10 +221,11 @@ static gboolean vtd_iotlb_equal(gconstpointer v1, gconstpointer v2)
 static guint vtd_iotlb_hash(gconstpointer v)
 {
     const struct vtd_iotlb_key *key = v;
+    uint64_t hash64 = key->gfn | ((uint64_t)(key->sid) << VTD_IOTLB_SID_SHIFT) |
+        (uint64_t)(key->level - 1) << VTD_IOTLB_LVL_SHIFT |
+        (uint64_t)(key->pasid) << VTD_IOTLB_PASID_SHIFT;
 
-    return key->gfn | ((key->sid) << VTD_IOTLB_SID_SHIFT) |
-           (key->level) << VTD_IOTLB_LVL_SHIFT |
-           (key->pasid) << VTD_IOTLB_PASID_SHIFT;
+    return (guint)((hash64 >> 32) ^ (hash64 & 0xffffffffU));
 }
 
 static gboolean vtd_as_equal(gconstpointer v1, gconstpointer v2)
@@ -3795,7 +3796,7 @@ static void vtd_address_space_unmap(VTDAddressSpace *as, IOMMUNotifier *n)
                              n->start, size);
 
     map.iova = n->start;
-    map.size = size;
+    map.size = size - 1; /* Inclusive */
     iova_tree_remove(as->iova_tree, map);
 }
 
@@ -3829,13 +3830,10 @@ static void vtd_iommu_replay(IOMMUMemoryRegion *iommu_mr, IOMMUNotifier *n)
     IntelIOMMUState *s = vtd_as->iommu_state;
     uint8_t bus_n = pci_bus_num(vtd_as->bus);
     VTDContextEntry ce;
+    DMAMap map = { .iova = 0, .size = HWADDR_MAX };
 
-    /*
-     * The replay can be triggered by either a invalidation or a newly
-     * created entry. No matter what, we release existing mappings
-     * (it means flushing caches for UNMAP-only registers).
-     */
-    vtd_address_space_unmap(vtd_as, n);
+    /* replay is protected by BQL, page walk will re-setup it safely */
+    iova_tree_remove(vtd_as->iova_tree, map);
 
     if (vtd_dev_to_context_entry(s, bus_n, vtd_as->devfn, &ce) == 0) {
         trace_vtd_replay_ce_valid(s->root_scalable ? "scalable mode" :
@@ -3844,7 +3842,7 @@ static void vtd_iommu_replay(IOMMUMemoryRegion *iommu_mr, IOMMUNotifier *n)
                                   PCI_FUNC(vtd_as->devfn),
                                   vtd_get_domain_id(s, &ce, vtd_as->pasid),
                                   ce.hi, ce.lo);
-        if (vtd_as_has_map_notifier(vtd_as)) {
+        if (n->notifier_flags & IOMMU_NOTIFIER_MAP) {
             /* This is required only for MAP typed notifiers */
             vtd_page_walk_info info = {
                 .hook_fn = vtd_replay_hook,

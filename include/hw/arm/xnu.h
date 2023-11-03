@@ -322,10 +322,6 @@ void macho_allocate_segment_records(DTBNode *memory_map, MachoHeader64 *mh);
 hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
                       DTBNode *memory_map, hwaddr phys_base, hwaddr virt_slide);
 
-void macho_map_raw_file(const char *filename, AddressSpace *as,
-                        MemoryRegion *mem, const char *name, hwaddr file_pa,
-                        uint64_t *size);
-
 void macho_load_raw_file(const char *filename, AddressSpace *as,
                          MemoryRegion *mem, const char *name, hwaddr file_pa,
                          uint64_t *size);

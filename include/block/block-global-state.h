@@ -58,14 +58,14 @@ BlockDriver *bdrv_find_protocol(const char *filename,
                                 Error **errp);
 BlockDriver *bdrv_find_format(const char *format_name);
 
-int coroutine_fn GRAPH_RDLOCK
+int coroutine_fn GRAPH_UNLOCKED
 bdrv_co_create(BlockDriver *drv, const char *filename, QemuOpts *opts,
                Error **errp);
 
-int co_wrapper_bdrv_rdlock bdrv_create(BlockDriver *drv, const char *filename,
-                                       QemuOpts *opts, Error **errp);
+int co_wrapper bdrv_create(BlockDriver *drv, const char *filename,
+                           QemuOpts *opts, Error **errp);
 
-int coroutine_fn GRAPH_RDLOCK
+int coroutine_fn GRAPH_UNLOCKED
 bdrv_co_create_file(const char *filename, QemuOpts *opts, Error **errp);
 
 BlockDriverState *bdrv_new(void);
@@ -133,7 +133,10 @@ int bdrv_reopen_set_read_only(BlockDriverState *bs, bool read_only,
 BlockDriverState *bdrv_find_backing_image(BlockDriverState *bs,
                                           const char *backing_file);
 void bdrv_refresh_filename(BlockDriverState *bs);
-void bdrv_refresh_limits(BlockDriverState *bs, Transaction *tran, Error **errp);
+
+void GRAPH_RDLOCK
+bdrv_refresh_limits(BlockDriverState *bs, Transaction *tran, Error **errp);
+
 int bdrv_commit(BlockDriverState *bs);
 int bdrv_make_empty(BdrvChild *c, Error **errp);
 int bdrv_change_backing_file(BlockDriverState *bs, const char *backing_file,
@@ -163,8 +166,9 @@ int bdrv_amend_options(BlockDriverState *bs_new, QemuOpts *opts,
                        Error **errp);
 
 /* check if a named node can be replaced when doing drive-mirror */
-BlockDriverState *check_to_replace_node(BlockDriverState *parent_bs,
-                                        const char *node_name, Error **errp);
+BlockDriverState * GRAPH_RDLOCK
+check_to_replace_node(BlockDriverState *parent_bs, const char *node_name,
+                      Error **errp);
 
 int no_coroutine_fn bdrv_activate(BlockDriverState *bs, Error **errp);
 

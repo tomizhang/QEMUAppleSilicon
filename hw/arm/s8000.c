@@ -1137,7 +1137,7 @@ static void s8000_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 {
     S8000MachineState *tms = data.host_ptr;
     CPUARMState *env;
-    AppleA13State *tcpu = APPLE_A13(cpu);
+    AppleA9State *tcpu = APPLE_A9(cpu);
     if (!tcpu) {
         return;
     }
