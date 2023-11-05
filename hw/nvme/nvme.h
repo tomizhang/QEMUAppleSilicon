@@ -467,6 +467,7 @@ typedef struct NvmeSQueue {
     struct NvmeCtrl *ctrl;
     uint16_t    sqid;
     uint16_t    cqid;
+    uint32_t    entry_count;
     uint32_t    head;
     uint32_t    tail;
     uint32_t    size;
