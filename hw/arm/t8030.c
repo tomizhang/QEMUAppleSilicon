@@ -58,54 +58,54 @@
 #include "sysemu/runstate.h"
 #include "sysemu/sysemu.h"
 
-#define T8030_SROM_BASE (0x100000000ULL)
-#define T8030_SROM_SIZE (0x80000ULL)
-#define T8030_SRAM_BASE (0x19C000000ULL)
-#define T8030_SRAM_SIZE (0x400000ULL)
-#define T8030_DRAM_BASE (0x800000000ULL)
-#define T8030_DRAM_SIZE (4ULL * GiB)
+#define T8030_SROM_BASE (0x100000000ull)
+#define T8030_SROM_SIZE (0x80000ull)
+#define T8030_SRAM_BASE (0x19C000000ull)
+#define T8030_SRAM_SIZE (0x400000ull)
+#define T8030_DRAM_BASE (0x800000000ull)
+#define T8030_DRAM_SIZE (4ull * GiB)
 
 #define T8030_SEPROM_BASE (0x240000000ULL)
 #define T8030_SEPROM_SIZE (0x4000000ULL)
 
 #define T8030_GPIO_FORCE_DFU (161)
 
-#define T8030_KERNEL_REGION_BASE (T8030_DRAM_BASE + 0x10000000)
-#define T8030_KERNEL_REGION_SIZE (0x3F00000)
+#define T8030_KERNEL_REGION_BASE (T8030_DRAM_BASE + 0x2000000ull)
+#define T8030_KERNEL_REGION_SIZE (0xF000000ull)
 
-#define T8030_SPI_BASE(_x) (0x35100000 + (_x)*APPLE_SPI_MMIO_SIZE)
+#define T8030_SPI_BASE(_x) (0x35100000ull + (_x)*APPLE_SPI_MMIO_SIZE)
 
 #define T8030_DWC2_IRQ (495)
 
 #define T8030_NUM_UARTS (9)
 #define T8030_NUM_SPIS (4)
 
-#define T8030_ANS_TEXT_BASE (0x800024000)
-#define T8030_ANS_TEXT_SIZE (0x124000)
-#define T8030_ANS_DATA_BASE (0x8FC400000)
-#define T8030_ANS_DATA_SIZE (0x3C00000)
-#define T8030_SMC_REGION_SIZE (0x80000)
-#define T8030_SMC_TEXT_BASE (0x23FE00000)
-#define T8030_SMC_TEXT_SIZE (0x30000)
-#define T8030_SMC_DATA_BASE (0x23FE30000)
-#define T8030_SMC_DATA_SIZE (0x30000)
-#define T8030_SMC_SRAM_BASE (0x23FE60000)
-#define T8030_SMC_SRAM_SIZE (0x4000)
+#define T8030_ANS_TEXT_BASE (0x800024000ull)
+#define T8030_ANS_TEXT_SIZE (0x124000ull)
+#define T8030_ANS_DATA_BASE (0x8FC400000ull)
+#define T8030_ANS_DATA_SIZE (0x3C00000ull)
+#define T8030_SMC_REGION_SIZE (0x80000ull)
+#define T8030_SMC_TEXT_BASE (0x23FE00000ull)
+#define T8030_SMC_TEXT_SIZE (0x30000ull)
+#define T8030_SMC_DATA_BASE (0x23FE30000ull)
+#define T8030_SMC_DATA_SIZE (0x30000ull)
+#define T8030_SMC_SRAM_BASE (0x23FE60000ull)
+#define T8030_SMC_SRAM_SIZE (0x4000ull)
 
-#define T8030_SIO_TEXT_BASE (0x8010A8000)
-#define T8030_SIO_TEXT_SIZE (0x1C000)
-#define T8030_SIO_TEXT_REMAP (0x200000)
-#define T8030_SIO_DATA_BASE (0x80186C000)
-#define T8030_SIO_DATA_SIZE (0xF8000)
-#define T8030_SIO_DATA_REMAP (0x220000)
+#define T8030_SIO_TEXT_BASE (0x8010A8000ull)
+#define T8030_SIO_TEXT_SIZE (0x1C000ull)
+#define T8030_SIO_TEXT_REMAP (0x200000ull)
+#define T8030_SIO_DATA_BASE (0x80186C000ull)
+#define T8030_SIO_DATA_SIZE (0xF8000ull)
+#define T8030_SIO_DATA_REMAP (0x220000ull)
 
-#define T8030_PANIC_BASE (0x8FC2B4000)
-#define T8030_PANIC_SIZE (0x100000)
+#define T8030_PANIC_BASE (0x8FC2B4000ull)
+#define T8030_PANIC_SIZE (0x100000ull)
 
-#define T8030_AMCC_BASE (0x200000000)
-#define T8030_AMCC_SIZE (0x100000)
+#define T8030_AMCC_BASE (0x200000000ull)
+#define T8030_AMCC_SIZE (0x100000ull)
 #define AMCC_PLANE_COUNT (4)
-#define AMCC_PLANE_STRIDE (0x40000)
+#define AMCC_PLANE_STRIDE (0x40000ull)
 #define AMCC_LOWER(_p) (0x680 + (_p)*AMCC_PLANE_STRIDE)
 #define AMCC_UPPER(_p) (0x684 + (_p)*AMCC_PLANE_STRIDE)
 #define AMCC_REG(_tms, _x) *(uint32_t *)(&_tms->amcc_reg[_x])
@@ -235,16 +235,6 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     g_autofree ApplePfRange *text_range = NULL;
     DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
 
-    /*
-     * Setup the memory layout:
-     * The trustcache is right in front of the __TEXT section, aligned to 16k
-     * Then we have all the kernel sections.
-     * After that we have ramdisk
-     * After that we have the kernel boot args
-     * After that we have the device tree
-     * After that we have the rest of the RAM
-     */
-
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
     macho_highest_lowest(hdr, &virt_low, &virt_end);
     last_range = xnu_pf_segment(hdr, "__LAST");
@@ -287,7 +277,7 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
         AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - T8030_DRAM_BASE) >> 14;
     }
 
-    //! ramdisk
+    //! Ram disk
     if (machine->initrd_filename) {
         info->ramdisk_pa = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
@@ -300,7 +290,7 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     info->kern_boot_args_pa = phys_ptr;
     phys_ptr += align_16k_high(0x4000);
 
-    //! device tree
+    //! Device tree
     info->device_tree_pa = phys_ptr;
     dtb_va = ptov_static(info->device_tree_pa);
     phys_ptr += align_16k_high(info->device_tree_size);
@@ -351,16 +341,6 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     g_autofree ApplePfRange *last_range = NULL;
     DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
 
-    /*
-     * Setup the memory layout:
-     * First we have the device tree
-     * The trustcache is right after the device tree
-     * Then we have all the kernel sections.
-     * After that we have ramdisk
-     * After that we have the kernel boot args
-     * After that we have the rest of the RAM
-     */
-
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
     macho_highest_lowest(hdr, &virt_low, &virt_end);
     g_virt_base = virt_low;
@@ -386,11 +366,11 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     phys_ptr += slide_phys;
     phys_ptr -= extradata_size;
 
-    //! device tree
+    //! Device tree
     info->device_tree_pa = phys_ptr;
     phys_ptr += info->device_tree_size;
 
-    //! TrustCache
+    //! Trust Cache
     info->trustcache_pa = phys_ptr;
     macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
                           info->trustcache_pa);
@@ -423,7 +403,7 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
 
     dtb_va = ptov_static(info->device_tree_pa);
 
-    //! ramdisk
+    //! Ram disk
     if (machine->initrd_filename) {
         info->ramdisk_pa = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
@@ -1772,7 +1752,6 @@ static void t8030_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
     env = &ARM_CPU(cpu)->env;
     env->xregs[0] = tms->bootinfo.kern_boot_args_pa;
     cpu_set_pc(cpu, tms->bootinfo.kern_entry);
-    // cpu_set_pc(cpu, T8030_SROM_BASE);
 }
 
 static void t8030_cpu_reset(void *opaque)
