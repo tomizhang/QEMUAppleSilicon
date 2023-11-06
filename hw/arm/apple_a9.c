@@ -157,10 +157,6 @@ static void apple_a9_instance_init(Object *obj)
     uint64_t t;
 
     object_property_set_uint(obj, "cntfrq", 24000000, &error_fatal);
-    object_property_add_uint64_ptr(obj, "pauth-mlo", &cpu->m_key_lo,
-                                   OBJ_PROP_FLAG_READWRITE);
-    object_property_add_uint64_ptr(obj, "pauth-mhi", &cpu->m_key_hi,
-                                   OBJ_PROP_FLAG_READWRITE);
     cpu->dtb_compatible = "apple,twister";
     t = FIELD_DP64(0, MIDR_EL1, IMPLEMENTER, 0);
     t = FIELD_DP64(t, MIDR_EL1, ARCHITECTURE, 0xf);
@@ -235,9 +231,6 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
         set_dtb_prop(node, "timebase-frequency", sizeof(freq), &freq);
         set_dtb_prop(node, "fixed-frequency", sizeof(freq), &freq);
     }
-
-    // object_property_set_bool(obj, "has_el3", true, NULL);
-    // object_property_set_bool(obj, "has_el2", false, NULL);
 
     memory_region_init(&tcpu->memory, obj, "cpu-memory", UINT64_MAX);
     memory_region_init_alias(&tcpu->sysmem, obj, "sysmem", get_system_memory(),

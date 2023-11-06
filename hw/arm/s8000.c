@@ -1147,20 +1147,15 @@ static void apple_a9_reset(void *opaque)
     MachineState *machine = MACHINE(opaque);
     S8000MachineState *tms = S8000_MACHINE(machine);
     CPUState *cpu;
-    uint64_t m_lo = 0;
-    uint64_t m_hi = 0;
-    qemu_guest_getrandom(&m_lo, sizeof(m_lo), NULL);
-    qemu_guest_getrandom(&m_hi, sizeof(m_hi), NULL);
 
     CPU_FOREACH (cpu) {
         AppleA9State *tcpu = APPLE_A9(cpu);
         if (tcpu == NULL || tcpu->cpu_id == A9_MAX_CPU + 1) {
             continue;
         }
-        object_property_set_int(OBJECT(cpu), "rvbar", S8000_TZ1_BASE,
+        object_property_set_int(OBJECT(cpu), "rvbar",
+                                tms->bootinfo.kern_entry & ~0xFFF,
                                 &error_abort);
-        object_property_set_uint(OBJECT(cpu), "pauth-mlo", m_lo, &error_abort);
-        object_property_set_uint(OBJECT(cpu), "pauth-mhi", m_hi, &error_abort);
         if (tcpu->cpu_id == 0) {
             run_on_cpu(cpu, s8000_cpu_reset_work, RUN_ON_CPU_HOST_PTR(tms));
             continue;
