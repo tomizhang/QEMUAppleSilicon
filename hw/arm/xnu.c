@@ -801,9 +801,9 @@ void macho_text_base(MachoHeader64 *mh, uint64_t *base)
         case LC_SEGMENT_64: {
             MachoSegmentCommand64 *segCmd = (MachoSegmentCommand64 *)cmd;
 
-            if (segCmd->vmaddr && segCmd->fileoff == 0 &&
-                !strncmp(segCmd->segname, "__TEXT", 7)) {
+            if (segCmd->vmaddr && segCmd->fileoff == 0) {
                 *base = segCmd->vmaddr;
+                return;
             }
             break;
         }
@@ -870,13 +870,8 @@ MachoHeader64 *macho_parse(uint8_t *data, uint32_t len)
             if (segCmd->vmsize == 0) {
                 break;
             }
-            if (segCmd->fileoff >= len) {
-                error_report("%s: Invalid Mach-O: segCmd->fileoff >= len",
-                             __func__);
-                exit(EXIT_FAILURE);
-            }
-            if (segCmd->vmaddr && segCmd->fileoff == 0 &&
-                !strncmp(segCmd->segname, "__TEXT", 7)) {
+            g_assert(segCmd->fileoff < len);
+            if (segCmd->vmaddr && segCmd->fileoff == 0 && !text_base) {
                 text_base = segCmd->vmaddr;
             }
             memcpy(phys_base + segCmd->vmaddr - virt_base,
@@ -1038,7 +1033,7 @@ static void macho_process_symbols(MachoHeader64 *mh, uint64_t slide)
     unsigned int index;
     macho_highest_lowest(mh, &kernel_low, &kernel_high);
 
-    cmd = (MachoLoadCommand *)((char *)mh + sizeof(MachoHeader64));
+    cmd = (MachoLoadCommand *)(mh + 1);
     for (index = 0; index < mh->n_cmds; index++) {
         if (cmd->cmd == LC_SYMTAB) {
             MachoSymtabCommand *symtab = (MachoSymtabCommand *)cmd;
