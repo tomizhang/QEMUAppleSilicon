@@ -708,7 +708,8 @@ void apple_monitor_setup_boot_args(const char *name, AddressSpace *as,
                                    MemoryRegion *mem, hwaddr addr,
                                    hwaddr virt_base, hwaddr phys_base,
                                    hwaddr mem_size, hwaddr kern_args,
-                                   hwaddr kern_entry, hwaddr kern_phys_base)
+                                   hwaddr kern_entry, hwaddr kern_phys_base,
+                                   hwaddr kern_text_section_off)
 {
     AppleMonitorBootArgs boot_args;
 
@@ -722,6 +723,7 @@ void apple_monitor_setup_boot_args(const char *name, AddressSpace *as,
     boot_args.kern_phys_base = kern_phys_base;
     boot_args.kern_phys_slide = 0;
     boot_args.kern_virt_slide = 0;
+    boot_args.kern_text_section_off = kern_text_section_off;
 
     allocate_and_copy(mem, as, name, addr, sizeof(boot_args), &boot_args);
 }
@@ -1103,8 +1105,8 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
     MachoLoadCommand *cmd;
     hwaddr pc = 0;
     data = macho_get_buffer(mh);
-    uint64_t kernel_low, kernel_high;
-    macho_highest_lowest(mh, &kernel_low, &kernel_high);
+    uint64_t virt_low, virt_high;
+    macho_highest_lowest(mh, &virt_low, &virt_high);
     bool is_fileset = mh->file_type == MH_FILESET;
 
     cmd = (MachoLoadCommand *)(mh + 1);
@@ -1116,8 +1118,8 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
         case LC_SEGMENT_64: {
             MachoSegmentCommand64 *segCmd = (MachoSegmentCommand64 *)cmd;
             char region_name[64] = { 0 };
-            void *load_from = (void *)(data + segCmd->vmaddr - kernel_low);
-            hwaddr load_to = (phys_base + segCmd->vmaddr - kernel_low);
+            void *load_from = (void *)(data + segCmd->vmaddr - virt_low);
+            hwaddr load_to = (phys_base + segCmd->vmaddr - virt_low);
             if (memory_map) {
                 snprintf(region_name, sizeof(region_name), "Kernel-%s",
                          segCmd->segname);
@@ -1128,7 +1130,7 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
                 set_dtb_prop(memory_map, region_name, sizeof(file_info),
                              &file_info);
             } else {
-                snprintf(region_name, sizeof(region_name), "TrustZone-%s",
+                snprintf(region_name, sizeof(region_name), "TZ1-%s",
                          segCmd->segname);
             }
 
@@ -1142,8 +1144,7 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
                      sp = nextsect(sp)) {
                     if ((sp->flags & SECTION_TYPE) ==
                         S_NON_LAZY_SYMBOL_POINTERS) {
-                        void *load_from =
-                            (void *)(data + sp->addr - kernel_low);
+                        void *load_from = (void *)(data + sp->addr - virt_low);
                         void **nl_symbol_ptr;
                         for (nl_symbol_ptr = load_from;
                              nl_symbol_ptr < (void **)(load_from + sp->size);
@@ -1207,8 +1208,7 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
                      sp = nextsect(sp)) {
                     if ((sp->flags & SECTION_TYPE) ==
                         S_NON_LAZY_SYMBOL_POINTERS) {
-                        void *load_from =
-                            (void *)(data + sp->addr - kernel_low);
+                        void *load_from = (void *)(data + sp->addr - virt_low);
                         void **nl_symbol_ptr;
                         for (nl_symbol_ptr = load_from;
                              nl_symbol_ptr < (void **)(load_from + sp->size);
@@ -1226,7 +1226,7 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
             uint64_t *ptrPc = (uint64_t *)((char *)cmd + 0x110);
 
             // 0x110 for arm64 only.
-            pc = vtop_bases(*ptrPc, phys_base, kernel_low);
+            pc = vtop_bases(*ptrPc, phys_base, virt_low);
 
             break;
         }

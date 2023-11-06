@@ -80,7 +80,7 @@
 #define S8000_DISPLAY_SIZE (0x1100000ull)
 #define S8000_DISPLAY_BASE (S8000_PANIC_BASE - S8000_DISPLAY_SIZE)
 
-#define S8000_KERNEL_REGION_BASE (S8000_DRAM_BASE)
+#define S8000_KERNEL_REGION_BASE (S8000_DRAM_BASE + 0x10000000)
 #define S8000_KERNEL_REGION_SIZE (S8000_DISPLAY_BASE - S8000_KERNEL_REGION_BASE)
 
 // static void s8000_wake_up_cpus(MachineState *machine, uint64_t cpu_mask)
@@ -220,6 +220,7 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     macho_highest_lowest(hdr, &virt_low, &virt_end);
     last_range = xnu_pf_segment(hdr, "__LAST");
     text_range = xnu_pf_segment(hdr, "__TEXT");
+    info->kern_text_section_off = text_range->va - virt_low;
 
     get_kaslr_slides(tms, &slide_phys, &slide_virt);
 
@@ -321,16 +322,6 @@ static void s8000_load_fileset_kc(S8000MachineState *tms, const char *cmdline)
     AppleBootInfo *info = &tms->bootinfo;
     g_autofree ApplePfRange *last_range = NULL;
     DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
-
-    /*
-     * Setup the memory layout:
-     * First we have the device tree
-     * The trustcache is right after the device tree
-     * Then we have all the kernel sections.
-     * After that we have ramdisk
-     * After that we have the kernel boot args
-     * After that we have the rest of the RAM
-     */
 
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
     macho_highest_lowest(hdr, &virt_low, &virt_end);
@@ -593,13 +584,13 @@ static void s8000_memory_setup(MachineState *machine)
                                       NULL, S8000_TZ1_BASE, 0);
     info_report("TrustZone 1 entry: " TARGET_FMT_lx, tz1_entry);
     hwaddr tz1_boot_args_pa =
-        S8000_TZ1_BASE + S8000_TZ1_SIZE - sizeof(AppleMonitorBootArgs);
+        S8000_TZ1_BASE + (S8000_TZ1_SIZE - sizeof(AppleMonitorBootArgs));
     info_report("TrustZone 1 boot args address: " TARGET_FMT_lx,
                 tz1_boot_args_pa);
     apple_monitor_setup_boot_args(
         "TZ1_BOOTARGS", sas, tms->sysmem, tz1_boot_args_pa, tz1_virt_low,
-        S8000_TZ1_BASE, 0x80000, tms->bootinfo.kern_boot_args_pa,
-        tms->bootinfo.kern_entry, S8000_KERNEL_REGION_BASE);
+        S8000_TZ1_BASE, S8000_TZ1_BASE, tms->bootinfo.kern_boot_args_pa,
+        tms->bootinfo.kern_entry, g_phys_base, info->kern_text_section_off);
     tms->bootinfo.tz1_entry = tz1_entry;
     tms->bootinfo.tz1_boot_args_pa = tz1_boot_args_pa;
 }

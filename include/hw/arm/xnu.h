@@ -167,7 +167,7 @@ typedef struct {
     uint64_t kern_phys_base;
     uint64_t kern_phys_slide;
     uint64_t kern_virt_slide;
-    uint64_t something;
+    uint64_t kern_text_section_off;
     uint64_t reserved[2];
 } AppleMonitorBootArgs;
 
@@ -239,6 +239,7 @@ typedef struct {
 
 typedef struct {
     hwaddr kern_entry;
+    hwaddr kern_text_section_off;
     hwaddr tz1_entry;
     hwaddr device_tree_pa;
     uint64_t device_tree_size;
@@ -309,7 +310,8 @@ void apple_monitor_setup_boot_args(const char *name, AddressSpace *as,
                                    MemoryRegion *mem, hwaddr bootargs_addr,
                                    hwaddr virt_base, hwaddr phys_base,
                                    hwaddr mem_size, hwaddr kern_args,
-                                   hwaddr kern_entry, hwaddr kern_phys_base);
+                                   hwaddr kern_entry, hwaddr kern_phys_base,
+                                   hwaddr kern_text_section_off);
 void macho_setup_bootargs(const char *name, AddressSpace *as, MemoryRegion *mem,
                           hwaddr bootargs_pa, hwaddr virt_base,
                           hwaddr phys_base, hwaddr mem_size,
