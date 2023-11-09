@@ -746,6 +746,7 @@ void macho_setup_bootargs(const char *name, AddressSpace *as, MemoryRegion *mem,
     boot_args.kernel_top = kernel_top;
     boot_args.device_tree_ptr = dtb_va;
     boot_args.device_tree_length = dtb_size;
+    boot_args.boot_flags = 1; // is dark boot
 
     if (cmdline) {
         g_strlcpy(boot_args.cmdline, cmdline, sizeof(boot_args.cmdline));

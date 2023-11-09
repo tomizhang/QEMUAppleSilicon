@@ -25,7 +25,7 @@
 
 #define BOOT_ARGS_REVISION_2 (2)
 #define BOOT_ARGS_VERSION_2 (2)
-#define BOOT_LINE_LENGTH (256)
+#define BOOT_LINE_LENGTH (608)
 
 #define LC_SYMTAB (0x2)
 #define LC_UNIXTHREAD (0x5)
@@ -183,6 +183,8 @@ typedef struct {
     uint64_t device_tree_ptr;
     uint32_t device_tree_length;
     char cmdline[BOOT_LINE_LENGTH];
+    uint64_t boot_flags;
+    uint64_t mem_size_actual;
 } AppleKernelBootArgs;
 
 #define EMBEDDED_PANIC_HEADER_OSVERSION_LEN (32)
