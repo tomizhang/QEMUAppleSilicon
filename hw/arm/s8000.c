@@ -206,21 +206,11 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     g_autofree ApplePfRange *text_range = NULL;
     DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
 
-    /*
-     * Setup the memory layout:
-     * The trustcache is right in front of the __TEXT section, aligned to 16k
-     * Then we have all the kernel sections.
-     * After that we have ramdisk
-     * After that we have the kernel boot args
-     * After that we have the device tree
-     * After that we have the rest of the RAM
-     */
-
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
     macho_highest_lowest(hdr, &virt_low, &virt_end);
     last_range = xnu_pf_segment(hdr, "__LAST");
     text_range = xnu_pf_segment(hdr, "__TEXT");
-    info->kern_text_section_off = text_range->va - virt_low;
+    info->kern_text_off = text_range->va - virt_low;
 
     get_kaslr_slides(tms, &slide_phys, &slide_virt);
 
@@ -239,14 +229,15 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     info->kern_entry = arm_load_macho(hdr, nsas, sysmem, memory_map,
                                       g_phys_base + slide_phys, slide_virt);
     fprintf(stderr,
-            "g_virt_base: 0x" TARGET_FMT_lx "\n"
-            "g_phys_base: 0x" TARGET_FMT_lx "\n",
+            "Kernel virtual base: 0x" TARGET_FMT_lx "\n"
+            "Kernel physical base: 0x" TARGET_FMT_lx "\n",
             g_virt_base, g_phys_base);
     fprintf(stderr,
-            "slide_virt: 0x" TARGET_FMT_lx "\n"
-            "slide_phys: 0x" TARGET_FMT_lx "\n",
+            "Kernel virtual slide: 0x" TARGET_FMT_lx "\n"
+            "Kernel physical slide: 0x" TARGET_FMT_lx "\n",
             slide_virt, slide_phys);
-    fprintf(stderr, "entry: 0x" TARGET_FMT_lx "\n", info->kern_entry);
+    fprintf(stderr, "Kernel entry point: 0x" TARGET_FMT_lx "\n",
+            info->kern_entry);
 
     virt_end += slide_virt;
     phys_ptr = vtop_static(align_16k_high(virt_end));
@@ -293,7 +284,7 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
 
     top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
 
-    fprintf(stderr, "cmdline: [%s]\n", cmdline);
+    fprintf(stderr, "Boot args: [%s]\n", cmdline);
     macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_pa,
                          g_virt_base, g_phys_base, mem_size,
                          top_of_kernel_data_pa, dtb_va, info->device_tree_size,
@@ -363,14 +354,15 @@ static void s8000_load_fileset_kc(S8000MachineState *tms, const char *cmdline)
     info->kern_entry =
         arm_load_macho(hdr, nsas, sysmem, memory_map, phys_ptr, slide_virt);
     fprintf(stderr,
-            "g_virt_base: 0x" TARGET_FMT_lx "\n"
-            "g_phys_base: 0x" TARGET_FMT_lx "\n",
+            "Kernel virtual base: 0x" TARGET_FMT_lx "\n"
+            "Kernel physical base: 0x" TARGET_FMT_lx "\n",
             g_virt_base, g_phys_base);
     fprintf(stderr,
-            "slide_virt: 0x" TARGET_FMT_lx "\n"
-            "slide_phys: 0x" TARGET_FMT_lx "\n",
+            "Kernel virtual slide: 0x" TARGET_FMT_lx "\n"
+            "Kernel physical slide: 0x" TARGET_FMT_lx "\n",
             slide_virt, slide_phys);
-    fprintf(stderr, "entry: 0x" TARGET_FMT_lx "\n", info->kern_entry);
+    fprintf(stderr, "Kernel entry point: 0x" TARGET_FMT_lx "\n",
+            info->kern_entry);
 
     virt_end += slide_virt;
     phys_ptr = vtop_static(align_16k_high(virt_end));
@@ -405,7 +397,7 @@ static void s8000_load_fileset_kc(S8000MachineState *tms, const char *cmdline)
 
     top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
 
-    fprintf(stderr, "cmdline: [%s]\n", cmdline);
+    fprintf(stderr, "Boot args: [%s]\n", cmdline);
     macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_pa,
                          g_virt_base, g_phys_base, mem_size,
                          top_of_kernel_data_pa, dtb_va, info->device_tree_size,
@@ -589,8 +581,9 @@ static void s8000_memory_setup(MachineState *machine)
                 tz1_boot_args_pa);
     apple_monitor_setup_boot_args(
         "TZ1_BOOTARGS", sas, tms->sysmem, tz1_boot_args_pa, tz1_virt_low,
-        S8000_TZ1_BASE, S8000_TZ1_BASE, tms->bootinfo.kern_boot_args_pa,
-        tms->bootinfo.kern_entry, g_phys_base, info->kern_text_section_off);
+        S8000_TZ1_BASE, S8000_TZ1_SIZE, tms->bootinfo.kern_boot_args_pa,
+        tms->bootinfo.kern_entry, S8000_KERNEL_REGION_BASE,
+        info->kern_text_off);
     tms->bootinfo.tz1_entry = tz1_entry;
     tms->bootinfo.tz1_boot_args_pa = tz1_boot_args_pa;
 }

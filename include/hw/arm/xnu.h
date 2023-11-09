@@ -239,7 +239,7 @@ typedef struct {
 
 typedef struct {
     hwaddr kern_entry;
-    hwaddr kern_text_section_off;
+    hwaddr kern_text_off;
     hwaddr tz1_entry;
     hwaddr device_tree_pa;
     uint64_t device_tree_size;
