@@ -22,6 +22,7 @@
 
 #include "qemu/osdep.h"
 #include "crypto/hash.h"
+#include "crypto/random.h"
 #include "hw/arm/boot.h"
 #include "hw/arm/xnu.h"
 #include "hw/loader.h"
@@ -714,7 +715,7 @@ void apple_monitor_setup_boot_args(const char *name, AddressSpace *as,
     AppleMonitorBootArgs boot_args;
 
     memset(&boot_args, 0, sizeof(boot_args));
-    boot_args.version = BOOT_ARGS_VERSION_2;
+    boot_args.version = BOOT_ARGS_VERSION_4;
     boot_args.virt_base = virt_base;
     boot_args.phys_base = phys_base;
     boot_args.mem_size = mem_size;
@@ -724,6 +725,7 @@ void apple_monitor_setup_boot_args(const char *name, AddressSpace *as,
     boot_args.kern_phys_slide = 0;
     boot_args.kern_virt_slide = 0;
     boot_args.kern_text_section_off = kern_text_section_off;
+    qcrypto_random_bytes(&boot_args.random_bytes, 0x10, NULL);
 
     allocate_and_copy(mem, as, name, addr, sizeof(boot_args), &boot_args);
 }

@@ -71,17 +71,17 @@
 #define S8000_SEPROM_BASE (0x20D000000ull)
 #define S8000_SEPROM_SIZE (0x1000000ull)
 
-#define S8000_TZ1_BASE (S8000_DRAM_BASE + 0x7E780000ull)
+#define S8000_TZ1_BASE (S8000_DRAM_BASE + 0x7D9FC000ull)
 #define S8000_TZ1_SIZE (0x80000ull)
 
-#define S8000_PANIC_BASE (S8000_DRAM_BASE + 0x7E6F8000ull)
+#define S8000_PANIC_BASE (S8000_DRAM_BASE + 0x7F374000ull)
 #define S8000_PANIC_SIZE (0x80000ull)
 
-#define S8000_DISPLAY_SIZE (0x1100000ull)
-#define S8000_DISPLAY_BASE (S8000_PANIC_BASE - S8000_DISPLAY_SIZE)
+#define S8000_DISPLAY_BASE (S8000_DRAM_BASE + 0x7E75C000ull)
+#define S8000_DISPLAY_SIZE (0xC00000ull)
 
-#define S8000_KERNEL_REGION_BASE (S8000_DRAM_BASE + 0x10000000)
-#define S8000_KERNEL_REGION_SIZE (S8000_DISPLAY_BASE - S8000_KERNEL_REGION_BASE)
+#define S8000_KERNEL_REGION_BASE (S8000_DRAM_BASE)
+#define S8000_KERNEL_REGION_SIZE (0x7D9FC000ull)
 
 // static void s8000_wake_up_cpus(MachineState *machine, uint64_t cpu_mask)
 // {
@@ -214,7 +214,7 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
 
     get_kaslr_slides(tms, &slide_phys, &slide_virt);
 
-    g_phys_base = phys_ptr = align_up(S8000_KERNEL_REGION_BASE, 16 * MiB);
+    g_phys_base = phys_ptr = S8000_KERNEL_REGION_BASE;
     phys_ptr += slide_phys;
     g_virt_base += slide_virt - slide_phys;
 
@@ -232,6 +232,8 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
             "Kernel virtual base: 0x" TARGET_FMT_lx "\n"
             "Kernel physical base: 0x" TARGET_FMT_lx "\n",
             g_virt_base, g_phys_base);
+    fprintf(stderr, "Kernel text off: 0x" TARGET_FMT_lx "\n",
+            info->kern_text_off);
     fprintf(stderr,
             "Kernel virtual slide: 0x" TARGET_FMT_lx "\n"
             "Kernel physical slide: 0x" TARGET_FMT_lx "\n",
@@ -277,125 +279,11 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     // }
 
     mem_size =
-        machine->maxram_size -
-        (S8000_KERNEL_REGION_SIZE - (g_phys_base - S8000_KERNEL_REGION_BASE));
+        machine->maxram_size - (S8000_KERNEL_REGION_SIZE + S8000_TZ1_SIZE);
 
     macho_load_dtb(tms->device_tree, nsas, sysmem, "DeviceTree", info);
 
-    top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
-
-    fprintf(stderr, "Boot args: [%s]\n", cmdline);
-    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_pa,
-                         g_virt_base, g_phys_base, mem_size,
-                         top_of_kernel_data_pa, dtb_va, info->device_tree_size,
-                         tms->video, cmdline);
-    g_virt_base = virt_low;
-}
-
-static void s8000_load_fileset_kc(S8000MachineState *tms, const char *cmdline)
-{
-    MachineState *machine = MACHINE(tms);
-    MachoHeader64 *hdr = tms->kernel;
-    MemoryRegion *sysmem = tms->sysmem;
-    AddressSpace *nsas = &address_space_memory;
-    hwaddr virt_low;
-    hwaddr virt_end;
-    hwaddr dtb_va;
-    hwaddr top_of_kernel_data_pa;
-    hwaddr mem_size;
-    hwaddr phys_ptr;
-    // hwaddr amcc_lower;
-    // hwaddr amcc_upper;
-    hwaddr slide_phys = 0;
-    hwaddr slide_virt = 0;
-    uint64_t l2_remaining = 0;
-    uint64_t extradata_size = 0;
-    AppleBootInfo *info = &tms->bootinfo;
-    g_autofree ApplePfRange *last_range = NULL;
-    DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
-
-    g_phys_base = (hwaddr)macho_get_buffer(hdr);
-    macho_highest_lowest(hdr, &virt_low, &virt_end);
-    g_virt_base = virt_low;
-    last_range = xnu_pf_segment(hdr, "__PRELINK_INFO");
-
-    extradata_size =
-        align_16k_high(info->device_tree_size + info->trustcache_size);
-    g_assert(extradata_size < L2_GRANULE);
-
-    get_kaslr_slides(tms, &slide_phys, &slide_virt);
-
-    l2_remaining = (virt_low + slide_virt) & L2_GRANULE_MASK;
-
-    if (extradata_size >= l2_remaining) {
-        uint64_t grown_slide = align_16k_high(extradata_size - l2_remaining);
-        slide_phys += grown_slide;
-        slide_virt += grown_slide;
-    }
-
-    phys_ptr = align_up(S8000_KERNEL_REGION_BASE, 32 * MiB) |
-               (virt_low & L2_GRANULE_MASK);
-    g_phys_base = phys_ptr & ~L2_GRANULE_MASK;
-    phys_ptr += slide_phys;
-    phys_ptr -= extradata_size;
-
-    //! device tree
-    info->device_tree_pa = phys_ptr;
-    phys_ptr += info->device_tree_size;
-
-    //! TrustCache
-    info->trustcache_pa = phys_ptr;
-    macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
-                          info->trustcache_pa);
-    phys_ptr += align_16k_high(info->trustcache_size);
-
-    g_virt_base += slide_virt;
-    g_virt_base -= phys_ptr - g_phys_base;
-    info->kern_entry =
-        arm_load_macho(hdr, nsas, sysmem, memory_map, phys_ptr, slide_virt);
-    fprintf(stderr,
-            "Kernel virtual base: 0x" TARGET_FMT_lx "\n"
-            "Kernel physical base: 0x" TARGET_FMT_lx "\n",
-            g_virt_base, g_phys_base);
-    fprintf(stderr,
-            "Kernel virtual slide: 0x" TARGET_FMT_lx "\n"
-            "Kernel physical slide: 0x" TARGET_FMT_lx "\n",
-            slide_virt, slide_phys);
-    fprintf(stderr, "Kernel entry point: 0x" TARGET_FMT_lx "\n",
-            info->kern_entry);
-
-    virt_end += slide_virt;
-    phys_ptr = vtop_static(align_16k_high(virt_end));
-
-    // amcc_lower = info->dtb_pa;
-    // amcc_upper =
-    //     vtop_static(last_range->va + slide_virt) + last_range->size - 1;
-    // for (int i = 0; i < 4; i++) {
-    //     AMCC_REG(tms, AMCC_LOWER(i)) = (amcc_lower - S8000_DRAM_BASE) >> 14;
-    //     AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - S8000_DRAM_BASE) >> 14;
-    // }
-
-    dtb_va = ptov_static(info->device_tree_pa);
-
-    //! ramdisk
-    if (machine->initrd_filename) {
-        info->ramdisk_pa = phys_ptr;
-        macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
-                           info->ramdisk_pa, &info->ramdisk_size);
-        info->ramdisk_size = align_16k_high(info->ramdisk_size);
-        phys_ptr += info->ramdisk_size;
-    }
-
-    //! Kernel boot args
-    info->kern_boot_args_pa = phys_ptr;
-    phys_ptr += align_16k_high(0x4000);
-
-    mem_size =
-        S8000_KERNEL_REGION_SIZE - (g_phys_base - S8000_KERNEL_REGION_BASE);
-
-    macho_load_dtb(tms->device_tree, nsas, sysmem, "DeviceTree", info);
-
-    top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
+    top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3FFFull;
 
     fprintf(stderr, "Boot args: [%s]\n", cmdline);
     macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_pa,
@@ -410,8 +298,7 @@ static void s8000_memory_setup(MachineState *machine)
     S8000MachineState *tms = S8000_MACHINE(machine);
     AppleBootInfo *info = &tms->bootinfo;
     AddressSpace *nsas = &address_space_memory;
-    g_autofree char *seprom;
-    unsigned long fsize = 0;
+    hwaddr fsize = 0;
     // AppleNvramState *nvram;
     g_autofree char *cmdline;
     MachoHeader64 *hdr;
@@ -434,13 +321,8 @@ static void s8000_memory_setup(MachineState *machine)
         exit(EXIT_FAILURE);
     }
 
-    if (!g_file_get_contents(tms->seprom_filename, &seprom, &fsize, NULL)) {
-        error_report("Could not load data from file '%s'",
-                     tms->seprom_filename);
-        exit(EXIT_FAILURE);
-    }
-    address_space_rw(nsas, S8000_SEPROM_BASE, MEMTXATTRS_UNSPECIFIED,
-                     (uint8_t *)seprom, fsize, true);
+    macho_load_raw_file(tms->seprom_filename, nsas, tms->sysmem, "SEPROM",
+                        S8000_SEPROM_BASE, &fsize);
 
     // nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
     // if (!nvram) {
@@ -535,15 +417,15 @@ static void s8000_memory_setup(MachineState *machine)
         tms->panic_size = panic_size;
     }
 
-    // DTBNode *vram = find_dtb_node(tms->device_tree, "vram");
-    // if (vram) {
-    //     uint64_t vram_reg[2] = { 0 };
-    //     uint64_t vram_base = S8000_DISPLAY_BASE;
-    //     uint64_t vram_size = S8000_DISPLAY_SIZE;
-    //     vram_reg[0] = vram_base;
-    //     vram_reg[1] = vram_size;
-    //     set_dtb_prop(vram, "reg", sizeof(vram_reg), &vram_reg);
-    // }
+    DTBNode *vram = find_dtb_node(tms->device_tree, "vram");
+    if (vram) {
+        uint64_t vram_reg[2] = { 0 };
+        uint64_t vram_base = S8000_DISPLAY_BASE;
+        uint64_t vram_size = S8000_DISPLAY_SIZE;
+        vram_reg[0] = vram_base;
+        vram_reg[1] = vram_size;
+        set_dtb_prop(vram, "reg", sizeof(vram_reg), &vram_reg);
+    }
 
     hdr = tms->kernel;
     g_assert(hdr);
@@ -555,9 +437,6 @@ static void s8000_memory_setup(MachineState *machine)
     switch (hdr->file_type) {
     case MH_EXECUTE:
         s8000_load_classic_kc(tms, cmdline);
-        break;
-    case MH_FILESET:
-        s8000_load_fileset_kc(tms, cmdline);
         break;
     default:
         error_setg(&error_abort, "%s: Unsupported kernelcache type: 0x%x\n",
@@ -582,8 +461,7 @@ static void s8000_memory_setup(MachineState *machine)
     apple_monitor_setup_boot_args(
         "TZ1_BOOTARGS", sas, tms->sysmem, tz1_boot_args_pa, tz1_virt_low,
         S8000_TZ1_BASE, S8000_TZ1_SIZE, tms->bootinfo.kern_boot_args_pa,
-        tms->bootinfo.kern_entry, S8000_KERNEL_REGION_BASE,
-        info->kern_text_off);
+        tms->bootinfo.kern_entry, g_phys_base, info->kern_text_off);
     tms->bootinfo.tz1_entry = tz1_entry;
     tms->bootinfo.tz1_boot_args_pa = tz1_boot_args_pa;
 }

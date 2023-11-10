@@ -25,6 +25,7 @@
 
 #define BOOT_ARGS_REVISION_2 (2)
 #define BOOT_ARGS_VERSION_2 (2)
+#define BOOT_ARGS_VERSION_4 (4)
 #define BOOT_LINE_LENGTH (608)
 
 #define LC_SYMTAB (0x2)
@@ -168,7 +169,7 @@ typedef struct {
     uint64_t kern_phys_slide;
     uint64_t kern_virt_slide;
     uint64_t kern_text_section_off;
-    uint64_t reserved[2];
+    uint8_t random_bytes[0x10];
 } AppleMonitorBootArgs;
 
 typedef struct {
