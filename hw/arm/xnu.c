@@ -770,6 +770,9 @@ void macho_highest_lowest(MachoHeader64 *mh, uint64_t *lowaddr,
         switch (cmd->cmd) {
         case LC_SEGMENT_64: {
             MachoSegmentCommand64 *segCmd = (MachoSegmentCommand64 *)cmd;
+            if (!strncmp(segCmd->segname, "__PAGEZERO", 11)) {
+                continue;
+            }
 
             if (segCmd->vmaddr < low_addr_temp) {
                 low_addr_temp = segCmd->vmaddr;
@@ -870,6 +873,9 @@ MachoHeader64 *macho_parse(uint8_t *data, uint32_t len)
         switch (cmd->cmd) {
         case LC_SEGMENT_64: {
             MachoSegmentCommand64 *segCmd = (MachoSegmentCommand64 *)cmd;
+            if (!strncmp(segCmd->segname, "__PAGEZERO", 11)) {
+                continue;
+            }
             if (segCmd->vmsize == 0) {
                 break;
             }
@@ -1115,6 +1121,9 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
         switch (cmd->cmd) {
         case LC_SEGMENT_64: {
             MachoSegmentCommand64 *segCmd = (MachoSegmentCommand64 *)cmd;
+            if (!strncmp(segCmd->segname, "__PAGEZERO", 11)) {
+                continue;
+            }
             char region_name[64] = { 0 };
             void *load_from = (void *)(data + segCmd->vmaddr - virt_low);
             hwaddr load_to = (phys_base + segCmd->vmaddr - virt_low);
