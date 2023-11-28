@@ -80,8 +80,8 @@
 #define S8000_DISPLAY_BASE (S8000_DRAM_BASE + 0x7E75C000ull)
 #define S8000_DISPLAY_SIZE (0xC00000ull)
 
-#define S8000_KERNEL_REGION_BASE (S8000_DRAM_BASE)
-#define S8000_KERNEL_REGION_SIZE (0x7D9FC000ull)
+#define S8000_KERNEL_REGION_BASE (S8000_DRAM_BASE - 0x800000ull)
+#define S8000_KERNEL_REGION_SIZE (0xF000000ull)
 
 // static void s8000_wake_up_cpus(MachineState *machine, uint64_t cpu_mask)
 // {
@@ -197,20 +197,18 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     hwaddr top_of_kernel_data_pa;
     hwaddr mem_size;
     hwaddr phys_ptr;
-    // hwaddr amcc_lower;
-    // hwaddr amcc_upper;
     hwaddr slide_phys = 0;
     hwaddr slide_virt = 0;
     AppleBootInfo *info = &tms->bootinfo;
-    g_autofree ApplePfRange *last_range = NULL;
     g_autofree ApplePfRange *text_range = NULL;
+    g_autofree ApplePfRange *prelink_text_range = NULL;
     DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
 
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
     macho_highest_lowest(hdr, &virt_low, &virt_end);
-    last_range = xnu_pf_segment(hdr, "__LAST");
     text_range = xnu_pf_segment(hdr, "__TEXT");
     info->kern_text_off = text_range->va - virt_low;
+    prelink_text_range = xnu_pf_segment(hdr, "__PRELINK_TEXT");
 
     get_kaslr_slides(tms, &slide_phys, &slide_virt);
 
@@ -219,8 +217,8 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     g_virt_base += slide_virt - slide_phys;
 
     //! TrustCache
-    info->trustcache_pa =
-        vtop_static(text_range->va + slide_virt) - info->trustcache_size;
+    info->trustcache_pa = vtop_static(prelink_text_range->va + slide_virt) -
+                          info->trustcache_size;
 
     macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
                           info->trustcache_pa);
@@ -244,15 +242,7 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     virt_end += slide_virt;
     phys_ptr = vtop_static(align_16k_high(virt_end));
 
-    // amcc_lower = info->trustcache_pa;
-    // amcc_upper =
-    //     vtop_static(last_range->va + slide_virt) + last_range->size - 1;
-    // for (int i = 0; i < 4; i++) {
-    //     AMCC_REG(tms, AMCC_LOWER(i)) = (amcc_lower - S8000_DRAM_BASE) >> 14;
-    //     AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - S8000_DRAM_BASE) >> 14;
-    // }
-
-    //! ramdisk
+    //! Ramdisk
     if (machine->initrd_filename) {
         info->ramdisk_pa = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
@@ -265,7 +255,7 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     info->kern_boot_args_pa = phys_ptr;
     phys_ptr += align_16k_high(0x4000);
 
-    //! device tree
+    //! Device tree
     info->device_tree_pa = phys_ptr;
     dtb_va = ptov_static(info->device_tree_pa);
     phys_ptr += align_16k_high(info->device_tree_size);
