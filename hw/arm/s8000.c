@@ -1069,6 +1069,8 @@ static void s8000_machine_init(MachineState *machine)
     tms->sysmem = get_system_memory();
     allocate_ram(tms->sysmem, "SRAM", S8000_SRAM_BASE, S8000_SRAM_SIZE, 0);
     allocate_ram(tms->sysmem, "DRAM", S8000_DRAM_BASE, machine->ram_size, 0);
+    allocate_ram(tms->sysmem, "DRAMPlus", S8000_KERNEL_REGION_BASE,
+                 S8000_DRAM_BASE - S8000_KERNEL_REGION_BASE, 0);
     allocate_ram(tms->sysmem, "SEPROM", S8000_SEPROM_BASE, S8000_SEPROM_SIZE,
                  0);
     MemoryRegion *mr = g_new0(MemoryRegion, 1);
@@ -1205,7 +1207,7 @@ static void s8000_machine_init(MachineState *machine)
     s8000_create_i2c(machine, "i2c1");
     s8000_create_i2c(machine, "i2c2");
 
-    s8000_create_usb(machine);
+    // s8000_create_usb(machine);
 
     s8000_create_wdt(machine);
 
