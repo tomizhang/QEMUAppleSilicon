@@ -496,7 +496,7 @@ static uint64_t apple_aic_read(void *opaque, hwaddr addr, unsigned size)
                 return (apple_aic_emulate_timer() >> 32) & 0xFFFFFFFF;
             } else {
                 qemu_log_mask(LOG_UNIMP,
-                              "AIC: Read from unspported reg 0x" HWADDR_FMT_plx
+                              "AIC: Read from unsupported reg 0x" HWADDR_FMT_plx
                               " cpu: %u\n",
                               addr, o->cpu_id);
             }
@@ -580,7 +580,7 @@ SysBusDevice *apple_aic_create(uint32_t numCPU, DTBNode *node,
     reg = (hwaddr *)prop->value;
     s->base_size = reg[1];
     prop = find_dtb_prop(node, "ipid-mask");
-    s->numEIR = (prop->length / 4 + 1) & (~1);
+    s->numEIR = prop->length / 4;
     s->numIRQ = s->numEIR * 32;
 
     s->numCPU = numCPU;
