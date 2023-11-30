@@ -26,6 +26,7 @@
 #include "hw/arm/apple_sep.h"
 #include "hw/arm/boot.h"
 #include "hw/arm/exynos4210.h"
+#include "hw/arm/s8000-config.c.inc"
 #include "hw/arm/s8000.h"
 #include "hw/arm/xnu_pf.h"
 #include "hw/gpio/apple_gpio.h"
@@ -615,10 +616,9 @@ static void s8000_pmgr_setup(MachineState *machine)
     char name[32];
     DTBProp *prop;
     S8000MachineState *tms = S8000_MACHINE(machine);
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    DTBNode *child;
 
-    g_assert(child);
-    child = find_dtb_node(child, "pmgr");
+    child = find_dtb_node(tms->device_tree, "arm-io/pmgr");
     g_assert(child);
 
     prop = find_dtb_prop(child, "reg");
@@ -628,13 +628,13 @@ static void s8000_pmgr_setup(MachineState *machine)
 
     for (i = 0; i < prop->length / 8; i += 2) {
         MemoryRegion *mem = g_new(MemoryRegion, 1);
-        if (i > 0) {
-            snprintf(name, 32, "pmgr-unk-reg-%d", i);
-            memory_region_init_io(mem, OBJECT(machine), &pmgr_unk_reg_ops,
-                                  (void *)reg[i], name, reg[i + 1]);
-        } else {
+        if (i == 0) {
             memory_region_init_io(mem, OBJECT(machine), &pmgr_reg_ops, tms,
                                   "pmgr-reg", reg[i + 1]);
+        } else {
+            snprintf(name, sizeof(name), "pmgr-unk-reg-%d", i);
+            memory_region_init_io(mem, OBJECT(machine), &pmgr_unk_reg_ops,
+                                  (void *)reg[i], name, reg[i + 1]);
         }
         memory_region_add_subregion_overlap(
             tms->sysmem,
@@ -642,6 +642,9 @@ static void s8000_pmgr_setup(MachineState *machine)
                                                   reg[i],
             mem, -1);
     }
+
+    set_dtb_prop(child, "voltage-states1", sizeof(voltage_states1),
+                 voltage_states1);
 }
 
 // static void s8000_create_dart(MachineState *machine, const char *name)
@@ -1127,10 +1130,11 @@ static void s8000_machine_init(MachineState *machine)
     child = find_dtb_node(tms->device_tree, "arm-io");
     g_assert(child);
 
-    data = 0x20;
+    data = 0x0;
     set_dtb_prop(child, "chip-revision", sizeof(data), &data);
 
-    // set_dtb_prop(child, "clock-frequencies", sizeof(clock_freq), clock_freq);
+    set_dtb_prop(child, "clock-frequencies", sizeof(clock_frequencies),
+                 clock_frequencies);
 
     prop = find_dtb_prop(child, "ranges");
     g_assert(prop);
