@@ -62,7 +62,8 @@ typedef struct {
     SysBusDevice *aic;
     SysBusDevice *sep;
     MemoryRegion *sysmem;
-    MachoHeader64 *kernel, *secure_monitor;
+    MachoHeader64 *kernel;
+    MachoHeader64 *secure_monitor;
     uint8_t *trustcache;
     DTBNode *device_tree;
     AppleBootInfo bootinfo;
@@ -77,6 +78,7 @@ typedef struct {
     hwaddr panic_base;
     hwaddr panic_size;
     char pmgr_reg[0x100000];
+    bool kaslr_off;
     bool force_dfu;
 } S8000MachineState;
 #endif

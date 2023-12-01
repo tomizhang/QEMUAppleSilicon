@@ -29,7 +29,7 @@
 #include "qemu/error-report.h"
 #include "sysemu/sysemu.h"
 
-hwaddr g_virt_base, g_phys_base, g_phys_slide = 0, g_virt_slide = 0;
+hwaddr g_virt_base, g_phys_base;
 
 hwaddr vtop_bases(hwaddr va, hwaddr phys_base, hwaddr virt_base)
 {
