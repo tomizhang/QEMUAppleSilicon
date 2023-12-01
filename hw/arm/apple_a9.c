@@ -59,12 +59,17 @@
 #define MPIDR_AFF2_WIDTH 8
 #define MPIDR_AFF2_MASK (((1 << MPIDR_AFF2_WIDTH) - 1) << MPIDR_AFF2_SHIFT)
 
-inline bool apple_a9_is_sleep(AppleA9State *tcpu)
+inline bool apple_a9_cpu_is_sleep(AppleA9State *tcpu)
 {
     return CPU(tcpu)->halted;
 }
 
-void apple_a9_wakeup(AppleA9State *tcpu)
+inline bool apple_a9_cpu_is_powered_off(AppleA9State *tcpu)
+{
+    return ARM_CPU(tcpu)->power_state == PSCI_OFF;
+}
+
+void apple_a9_cpu_start(AppleA9State *tcpu)
 {
     int ret = QEMU_ARM_POWERCTL_RET_SUCCESS;
 
