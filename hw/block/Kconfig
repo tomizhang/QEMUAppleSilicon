@@ -49,3 +49,8 @@ config APPLE_ANS
     bool
     depends on NVME_PCI
     depends on APPLE_SOC
+
+config APPLE_NVME_MMU
+    bool
+    depends on NVME_PCI
+    depends on APPLE_SOC

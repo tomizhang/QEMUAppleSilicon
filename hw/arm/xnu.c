@@ -64,6 +64,7 @@ static const char *KEEP_COMP[] = {
     "N104DEV\0iPhone12,1\0AppleARM\0$",
     "N66AP\0iPhone8,2\0AppleARM\0$",
     "N66DEV\0iPhone8,2\0AppleARM\0$",
+    "nvme-mmu,s8000\0$",
     "otgphyctrl,s8000\0otgphyctrl,s5l8960x\0$",
     "pmgr1,s8000\0$",
     "pmgr1,t8030\0$",

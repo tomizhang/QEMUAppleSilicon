@@ -690,6 +690,7 @@ config APPLE_SOC
     select OR_IRQ
     select UNIMP
     select APPLE_ANS
+    select APPLE_NVME_MMU
     select APPLE_I2C
     select APPLE_OTG
     select APPLE_TYPEC

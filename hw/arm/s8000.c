@@ -29,6 +29,7 @@
 #include "hw/arm/s8000-config.c.inc"
 #include "hw/arm/s8000.h"
 #include "hw/arm/xnu_pf.h"
+#include "hw/block/apple_nvme_mmu.h"
 #include "hw/gpio/apple_gpio.h"
 #include "hw/i2c/apple_i2c.h"
 #include "hw/intc/apple_aic.h"
@@ -290,7 +291,7 @@ static void s8000_memory_setup(MachineState *machine)
     AppleBootInfo *info = &tms->bootinfo;
     AddressSpace *nsas = &address_space_memory;
     hwaddr fsize = 0;
-    // AppleNvramState *nvram;
+    AppleNvramState *nvram;
     g_autofree char *cmdline;
     MachoHeader64 *hdr;
     DTBNode *memory_map;
@@ -315,53 +316,53 @@ static void s8000_memory_setup(MachineState *machine)
     macho_load_raw_file(tms->seprom_filename, nsas, tms->sysmem, "SEPROM",
                         S8000_SEPROM_BASE, &fsize);
 
-    // nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
-    // if (!nvram) {
-    //     error_setg(&error_abort, "%s: Failed to find nvram device",
-    //     __func__); return;
-    // };
-    // apple_nvram_load(nvram);
+    nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
+    if (!nvram) {
+        error_setg(&error_abort, "%s: Failed to find nvram device", __func__);
+        return;
+    };
+    apple_nvram_load(nvram);
 
-    // fprintf(stderr, "boot_mode: %u\n", tms->boot_mode);
-    // switch (tms->boot_mode) {
-    // case kBootModeEnterRecovery:
-    //     env_set(nvram, "auto-boot", "false", 0);
-    //     tms->boot_mode = kBootModeAuto;
-    //     break;
-    // case kBootModeExitRecovery:
-    //     env_set(nvram, "auto-boot", "true", 0);
-    //     tms->boot_mode = kBootModeAuto;
-    //     break;
-    // default:
-    //     break;
-    // }
+    fprintf(stderr, "boot_mode: %u\n", tms->boot_mode);
+    switch (tms->boot_mode) {
+    case kBootModeEnterRecovery:
+        env_set(nvram, "auto-boot", "false", 0);
+        tms->boot_mode = kBootModeAuto;
+        break;
+    case kBootModeExitRecovery:
+        env_set(nvram, "auto-boot", "true", 0);
+        tms->boot_mode = kBootModeAuto;
+        break;
+    default:
+        break;
+    }
 
-    // fprintf(stderr, "auto-boot=%s\n",
-    //         env_get_bool(nvram, "auto-boot", false) ? "true" : "false");
+    fprintf(stderr, "auto-boot=%s\n",
+            env_get_bool(nvram, "auto-boot", false) ? "true" : "false");
 
-    // switch (tms->boot_mode) {
-    // case kBootModeAuto:
-    // if (!env_get_bool(nvram, "auto-boot", false)) {
-    asprintf(&cmdline, "-restore rd=md0 nand-enable-reformat=1 -progress %s",
-             machine->kernel_cmdline);
-    // break;
-    // }
-    //     QEMU_FALLTHROUGH;
-    // default:
-    //     asprintf(&cmdline, "%s", machine->kernel_cmdline);
-    // }
+    switch (tms->boot_mode) {
+    case kBootModeAuto:
+        if (!env_get_bool(nvram, "auto-boot", false)) {
+            asprintf(&cmdline, "-restore rd=md0 nand-enable-reformat=1 %s",
+                     machine->kernel_cmdline);
+            break;
+        }
+        QEMU_FALLTHROUGH;
+    default:
+        asprintf(&cmdline, "%s", machine->kernel_cmdline);
+    }
 
-    // apple_nvram_save(nvram);
+    apple_nvram_save(nvram);
 
-    // info->nvram_size = nvram->len;
+    info->nvram_size = nvram->len;
 
-    // if (info->nvram_size > XNU_MAX_NVRAM_SIZE) {
-    //     info->nvram_size = XNU_MAX_NVRAM_SIZE;
-    // }
-    // if (apple_nvram_serialize(nvram, info->nvram_data,
-    //                           sizeof(info->nvram_data)) < 0) {
-    //     error_report("%s: Failed to read NVRAM", __func__);
-    // }
+    if (info->nvram_size > XNU_MAX_NVRAM_SIZE) {
+        info->nvram_size = XNU_MAX_NVRAM_SIZE;
+    }
+    if (apple_nvram_serialize(nvram, info->nvram_data,
+                              sizeof(info->nvram_data)) < 0) {
+        error_report("%s: Failed to read NVRAM", __func__);
+    }
 
     if (tms->ticket_filename) {
         if (!g_file_get_contents(tms->ticket_filename, &info->ticket_data,
@@ -647,46 +648,38 @@ static void s8000_pmgr_setup(MachineState *machine)
                  voltage_states1);
 }
 
-// static void s8000_create_dart(MachineState *machine, const char *name)
-// {
-//     AppleDARTState *dart = NULL;
-//     DTBProp *prop;
-//     uint64_t *reg;
-//     uint32_t *ints;
-//     int i;
-//     S8000MachineState *tms = S8000_MACHINE(machine);
-//     DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+static void s8000_create_nvme(MachineState *machine)
+{
+    uint32_t *ints;
+    DTBProp *prop;
+    uint64_t *reg;
+    S8000MachineState *tms = S8000_MACHINE(machine);
+    SysBusDevice *nvme;
+    DTBNode *child;
 
-//     g_assert(child);
-//     child = find_dtb_node(child, name);
-//     if (!child)
-//         return;
+    child = find_dtb_node(tms->device_tree, "arm-io/nvme-mmu0");
+    g_assert(child);
 
-//     dart = apple_dart_create(child);
-//     g_assert(dart);
-//     object_property_add_child(OBJECT(machine), name, OBJECT(dart));
+    nvme = apple_nvme_mmu_create(child);
+    g_assert(nvme);
 
-//     prop = find_dtb_prop(child, "reg");
-//     g_assert(prop);
+    prop = find_dtb_prop(child, "reg");
+    g_assert(prop);
+    reg = (uint64_t *)prop->value;
 
-//     reg = (uint64_t *)prop->value;
+    sysbus_mmio_map(nvme, 0, tms->soc_base_pa + reg[0]);
 
-//     for (int i = 0; i < prop->length / 16; i++) {
-//         sysbus_mmio_map(SYS_BUS_DEVICE(dart), i, tms->soc_base_pa + reg[i *
-//         2]);
-//     }
+    object_property_add_child(OBJECT(machine), "nvme", OBJECT(nvme));
 
-//     prop = find_dtb_prop(child, "interrupts");
-//     g_assert(prop);
-//     ints = (uint32_t *)prop->value;
+    prop = find_dtb_prop(child, "interrupts");
+    g_assert(prop);
+    g_assert(prop->length == 4);
+    ints = (uint32_t *)prop->value;
 
-//     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
-//         sysbus_connect_irq(SYS_BUS_DEVICE(dart), i,
-//                            qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
-//     }
+    sysbus_connect_irq(nvme, 0, qdev_get_gpio_in(DEVICE(tms->aic), ints[0]));
 
-//     sysbus_realize_and_unref(SYS_BUS_DEVICE(dart), &error_fatal);
-// }
+    sysbus_realize_and_unref(nvme, &error_fatal);
+}
 
 static void s8000_create_gpio(MachineState *machine, const char *name)
 {
@@ -1204,6 +1197,8 @@ static void s8000_machine_init(MachineState *machine)
 
     s8000_pmgr_setup(machine);
 
+    s8000_create_nvme(machine);
+
     s8000_create_gpio(machine, "gpio");
     s8000_create_gpio(machine, "aop-gpio");
 
@@ -1288,6 +1283,44 @@ static char *s8000_get_seprom_filename(Object *obj, Error **errp)
     return g_strdup(tms->seprom_filename);
 }
 
+static void s8000_set_boot_mode(Object *obj, const char *value, Error **errp)
+{
+    S8000MachineState *tms;
+
+    tms = S8000_MACHINE(obj);
+    if (g_str_equal(value, "auto")) {
+        tms->boot_mode = kBootModeAuto;
+    } else if (g_str_equal(value, "manual")) {
+        tms->boot_mode = kBootModeManual;
+    } else if (g_str_equal(value, "enter_recovery")) {
+        tms->boot_mode = kBootModeEnterRecovery;
+    } else if (g_str_equal(value, "exit_recovery")) {
+        tms->boot_mode = kBootModeExitRecovery;
+    } else {
+        tms->boot_mode = kBootModeAuto;
+        error_setg(errp, "Invalid boot mode: %s", value);
+    }
+}
+
+static char *s8000_get_boot_mode(Object *obj, Error **errp)
+{
+    S8000MachineState *tms;
+
+    tms = S8000_MACHINE(obj);
+    switch (tms->boot_mode) {
+    case kBootModeManual:
+        return g_strdup("manual");
+    case kBootModeEnterRecovery:
+        return g_strdup("enter_recovery");
+    case kBootModeExitRecovery:
+        return g_strdup("exit_recovery");
+    case kBootModeAuto:
+        QEMU_FALLTHROUGH;
+    default:
+        return g_strdup("auto");
+    }
+}
+
 static void s8000_get_ecid(Object *obj, Visitor *v, const char *name,
                            void *opaque, Error **errp)
 {
@@ -1361,6 +1394,10 @@ static void s8000_machine_class_init(ObjectClass *klass, void *data)
                                   s8000_set_seprom_filename);
     object_class_property_set_description(klass, "seprom",
                                           "SEPROM to be loaded");
+    object_class_property_add_str(klass, "boot-mode", s8000_get_boot_mode,
+                                  s8000_set_boot_mode);
+    object_class_property_set_description(klass, "boot-mode",
+                                          "Boot mode of the machine");
     object_class_property_add(klass, "ecid", "uint64", s8000_get_ecid,
                               s8000_set_ecid, NULL, NULL);
     object_class_property_add_bool(klass, "force-dfu", s8000_get_force_dfu,

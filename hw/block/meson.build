@@ -4,6 +4,7 @@ system_ss.add(files(
   'hd-geometry.c'
 ))
 system_ss.add(when: 'CONFIG_APPLE_ANS', if_true: files('apple_ans.c'))
+system_ss.add(when: 'CONFIG_APPLE_NVME_MMU', if_true: files('apple_nvme_mmu.c'))
 system_ss.add(when: 'CONFIG_ECC', if_true: files('ecc.c'))
 system_ss.add(when: 'CONFIG_FDC', if_true: files('fdc.c'))
 system_ss.add(when: 'CONFIG_FDC_ISA', if_true: files('fdc-isa.c'))

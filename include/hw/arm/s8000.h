@@ -44,6 +44,13 @@ typedef struct {
     MachineClass parent;
 } S8000MachineClass;
 
+typedef enum {
+    kBootModeAuto = 0,
+    kBootModeManual,
+    kBootModeEnterRecovery,
+    kBootModeExitRecovery,
+} BootMode;
+
 typedef struct {
     MachineState parent;
     hwaddr soc_base_pa;
@@ -63,6 +70,7 @@ typedef struct {
     char *trustcache_filename;
     char *ticket_filename;
     char *seprom_filename;
+    BootMode boot_mode;
     uint32_t build_version;
     uint64_t ecid;
     Notifier init_done_notifier;
