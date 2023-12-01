@@ -85,18 +85,18 @@
 #define S8000_KERNEL_REGION_BASE (S8000_DRAM_BASE - 0x800000ull)
 #define S8000_KERNEL_REGION_SIZE (0xF000000ull)
 
-// static void s8000_wake_up_cpus(MachineState *machine, uint64_t cpu_mask)
-// {
-//     S8000MachineState *tms = S8000_MACHINE(machine);
-//     int i;
+static void s8000_start_cpus(MachineState *machine, uint64_t cpu_mask)
+{
+    S8000MachineState *tms = S8000_MACHINE(machine);
+    int i;
 
-//     for (i = 0; i < machine->smp.cpus - 1; i++) {
-//         if (test_bit(i, (unsigned long *)&cpu_mask) &&
-//             apple_a9_is_sleep(tms->cpus[i])) {
-//             apple_a9_wakeup(tms->cpus[i]);
-//         }
-//     }
-// }
+    for (i = 0; i < machine->smp.cpus - 1; i++) {
+        if (test_bit(i, (unsigned long *)&cpu_mask) &&
+            apple_a9_cpu_is_powered_off(tms->cpus[i])) {
+            apple_a9_cpu_start(tms->cpus[i]);
+        }
+    }
+}
 
 static void s8000_create_s3c_uart(const S8000MachineState *tms, Chardev *chr)
 {
@@ -503,6 +503,7 @@ static const MemoryRegionOps pmgr_unk_reg_ops = {
 static void pmgr_reg_write(void *opaque, hwaddr addr, uint64_t data,
                            unsigned size)
 {
+    MachineState *machine = MACHINE(opaque);
     S8000MachineState *tms = S8000_MACHINE(opaque);
     uint32_t value = data;
 
@@ -519,6 +520,8 @@ static void pmgr_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case 0x80400: //! SEP Power State, Manual & Actual: Run Max
         value = 0xFF;
         break;
+    case 0xD4004:
+        s8000_start_cpus(machine, data);
     default:
         break;
     }
