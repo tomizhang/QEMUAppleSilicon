@@ -51,12 +51,12 @@ static void apple_otg_realize(DeviceState *dev, Error **errp)
             error_reportf_err(local_err,
                               "%s: no DMA memory region found: ", __func__);
         }
-        warn_report("%s: Redirecting all DMA accesses to 0x800000000",
+        warn_report("%s: Redirecting all DMA accesses to 0x88DA7C000",
                     __func__);
         s->dma_mr = g_new(MemoryRegion, 1);
         memory_region_init_alias(s->dma_mr, OBJECT(dev),
                                  TYPE_APPLE_OTG ".dma-mr", get_system_memory(),
-                                 0x800000000, UINT32_MAX);
+                                 0x88DA7C000, UINT32_MAX);
         memory_region_add_subregion(&s->dma_container_mr, 0, s->dma_mr);
         s->dart = false;
     }

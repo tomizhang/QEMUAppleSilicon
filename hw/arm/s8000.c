@@ -1206,7 +1206,7 @@ static void s8000_machine_init(MachineState *machine)
     s8000_create_i2c(machine, "i2c1");
     s8000_create_i2c(machine, "i2c2");
 
-    // s8000_create_usb(machine);
+    s8000_create_usb(machine);
 
     s8000_create_wdt(machine);
 
