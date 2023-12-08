@@ -273,11 +273,6 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
         AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - T8030_DRAM_BASE) >> 14;
     }
 
-    //! Device tree
-    info->device_tree_pa = phys_ptr;
-    dtb_va = ptov_static(info->device_tree_pa);
-    phys_ptr += align_16k_high(info->device_tree_size);
-
     //! RAM disk
     if (machine->initrd_filename) {
         info->ramdisk_pa = phys_ptr;
@@ -298,6 +293,11 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     //! Kernel boot args
     info->kern_boot_args_pa = phys_ptr;
     phys_ptr += align_16k_high(0x4000);
+
+    //! Device tree
+    info->device_tree_pa = phys_ptr;
+    dtb_va = ptov_static(info->device_tree_pa);
+    phys_ptr += align_16k_high(info->device_tree_size);
 
     mem_size =
         machine->maxram_size -
