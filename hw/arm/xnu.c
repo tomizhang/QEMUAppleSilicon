@@ -707,12 +707,11 @@ bool xnu_contains_boot_arg(const char *bootArgs, const char *arg,
     return false;
 }
 
-void apple_monitor_setup_boot_args(const char *name, AddressSpace *as,
-                                   MemoryRegion *mem, hwaddr addr,
-                                   hwaddr virt_base, hwaddr phys_base,
-                                   hwaddr mem_size, hwaddr kern_args,
-                                   hwaddr kern_entry, hwaddr kern_phys_base,
-                                   hwaddr kern_text_section_off)
+void apple_monitor_setup_boot_args(
+    const char *name, AddressSpace *as, MemoryRegion *mem, hwaddr addr,
+    hwaddr virt_base, hwaddr phys_base, hwaddr mem_size, hwaddr kern_args,
+    hwaddr kern_entry, hwaddr kern_phys_base, hwaddr kern_phys_slide,
+    hwaddr kern_virt_slide, hwaddr kern_text_section_off)
 {
     AppleMonitorBootArgs boot_args;
 
@@ -724,8 +723,8 @@ void apple_monitor_setup_boot_args(const char *name, AddressSpace *as,
     boot_args.kern_args = kern_args;
     boot_args.kern_entry = kern_entry;
     boot_args.kern_phys_base = kern_phys_base;
-    boot_args.kern_phys_slide = 0;
-    boot_args.kern_virt_slide = 0;
+    boot_args.kern_phys_slide = kern_phys_slide;
+    boot_args.kern_virt_slide = kern_virt_slide;
     boot_args.kern_text_section_off = kern_text_section_off;
     qcrypto_random_bytes(&boot_args.random_bytes, 0x10, NULL);
 
@@ -791,7 +790,7 @@ void macho_highest_lowest(MachoHeader64 *mh, uint64_t *lowaddr,
         cmd = (MachoLoadCommand *)((char *)cmd + cmd->cmd_size);
     }
     if (lowaddr) {
-        *lowaddr = (low_addr_temp)&0xFFFFFFFFFFF00000ull;
+        *lowaddr = low_addr_temp & -0x2000000ull;
     }
     if (highaddr) {
         *highaddr = high_addr_temp;
@@ -944,7 +943,6 @@ uint32_t macho_platform(MachoHeader64 *mh)
             MachoBuildVersionCommand *buildVerCmd =
                 (MachoBuildVersionCommand *)cmd;
             return buildVerCmd->platform;
-            break;
         }
 
         default:
@@ -956,22 +954,22 @@ uint32_t macho_platform(MachoHeader64 *mh)
     return 0;
 }
 
-char *macho_platform_string(MachoHeader64 *mh)
+const char *macho_platform_string(MachoHeader64 *mh)
 {
     uint32_t platform = macho_platform(mh);
     switch (platform) {
     case PLATFORM_MACOS:
-        return (char *)("macOS");
+        return "macOS";
     case PLATFORM_IOS:
-        return (char *)("iOS");
+        return "iOS";
     case PLATFORM_TVOS:
-        return (char *)("tvOS");
+        return "tvOS";
     case PLATFORM_WATCHOS:
-        return (char *)("watchOS");
+        return "watchOS";
     case PLATFORM_BRIDGEOS:
-        return (char *)("bridgeOS");
+        return "bridgeOS";
     default:
-        return (char *)("Unknown");
+        return "Unknown";
     }
 }
 
@@ -980,7 +978,7 @@ static MachoSegmentCommand64 *macho_get_firstseg(MachoHeader64 *header)
     MachoSegmentCommand64 *sgp;
     uint32_t i;
 
-    sgp = (MachoSegmentCommand64 *)((char *)header + sizeof(MachoHeader64));
+    sgp = (MachoSegmentCommand64 *)(header + 1);
 
     for (i = 0; i < header->n_cmds; i++) {
         if (sgp->cmd == LC_SEGMENT_64) {
@@ -1032,7 +1030,7 @@ static MachoSection64 *endsect(MachoSegmentCommand64 *seg)
 {
     MachoSection64 *sp;
 
-    sp = (MachoSection64 *)((char *)seg + sizeof(MachoSegmentCommand64));
+    sp = (MachoSection64 *)(seg + 1);
     return &sp[seg->nsects];
 }
 
@@ -1054,8 +1052,7 @@ static void macho_process_symbols(MachoHeader64 *mh, uint64_t slide)
             uint32_t off;
             MachoNList64 *sym;
             if (linkedit_seg == NULL) {
-                fprintf(stderr, "%s: cannot find __LINKEDIT segment\n",
-                        __func__);
+                error_report("Cannot find __LINKEDIT segment");
                 return;
             }
             base = (data + linkedit_seg->vmaddr - kernel_low);
@@ -1183,11 +1180,9 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
 
 
             // #if 0
-            fprintf(
-                stderr,
-                "%s: Loading %s to 0x%llx (filesize: 0x%llX vmsize: 0x%llX)\n",
-                __func__, region_name, load_to, segCmd->filesize,
-                segCmd->vmsize);
+            error_report(
+                "Loading %s to 0x%llx (filesize: 0x%llX vmsize: 0x%llX)",
+                region_name, load_to, segCmd->filesize, segCmd->vmsize);
             // #endif
             uint8_t *buf = g_malloc0(segCmd->vmsize);
             memcpy(buf, load_from, segCmd->filesize);

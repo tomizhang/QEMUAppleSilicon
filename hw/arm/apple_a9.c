@@ -49,16 +49,6 @@
                        offsetof(ARMCPU, env),                                  \
     }
 
-#define MPIDR_AFF0_SHIFT 0
-#define MPIDR_AFF0_WIDTH 8
-#define MPIDR_AFF0_MASK (((1 << MPIDR_AFF0_WIDTH) - 1) << MPIDR_AFF0_SHIFT)
-#define MPIDR_AFF1_SHIFT 8
-#define MPIDR_AFF1_WIDTH 8
-#define MPIDR_AFF1_MASK (((1 << MPIDR_AFF1_WIDTH) - 1) << MPIDR_AFF1_SHIFT)
-#define MPIDR_AFF2_SHIFT 16
-#define MPIDR_AFF2_WIDTH 8
-#define MPIDR_AFF2_MASK (((1 << MPIDR_AFF2_WIDTH) - 1) << MPIDR_AFF2_SHIFT)
-
 inline bool apple_a9_cpu_is_sleep(AppleA9State *tcpu)
 {
     return CPU(tcpu)->halted;
@@ -78,8 +68,7 @@ void apple_a9_cpu_start(AppleA9State *tcpu)
     }
 
     if (ret != QEMU_ARM_POWERCTL_RET_SUCCESS) {
-        error_report("%s: failed to bring up CPU %d: err %d", __func__,
-                     tcpu->cpu_id, ret);
+        error_report("Failed to bring up CPU %d: err %d", tcpu->cpu_id, ret);
     }
 }
 
@@ -161,16 +150,12 @@ static void apple_a9_reset(DeviceState *dev)
 static void apple_a9_instance_init(Object *obj)
 {
     ARMCPU *cpu = ARM_CPU(obj);
-    uint64_t t;
 
     object_property_set_uint(obj, "cntfrq", 24000000, &error_fatal);
-    cpu->dtb_compatible = "apple,twister";
-    t = FIELD_DP64(0, MIDR_EL1, IMPLEMENTER, 0);
-    t = FIELD_DP64(t, MIDR_EL1, ARCHITECTURE, 0xf);
-    t = FIELD_DP64(t, MIDR_EL1, PARTNUM, 0x4); /* Maui */
-    t = FIELD_DP64(t, MIDR_EL1, VARIANT, 0x1); /* B1 */
-    t = FIELD_DP64(t, MIDR_EL1, REVISION, 1);
-    cpu->midr = t;
+    object_property_add_uint64_ptr(obj, "pauth-mlo", &cpu->m_key_lo,
+                                   OBJ_PROP_FLAG_READWRITE);
+    object_property_add_uint64_ptr(obj, "pauth-mhi", &cpu->m_key_hi,
+                                   OBJ_PROP_FLAG_READWRITE);
 }
 
 AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
@@ -178,6 +163,7 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
 {
     DeviceState *dev;
     AppleA9State *tcpu;
+    ARMCPU *cpu;
     Object *obj;
     DTBProp *prop;
     uint64_t freq;
@@ -186,6 +172,7 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
     obj = object_new(TYPE_APPLE_A9);
     dev = DEVICE(obj);
     tcpu = APPLE_A9(dev);
+    cpu = ARM_CPU(tcpu);
 
     if (node) {
         prop = find_dtb_prop(node, "name");
@@ -204,8 +191,13 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
         tcpu->phys_id = phys_id;
     }
 
-    tcpu->mpidr = tcpu->phys_id | (tcpu->phys_id << MPIDR_AFF2_SHIFT) |
-                  (1LL << 31) | (1 << MPIDR_AFF2_SHIFT);
+    tcpu->mpidr = tcpu->phys_id | (1LL << 31) | (1 << ARM_AFF2_SHIFT);
+
+    cpu->midr = FIELD_DP64(0, MIDR_EL1, IMPLEMENTER, 0x61);
+    cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, ARCHITECTURE, 0xf);
+    cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, PARTNUM, 0x4); /* Maui */
+    cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, VARIANT, 0x1); /* B1 */
+    cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, REVISION, 0x1);
 
     object_property_set_uint(obj, "mp-affinity", tcpu->mpidr, &error_fatal);
 
@@ -237,7 +229,14 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
 
         set_dtb_prop(node, "timebase-frequency", sizeof(freq), &freq);
         set_dtb_prop(node, "fixed-frequency", sizeof(freq), &freq);
+        set_dtb_prop(node, "peripheral-frequency", sizeof(freq), &freq);
+        set_dtb_prop(node, "memory-frequency", sizeof(freq), &freq);
+        set_dtb_prop(node, "bus-frequency", sizeof(freq), &freq);
+        set_dtb_prop(node, "clock-frequency", sizeof(freq), &freq);
     }
+
+    object_property_set_bool(obj, "has_el3", true, NULL);
+    object_property_set_bool(obj, "has_el2", true, NULL);
 
     memory_region_init(&tcpu->memory, obj, "cpu-memory", UINT64_MAX);
     memory_region_init_alias(&tcpu->sysmem, obj, "sysmem", get_system_memory(),
@@ -246,28 +245,30 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     if (node) {
         prop = find_dtb_prop(node, "cpu-impl-reg");
-        g_assert(prop);
-        g_assert(prop->length == 16);
+        if (prop) {
+            g_assert(prop->length == 16);
 
-        reg = (uint64_t *)prop->value;
+            reg = (uint64_t *)prop->value;
 
-        memory_region_init_ram_device_ptr(&tcpu->impl_reg, obj,
-                                          TYPE_APPLE_A9 ".impl-reg", reg[1],
-                                          g_malloc0(reg[1]));
-        memory_region_add_subregion(get_system_memory(), reg[0],
-                                    &tcpu->impl_reg);
+            memory_region_init_ram_device_ptr(&tcpu->impl_reg, obj,
+                                              TYPE_APPLE_A9 ".impl-reg", reg[1],
+                                              g_malloc0(reg[1]));
+            memory_region_add_subregion(get_system_memory(), reg[0],
+                                        &tcpu->impl_reg);
+        }
 
         prop = find_dtb_prop(node, "coresight-reg");
-        g_assert(prop);
-        g_assert(prop->length == 16);
+        if (prop) {
+            g_assert(prop->length == 16);
 
-        reg = (uint64_t *)prop->value;
+            reg = (uint64_t *)prop->value;
 
-        memory_region_init_ram_device_ptr(&tcpu->coresight_reg, obj,
-                                          TYPE_APPLE_A9 ".coresight-reg",
-                                          reg[1], g_malloc0(reg[1]));
-        memory_region_add_subregion(get_system_memory(), reg[0],
-                                    &tcpu->coresight_reg);
+            memory_region_init_ram_device_ptr(&tcpu->coresight_reg, obj,
+                                              TYPE_APPLE_A9 ".coresight-reg",
+                                              reg[1], g_malloc0(reg[1]));
+            memory_region_add_subregion(get_system_memory(), reg[0],
+                                        &tcpu->coresight_reg);
+        }
     }
 
     return tcpu;

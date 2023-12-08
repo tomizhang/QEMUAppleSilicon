@@ -57,6 +57,7 @@
 #include "sysemu/reset.h"
 #include "sysemu/runstate.h"
 #include "sysemu/sysemu.h"
+#include "target/arm/arm-powerctl.h"
 
 #define T8030_SROM_BASE (0x100000000ull)
 #define T8030_SROM_SIZE (0x80000ull)
@@ -70,7 +71,7 @@
 
 #define T8030_GPIO_FORCE_DFU (161)
 
-#define T8030_KERNEL_REGION_BASE (T8030_DRAM_BASE + 0x2000000ull)
+#define T8030_KERNEL_REGION_BASE (T8030_DRAM_BASE)
 #define T8030_KERNEL_REGION_SIZE (0xF000000ull)
 
 #define T8030_SPI_BASE(_x) (0x35100000ull + (_x)*APPLE_SPI_MMIO_SIZE)
@@ -242,7 +243,7 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
 
     get_kaslr_slides(tms, &slide_phys, &slide_virt);
 
-    g_phys_base = phys_ptr = align_up(T8030_KERNEL_REGION_BASE, 16 * MiB);
+    g_phys_base = phys_ptr = T8030_KERNEL_REGION_BASE;
     phys_ptr += slide_phys;
     g_virt_base += slide_virt - slide_phys;
 
@@ -252,19 +253,14 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
 
     macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
                           info->trustcache_pa);
-    phys_ptr += align_16k_high(info->trustcache_size);
 
     info->kern_entry = arm_load_macho(hdr, nsas, sysmem, memory_map,
                                       g_phys_base + slide_phys, slide_virt);
-    fprintf(stderr,
-            "g_virt_base: 0x" TARGET_FMT_lx "\n"
-            "g_phys_base: 0x" TARGET_FMT_lx "\n",
-            g_virt_base, g_phys_base);
-    fprintf(stderr,
-            "slide_virt: 0x" TARGET_FMT_lx "\n"
-            "slide_phys: 0x" TARGET_FMT_lx "\n",
-            slide_virt, slide_phys);
-    fprintf(stderr, "entry: 0x" TARGET_FMT_lx "\n", info->kern_entry);
+    info_report("Kernel virtual base: 0x" TARGET_FMT_lx, g_virt_base);
+    info_report("Kernel physical base: 0x" TARGET_FMT_lx, g_phys_base);
+    info_report("Kernel virtual slide: 0x" TARGET_FMT_lx, slide_virt);
+    info_report("Kernel physical slide: 0x" TARGET_FMT_lx, slide_phys);
+    info_report("Kernel entry point: 0x" TARGET_FMT_lx, info->kern_entry);
 
     virt_end += slide_virt;
     phys_ptr = vtop_static(align_16k_high(virt_end));
@@ -277,7 +273,12 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
         AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - T8030_DRAM_BASE) >> 14;
     }
 
-    //! Ram disk
+    //! Device tree
+    info->device_tree_pa = phys_ptr;
+    dtb_va = ptov_static(info->device_tree_pa);
+    phys_ptr += align_16k_high(info->device_tree_size);
+
+    //! RAM disk
     if (machine->initrd_filename) {
         info->ramdisk_pa = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
@@ -285,15 +286,6 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
         info->ramdisk_size = align_16k_high(info->ramdisk_size);
         phys_ptr += info->ramdisk_size;
     }
-
-    //! Kernel boot args
-    info->kern_boot_args_pa = phys_ptr;
-    phys_ptr += align_16k_high(0x4000);
-
-    //! Device tree
-    info->device_tree_pa = phys_ptr;
-    dtb_va = ptov_static(info->device_tree_pa);
-    phys_ptr += align_16k_high(info->device_tree_size);
 
     if (tms->sepfw_filename) {
         info->sep_fw_pa = phys_ptr;
@@ -303,6 +295,10 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
         phys_ptr += info->sep_fw_size;
     }
 
+    //! Kernel boot args
+    info->kern_boot_args_pa = phys_ptr;
+    phys_ptr += align_16k_high(0x4000);
+
     mem_size =
         machine->maxram_size -
         (T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE));
@@ -311,119 +307,7 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
 
     top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
 
-    fprintf(stderr, "cmdline: [%s]\n", cmdline);
-    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_pa,
-                         g_virt_base, g_phys_base, mem_size,
-                         top_of_kernel_data_pa, dtb_va, info->device_tree_size,
-                         tms->video_args, cmdline);
-    g_virt_base = virt_low;
-}
-
-static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
-{
-    MachineState *machine = MACHINE(tms);
-    MachoHeader64 *hdr = tms->kernel;
-    MemoryRegion *sysmem = tms->sysmem;
-    AddressSpace *nsas = &address_space_memory;
-    hwaddr virt_low;
-    hwaddr virt_end;
-    hwaddr dtb_va;
-    hwaddr top_of_kernel_data_pa;
-    hwaddr mem_size;
-    hwaddr phys_ptr;
-    hwaddr amcc_lower;
-    hwaddr amcc_upper;
-    hwaddr slide_phys = 0;
-    hwaddr slide_virt = 0;
-    uint64_t l2_remaining = 0;
-    uint64_t extradata_size = 0;
-    AppleBootInfo *info = &tms->bootinfo;
-    g_autofree ApplePfRange *last_range = NULL;
-    DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
-
-    g_phys_base = (hwaddr)macho_get_buffer(hdr);
-    macho_highest_lowest(hdr, &virt_low, &virt_end);
-    g_virt_base = virt_low;
-    last_range = xnu_pf_segment(hdr, "__PRELINK_INFO");
-
-    extradata_size =
-        align_16k_high(info->device_tree_size + info->trustcache_size);
-    g_assert(extradata_size < L2_GRANULE);
-
-    get_kaslr_slides(tms, &slide_phys, &slide_virt);
-
-    l2_remaining = (virt_low + slide_virt) & L2_GRANULE_MASK;
-
-    if (extradata_size >= l2_remaining) {
-        uint64_t grown_slide = align_16k_high(extradata_size - l2_remaining);
-        slide_phys += grown_slide;
-        slide_virt += grown_slide;
-    }
-
-    phys_ptr = align_up(T8030_KERNEL_REGION_BASE, 32 * MiB) |
-               (virt_low & L2_GRANULE_MASK);
-    g_phys_base = phys_ptr & ~L2_GRANULE_MASK;
-    phys_ptr += slide_phys;
-    phys_ptr -= extradata_size;
-
-    //! Device tree
-    info->device_tree_pa = phys_ptr;
-    phys_ptr += info->device_tree_size;
-
-    //! Trust Cache
-    info->trustcache_pa = phys_ptr;
-    macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
-                          info->trustcache_pa);
-    phys_ptr += align_16k_high(info->trustcache_size);
-
-    g_virt_base += slide_virt;
-    g_virt_base -= phys_ptr - g_phys_base;
-    info->kern_entry =
-        arm_load_macho(hdr, nsas, sysmem, memory_map, phys_ptr, slide_virt);
-    fprintf(stderr,
-            "g_virt_base: 0x" TARGET_FMT_lx "\n"
-            "g_phys_base: 0x" TARGET_FMT_lx "\n",
-            g_virt_base, g_phys_base);
-    fprintf(stderr,
-            "slide_virt: 0x" TARGET_FMT_lx "\n"
-            "slide_phys: 0x" TARGET_FMT_lx "\n",
-            slide_virt, slide_phys);
-    fprintf(stderr, "entry: 0x" TARGET_FMT_lx "\n", info->kern_entry);
-
-    virt_end += slide_virt;
-    phys_ptr = vtop_static(align_16k_high(virt_end));
-
-    amcc_lower = info->device_tree_pa;
-    amcc_upper =
-        vtop_static(last_range->va + slide_virt) + last_range->size - 1;
-    for (int i = 0; i < 4; i++) {
-        AMCC_REG(tms, AMCC_LOWER(i)) = (amcc_lower - T8030_DRAM_BASE) >> 14;
-        AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - T8030_DRAM_BASE) >> 14;
-    }
-
-    dtb_va = ptov_static(info->device_tree_pa);
-
-    //! Ram disk
-    if (machine->initrd_filename) {
-        info->ramdisk_pa = phys_ptr;
-        macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
-                           info->ramdisk_pa, &info->ramdisk_size);
-        info->ramdisk_size = align_16k_high(info->ramdisk_size);
-        phys_ptr += info->ramdisk_size;
-    }
-
-    //! Kernel boot args
-    info->kern_boot_args_pa = phys_ptr;
-    phys_ptr += align_16k_high(0x4000);
-
-    mem_size =
-        T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE);
-
-    macho_load_dtb(tms->device_tree, nsas, sysmem, "DeviceTree", info);
-
-    top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
-
-    fprintf(stderr, "cmdline: [%s]\n", cmdline);
+    info_report("Boot args: [%s]", cmdline);
     macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_pa,
                          g_virt_base, g_phys_base, mem_size,
                          top_of_kernel_data_pa, dtb_va, info->device_tree_size,
@@ -477,7 +361,7 @@ static void t8030_memory_setup(MachineState *machine)
     };
     apple_nvram_load(nvram);
 
-    fprintf(stderr, "boot_mode: %u\n", tms->boot_mode);
+    info_report("boot_mode: %u", tms->boot_mode);
     switch (tms->boot_mode) {
     case kBootModeEnterRecovery:
         env_set(nvram, "auto-boot", "false", 0);
@@ -491,8 +375,8 @@ static void t8030_memory_setup(MachineState *machine)
         break;
     }
 
-    fprintf(stderr, "auto-boot=%s\n",
-            env_get_bool(nvram, "auto-boot", false) ? "true" : "false");
+    info_report("auto-boot=%s",
+                env_get_bool(nvram, "auto-boot", false) ? "true" : "false");
 
     switch (tms->boot_mode) {
     case kBootModeAuto:
@@ -584,9 +468,6 @@ static void t8030_memory_setup(MachineState *machine)
     switch (hdr->file_type) {
     case MH_EXECUTE:
         t8030_load_classic_kc(tms, cmdline);
-        break;
-    case MH_FILESET:
-        t8030_load_fileset_kc(tms, cmdline);
         break;
     default:
         error_setg(&error_abort, "%s: Unsupported kernelcache type: 0x%x\n",
@@ -1742,15 +1623,11 @@ static void t8030_create_sep(MachineState *machine)
 
 static void t8030_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 {
-    T8030MachineState *tms = data.host_ptr;
-    CPUARMState *env;
-    AppleA13State *tcpu = APPLE_A13(cpu);
-    if (!tcpu) {
-        return;
-    }
+    T8030MachineState *tms;
+
+    tms = data.host_ptr;
     cpu_reset(cpu);
-    env = &ARM_CPU(cpu)->env;
-    env->xregs[0] = tms->bootinfo.kern_boot_args_pa;
+    ARM_CPU(cpu)->env.xregs[0] = tms->bootinfo.kern_boot_args_pa;
     cpu_set_pc(cpu, tms->bootinfo.kern_entry);
 }
 
@@ -1759,8 +1636,9 @@ static void t8030_cpu_reset(void *opaque)
     MachineState *machine = MACHINE(opaque);
     T8030MachineState *tms = T8030_MACHINE(machine);
     CPUState *cpu;
-    uint64_t m_lo = 0;
-    uint64_t m_hi = 0;
+    uint64_t m_lo;
+    uint64_t m_hi;
+
     qemu_guest_getrandom(&m_lo, sizeof(m_lo), NULL);
     qemu_guest_getrandom(&m_hi, sizeof(m_hi), NULL);
 
@@ -1775,10 +1653,13 @@ static void t8030_cpu_reset(void *opaque)
         object_property_set_uint(OBJECT(cpu), "pauth-mlo", m_lo, &error_abort);
         object_property_set_uint(OBJECT(cpu), "pauth-mhi", m_hi, &error_abort);
         if (tcpu->cpu_id == 0) {
-            run_on_cpu(cpu, t8030_cpu_reset_work, RUN_ON_CPU_HOST_PTR(tms));
+            async_run_on_cpu(cpu, t8030_cpu_reset_work,
+                             RUN_ON_CPU_HOST_PTR(tms));
             continue;
         }
-        run_on_cpu(cpu, (run_on_cpu_func)cpu_reset, RUN_ON_CPU_NULL);
+        if (ARM_CPU(cpu)->power_state != PSCI_OFF) {
+            arm_reset_cpu(tcpu->mpidr);
+        }
     }
 }
 
@@ -1840,9 +1721,9 @@ static void t8030_machine_init(MachineState *machine)
     tms->kernel = hdr;
     xnu_header = hdr;
     build_version = macho_build_version(hdr);
-    fprintf(stderr, "Loading %s %u.%u...\n", macho_platform_string(hdr),
-            BUILD_VERSION_MAJOR(build_version),
-            BUILD_VERSION_MINOR(build_version));
+    info_report("Loading %s %u.%u...", macho_platform_string(hdr),
+                BUILD_VERSION_MAJOR(build_version),
+                BUILD_VERSION_MINOR(build_version));
     tms->build_version = build_version;
 
     if (tms->rtbuddy_protocol_ver == 0) {
@@ -1864,10 +1745,8 @@ static void t8030_machine_init(MachineState *machine)
     }
 
     macho_highest_lowest(hdr, &kernel_low, &kernel_high);
-    fprintf(stderr,
-            "kernel_low: 0x" TARGET_FMT_lx "\n"
-            "kernel_high: 0x" TARGET_FMT_lx "\n",
-            kernel_low, kernel_high);
+    info_report("Kernel virtual low: 0x" TARGET_FMT_lx, kernel_low);
+    info_report("Kernel virtual high: 0x" TARGET_FMT_lx, kernel_high);
 
     g_virt_base = kernel_low;
     g_phys_base = (hwaddr)macho_get_buffer(hdr);

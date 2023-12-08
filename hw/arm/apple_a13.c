@@ -1,3 +1,23 @@
+/*
+ * Apple A13 CPU.
+ *
+ * Copyright (c) 2023 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023 Christian Inci (chris-pcguy).
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "qemu/osdep.h"
 #include "exec/address-spaces.h"
 #include "hw/arm/apple_a13.h"
@@ -42,21 +62,6 @@
         .writefn = apple_a13_cluster_cpreg_write,                            \
         .fieldoffset = offsetof(AppleA13Cluster, A13_CPREG_VAR_NAME(p_name)) \
     }
-
-#define MPIDR_AFF0_SHIFT 0
-#define MPIDR_AFF0_WIDTH 8
-#define MPIDR_AFF0_MASK (((1 << MPIDR_AFF0_WIDTH) - 1) << MPIDR_AFF0_SHIFT)
-#define MPIDR_AFF1_SHIFT 8
-#define MPIDR_AFF1_WIDTH 8
-#define MPIDR_AFF1_MASK (((1 << MPIDR_AFF1_WIDTH) - 1) << MPIDR_AFF1_SHIFT)
-#define MPIDR_AFF2_SHIFT 16
-#define MPIDR_AFF2_WIDTH 8
-#define MPIDR_AFF2_MASK (((1 << MPIDR_AFF2_WIDTH) - 1) << MPIDR_AFF2_SHIFT)
-
-#define MPIDR_CPU_ID(mpidr_el1_val) \
-    (((mpidr_el1_val)&MPIDR_AFF0_MASK) >> MPIDR_AFF0_SHIFT)
-#define MPIDR_CLUSTER_ID(mpidr_el1_val) \
-    (((mpidr_el1_val)&MPIDR_AFF1_MASK) >> MPIDR_AFF1_SHIFT)
 
 #define IPI_SR_SRC_CPU_SHIFT 8
 #define IPI_SR_SRC_CPU_WIDTH 8
@@ -122,22 +127,7 @@ void apple_a13_cpu_start(AppleA13State *tcpu)
     }
 
     if (ret != QEMU_ARM_POWERCTL_RET_SUCCESS) {
-        error_report("%s: failed to bring up CPU %d: err %d", __func__,
-                     tcpu->cpu_id, ret);
-    }
-}
-
-void apple_a13_cpu_reset(AppleA13State *tcpu)
-{
-    int ret = QEMU_ARM_POWERCTL_RET_SUCCESS;
-
-    if (ARM_CPU(tcpu)->power_state != PSCI_OFF) {
-        ret = arm_reset_cpu(tcpu->mpidr);
-    }
-
-    if (ret != QEMU_ARM_POWERCTL_RET_SUCCESS) {
-        error_report("%s: failed to reset CPU %d: err %d", __func__,
-                     tcpu->cpu_id, ret);
+        error_report("Failed to bring up CPU %d: err %d", tcpu->cpu_id, ret);
     }
 }
 
@@ -693,7 +683,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
     }
     switch (cluster_type) {
     case 'P': // Lightning
-        tcpu->mpidr |= (1 << MPIDR_AFF2_SHIFT);
+        tcpu->mpidr |= (1 << ARM_AFF2_SHIFT);
         cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, PARTNUM, 0x12);
         break;
     case 'E': // Thunder
