@@ -149,13 +149,7 @@ static void apple_a9_reset(DeviceState *dev)
 
 static void apple_a9_instance_init(Object *obj)
 {
-    ARMCPU *cpu = ARM_CPU(obj);
-
     object_property_set_uint(obj, "cntfrq", 24000000, &error_fatal);
-    object_property_add_uint64_ptr(obj, "pauth-mlo", &cpu->m_key_lo,
-                                   OBJ_PROP_FLAG_READWRITE);
-    object_property_add_uint64_ptr(obj, "pauth-mhi", &cpu->m_key_hi,
-                                   OBJ_PROP_FLAG_READWRITE);
 }
 
 AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,

@@ -1001,11 +1001,6 @@ static void apple_a9_reset(void *opaque)
     S8000MachineState *tms;
     CPUState *cpu;
     AppleA9State *tcpu;
-    uint64_t m_lo;
-    uint64_t m_hi;
-
-    qemu_guest_getrandom(&m_lo, sizeof(m_lo), NULL);
-    qemu_guest_getrandom(&m_hi, sizeof(m_hi), NULL);
 
     machine = MACHINE(opaque);
     tms = S8000_MACHINE(machine);
@@ -1016,8 +1011,6 @@ static void apple_a9_reset(void *opaque)
         }
         object_property_set_int(OBJECT(cpu), "rvbar",
                                 tms->bootinfo.tz1_entry & ~0xFFF, &error_abort);
-        object_property_set_uint(OBJECT(cpu), "pauth-mlo", m_lo, &error_abort);
-        object_property_set_uint(OBJECT(cpu), "pauth-mhi", m_hi, &error_abort);
         if (tcpu->cpu_id == 0) {
             async_run_on_cpu(cpu, s8000_cpu_reset_work,
                              RUN_ON_CPU_HOST_PTR(tms));
