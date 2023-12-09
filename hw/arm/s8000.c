@@ -169,14 +169,14 @@ static size_t get_kaslr_random(void)
     return value;
 }
 
-#define L2_GRANULE ((16384) * (16384 / 8))
+#define L2_GRANULE ((0x4000) * (0x4000 / 8))
 #define L2_GRANULE_MASK (L2_GRANULE - 1)
 
 static void get_kaslr_slides(S8000MachineState *tms, hwaddr *phys_slide_out,
                              hwaddr *virt_slide_out)
 {
     hwaddr slide_phys = 0, slide_virt = 0;
-    const size_t slide_granular = (1 << 14);
+    const size_t slide_granular = (1 << 21);
     const size_t slide_granular_mask = slide_granular - 1;
     const size_t slide_virt_max = 0x100 * (2 * 1024 * 1024);
     size_t random_value = get_kaslr_random();
@@ -1010,7 +1010,7 @@ static void apple_a9_reset(void *opaque)
             continue;
         }
         object_property_set_int(OBJECT(cpu), "rvbar",
-                                tms->bootinfo.tz1_entry & ~0xFFF, &error_abort);
+                                tms->bootinfo.kern_entry & ~0xFFF, &error_abort);
         if (tcpu->cpu_id == 0) {
             async_run_on_cpu(cpu, s8000_cpu_reset_work,
                              RUN_ON_CPU_HOST_PTR(tms));

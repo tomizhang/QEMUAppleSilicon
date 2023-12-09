@@ -187,14 +187,14 @@ static size_t get_kaslr_random(void)
     return value;
 }
 
-#define L2_GRANULE ((16384) * (16384 / 8))
+#define L2_GRANULE ((0x4000) * (0x4000 / 8))
 #define L2_GRANULE_MASK (L2_GRANULE - 1)
 
 static void get_kaslr_slides(T8030MachineState *tms, hwaddr *phys_slide_out,
                              hwaddr *virt_slide_out)
 {
     hwaddr slide_phys = 0, slide_virt = 0;
-    const size_t slide_granular = (1 << 14);
+    const size_t slide_granular = (1 << 21);
     const size_t slide_granular_mask = slide_granular - 1;
     const size_t slide_virt_max = 0x100 * (2 * 1024 * 1024);
     size_t random_value = get_kaslr_random();
