@@ -139,7 +139,6 @@ static void s8000_create_s3c_uart(const S8000MachineState *tms, Chardev *chr)
 
 static void s8000_patch_kernel(MachoHeader64 *hdr)
 {
-    kpf();
 }
 
 static bool s8000_check_panic(MachineState *machine)
@@ -208,8 +207,8 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     hwaddr dtb_va;
     hwaddr top_of_kernel_data_pa;
     hwaddr phys_ptr;
-    hwaddr slide_phys = 0;
-    hwaddr slide_virt = 0;
+    hwaddr slide_phys;
+    hwaddr slide_virt;
     AppleBootInfo *info = &tms->bootinfo;
     g_autofree ApplePfRange *text_range = NULL;
     g_autofree ApplePfRange *prelink_text_range = NULL;
@@ -1010,7 +1009,8 @@ static void apple_a9_reset(void *opaque)
             continue;
         }
         object_property_set_int(OBJECT(cpu), "rvbar",
-                                tms->bootinfo.kern_entry & ~0xFFF, &error_abort);
+                                tms->bootinfo.kern_entry & ~0xFFF,
+                                &error_abort);
         if (tcpu->cpu_id == 0) {
             async_run_on_cpu(cpu, s8000_cpu_reset_work,
                              RUN_ON_CPU_HOST_PTR(tms));

@@ -159,7 +159,6 @@ static void t8030_create_s3c_uart(const T8030MachineState *tms, uint32_t port,
 
 static void t8030_patch_kernel(MachoHeader64 *hdr)
 {
-    kpf();
 }
 
 static bool t8030_check_panic(MachineState *machine)

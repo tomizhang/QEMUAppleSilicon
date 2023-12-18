@@ -1037,33 +1037,66 @@ static MachoSection64 *endsect(MachoSegmentCommand64 *seg)
 static void macho_process_symbols(MachoHeader64 *mh, uint64_t slide)
 {
     MachoLoadCommand *cmd;
-    uint8_t *data = macho_get_buffer(mh);
+    uint8_t *data;
     uint64_t kernel_low, kernel_high;
-    unsigned int index;
+    uint32_t index;
+    void *base;
+    MachoSegmentCommand64 *linkedit_seg;
+    MachoNList64 *sym;
+    uint32_t off;
+    hwaddr text_base;
+
+    if (!slide) {
+        return;
+    }
+
     macho_highest_lowest(mh, &kernel_low, &kernel_high);
+
+    data = macho_get_buffer(mh);
+    linkedit_seg = macho_get_segment(mh, "__LINKEDIT");
 
     cmd = (MachoLoadCommand *)(mh + 1);
     for (index = 0; index < mh->n_cmds; index++) {
-        if (cmd->cmd == LC_SYMTAB) {
+        switch (cmd->cmd) {
+        case LC_SYMTAB: {
             MachoSymtabCommand *symtab = (MachoSymtabCommand *)cmd;
-            MachoSegmentCommand64 *linkedit_seg =
-                macho_get_segment(mh, "__LINKEDIT");
-            void *base;
-            uint32_t off;
-            MachoNList64 *sym;
             if (linkedit_seg == NULL) {
-                error_report("Cannot find __LINKEDIT segment");
+                error_report("Did not find __LINKEDIT segment");
                 return;
             }
-            base = (data + linkedit_seg->vmaddr - kernel_low);
+            base = data + (linkedit_seg->vmaddr - kernel_low);
             off = linkedit_seg->fileoff;
-            sym = (MachoNList64 *)(base + symtab->sym_off - off);
+            sym = (MachoNList64 *)(base + (symtab->sym_off - off));
             for (int i = 0; i < symtab->nsyms; i++) {
                 if (sym[i].n_type & N_STAB) {
                     continue;
                 }
                 sym[i].n_value += slide;
             }
+        }
+        case LC_DYSYMTAB: {
+            MachoDysymtabCommand *dysymtab = (MachoDysymtabCommand *)cmd;
+            if (!dysymtab->loc_rel_n) {
+                break;
+            }
+
+            if (linkedit_seg == NULL) {
+                error_report("Did not find __LINKEDIT segment");
+                return;
+            }
+
+            base = data + (linkedit_seg->vmaddr - kernel_low);
+            off = linkedit_seg->fileoff;
+            macho_text_base(mh, &text_base);
+            for (size_t i = 0; i < dysymtab->loc_rel_n; i++) {
+                int32_t r_address =
+                    *(int32_t *)(base + (dysymtab->loc_rel_off - off) + i * 8);
+                *(uint64_t *)(data + ((text_base - kernel_low) + r_address)) +=
+                    slide;
+            }
+        }
+        default:
+            break;
         }
         cmd = (MachoLoadCommand *)((char *)cmd + cmd->cmd_size);
     }
@@ -1375,53 +1408,4 @@ uint64_t xnu_slide_value(MachoHeader64 *header)
 void *xnu_va_to_ptr(uint64_t va)
 {
     return (void *)(va - g_virt_base + g_phys_base);
-}
-
-uint64_t xnu_ptr_to_va(void *ptr)
-{
-    return ((uint64_t)ptr) + g_phys_base + g_virt_base;
-}
-
-// NOTE: iBoot-based rebase only applies to main XNU.
-//       Kexts will never ever have been rebased when Pongo runs.
-static bool has_been_rebased(void)
-{
-    static int8_t rebase_status = -1;
-    // First, determine whether we've been rebased. his feels really hacky, but
-    // it correctly covers all cases:
-    //
-    // 1. New-style kernels rebase themselves, so this is always false.
-    // 2. Old-style kernels on a live device will always have been rebased.
-    // 3. Old-style kernels on kpf-test will not have been rebase, but we use a
-    // slide of 0x0 there
-    //    and the pointers are valid by themselves, so they can be treated as
-    //    correctly rebased.
-    //
-    if (rebase_status == -1) {
-        MachoSegmentCommand64 *seg = macho_get_segment(xnu_header, "__TEXT");
-        MachoSection64 *sec =
-            seg ? macho_get_section(seg, "__thread_starts") : NULL;
-        rebase_status = sec->size == 0 ? 1 : 0;
-    }
-
-    return rebase_status == 1;
-}
-
-uint64_t xnu_rebase_va(uint64_t va)
-{
-    if (!has_been_rebased()) {
-        va =
-            (uint64_t)(((int64_t)va << 13) >> 13) + xnu_slide_value(xnu_header);
-    }
-
-    return va;
-}
-
-uint64_t kext_rebase_va(uint64_t va)
-{
-    if (!has_been_rebased()) {
-        va = (uint64_t)(((int64_t)va << 13) >> 13);
-    }
-
-    return va + xnu_slide_value(xnu_header);
 }

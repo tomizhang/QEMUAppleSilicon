@@ -50,6 +50,29 @@ typedef struct {
 typedef struct {
     uint32_t cmd;
     uint32_t cmd_size;
+    uint32_t local_sym_i;
+    uint32_t local_sym_n;
+    uint32_t ext_def_sym_i;
+    uint32_t ext_def_sym_n;
+    uint32_t undef_sym_i;
+    uint32_t undef_sym_n;
+    uint32_t toc_off;
+    uint32_t toc_n;
+    uint32_t mod_tab_off;
+    uint32_t mod_tab_n;
+    uint32_t ext_ref_sym_off;
+    uint32_t ext_ref_syms_n;
+    uint32_t indirect_sym_off;
+    uint32_t indirect_syms_n;
+    uint32_t ext_rel_off;
+    uint32_t ext_rel_n;
+    uint32_t loc_rel_off;
+    uint32_t loc_rel_n;
+} MachoDysymtabCommand;
+
+typedef struct {
+    uint32_t cmd;
+    uint32_t cmd_size;
     char segname[16];
     uint64_t vmaddr;
     uint64_t vmsize;
@@ -299,12 +322,6 @@ uint64_t xnu_slide_hdr_va(MachoHeader64 *header, uint64_t hdr_va);
 uint64_t xnu_slide_value(MachoHeader64 *header);
 
 void *xnu_va_to_ptr(uint64_t va);
-
-uint64_t xnu_ptr_to_va(void *ptr);
-
-uint64_t xnu_rebase_va(uint64_t va);
-
-uint64_t kext_rebase_va(uint64_t va);
 
 bool xnu_contains_boot_arg(const char *bootArgs, const char *arg,
                            bool prefixmatch);
