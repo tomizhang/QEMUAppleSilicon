@@ -25,6 +25,7 @@
 #include "crypto/random.h"
 #include "hw/arm/boot.h"
 #include "hw/arm/xnu.h"
+#include "hw/arm/xnu_mem.h"
 #include "hw/loader.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
@@ -33,8 +34,6 @@
 #include "img4.h"
 #include "lzfse.h"
 #include "lzss.h"
-
-MachoHeader64 *xnu_header;
 
 static const char *KEEP_COMP[] = {
     "aes,s8000\0$",
@@ -1343,19 +1342,18 @@ MachoSegmentCommand64 *macho_get_segment(MachoHeader64 *header,
             macho_get_fileset_header(header, "com.apple.kernel"), segname);
     } else {
         MachoSegmentCommand64 *sgp;
-        sgp = (MachoSegmentCommand64 *)((char *)header + sizeof(MachoHeader64));
 
-        for (i = 0; i < header->n_cmds; i++) {
+
+        for (sgp = (MachoSegmentCommand64 *)(header + 1), i = 0;
+             i < header->n_cmds; i++,
+            sgp = (MachoSegmentCommand64 *)((char *)sgp + sgp->cmd_size)) {
             if (sgp->cmd == LC_SEGMENT_64) {
                 if (strncmp(sgp->segname, segname, sizeof(sgp->segname)) == 0)
                     return sgp;
             }
-
-            sgp = (MachoSegmentCommand64 *)((char *)sgp + sgp->cmd_size);
         }
     }
 
-    // not found
     return NULL;
 }
 
@@ -1365,44 +1363,18 @@ MachoSection64 *macho_get_section(MachoSegmentCommand64 *seg,
     MachoSection64 *sp;
     uint32_t i;
 
-    sp = (MachoSection64 *)((char *)seg + sizeof(MachoSegmentCommand64));
-
-    for (i = 0; i < seg->nsects; i++) {
-        if (strncmp(sp->sect_name, sect_name, sizeof(sp->sect_name)) == 0) {
+    for (sp = (MachoSection64 *)(seg + 1), i = 0; i < seg->nsects; i++, sp++) {
+        if (!strncmp(sp->sect_name, sect_name, sizeof(sp->sect_name))) {
             return sp;
         }
-
-        sp = (MachoSection64 *)((char *)sp + sizeof(MachoSection64));
     }
 
-    // not found
     return NULL;
-}
-
-static bool xnu_is_slid(MachoHeader64 *header)
-{
-    MachoSegmentCommand64 *seg = macho_get_segment(header, "__TEXT");
-    if (seg && seg->vmaddr == 0xFFFFFFF007004000ULL) {
-        return false;
-    }
-
-    return true;
 }
 
 uint64_t xnu_slide_hdr_va(MachoHeader64 *header, uint64_t hdr_va)
 {
-    if (xnu_is_slid(header)) {
-        return hdr_va;
-    }
-
-    return hdr_va + xnu_slide_value(header);
-}
-
-uint64_t xnu_slide_value(MachoHeader64 *header)
-{
-    uint64_t text_va_base = ((uint64_t)header) - g_phys_base + g_virt_base;
-    uint64_t slide = text_va_base - 0xFFFFFFF007004000ULL;
-    return slide;
+    return hdr_va + g_virt_slide;
 }
 
 void *xnu_va_to_ptr(uint64_t va)

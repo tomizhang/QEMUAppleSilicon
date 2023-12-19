@@ -150,8 +150,6 @@ typedef struct {
     uint32_t reserved;
 } MachoHeader64;
 
-extern MachoHeader64 *xnu_header;
-
 typedef struct {
     uint32_t cmd;
     uint32_t cmd_size;
@@ -318,8 +316,6 @@ MachoSegmentCommand64 *macho_get_segment(MachoHeader64 *header,
 MachoSection64 *macho_get_section(MachoSegmentCommand64 *seg, const char *name);
 
 uint64_t xnu_slide_hdr_va(MachoHeader64 *header, uint64_t hdr_va);
-
-uint64_t xnu_slide_value(MachoHeader64 *header);
 
 void *xnu_va_to_ptr(uint64_t va);
 

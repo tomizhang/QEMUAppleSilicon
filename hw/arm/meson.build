@@ -10,7 +10,6 @@ arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
     'xnu_dtb.c',
     'xnu_mem.c',
     'xnu.c',
-    'xnu_pf.c',
 ))
 arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: tasn1)
 arm_ss.add(when: 'CONFIG_APPLE_DART', if_true: files('apple_dart.c'),

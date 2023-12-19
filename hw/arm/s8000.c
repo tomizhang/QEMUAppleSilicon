@@ -29,7 +29,6 @@
 #include "hw/arm/s8000-config.c.inc"
 #include "hw/arm/s8000.h"
 #include "hw/arm/xnu_mem.h"
-#include "hw/arm/xnu_pf.h"
 #include "hw/block/apple_nvme_mmu.h"
 #include "hw/gpio/apple_gpio.h"
 #include "hw/i2c/apple_i2c.h"
@@ -207,45 +206,45 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     hwaddr dtb_va;
     hwaddr top_of_kernel_data_pa;
     hwaddr phys_ptr;
-    hwaddr slide_phys;
-    hwaddr slide_virt;
     AppleBootInfo *info = &tms->bootinfo;
-    g_autofree ApplePfRange *text_range = NULL;
-    g_autofree ApplePfRange *prelink_text_range = NULL;
+    hwaddr text_base;
+    hwaddr prelink_text_base;
     DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
     hwaddr tz1_virt_low;
     hwaddr tz1_virt_high;
 
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
     macho_highest_lowest(hdr, &virt_low, &virt_end);
-    text_range = xnu_pf_segment(hdr, "__TEXT");
-    info->kern_text_off = text_range->va - virt_low;
-    prelink_text_range = xnu_pf_segment(hdr, "__PRELINK_TEXT");
+    macho_text_base(hdr, &text_base);
+    info->kern_text_off = text_base - virt_low;
+    prelink_text_base = macho_get_segment(hdr, "__PRELINK_TEXT")->vmaddr;
 
-    get_kaslr_slides(tms, &slide_phys, &slide_virt);
+    get_kaslr_slides(tms, &g_phys_slide, &g_virt_slide);
 
     g_phys_base = phys_ptr = S8000_KERNEL_REGION_BASE;
-    phys_ptr += slide_phys;
-    g_virt_base += slide_virt - slide_phys;
+    phys_ptr += g_phys_slide;
+    g_virt_base += g_virt_slide - g_phys_slide;
 
     //! TrustCache
-    info->trustcache_pa = vtop_static(prelink_text_range->va + slide_virt) -
-                          info->trustcache_size;
+    info->trustcache_pa =
+        vtop_static(prelink_text_base + g_virt_slide) - info->trustcache_size;
+    info_report("__PRELINK_TEXT = " HWADDR_FMT_plx " + " HWADDR_FMT_plx,
+                prelink_text_base, g_virt_slide);
+    info_report("info->trustcache_pa = " HWADDR_FMT_plx, info->trustcache_pa);
 
     macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
                           info->trustcache_pa);
 
-
     info->kern_entry =
-        arm_load_macho(hdr, nsas, sysmem, memory_map, phys_ptr, slide_virt);
+        arm_load_macho(hdr, nsas, sysmem, memory_map, phys_ptr, g_virt_slide);
     info_report("Kernel virtual base: 0x" TARGET_FMT_lx, g_virt_base);
     info_report("Kernel physical base: 0x" TARGET_FMT_lx, g_phys_base);
     info_report("Kernel text off: 0x" TARGET_FMT_lx, info->kern_text_off);
-    info_report("Kernel virtual slide: 0x" TARGET_FMT_lx, slide_virt);
-    info_report("Kernel physical slide: 0x" TARGET_FMT_lx, slide_phys);
+    info_report("Kernel virtual slide: 0x" TARGET_FMT_lx, g_virt_slide);
+    info_report("Kernel physical slide: 0x" TARGET_FMT_lx, g_phys_slide);
     info_report("Kernel entry point: 0x" TARGET_FMT_lx, info->kern_entry);
 
-    virt_end += slide_virt;
+    virt_end += g_virt_slide;
     phys_ptr = vtop_static(align_16k_high(virt_end));
 
     //! Device tree
@@ -302,7 +301,7 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     apple_monitor_setup_boot_args(
         "TZ1_BOOTARGS", sas, tms->sysmem, tz1_boot_args_pa, tz1_virt_low,
         S8000_TZ1_BASE, S8000_TZ1_SIZE, tms->bootinfo.kern_boot_args_pa,
-        tms->bootinfo.kern_entry, g_phys_base, slide_phys, slide_virt,
+        tms->bootinfo.kern_entry, g_phys_base, g_phys_slide, g_virt_slide,
         info->kern_text_off);
     tms->bootinfo.tz1_entry = tz1_entry;
     tms->bootinfo.tz1_boot_args_pa = tz1_boot_args_pa;
@@ -1077,7 +1076,6 @@ static void s8000_machine_init(MachineState *machine)
     g_assert(secure_monitor);
     tms->kernel = hdr;
     tms->secure_monitor = secure_monitor;
-    xnu_header = hdr;
     build_version = macho_build_version(hdr);
     info_report("Loading %s %u.%u...", macho_platform_string(hdr),
                 BUILD_VERSION_MAJOR(build_version),

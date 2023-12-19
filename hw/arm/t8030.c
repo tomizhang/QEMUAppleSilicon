@@ -28,7 +28,6 @@
 #include "hw/arm/t8030-config.c.inc"
 #include "hw/arm/t8030.h"
 #include "hw/arm/xnu_mem.h"
-#include "hw/arm/xnu_pf.h"
 #include "hw/block/apple_ans.h"
 #include "hw/char/apple_uart.h"
 #include "hw/display/apple_displaypipe_v2.h"
@@ -228,45 +227,45 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     hwaddr phys_ptr;
     hwaddr amcc_lower;
     hwaddr amcc_upper;
-    hwaddr slide_phys = 0;
-    hwaddr slide_virt = 0;
     AppleBootInfo *info = &tms->bootinfo;
-    g_autofree ApplePfRange *last_range = NULL;
-    g_autofree ApplePfRange *text_range = NULL;
+    hwaddr last_base;
+    MachoSegmentCommand64 *last_seg;
+    hwaddr text_base;
     DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
 
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
     macho_highest_lowest(hdr, &virt_low, &virt_end);
-    last_range = xnu_pf_segment(hdr, "__LAST");
-    text_range = xnu_pf_segment(hdr, "__TEXT");
 
-    get_kaslr_slides(tms, &slide_phys, &slide_virt);
+    get_kaslr_slides(tms, &g_phys_slide, &g_virt_slide);
+
+    last_seg = macho_get_segment(hdr, "__LAST");
+    last_base = last_seg->vmaddr;
+    text_base = macho_get_segment(hdr, "__TEXT")->vmaddr;
 
     g_phys_base = phys_ptr = T8030_KERNEL_REGION_BASE;
-    phys_ptr += slide_phys;
-    g_virt_base += slide_virt - slide_phys;
+    phys_ptr += g_phys_slide;
+    g_virt_base += g_virt_slide - g_phys_slide;
 
     //! TrustCache
     info->trustcache_pa =
-        vtop_static(text_range->va + slide_virt) - info->trustcache_size;
+        vtop_static(text_base + g_virt_slide) - info->trustcache_size;
 
     macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
                           info->trustcache_pa);
 
     info->kern_entry = arm_load_macho(hdr, nsas, sysmem, memory_map,
-                                      g_phys_base + slide_phys, slide_virt);
+                                      g_phys_base + g_phys_slide, g_virt_slide);
     info_report("Kernel virtual base: 0x" TARGET_FMT_lx, g_virt_base);
     info_report("Kernel physical base: 0x" TARGET_FMT_lx, g_phys_base);
-    info_report("Kernel virtual slide: 0x" TARGET_FMT_lx, slide_virt);
-    info_report("Kernel physical slide: 0x" TARGET_FMT_lx, slide_phys);
+    info_report("Kernel virtual slide: 0x" TARGET_FMT_lx, g_virt_slide);
+    info_report("Kernel physical slide: 0x" TARGET_FMT_lx, g_phys_slide);
     info_report("Kernel entry point: 0x" TARGET_FMT_lx, info->kern_entry);
 
-    virt_end += slide_virt;
+    virt_end += g_virt_slide;
     phys_ptr = vtop_static(align_16k_high(virt_end));
 
     amcc_lower = info->trustcache_pa;
-    amcc_upper =
-        vtop_static(last_range->va + slide_virt) + last_range->size - 1;
+    amcc_upper = vtop_static(last_base + g_virt_slide) + last_seg->vmsize - 1;
     for (int i = 0; i < 4; i++) {
         AMCC_REG(tms, AMCC_LOWER(i)) = (amcc_lower - T8030_DRAM_BASE) >> 14;
         AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - T8030_DRAM_BASE) >> 14;
@@ -1718,7 +1717,6 @@ static void t8030_machine_init(MachineState *machine)
     hdr = macho_load_file(machine->kernel_filename, NULL);
     g_assert(hdr);
     tms->kernel = hdr;
-    xnu_header = hdr;
     build_version = macho_build_version(hdr);
     info_report("Loading %s %u.%u...", macho_platform_string(hdr),
                 BUILD_VERSION_MAJOR(build_version),

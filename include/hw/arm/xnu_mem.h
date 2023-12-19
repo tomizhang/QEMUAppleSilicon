@@ -28,6 +28,8 @@
 
 extern hwaddr g_virt_base;
 extern hwaddr g_phys_base;
+extern hwaddr g_virt_slide;
+extern hwaddr g_phys_slide;
 
 hwaddr vtop_static(hwaddr va);
 hwaddr ptov_static(hwaddr pa);
