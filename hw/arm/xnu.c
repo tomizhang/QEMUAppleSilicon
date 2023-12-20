@@ -1072,6 +1072,7 @@ static void macho_process_symbols(MachoHeader64 *mh, uint64_t slide)
                 }
                 sym[i].n_value += slide;
             }
+            break;
         }
         case LC_DYSYMTAB: {
             MachoDysymtabCommand *dysymtab = (MachoDysymtabCommand *)cmd;
@@ -1093,6 +1094,7 @@ static void macho_process_symbols(MachoHeader64 *mh, uint64_t slide)
                 *(uint64_t *)(data + ((text_base - kernel_low) + r_address)) +=
                     slide;
             }
+            break;
         }
         default:
             break;
