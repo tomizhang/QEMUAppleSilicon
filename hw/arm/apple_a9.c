@@ -193,6 +193,9 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
     cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, VARIANT, 0x1); /* B1 */
     cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, REVISION, 0x1);
 
+    cpu->isar.id_aa64mmfr1 =
+        FIELD_DP64(cpu->isar.id_aa64mmfr1, ID_AA64MMFR1, PAN, 0);
+
     object_property_set_uint(obj, "mp-affinity", tcpu->mpidr, &error_fatal);
 
     if (node) {
