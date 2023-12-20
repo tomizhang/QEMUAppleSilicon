@@ -451,6 +451,8 @@ static void aes_reg_write(void *opaque, hwaddr addr, uint64_t data,
         nowrite = true;
         val = old;
         break;
+    case REG_AES_COMMAND_FIFO_S8000:
+        QEMU_FALLTHROUGH;
     case REG_AES_COMMAND_FIFO:
         if (s->data_len > s->data_read) {
             s->data[s->data_read] = val;
@@ -532,6 +534,11 @@ static void aes_reg_write(void *opaque, hwaddr addr, uint64_t data,
         aes_update_command_fifo_status(s);
         break;
     case REG_AES_CONFIG:
+        break;
+    case REG_AES_CLEAR_FIFO:
+        if (val == REG_AES_CLEAR_FIFO_RESET) {
+            aes_empty_fifo(s);
+        }
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR,
