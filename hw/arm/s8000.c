@@ -1007,8 +1007,7 @@ static void apple_a9_reset(void *opaque)
         if (tcpu->cpu_id == A9_MAX_CPU + 1) {
             continue;
         }
-        object_property_set_int(OBJECT(cpu), "rvbar",
-                                tms->bootinfo.kern_entry & ~0xFFF,
+        object_property_set_int(OBJECT(cpu), "rvbar", tms->bootinfo.tz1_entry,
                                 &error_abort);
         if (tcpu->cpu_id == 0) {
             async_run_on_cpu(cpu, s8000_cpu_reset_work,
