@@ -810,12 +810,16 @@ static void s8000_create_usb(MachineState *machine)
     DTBNode *phy, *complex, *device;
     DTBProp *prop;
     DeviceState *otg;
+    uint32_t value;
 
     phy = get_dtb_node(child, "otgphyctrl");
     g_assert(phy);
 
     complex = get_dtb_node(child, "usb-complex");
     g_assert(complex);
+
+    value = 1;
+    set_dtb_prop(complex, "no-pmu", sizeof(value), &value);
 
     device = get_dtb_node(complex, "usb-device");
     g_assert(device);

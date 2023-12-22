@@ -81,6 +81,7 @@ static const char *KEEP_COMP[] = {
     "uart-1,samsung\0$",
     "usb-complex,s8000\0usb-complex,s5l8960x\0$",
     "usb-device,s5l8900x\0$",
+    "usb-device,s8000\0usb-device,t7000\0usb-device,s5l8900x\0$",
     "usb-device,t7000\0usb-device,s5l8900x\0$",
     "usb-drd,t8030\0usb-drd,t8027\0$",
     "wdt,s8000\0wdt,s5l8960x\0$",
@@ -100,7 +101,7 @@ static const char *REM_DEV_TYPES[] = {
 };
 
 static const char *REM_PROPS[] = {
-    "content-protect", /* We don't want encrypted data volume */
+    "content-protect",
     "function-brick_id_voltage",
     "function-dock_parent",
     "function-error_handler",
@@ -109,6 +110,7 @@ static const char *REM_PROPS[] = {
     "function-pmp_control",
     "function-spi0_mosi_config",
     "function-spi0_sclk_config",
+    "function-usb_500_100",
     "function-vbus_voltage",
     "mcc-power-gating",
     "nand-debug",
@@ -429,8 +431,8 @@ DTBNode *load_dtb_from_file(char *filename)
 
 void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
 {
-    DTBNode *child = NULL;
-    DTBProp *prop = NULL;
+    DTBNode *child;
+    DTBProp *prop;
     uint32_t data;
     uint64_t memmap[2] = { 0 };
 
