@@ -35,6 +35,7 @@
 #include "hw/intc/apple_aic.h"
 #include "hw/irq.h"
 #include "hw/misc/apple_aes.h"
+#include "hw/misc/pmu_d2255.h"
 #include "hw/misc/unimp.h"
 #include "hw/nvram/apple_nvram.h"
 #include "hw/or-irq.h"
