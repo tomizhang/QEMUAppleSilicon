@@ -987,6 +987,20 @@ static void s8000_create_sep(MachineState *machine)
     sysbus_realize_and_unref(SYS_BUS_DEVICE(tms->sep), &error_fatal);
 }
 
+static void s8000_pmu_create(MachineState *machine)
+{
+    S8000MachineState *tms = S8000_MACHINE(machine);
+    DTBNode *child;
+    DTBProp *prop;
+
+    child = find_dtb_node(tms->device_tree, "arm-io/i2c0/pmu");
+    g_assert(child);
+
+    prop = find_dtb_prop(child, "reg");
+    g_assert(prop);
+    pmu_d2255_create(machine, *(uint32_t *)prop->value);
+}
+
 static void s8000_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 {
     S8000MachineState *tms;
@@ -1212,6 +1226,8 @@ static void s8000_machine_init(MachineState *machine)
     s8000_create_spi(machine, "spi3");
 
     s8000_create_sep(machine);
+
+    s8000_pmu_create(machine);
 
     tms->init_done_notifier.notify = s8000_machine_init_done;
     qemu_add_machine_init_done_notifier(&tms->init_done_notifier);

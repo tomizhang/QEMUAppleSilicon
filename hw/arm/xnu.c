@@ -67,6 +67,7 @@ static const char *KEEP_COMP[] = {
     "otgphyctrl,s8000\0otgphyctrl,s5l8960x\0$",
     "pmgr1,s8000\0$",
     "pmgr1,t8030\0$",
+    "pmu,d2255\0$",
     "pmu,spmi\0pmu,avus\0$",
     "roswell\0$",
     "sart,coastguard\0$",
