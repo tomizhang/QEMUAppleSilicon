@@ -20,23 +20,120 @@
 #include "qemu/osdep.h"
 #include "hw/i2c/apple_i2c.h"
 #include "hw/i2c/i2c.h"
+#include "hw/irq.h"
 #include "hw/misc/pmu_d2255.h"
 #include "migration/vmstate.h"
 #include "qapi/error.h"
+#include "qemu/compiler.h"
 #include "qemu/error-report.h"
 #include "qemu/log.h"
+#include "qemu/timer.h"
+#include "sysemu/sysemu.h"
 
-#define DIALOG_MASK_REV_CODE (0x200)
-#define DIALOG_TRIM_REL_CODE (0x201)
-#define DIALOG_PLATFORM_ID (0x202)
-#define DIALOG_DEVICE_ID0 (0x203)
-#define DIALOG_DEVICE_ID1 (0x204)
-#define DIALOG_DEVICE_ID2 (0x205)
-#define DIALOG_DEVICE_ID3 (0x206)
-#define DIALOG_DEVICE_ID4 (0x207)
-#define DIALOG_DEVICE_ID5 (0x208)
-#define DIALOG_DEVICE_ID6 (0x209)
-#define DIALOG_DEVICE_ID7 (0x20a)
+#define RTC_TICK_FREQ (32768)
+
+#define REG_DIALOG_ALARM_EVENT (0x142)
+#define DIALOG_RTC_EVENT_ALARM (1 << 0)
+
+#define REG_DIALOG_RTC_IRQ_MASK (0x1C0)
+#define REG_DIALOG_MASK_REV_CODE (0x200)
+#define REG_DIALOG_TRIM_REL_CODE (0x201)
+#define REG_DIALOG_PLATFORM_ID (0x202)
+#define REG_DIALOG_DEVICE_ID0 (0x203)
+#define REG_DIALOG_DEVICE_ID1 (0x204)
+#define REG_DIALOG_DEVICE_ID2 (0x205)
+#define REG_DIALOG_DEVICE_ID3 (0x206)
+#define REG_DIALOG_DEVICE_ID4 (0x207)
+#define REG_DIALOG_DEVICE_ID5 (0x208)
+#define REG_DIALOG_DEVICE_ID6 (0x209)
+#define REG_DIALOG_DEVICE_ID7 (0x20A)
+
+#define REG_DIALOG_RTC_CONTROL (0x500)
+#define DIALOG_RTC_CONTROL_MONITOR (1 << 0)
+#define DIALOG_RTC_CONTROL_ALARM_EN (1 << 6)
+
+#define REG_DIALOG_RTC_SUB_SECOND_A (0x0502)
+
+#define REG_DIALOG_SCRATCH (0x5000)
+#define DIALOG_SCRATCH_LEN (0x27)
+#define OFF_DIALOG_SCRATCH_SECS_OFFSET (4)
+#define OFF_DIALOG_SCRATCH_TICKS_OFFSET (21)
+
+#define RREG32(off) *(uint32_t *)(s->reg + (off))
+#define WREG32(off, val) *(uint32_t *)(s->reg + (off)) = val
+#define WREG32_OR(off, val) *(uint32_t *)(s->reg + (off)) |= val
+
+static unsigned int frq_to_period_ns(unsigned int freq_hz)
+{
+    return NANOSECONDS_PER_SECOND > freq_hz ? NANOSECONDS_PER_SECOND / freq_hz :
+                                              1;
+}
+
+static uint64_t G_GNUC_UNUSED tick_to_ns(PMUD2255State *s, uint64_t tick)
+{
+    return (tick >> 15) * NANOSECONDS_PER_SECOND +
+           (tick & 0x7fff) * s->tick_period;
+}
+
+static uint64_t rtc_get_tick(PMUD2255State *s, uint64_t *out_ns)
+{
+    uint64_t now = qemu_clock_get_ns(rtc_clock);
+    uint64_t offset = s->rtc_offset;
+    if (out_ns) {
+        *out_ns = now;
+    }
+    now -= offset;
+    return ((now / NANOSECONDS_PER_SECOND) << 15) |
+           ((now / s->tick_period) & 0x7fff);
+}
+
+static void pmu_d2255_set_tick_offset(PMUD2255State *s, uint64_t tick_offset)
+{
+    RREG32(REG_DIALOG_SCRATCH + OFF_DIALOG_SCRATCH_SECS_OFFSET) =
+        tick_offset >> 15;
+    WREG32(REG_DIALOG_SCRATCH + OFF_DIALOG_SCRATCH_TICKS_OFFSET + 0,
+           tick_offset & 0xff);
+    WREG32(REG_DIALOG_SCRATCH + OFF_DIALOG_SCRATCH_TICKS_OFFSET + 1,
+           (tick_offset >> 8) & 0x7f);
+}
+
+static void pmu_d2255_update_irq(PMUD2255State *s)
+{
+    if (RREG32(REG_DIALOG_RTC_IRQ_MASK) & RREG32(REG_DIALOG_ALARM_EVENT)) {
+        qemu_irq_raise(s->irq);
+        info_report("PMU D2255: raised IRQ");
+    } else {
+        qemu_irq_lower(s->irq);
+        info_report("PMU D2255: lowered IRQ");
+    }
+}
+
+static void pmu_d2255_alarm(void *opaque)
+{
+    PMUD2255State *s;
+
+    s = PMU_D2255(opaque);
+    WREG32_OR(REG_DIALOG_ALARM_EVENT, DIALOG_RTC_EVENT_ALARM);
+    pmu_d2255_update_irq(s);
+}
+
+static void pmu_d2255_set_alarm(PMUD2255State *s)
+{
+    uint32_t seconds =
+        RREG32(REG_DIALOG_RTC_SUB_SECOND_A) - (rtc_get_tick(s, NULL) >> 15);
+    if (RREG32(REG_DIALOG_RTC_CONTROL) & DIALOG_RTC_CONTROL_ALARM_EN) {
+        if (seconds == 0) {
+            timer_del(s->timer);
+            pmu_d2255_alarm(s);
+        } else {
+            int64_t now = qemu_clock_get_ns(rtc_clock);
+            timer_mod_ns(s->timer,
+                         now + (int64_t)seconds * NANOSECONDS_PER_SECOND);
+        }
+    } else {
+        timer_del(s->timer);
+    }
+}
 
 static int pmu_d2255_event(I2CSlave *i2c, enum i2c_event event)
 {
@@ -101,6 +198,21 @@ static uint8_t pmu_d2255_rx(I2CSlave *i2c)
                       s->address, s->reg[s->address]);
         return 0x00;
     }
+
+    switch (s->address) {
+    case REG_DIALOG_RTC_SUB_SECOND_A ... REG_DIALOG_RTC_SUB_SECOND_A + 6: {
+        uint64_t now = rtc_get_tick(s, NULL);
+        s->reg[REG_DIALOG_RTC_SUB_SECOND_A] = now << 1;
+        s->reg[REG_DIALOG_RTC_SUB_SECOND_A + 1] = now >> 7;
+        s->reg[REG_DIALOG_RTC_SUB_SECOND_A + 2] = now >> 15;
+        s->reg[REG_DIALOG_RTC_SUB_SECOND_A + 3] = now >> 23;
+        s->reg[REG_DIALOG_RTC_SUB_SECOND_A + 4] = now >> 31;
+        s->reg[REG_DIALOG_RTC_SUB_SECOND_A + 5] = now >> 39;
+    }
+    default:
+        break;
+    }
+
     info_report("PMU D2255: 0x%X -> 0x%X.", s->address, s->reg[s->address]);
 
     return s->reg[s->address++];
@@ -146,8 +258,19 @@ static int pmu_d2255_tx(I2CSlave *i2c, uint8_t data)
             return -1;
         }
 
+
         info_report("PMU D2255: 0x%X <- 0x%X.", s->address, data);
         s->reg[s->address++] = data;
+
+        switch (s->address) {
+        case REG_DIALOG_RTC_CONTROL:
+            QEMU_FALLTHROUGH;
+        case REG_DIALOG_RTC_SUB_SECOND_A ... REG_DIALOG_RTC_SUB_SECOND_A + 4:
+            pmu_d2255_set_alarm(s);
+            break;
+        default:
+            break;
+        }
         break;
     }
     return 0;
@@ -162,8 +285,8 @@ static void pmu_d2255_reset(DeviceState *device)
     s->address = 0;
     s->address_state = PMU_ADDR_UPPER;
     memset(s->reg, 0, sizeof(s->reg));
-    memset(s->reg + DIALOG_MASK_REV_CODE, 0xFF,
-           DIALOG_DEVICE_ID7 - DIALOG_MASK_REV_CODE);
+    memset(s->reg + REG_DIALOG_MASK_REV_CODE, 0x01,
+           REG_DIALOG_DEVICE_ID7 - REG_DIALOG_MASK_REV_CODE);
 }
 
 static void pmu_d2255_class_init(ObjectClass *klass, void *data)
@@ -194,9 +317,22 @@ static void pmu_d2255_register_types(void)
 
 type_init(pmu_d2255_register_types);
 
-void pmu_d2255_create(MachineState *machine, uint8_t addr)
+PMUD2255State *pmu_d2255_create(MachineState *machine, uint8_t addr)
 {
-    AppleI2CState *i2c = APPLE_I2C(
+    AppleI2CState *i2c;
+    PMUD2255State *s;
+    DeviceState *dev;
+
+    i2c = APPLE_I2C(
         object_property_get_link(OBJECT(machine), "i2c0", &error_fatal));
-    i2c_slave_create_simple(i2c->bus, TYPE_PMU_D2255, addr);
+    s = PMU_D2255(i2c_slave_create_simple(i2c->bus, TYPE_PMU_D2255, addr));
+    dev = DEVICE(s);
+    s->tick_period = frq_to_period_ns(RTC_TICK_FREQ);
+    pmu_d2255_set_tick_offset(s, rtc_get_tick(s, &s->rtc_offset));
+
+    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, pmu_d2255_alarm, s);
+
+    qdev_init_gpio_out(dev, &s->irq, 1);
+
+    return s;
 }

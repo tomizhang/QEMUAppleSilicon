@@ -44,11 +44,15 @@ struct PMUD2255State {
     I2CSlave i2c;
 
     uint8_t reg[0x8800];
+    QEMUTimer *timer;
+    qemu_irq irq;
+    uint32_t tick_period;
+    uint64_t rtc_offset;
     enum PMUOpState op_state;
     uint16_t address;
     enum PMUAddrState address_state;
 };
 
-void pmu_d2255_create(MachineState *machine, uint8_t addr);
+PMUD2255State *pmu_d2255_create(MachineState *machine, uint8_t addr);
 
 #endif

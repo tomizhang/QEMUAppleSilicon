@@ -40,6 +40,7 @@
 #include "hw/nvram/apple_nvram.h"
 #include "hw/or-irq.h"
 #include "hw/platform-bus.h"
+#include "hw/qdev-core.h"
 #include "hw/ssi/apple_spi.h"
 #include "hw/usb/apple_otg.h"
 #include "hw/watchdog/apple_wdt.h"
@@ -988,18 +989,29 @@ static void s8000_create_sep(MachineState *machine)
     sysbus_realize_and_unref(SYS_BUS_DEVICE(tms->sep), &error_fatal);
 }
 
-static void s8000_pmu_create(MachineState *machine)
+static void s8000_create_pmu(MachineState *machine)
 {
     S8000MachineState *tms = S8000_MACHINE(machine);
     DTBNode *child;
     DTBProp *prop;
+    DeviceState *gpio;
+    PMUD2255State *pmu;
+    uint32_t *ints;
 
     child = find_dtb_node(tms->device_tree, "arm-io/i2c0/pmu");
     g_assert(child);
 
     prop = find_dtb_prop(child, "reg");
     g_assert(prop);
-    pmu_d2255_create(machine, *(uint32_t *)prop->value);
+    pmu = pmu_d2255_create(machine, *(uint32_t *)prop->value);
+
+    prop = find_dtb_prop(child, "interrupts");
+    g_assert(prop);
+    ints = (uint32_t *)prop->value;
+
+    gpio =
+        DEVICE(object_property_get_link(OBJECT(machine), "gpio", &error_fatal));
+    qdev_connect_gpio_out(DEVICE(pmu), 0, qdev_get_gpio_in(gpio, ints[0]));
 }
 
 static void s8000_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
@@ -1099,24 +1111,6 @@ static void s8000_machine_init(MachineState *machine)
                 BUILD_VERSION_MAJOR(build_version),
                 BUILD_VERSION_MINOR(build_version));
     tms->build_version = build_version;
-
-    // if (tms->rtbuddyv2_protocol_version == 0) {
-    //     switch (BUILD_VERSION_MAJOR(build_version)) {
-    //     case 13:
-    //         tms->rtbuddyv2_protocol_version = 10;
-    //         break;
-    //     case 14:
-    //         tms->rtbuddyv2_protocol_version = 11;
-    //         break;
-    //     case 15:
-    //         QEMU_FALLTHROUGH;
-    //     case 16:
-    //         tms->rtbuddyv2_protocol_version = 12;
-    //         break;
-    //     default:
-    //         break;
-    //     }
-    // }
 
     macho_highest_lowest(hdr, &kernel_low, &kernel_high);
     info_report("Kernel virtual low: 0x" TARGET_FMT_lx, kernel_low);
@@ -1228,7 +1222,7 @@ static void s8000_machine_init(MachineState *machine)
 
     s8000_create_sep(machine);
 
-    s8000_pmu_create(machine);
+    s8000_create_pmu(machine);
 
     tms->init_done_notifier.notify = s8000_machine_init_done;
     qemu_add_machine_init_done_notifier(&tms->init_done_notifier);
