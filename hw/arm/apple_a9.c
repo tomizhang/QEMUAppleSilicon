@@ -138,7 +138,7 @@ static void apple_a9_realize(DeviceState *dev, Error **errp)
     }
     qdev_connect_gpio_out(fiq_or, 0, qdev_get_gpio_in(dev, ARM_CPU_FIQ));
 
-    qdev_connect_gpio_out(dev, GTIMER_VIRT, qdev_get_gpio_in(fiq_or, 0));
+    qdev_connect_gpio_out(dev, GTIMER_PHYS, qdev_get_gpio_in(fiq_or, 0));
 }
 
 static void apple_a9_reset(DeviceState *dev)
