@@ -258,7 +258,6 @@ static int pmu_d2255_tx(I2CSlave *i2c, uint8_t data)
             return -1;
         }
 
-
         info_report("PMU D2255: 0x%X <- 0x%X.", s->address, data);
         s->reg[s->address++] = data;
 
@@ -285,7 +284,7 @@ static void pmu_d2255_reset(DeviceState *device)
     s->address = 0;
     s->address_state = PMU_ADDR_UPPER;
     memset(s->reg, 0, sizeof(s->reg));
-    memset(s->reg + REG_DIALOG_MASK_REV_CODE, 0x01,
+    memset(s->reg + REG_DIALOG_MASK_REV_CODE, 0xFF,
            REG_DIALOG_DEVICE_ID7 - REG_DIALOG_MASK_REV_CODE);
 }
 
