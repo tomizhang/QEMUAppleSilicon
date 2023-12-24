@@ -1170,7 +1170,7 @@ static void s8000_machine_init(MachineState *machine)
     set_dtb_prop(tms->device_tree, "regulatory-model-number", 32, buffer);
 
     child = get_dtb_node(tms->device_tree, "chosen");
-    data = 0x6000;
+    data = 0x8000;
     set_dtb_prop(child, "chip-id", 4, &data);
     data = 0x1; //! board-id ; match with apple_aes.c
     set_dtb_prop(child, "board-id", 4, &data);
