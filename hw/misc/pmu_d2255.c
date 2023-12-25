@@ -166,11 +166,15 @@ static int pmu_d2255_event(I2CSlave *i2c, enum i2c_event event)
         s->address_state = PMU_ADDR_UPPER;
         info_report("PMU D2255: send started.");
         return 0;
+    case I2C_START_SEND_ASYNC:
+        info_report("PMU D2255: async is not supported.");
+        return -1;
     case I2C_FINISH:
         s->op_state = PMU_OP_STATE_NONE;
         info_report("PMU D2255: transaction end.");
         return 0;
-    default:
+    case I2C_NACK:
+        info_report("PMU D2255: transaction nack.");
         return -1;
     }
 }
