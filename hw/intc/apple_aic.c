@@ -255,7 +255,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
                     qemu_irq_raise(o->irq);
                 }
             }
-        } break;
+            break;
+        }
 
         case rAIC_IPI_CLR: {
             int i;
@@ -270,7 +271,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             if (val & AIC_IPI_SELF) {
                 o->pendingIPI &= ~AIC_IPI_SELF;
             }
-        } break;
+            break;
+        }
 
         case rAIC_IPI_MASK_SET:
             o->ipi_mask |= (val & (AIC_IPI_NORMAL | AIC_IPI_SELF));
@@ -293,7 +295,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             if (val & AIC_IPI_SELF) {
                 o->deferredIPI |= AIC_IPI_SELF;
             }
-        } break;
+            break;
+        }
 
         case rAIC_IPI_DEFER_CLR: {
             int i;
@@ -308,7 +311,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             if (val & AIC_IPI_SELF) {
                 o->deferredIPI &= ~AIC_IPI_SELF;
             }
-        } break;
+            break;
+        }
 
         case rAIC_EIR_DEST(0)... rAIC_EIR_DEST(AIC_INT_COUNT): {
             uint32_t vector = (addr - rAIC_EIR_DEST(0)) / 4;
@@ -316,7 +320,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
                 break;
             }
             s->eir_dest[vector] = val;
-        } break;
+            break;
+        }
 
         case rAIC_EIR_SW_SET(0)... rAIC_EIR_SW_SET(kAIC_NUM_EIRS): {
             uint32_t eir = (addr - rAIC_EIR_SW_SET(0)) / 4;
@@ -324,7 +329,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
                 break;
             }
             s->eir_state[eir] |= val;
-        } break;
+            break;
+        }
 
         case rAIC_EIR_SW_CLR(0)... rAIC_EIR_SW_CLR(kAIC_NUM_EIRS): {
             uint32_t eir = (addr - rAIC_EIR_SW_CLR(0)) / 4;
@@ -332,7 +338,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
                 break;
             }
             s->eir_state[eir] &= ~val;
-        } break;
+            break;
+        }
 
         case rAIC_EIR_MASK_SET(0)... rAIC_EIR_MASK_SET(kAIC_NUM_EIRS): {
             uint32_t eir = (addr - rAIC_EIR_MASK_SET(0)) / 4;
@@ -340,7 +347,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
                 break;
             }
             s->eir_mask[eir] |= val;
-        } break;
+            break;
+        }
 
         case rAIC_EIR_MASK_CLR(0)... rAIC_EIR_MASK_CLR(kAIC_NUM_EIRS): {
             uint32_t eir = (addr - rAIC_EIR_MASK_CLR(0)) / 4;
@@ -363,7 +371,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             }
             s->eir_mask_once[eir] &= s->eir_mask[eir];
 #endif
-        } break;
+            break;
+        }
 
         case rAIC_WHOAMI_Pn(0)... rAIC_WHOAMI_Pn(AIC_CPU_COUNT) - 4: {
             uint32_t cpu = ((addr - 0x5000) / 0x80);
@@ -374,7 +383,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             qemu_mutex_unlock(&s->mutex);
             apple_aic_write(&s->cpus[cpu], addr, data, size);
             qemu_mutex_lock(&s->mutex);
-        } break;
+            break;
+        }
 
         default:
             qemu_log_mask(LOG_UNIMP,
