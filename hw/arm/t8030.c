@@ -27,6 +27,7 @@
 #include "hw/arm/boot.h"
 #include "hw/arm/t8030-config.c.inc"
 #include "hw/arm/t8030.h"
+#include "hw/arm/xnu_dtb.h"
 #include "hw/arm/xnu_mem.h"
 #include "hw/block/apple_ans.h"
 #include "hw/char/apple_uart.h"
@@ -69,6 +70,9 @@
 #define T8030_SEPROM_SIZE (0x4000000ULL)
 
 #define T8030_GPIO_FORCE_DFU (161)
+
+#define T8030_DISPLAY_BASE (T8030_DRAM_BASE + 0xF7FB4000)
+#define T8030_DISPLAY_SIZE (67 * 1024 * 1024)
 
 #define T8030_KERNEL_REGION_BASE (T8030_DRAM_BASE)
 #define T8030_KERNEL_REGION_SIZE (0xF000000ull)
@@ -1555,6 +1559,71 @@ static void t8030_roswell_create(MachineState *machine)
     apple_roswell_create(machine, *(uint32_t *)prop->value);
 }
 
+static void t8030_display_create(MachineState *machine)
+{
+    T8030MachineState *tms;
+    AppleDisplayPipeV2State *s;
+    SysBusDevice *sbd;
+    DTBNode *child;
+    uint64_t *reg;
+    DTBProp *prop;
+
+    tms = T8030_MACHINE(machine);
+
+    child = find_dtb_node(tms->device_tree, "arm-io/disp0");
+
+    s = apple_displaypipe_v2_create(machine, child);
+    sbd = SYS_BUS_DEVICE(s);
+    tms->video_args.base_addr = T8030_DISPLAY_BASE;
+    tms->video_args.row_bytes = s->width * 4;
+    tms->video_args.width = s->width;
+    tms->video_args.height = s->height;
+    tms->video_args.depth = 32 | ((2 - 1) << 16);
+    tms->video_args.display = 1;
+    if (xnu_contains_boot_arg(machine->kernel_cmdline, "-s", false) ||
+        xnu_contains_boot_arg(machine->kernel_cmdline, "-v", false)) {
+        tms->video_args.display = 0;
+    }
+
+    prop = find_dtb_prop(child, "reg");
+    g_assert(prop);
+    reg = (uint64_t *)prop->value;
+
+    sysbus_mmio_map(sbd, 0, tms->soc_base_pa + reg[0]);
+
+    prop = find_dtb_prop(child, "interrupts");
+    g_assert(prop);
+    uint32_t *ints = (uint32_t *)prop->value;
+
+    for (size_t i = 0; i < prop->length / sizeof(uint32_t); i++) {
+        sysbus_init_irq(sbd, &s->irqs[i]);
+        sysbus_connect_irq(sbd, i, qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+    }
+
+    AppleDARTState *dart = APPLE_DART(
+        object_property_get_link(OBJECT(machine), "dart-disp0", &error_fatal));
+    g_assert(dart);
+    child = find_dtb_node(tms->device_tree, "arm-io/dart-disp0/mapper-disp0");
+    g_assert(child);
+    prop = find_dtb_prop(child, "reg");
+    g_assert(prop);
+    s->dma_mr =
+        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->value));
+    g_assert(s->dma_mr);
+    g_assert(object_property_add_const_link(OBJECT(sbd), "dma_mr",
+                                            OBJECT(s->dma_mr)));
+    address_space_init(&s->dma_as, s->dma_mr, "disp0.dma");
+
+    memory_region_init_ram(&s->vram, OBJECT(sbd), "vram", T8030_DISPLAY_SIZE,
+                           &error_fatal);
+    memory_region_add_subregion_overlap(tms->sysmem, tms->video_args.base_addr,
+                                        &s->vram, 1);
+    object_property_add_const_link(OBJECT(sbd), "vram", OBJECT(&s->vram));
+    object_property_add_child(OBJECT(machine), "disp0", OBJECT(sbd));
+
+    sysbus_realize_and_unref(sbd, &error_fatal);
+}
+
 static void t8030_create_sep(MachineState *machine)
 {
     T8030MachineState *tms = T8030_MACHINE(machine);
@@ -1874,7 +1943,7 @@ static void t8030_machine_init(MachineState *machine)
 
     t8030_roswell_create(machine);
 
-    apple_displaypipe_v2_create(machine, "disp0");
+    t8030_display_create(machine);
 
     tms->init_done_notifier.notify = t8030_machine_init_done;
     qemu_add_machine_init_done_notifier(&tms->init_done_notifier);

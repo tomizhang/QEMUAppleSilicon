@@ -20,10 +20,8 @@
 
 #include "qemu/osdep.h"
 #include "hw/arm/apple_dart.h"
-#include "hw/arm/t8030.h"
 #include "hw/display/apple_displaypipe_v2.h"
 #include "hw/qdev-properties.h"
-#include "migration/vmstate.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "qemu/log.h"
@@ -200,85 +198,37 @@ static const MemoryRegionOps apple_displaypipe_v2_reg_ops = {
     .valid.unaligned = false,
 };
 
-void apple_displaypipe_v2_create(MachineState *machine, const char *name)
+AppleDisplayPipeV2State *apple_displaypipe_v2_create(MachineState *machine,
+                                                     DTBNode *node)
 {
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    DeviceState *dev = qdev_new(TYPE_APPLE_DISPLAYPIPE_V2);
-    SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
-    AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(sbd);
-    tms->video_args.base_addr = T8030_DISPLAY_BASE;
-    tms->video_args.row_bytes = s->width * 4;
-    tms->video_args.width = s->width;
-    tms->video_args.height = s->height;
-    tms->video_args.depth = 32 | ((2 - 1) << 16);
-    tms->video_args.display = 1;
-    s->id = name;
+    DeviceState *dev;
+    SysBusDevice *sbd;
+    AppleDisplayPipeV2State *s;
 
-    if (xnu_contains_boot_arg(machine->kernel_cmdline, "-s", false) ||
-        xnu_contains_boot_arg(machine->kernel_cmdline, "-v", false)) {
-        tms->video_args.display = 0;
-    }
+    dev = qdev_new(TYPE_APPLE_DISPLAYPIPE_V2);
+    sbd = SYS_BUS_DEVICE(dev);
+    s = APPLE_DISPLAYPIPE_V2(sbd);
 
-    DTBNode *armio = find_dtb_node(tms->device_tree, "arm-io");
-    assert(armio);
-    DTBNode *child = find_dtb_node(armio, name);
-    assert(child);
-    assert(set_dtb_prop(child, "display-target", 15, "DisplayTarget5"));
+    assert(set_dtb_prop(node, "display-target", 15, "DisplayTarget5"));
     uint32_t dispTimingInfo[] = { 0x33C, 0x90, 0x1, 0x1, 0x700, 0x1, 0x1, 0x1 };
-    assert(set_dtb_prop(child, "display-timing-info", sizeof(dispTimingInfo),
+    assert(set_dtb_prop(node, "display-timing-info", sizeof(dispTimingInfo),
                         &dispTimingInfo));
     uint32_t data = 0xD;
-    assert(set_dtb_prop(child, "bics-param-set", sizeof(data), &data));
+    assert(set_dtb_prop(node, "bics-param-set", sizeof(data), &data));
     uint32_t dot_pitch = 326;
-    assert(set_dtb_prop(child, "dot-pitch", sizeof(dot_pitch), &dot_pitch));
-    assert(set_dtb_prop(child, "function-brightness_update", 0, ""));
+    assert(set_dtb_prop(node, "dot-pitch", sizeof(dot_pitch), &dot_pitch));
+    assert(set_dtb_prop(node, "function-brightness_update", 0, ""));
 
-    DTBProp *prop = find_dtb_prop(child, "reg");
+    DTBProp *prop = find_dtb_prop(node, "reg");
     assert(prop);
     uint64_t *reg = (uint64_t *)prop->value;
     memory_region_init_io(&s->up_regs, OBJECT(sbd),
                           &apple_displaypipe_v2_reg_ops, sbd, "up.regs",
                           reg[1]);
     sysbus_init_mmio(sbd, &s->up_regs);
-    sysbus_mmio_map(sbd, 0, tms->soc_base_pa + reg[0]);
     object_property_add_const_link(OBJECT(sbd), "up.regs", OBJECT(&s->up_regs));
 
-    prop = find_dtb_prop(child, "interrupts");
-    assert(prop);
-    uint32_t *ints = (uint32_t *)prop->value;
-
-    for (size_t i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_init_irq(sbd, &s->irqs[i]);
-        sysbus_connect_irq(sbd, i, qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
-    }
-
-    g_autofree char *dart_name = g_strdup_printf("dart-%s", name);
-    AppleDARTState *dart = APPLE_DART(
-        object_property_get_link(OBJECT(machine), dart_name, &error_fatal));
-    assert(dart);
-    child = find_dtb_node(armio, dart_name);
-    assert(child);
-    g_autofree char *mapper_name = g_strdup_printf("mapper-%s", name);
-    child = find_dtb_node(child, mapper_name);
-    assert(child);
-    prop = find_dtb_prop(child, "reg");
-    assert(prop);
-    s->dma_mr =
-        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->value));
-    assert(s->dma_mr);
-    assert(object_property_add_const_link(OBJECT(sbd), "dma_mr",
-                                          OBJECT(s->dma_mr)));
-    g_autofree char *dma_name = g_strdup_printf("%s.dma", name);
-    address_space_init(&s->dma_as, s->dma_mr, dma_name);
-
-    memory_region_init_ram(&s->vram, OBJECT(sbd), "vram", T8030_DISPLAY_SIZE,
-                           &error_fatal);
-    memory_region_add_subregion_overlap(tms->sysmem, tms->video_args.base_addr,
-                                        &s->vram, 1);
-    object_property_add_const_link(OBJECT(sbd), "vram", OBJECT(&s->vram));
-    object_property_add_child(OBJECT(machine), name, OBJECT(sbd));
-
-    sysbus_realize_and_unref(sbd, &error_fatal);
+    return s;
 }
 
 static void apple_displaypipe_v2_draw_row(void *opaque, uint8_t *dest,
@@ -363,18 +313,6 @@ static void apple_displaypipe_v2_realize(DeviceState *dev, Error **errp)
     qemu_console_resize(s->console, s->width, s->height);
 }
 
-static const VMStateDescription vmstate_apple_displaypipe_v2 = {
-    .name = TYPE_APPLE_DISPLAYPIPE_V2,
-    .version_id = 1,
-    .minimum_version_id = 1,
-    .fields =
-        (VMStateField[]){
-            VMSTATE_UINT32(width, AppleDisplayPipeV2State),
-            VMSTATE_UINT32(height, AppleDisplayPipeV2State),
-            VMSTATE_END_OF_LIST(),
-        },
-};
-
 static Property apple_displaypipe_v2_props[] = {
     // iPhone 4/4S
     DEFINE_PROP_UINT32("width", AppleDisplayPipeV2State, width, 640),
@@ -392,7 +330,6 @@ static void apple_displaypipe_v2_class_init(ObjectClass *klass, void *data)
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
     device_class_set_props(dc, apple_displaypipe_v2_props);
     dc->realize = apple_displaypipe_v2_realize;
-    dc->vmsd = &vmstate_apple_displaypipe_v2;
 }
 
 static const TypeInfo apple_displaypipe_v2_type_info = {

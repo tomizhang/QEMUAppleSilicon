@@ -20,15 +20,13 @@
 #define APPLE_DISPLAYPIPE_V2_H
 
 #include "qemu/osdep.h"
+#include "hw/arm/xnu_dtb.h"
 #include "hw/irq.h"
 #include "hw/sysbus.h"
 #include "qemu/timer.h"
 #include "qom/object.h"
 #include "sysemu/dma.h"
 #include "ui/console.h"
-
-#define T8030_DISPLAY_BASE 0x8F7FB4000
-#define T8030_DISPLAY_SIZE (67 * 1024 * 1024)
 
 #define TYPE_APPLE_DISPLAYPIPE_V2 "apple-displaypipe-v2"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleDisplayPipeV2State, APPLE_DISPLAYPIPE_V2);
@@ -66,7 +64,6 @@ struct AppleDisplayPipeV2State {
     SysBusDevice parent_obj;
 
     /*< public >*/
-    const char *id;
     uint32_t width, height;
     MemoryRegion up_regs, vram;
     MemoryRegion *dma_mr;
@@ -79,6 +76,7 @@ struct AppleDisplayPipeV2State {
     QemuConsole *console;
 };
 
-void apple_displaypipe_v2_create(MachineState *machine, const char *name);
+AppleDisplayPipeV2State *apple_displaypipe_v2_create(MachineState *machine,
+                                                     DTBNode *node);
 
 #endif /* APPLE_DISPLAYPIPE_V2_H */
