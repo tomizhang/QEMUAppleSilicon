@@ -167,9 +167,9 @@ static void apple_displaypipe_v2_write(void *opaque, hwaddr addr, uint64_t data,
     default:
 #ifdef DEBUG_DISPLAYPIPE_V2
         qemu_log_mask(LOG_UNIMP,
-                      "%s: unknown write @ 0x" HWADDR_FMT_plx
+                      "disp0: unknown write @ 0x" HWADDR_FMT_plx
                       " value: 0x" HWADDR_FMT_plx "\n",
-                      s->id, addr, data);
+                      addr, data);
 #endif
         break;
     }
@@ -200,8 +200,8 @@ static uint64_t apple_displaypipe_v2_read(void *opaque, hwaddr addr,
 
     default:
 #ifdef DEBUG_DISPLAYPIPE_V2
-        qemu_log_mask(LOG_UNIMP, "%s: unknown read @ 0x" HWADDR_FMT_plx "\n",
-                      s->id, addr);
+        qemu_log_mask(LOG_UNIMP, "disp0: unknown read @ 0x" HWADDR_FMT_plx "\n",
+                      addr);
 #endif
         return 0;
     }
