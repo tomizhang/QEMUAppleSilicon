@@ -30,6 +30,8 @@
 #include "qemu/timer.h"
 #include "sysemu/sysemu.h"
 
+// #define DEBUG_PMU_D2255
+
 #define RTC_TICK_FREQ (32768)
 
 #define REG_DIALOG_ALARM_EVENT (0x142)
@@ -101,10 +103,14 @@ static void pmu_d2255_update_irq(PMUD2255State *s)
 {
     if (RREG32(REG_DIALOG_RTC_IRQ_MASK) & RREG32(REG_DIALOG_ALARM_EVENT)) {
         qemu_irq_raise(s->irq);
+#ifdef DEBUG_PMU_D2255
         info_report("PMU D2255: raised IRQ");
+#endif
     } else {
         qemu_irq_lower(s->irq);
+#ifdef DEBUG_PMU_D2255
         info_report("PMU D2255: lowered IRQ");
+#endif
     }
 }
 
@@ -151,7 +157,9 @@ static int pmu_d2255_event(I2CSlave *i2c, enum i2c_event event)
         }
 
         s->op_state = PMU_OP_STATE_RECV;
+#ifdef DEBUG_PMU_D2255
         info_report("PMU D2255: recv started.");
+#endif
         return 0;
     case I2C_START_SEND:
         if (s->op_state != PMU_OP_STATE_NONE) {
@@ -164,17 +172,25 @@ static int pmu_d2255_event(I2CSlave *i2c, enum i2c_event event)
         s->op_state = PMU_OP_STATE_SEND;
         s->address = 0;
         s->address_state = PMU_ADDR_UPPER;
+#ifdef DEBUG_PMU_D2255
         info_report("PMU D2255: send started.");
+#endif
         return 0;
     case I2C_START_SEND_ASYNC:
+#ifdef DEBUG_PMU_D2255
         info_report("PMU D2255: async is not supported.");
+#endif
         return -1;
     case I2C_FINISH:
         s->op_state = PMU_OP_STATE_NONE;
+#ifdef DEBUG_PMU_D2255
         info_report("PMU D2255: transaction end.");
+#endif
         return 0;
     case I2C_NACK:
+#ifdef DEBUG_PMU_D2255
         info_report("PMU D2255: transaction nack.");
+#endif
         return -1;
     }
 }
@@ -217,7 +233,9 @@ static uint8_t pmu_d2255_rx(I2CSlave *i2c)
         break;
     }
 
+#ifdef DEBUG_PMU_D2255
     info_report("PMU D2255: 0x%X -> 0x%X.", s->address, s->reg[s->address]);
+#endif
 
     return s->reg[s->address++];
 }
@@ -244,7 +262,9 @@ static int pmu_d2255_tx(I2CSlave *i2c, uint8_t data)
         s->address |= data;
         s->address = le16_to_cpu(s->address);
         s->address_state = PMU_ADDR_RECEIVED;
+#ifdef DEBUG_PMU_D2255
         info_report("PMU D2255: address set to 0x%X.", s->address);
+#endif
         break;
     case PMU_ADDR_RECEIVED:
         if (s->op_state == PMU_OP_STATE_RECV) {
@@ -262,7 +282,9 @@ static int pmu_d2255_tx(I2CSlave *i2c, uint8_t data)
             return -1;
         }
 
+#ifdef DEBUG_PMU_D2255
         info_report("PMU D2255: 0x%X <- 0x%X.", s->address, data);
+#endif
         s->reg[s->address++] = data;
 
         switch (s->address) {
