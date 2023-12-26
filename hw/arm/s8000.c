@@ -463,10 +463,12 @@ static void pmgr_unk_reg_write(void *opaque, hwaddr addr, uint64_t data,
                                unsigned size)
 {
     hwaddr base = (hwaddr)opaque;
+#if 0
     qemu_log_mask(LOG_UNIMP,
                   "PMGR reg WRITE unk @ 0x" TARGET_FMT_lx
                   " base: 0x" TARGET_FMT_lx " value: 0x" TARGET_FMT_lx "\n",
                   base + addr, base, data);
+#endif
 }
 
 static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
@@ -487,10 +489,12 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x102BC104: // ???? bit 24 => is fresh boot?
         return (1 << 24) | (1 << 25);
     default:
+#if 0
         qemu_log_mask(LOG_UNIMP,
                       "PMGR reg READ unk @ 0x" TARGET_FMT_lx
                       " base: 0x" TARGET_FMT_lx "\n",
                       base + addr, base);
+#endif
         break;
     }
     return 0;
@@ -508,10 +512,12 @@ static void pmgr_reg_write(void *opaque, hwaddr addr, uint64_t data,
     S8000MachineState *tms = S8000_MACHINE(opaque);
     uint32_t value = data;
 
+#if 0
     qemu_log_mask(LOG_UNIMP,
                   "PMGR reg WRITE @ 0x" TARGET_FMT_lx " value: 0x" TARGET_FMT_lx
                   "\n",
                   addr, data);
+#endif
 
     if (addr >= 0x80000 && addr <= 0x88010) {
         value = (value & 0xf) << 4 | (value & 0xf);
@@ -533,7 +539,9 @@ static uint64_t pmgr_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     S8000MachineState *tms = S8000_MACHINE(opaque);
     uint64_t result = 0;
+#if 0
     qemu_log_mask(LOG_UNIMP, "PMGR reg READ @ 0x" TARGET_FMT_lx "\n", addr);
+#endif
 
     memcpy(&result, tms->pmgr_reg + addr, size);
     return result;
