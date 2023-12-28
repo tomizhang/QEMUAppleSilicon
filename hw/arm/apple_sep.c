@@ -29,14 +29,44 @@
 #include "qemu/log.h"
 #include "qemu/units.h"
 
+#define REG_TRNG_FIFO_OUTPUT_BASE (0x00)
+#define REG_TRNG_FIFO_OUTPUT_END (0x0C)
+#define REG_TRNG_STATUS (0x10)
+#define TRNG_STATUS_FILLED BIT(0)
+#define REG_TRNG_CONFIG (0x14)
+#define TRNG_CONFIG_ENABLED BIT(19)
+#define TRNG_CONFIG_PERSONALISED BIT(20)
+#define REG_TRNG_AES_KEY_BASE (0x40)
+#define REG_TRNG_AES_KEY_END (0x5C)
+#define REG_TRNG_ECID_LOW (0x60)
+#define REG_TRNG_ECID_HI (0x64)
+
 static void trng_reg_write(void *opaque, hwaddr addr, uint64_t data,
                            unsigned size)
 {
+    AppleTRNGState *s;
+
+    s = (AppleTRNGState *)opaque;
+
     switch (addr) {
+    case REG_TRNG_CONFIG:
+        s->config = (uint32_t)data;
+        break;
+    case REG_TRNG_AES_KEY_BASE ... REG_TRNG_AES_KEY_END:
+        memcpy(s->key + (addr - REG_TRNG_AES_KEY_BASE), &data, size);
+        break;
+    case REG_TRNG_ECID_LOW:
+        s->ecid &= 0xFFFFFFFF00000000;
+        s->ecid |= data & 0xFFFFFFFF;
+        break;
+    case REG_TRNG_ECID_HI:
+        s->ecid &= 0x00000000FFFFFFFF;
+        s->ecid |= (data & 0xFFFFFFFF) << 32;
+        break;
     default:
         qemu_log_mask(LOG_UNIMP,
-                      "SEP TRNG: Unknown write at 0x" HWADDR_FMT_plx
-                      " with value 0x" HWADDR_FMT_plx "\n",
+                      "TRNG: Unknown write at 0x" HWADDR_FMT_plx
+                      " of value 0x" HWADDR_FMT_plx "\n",
                       addr, data);
         break;
     }
@@ -44,28 +74,33 @@ static void trng_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
 static uint64_t trng_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
-    uint64_t ret = 0;
+    AppleTRNGState *s;
+    uint64_t ret;
+
+    s = (AppleTRNGState *)opaque;
 
     switch (addr) {
-    case 0x00:
-    case 0x04:
-    case 0x08:
-    case 0x0C: { //! Fetch random bytes?
+    case REG_TRNG_FIFO_OUTPUT_BASE ... REG_TRNG_FIFO_OUTPUT_END: {
         uint64_t ret = 0;
         qcrypto_random_bytes(&ret, size, NULL);
         return ret;
     }
-    case 0x10: // ????
-        return 0x1;
-    case 0x14: // ????
-        return 0x100000;
+    case REG_TRNG_STATUS:
+        return TRNG_STATUS_FILLED;
+    case REG_TRNG_CONFIG:
+        return s->config;
+    case REG_TRNG_AES_KEY_BASE ... REG_TRNG_AES_KEY_END:
+        memcpy(&ret, s->key + addr - REG_TRNG_AES_KEY_BASE, size);
+        return ret;
+    case REG_TRNG_ECID_LOW:
+        return s->ecid & 0xFFFFFFFF;
+    case REG_TRNG_ECID_HI:
+        return (s->ecid & 0xFFFFFFFF00000000) >> 32;
     default:
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP TRNG: Unknown read at 0x" HWADDR_FMT_plx "\n", addr);
-        break;
+        qemu_log_mask(LOG_UNIMP, "TRNG: Unknown read at 0x" HWADDR_FMT_plx "\n",
+                      addr);
+        return 0;
     }
-
-    return ret;
 }
 
 static const MemoryRegionOps trng_reg_ops = {
@@ -271,7 +306,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->mbox));
 
     memory_region_init_io(&s->trng_mr, OBJECT(dev), &trng_reg_ops, s,
-                          "sep.trng", 0x100);
+                          "sep.trng", 0x10000);
     sysbus_init_mmio(sbd, &s->trng_mr);
     memory_region_init_io(&s->misc0_mr, OBJECT(dev), &misc0_reg_ops, s,
                           "sep.misc0", 0x100);

@@ -28,8 +28,14 @@
 #include "qemu/typedefs.h"
 #include "qom/object.h"
 
-#define TYPE_APPLE_SEP "apple.sep"
+#define TYPE_APPLE_SEP "secure-enclave"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleSEPState, APPLE_SEP)
+
+typedef struct {
+    uint8_t key[32];
+    uint64_t ecid;
+    uint32_t config;
+} AppleTRNGState;
 
 struct AppleSEPState {
     /*< private >*/
