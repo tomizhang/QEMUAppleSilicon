@@ -36,6 +36,7 @@
 #include "lzss.h"
 
 static const char *KEEP_COMP[] = {
+    "adbe0,s8000\0$",
     "aes,s8000\0$",
     "aic,1\0$",
     "apple,lightning\0ARM,v8\0$",
@@ -45,7 +46,7 @@ static const char *KEEP_COMP[] = {
     "arm-io,t8030\0$",
     "atc-phy,t8030\0atc-phy,t8027\0$",
     "buttons\0$",
-    "dart,s8000\0dart,s5l8960x\0$",
+    // "dart,s8000\0dart,s5l8960x\0$",
     "dart,t8020\0$",
     "disp0,t8030\0$",
     "gpio,s8000\0gpio,s5l8960x\0$",

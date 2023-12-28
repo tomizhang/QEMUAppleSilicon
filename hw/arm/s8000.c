@@ -30,6 +30,7 @@
 #include "hw/arm/s8000.h"
 #include "hw/arm/xnu_mem.h"
 #include "hw/block/apple_nvme_mmu.h"
+#include "hw/display/adbe_v2.h"
 #include "hw/gpio/apple_gpio.h"
 #include "hw/i2c/apple_i2c.h"
 #include "hw/intc/apple_aic.h"
@@ -1018,6 +1019,81 @@ static void s8000_create_pmu(MachineState *machine)
     qdev_connect_gpio_out(DEVICE(pmu), 0, qdev_get_gpio_in(gpio, ints[0]));
 }
 
+static void s8000_display_create(MachineState *machine)
+{
+    S8000MachineState *tms;
+    ADBEV2 *s;
+    SysBusDevice *sbd;
+    DTBNode *child;
+    uint64_t *reg;
+    DTBProp *prop;
+
+    tms = S8000_MACHINE(machine);
+
+    child = find_dtb_node(tms->device_tree, "arm-io/disp0");
+    g_assert(child);
+
+    prop = find_dtb_prop(child, "iommu-parent");
+    if (prop) {
+        remove_dtb_prop(child, prop);
+    }
+
+    s = adbe_v2_create(machine, child);
+    sbd = SYS_BUS_DEVICE(s);
+    tms->video.base_addr = S8000_DISPLAY_BASE;
+    tms->video.row_bytes = s->width * 4;
+    tms->video.width = s->width;
+    tms->video.height = s->height;
+    tms->video.depth = 32 | ((2 - 1) << 16);
+    tms->video.display = 1;
+    if (xnu_contains_boot_arg(machine->kernel_cmdline, "-s", false) ||
+        xnu_contains_boot_arg(machine->kernel_cmdline, "-v", false)) {
+        tms->video.display = 0;
+    }
+
+    prop = find_dtb_prop(child, "reg");
+    g_assert(prop);
+    reg = (uint64_t *)prop->value;
+
+    sysbus_mmio_map(sbd, 0, tms->soc_base_pa + reg[0]);
+    sysbus_mmio_map(sbd, 1, tms->soc_base_pa + reg[2]);
+    sysbus_mmio_map(sbd, 2, tms->soc_base_pa + reg[4]);
+    sysbus_mmio_map(sbd, 3, tms->soc_base_pa + reg[6]);
+    sysbus_mmio_map(sbd, 4, tms->soc_base_pa + reg[8]);
+    sysbus_mmio_map(sbd, 5, tms->soc_base_pa + reg[10]);
+
+    prop = find_dtb_prop(child, "interrupts");
+    g_assert(prop);
+    uint32_t *ints = (uint32_t *)prop->value;
+
+    for (size_t i = 0; i < prop->length / sizeof(uint32_t); i++) {
+        sysbus_init_irq(sbd, &s->irqs[i]);
+        sysbus_connect_irq(sbd, i, qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+    }
+
+    // AppleDARTState *dart = APPLE_DART(
+    //     object_property_get_link(OBJECT(machine), "dart-disp0",
+    //     &error_fatal));
+    // g_assert(dart);
+    // child = find_dtb_node(tms->device_tree,
+    // "arm-io/dart-disp0/mapper-disp0"); g_assert(child); prop =
+    // find_dtb_prop(child, "reg"); g_assert(prop); s->dma_mr =
+    //     MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->value));
+    // g_assert(s->dma_mr);
+    // g_assert(object_property_add_const_link(OBJECT(sbd), "dma_mr",
+    //                                         OBJECT(s->dma_mr)));
+    // address_space_init(&s->dma_as, s->dma_mr, "disp0.dma");
+
+    memory_region_init_ram(&s->vram, OBJECT(sbd), "vram", S8000_DISPLAY_SIZE,
+                           &error_fatal);
+    memory_region_add_subregion_overlap(tms->sysmem, tms->video.base_addr,
+                                        &s->vram, 1);
+    object_property_add_const_link(OBJECT(sbd), "vram", OBJECT(&s->vram));
+    object_property_add_child(OBJECT(machine), "disp0", OBJECT(sbd));
+
+    sysbus_realize_and_unref(sbd, &error_fatal);
+}
+
 static void s8000_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 {
     S8000MachineState *tms;
@@ -1225,6 +1301,8 @@ static void s8000_machine_init(MachineState *machine)
     s8000_create_sep(machine);
 
     s8000_create_pmu(machine);
+
+    s8000_display_create(machine);
 
     tms->init_done_notifier.notify = s8000_machine_init_done;
     qemu_add_machine_init_done_notifier(&tms->init_done_notifier);
