@@ -52,6 +52,7 @@ struct AppleSEPState {
     MemoryRegion misc0_mr;
     MemoryRegion misc1_mr;
     MemoryRegion misc2_mr;
+    AppleTRNGState trng_state;
     uint8_t misc0_regs[REG_SIZE];
     uint8_t misc1_regs[REG_SIZE];
     uint8_t misc2_regs[REG_SIZE];

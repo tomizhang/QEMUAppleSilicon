@@ -90,7 +90,7 @@ static uint64_t trng_reg_read(void *opaque, hwaddr addr, unsigned size)
     case REG_TRNG_CONFIG:
         return s->config;
     case REG_TRNG_AES_KEY_BASE ... REG_TRNG_AES_KEY_END:
-        memcpy(&ret, s->key + addr - REG_TRNG_AES_KEY_BASE, size);
+        memcpy(&ret, s->key + (addr - REG_TRNG_AES_KEY_BASE), size);
         return ret;
     case REG_TRNG_ECID_LOW:
         return s->ecid & 0xFFFFFFFF;
@@ -305,8 +305,8 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
                                                           APPLE_MBOX_MMIO_V2));
     sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->mbox));
 
-    memory_region_init_io(&s->trng_mr, OBJECT(dev), &trng_reg_ops, s,
-                          "sep.trng", 0x10000);
+    memory_region_init_io(&s->trng_mr, OBJECT(dev), &trng_reg_ops,
+                          &s->trng_state, "sep.trng", 0x10000);
     sysbus_init_mmio(sbd, &s->trng_mr);
     memory_region_init_io(&s->misc0_mr, OBJECT(dev), &misc0_reg_ops, s,
                           "sep.misc0", 0x100);
