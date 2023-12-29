@@ -1651,7 +1651,7 @@ static void t8030_create_sep(MachineState *machine)
     reg = (uint64_t *)prop->value;
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 0, tms->soc_base_pa + reg[0]);
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 1,
-                    tms->soc_base_pa + 0x41180000); // TRNG
+                    tms->soc_base_pa + 0x41100000); // TRNG
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 2,
                     tms->soc_base_pa + 0x41080000); // MISC0
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 3,
