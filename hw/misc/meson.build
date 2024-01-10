@@ -132,12 +132,12 @@ system_ss.add(when: 'CONFIG_NRF51_SOC', if_true: files('nrf51_rng.c'))
 
 system_ss.add(when: 'CONFIG_GRLIB', if_true: files('grlib_ahb_apb_pnp.c'))
 system_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
-    'apple_aes.c',
-    'apple_mbox.c',
-    'apple_smc.c',
-    'apple_roswell.c',
+    'apple-silicon/aes.c',
+    'apple-silicon/mailbox.c',
+    'apple-silicon/smc.c',
+    'apple-silicon/roswell.c',
     'pmu_d2255.c'))
-system_ss.add(when: 'CONFIG_APPLE_SPMI_PMU', if_true: files('apple_spmi_pmu.c'))
+system_ss.add(when: 'CONFIG_APPLE_SPMI_PMU', if_true: files('apple-silicon/spmi-pmu.c'))
 
 system_ss.add(when: 'CONFIG_I2C', if_true: files('i2c-echo.c'))
 

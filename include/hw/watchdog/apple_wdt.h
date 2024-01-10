@@ -2,7 +2,7 @@
 #define HW_WATCHDOG_APPLE_WDT_H
 
 #include "qemu/osdep.h"
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/sysbus.h"
 #include "qom/object.h"
 

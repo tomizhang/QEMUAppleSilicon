@@ -1,7 +1,7 @@
 #ifndef APPLE_SPI_H
 #define APPLE_SPI_H
 
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/ssi/ssi.h"
 #include "hw/sysbus.h"
 #include "qom/object.h"

@@ -20,7 +20,7 @@
 #define APPLE_DISPLAYPIPE_V2_H
 
 #include "qemu/osdep.h"
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/irq.h"
 #include "hw/sysbus.h"
 #include "qemu/timer.h"

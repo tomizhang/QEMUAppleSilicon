@@ -2,8 +2,8 @@
 #define APPLE_SIO_H
 
 #include "qemu/osdep.h"
-#include "hw/arm/xnu_dtb.h"
-#include "hw/misc/apple_mbox.h"
+#include "hw/arm/apple-silicon/dtb.h"
+#include "hw/misc/apple-silicon/mailbox.h"
 #include "hw/sysbus.h"
 #include "qemu/iov.h"
 #include "qom/object.h"

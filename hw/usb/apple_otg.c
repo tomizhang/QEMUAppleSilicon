@@ -1,5 +1,5 @@
 #include "qemu/osdep.h"
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/irq.h"
 #include "hw/qdev-properties.h"
 #include "hw/usb/apple_otg.h"

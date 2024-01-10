@@ -2,7 +2,7 @@
 #define HW_SPMI_APPLE_SPMI_H
 
 #include "qemu/osdep.h"
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/spmi/spmi.h"
 #include "hw/sysbus.h"
 #include "qemu/fifo32.h"

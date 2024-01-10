@@ -1,5 +1,5 @@
 #include "qemu/osdep.h"
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/i2c/apple_soft_i2c.h"
 #include "hw/i2c/bitbang_i2c.h"
 #include "hw/i2c/i2c.h"

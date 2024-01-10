@@ -1,7 +1,7 @@
 #ifndef APPLE_OTG_H
 #define APPLE_OTG_H
 
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/sysbus.h"
 #include "hw/usb/hcd-dwc2.h"
 #include "hw/usb/hcd-tcp.h"

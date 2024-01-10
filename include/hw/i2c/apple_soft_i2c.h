@@ -1,7 +1,7 @@
 #ifndef APPLE_SOFT_I2C_H
 #define APPLE_SOFT_I2C_H
 
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/i2c/bitbang_i2c.h"
 #include "hw/sysbus.h"
 #include "qom/object.h"

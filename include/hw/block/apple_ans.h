@@ -1,7 +1,7 @@
 #ifndef APPLE_ANS_H
 #define APPLE_ANS_H
 
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/sysbus.h"
 #include "qemu/queue.h"
 #include "qom/object.h"

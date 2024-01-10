@@ -20,7 +20,7 @@
 #ifndef HW_BLOCK_APPLE_NVME_MMU_H
 #define HW_BLOCK_APPLE_NVME_MMU_H
 
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/nvme/nvme.h"
 #include "hw/pci/pcie_host.h"
 

@@ -19,7 +19,7 @@
  */
 
 #include "qemu/osdep.h"
-#include "hw/arm/apple_dart.h"
+#include "hw/arm/apple-silicon/dart.h"
 #include "hw/display/apple_displaypipe_v2.h"
 #include "hw/qdev-properties.h"
 #include "qapi/error.h"
@@ -256,13 +256,8 @@ static void apple_displaypipe_v2_draw_row(void *opaque, uint8_t *dest,
                                           int dest_pitch)
 {
     while (width--) {
-        /* Load using endian-safe loads */
         uint32_t colour = ldl_le_p(src);
-        /* Increment source pointer */
         src += sizeof(colour);
-
-        /* Blit it to the display output now that it's converted */
-        /* FIXME this might not be endian-safe but the rest should be */
         memcpy(dest, &colour, sizeof(colour));
         dest += sizeof(colour);
     }

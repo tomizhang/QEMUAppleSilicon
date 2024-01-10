@@ -1,20 +1,20 @@
 arm_ss = ss.source_set()
 arm_ss.add(files('boot.c'), fdt)
 arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
-    's8000.c',
-    't8030.c',
-    'apple_a13.c',
-    'apple_a13_gxf.c',
-    'apple_a9.c',
-    'apple_sep.c',
-    'xnu_dtb.c',
-    'xnu_mem.c',
-    'xnu.c',
+    'apple-silicon/s8000.c',
+    'apple-silicon/t8030.c',
+    'apple-silicon/a13.c',
+    'apple-silicon/a13_gxf.c',
+    'apple-silicon/a9.c',
+    'apple-silicon/sep.c',
+    'apple-silicon/dtb.c',
+    'apple-silicon/mem.c',
+    'apple-silicon/boot.c',
 ))
 arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: tasn1)
-arm_ss.add(when: 'CONFIG_APPLE_DART', if_true: files('apple_dart.c'),
-                                      if_false: files('apple_dart-stub.c'))
-arm_ss.add(when: 'CONFIG_APPLE_SART', if_true: files('apple_sart.c'))
+arm_ss.add(when: 'CONFIG_APPLE_DART', if_true: files('apple-silicon/dart.c'),
+                                      if_false: files('apple-silicon/dart-stub.c'))
+arm_ss.add(when: 'CONFIG_APPLE_SART', if_true: files('apple-silicon/sart.c'))
 arm_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('virt.c'))
 arm_ss.add(when: 'CONFIG_ACPI', if_true: files('virt-acpi-build.c'))
 arm_ss.add(when: 'CONFIG_DIGIC', if_true: files('digic_boards.c'))

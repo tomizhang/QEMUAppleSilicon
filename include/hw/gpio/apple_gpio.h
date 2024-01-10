@@ -1,7 +1,7 @@
 #ifndef APPLE_GPIO_H
 #define APPLE_GPIO_H
 
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/sysbus.h"
 #include "qom/object.h"
 

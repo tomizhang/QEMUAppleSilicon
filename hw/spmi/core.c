@@ -8,8 +8,8 @@
  */
 
 #include "qemu/osdep.h"
-#include "hw/spmi/spmi.h"
 #include "hw/qdev-properties.h"
+#include "hw/spmi/spmi.h"
 #include "migration/vmstate.h"
 #include "qapi/error.h"
 #include "qemu/module.h"
@@ -43,10 +43,11 @@ static const VMStateDescription vmstate_spmi_bus = {
     .version_id = 1,
     .minimum_version_id = 1,
     .pre_save = spmi_bus_pre_save,
-    .fields = (VMStateField[]) {
-        VMSTATE_UINT8(saved_sid, SPMIBus),
-        VMSTATE_END_OF_LIST()
-    }
+    .fields =
+        (VMStateField[]){
+            VMSTATE_UINT8(saved_sid, SPMIBus),
+            VMSTATE_END_OF_LIST(),
+        },
 };
 
 /* Create a new SPMI bus.  */
@@ -91,7 +92,7 @@ int spmi_start_transfer(SPMIBus *bus, uint8_t sid, uint8_t opcode,
      * the middle of a transaction and we shouldn't rescan the bus.
      */
     if (!bus->current_dev) {
-        QTAILQ_FOREACH(kid, &bus->qbus.children, sibling) {
+        QTAILQ_FOREACH (kid, &bus->qbus.children, sibling) {
             DeviceState *qdev = kid->child;
             SPMISlave *candidate = SPMI_SLAVE(qdev);
             if (candidate->sid == sid) {
@@ -200,10 +201,11 @@ const VMStateDescription vmstate_spmi_slave = {
     .version_id = 1,
     .minimum_version_id = 1,
     .post_load = spmi_slave_post_load,
-    .fields = (VMStateField[]) {
-        VMSTATE_UINT8(sid, SPMISlave),
-        VMSTATE_END_OF_LIST()
-    }
+    .fields =
+        (VMStateField[]){
+            VMSTATE_UINT8(sid, SPMISlave),
+            VMSTATE_END_OF_LIST(),
+        },
 };
 
 SPMISlave *spmi_slave_new(const char *name, uint8_t sid)

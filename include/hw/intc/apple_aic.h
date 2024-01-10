@@ -1,7 +1,7 @@
 #ifndef APPLE_AIC_H
 #define APPLE_AIC_H
 
-#include "hw/arm/xnu_dtb.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/sysbus.h"
 #include "qom/object.h"
 
