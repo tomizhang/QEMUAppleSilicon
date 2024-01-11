@@ -1080,7 +1080,6 @@ static inline void define_cortex_a72_a57_a53_cp_reginfo(ARMCPU *cpu) { }
 void define_cortex_a72_a57_a53_cp_reginfo(ARMCPU *cpu);
 #endif
 
+CPAccessResult access_tvm_trvm(CPUARMState *, const ARMCPRegInfo *, bool);
 
-CPAccessResult access_tvm_trvm(CPUARMState *env, const ARMCPRegInfo *ri,
-                               bool isread);
 #endif /* TARGET_ARM_CPREGS_H */

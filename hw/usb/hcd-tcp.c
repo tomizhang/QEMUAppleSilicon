@@ -28,14 +28,13 @@ static void usb_tcp_host_closed(USBTCPHostState *s)
 {
     DPRINTF("%s\n", __func__);
     if (s->ioc) {
-        qio_channel_detach_aio_context(s->ioc);
         qio_channel_shutdown(s->ioc, QIO_CHANNEL_SHUTDOWN_BOTH, NULL);
         qio_channel_close(s->ioc, NULL);
         object_unref(OBJECT(s->ioc));
         s->ioc = NULL;
     }
     s->closed = true;
-    migrate_del_blocker(s->migration_blocker);
+    migrate_del_blocker(&s->migration_blocker);
 }
 
 static ssize_t tcp_usb_read(QIOChannel *ioc, void *buf, size_t len)
@@ -288,7 +287,7 @@ static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
                     usb_tcp_host_respond_packet(s, pkt);
                 } else {
                     warn_report("%s: TCP_USB_CANCEL: packet"
-                                " pid: 0x%x ep: %d id: 0x%lx not found",
+                                " pid: 0x%x ep: %d id: 0x%llx not found",
                                 __func__, pkt_hdr.pid, pkt_hdr.ep, pkt_hdr.id);
                 }
                 break;
@@ -362,7 +361,7 @@ static void usb_tcp_host_attach(USBPort *uport)
     s->closed = 0;
     s->ioc = ioc;
 
-    migrate_add_blocker(s->migration_blocker, NULL);
+    migrate_add_blocker(&s->migration_blocker, NULL);
     co = qemu_coroutine_create(usb_tcp_host_msg_loop_co, s);
     qemu_coroutine_enter(co);
 }

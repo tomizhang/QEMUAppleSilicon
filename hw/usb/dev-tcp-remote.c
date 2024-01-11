@@ -105,7 +105,7 @@ static void usb_tcp_remote_cleanup(void *opaque)
     }
 
     qemu_cond_broadcast(&s->cond);
-    migrate_del_blocker(s->migration_blocker);
+    migrate_del_blocker(&s->migration_blocker);
 }
 
 static void usb_tcp_remote_update_addr_bh(void *opaque)
@@ -359,7 +359,7 @@ static void *usb_tcp_remote_thread(void *arg)
                 DPRINTF("%s: accept error %d.\n", __func__, errno);
                 continue;
             }
-            migrate_add_blocker(s->migration_blocker, NULL);
+            migrate_add_blocker(&s->migration_blocker, NULL);
 
             s->closed = 0;
 
