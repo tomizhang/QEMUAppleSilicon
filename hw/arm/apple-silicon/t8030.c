@@ -482,7 +482,7 @@ static void pmgr_unk_reg_write(void *opaque, hwaddr addr, uint64_t data,
                                unsigned size)
 {
     hwaddr base = (hwaddr)opaque;
-#if 1
+#if 0
     qemu_log_mask(LOG_UNIMP,
                   "PMGR reg WRITE unk @ 0x" TARGET_FMT_lx
                   " base: 0x" TARGET_FMT_lx " value: 0x" TARGET_FMT_lx "\n",
@@ -494,7 +494,7 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     hwaddr base = (hwaddr)opaque;
 
-#if 1
+#if 0
     qemu_log_mask(LOG_UNIMP,
                   "PMGR reg READ unk @ 0x" TARGET_FMT_lx
                   " base: 0x" TARGET_FMT_lx "\n",
@@ -560,7 +560,7 @@ static void pmgr_reg_write(void *opaque, hwaddr addr, uint64_t data,
     if (addr >= 0x80000 && addr <= 0x8C000) {
         value = (value & 0xF) << 4 | (value & 0xF);
     }
-#if 1
+#if 0
     qemu_log_mask(LOG_UNIMP,
                   "PMGR reg WRITE @ 0x" TARGET_FMT_lx " value: 0x" TARGET_FMT_lx
                   "\n",
@@ -597,7 +597,7 @@ static uint64_t pmgr_reg_read(void *opaque, hwaddr addr, unsigned size)
         memcpy(&result, tms->pmgr_reg + addr, size);
         break;
     }
-#if 1
+#if 0
     qemu_log_mask(LOG_UNIMP,
                   "PMGR reg READ @ 0x" TARGET_FMT_lx " value: 0x" TARGET_FMT_lx
                   "\n",
