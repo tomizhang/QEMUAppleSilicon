@@ -297,7 +297,6 @@ static void apple_rtbuddy_iop_wakeup(AppleA7IOP *s)
         rtb->ops->wakeup(rtb->opaque);
     }
 
-
     apple_rtbuddy_mgmt_send_hello(rtb);
 }
 
