@@ -6,6 +6,7 @@
 #include "hw/sysbus.h"
 #include "qom/object.h"
 
-SysBusDevice *apple_smc_create(DTBNode *node, uint32_t protocol_version);
+SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
+                               uint32_t protocol_version);
 
 #endif /* HW_MISC_APPLE_SILICON_SMC_H */

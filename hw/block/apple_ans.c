@@ -4,7 +4,7 @@
 #include "hw/block/apple_ans.h"
 #include "hw/block/block.h"
 #include "hw/irq.h"
-#include "hw/misc/apple-silicon/mailbox.h"
+#include "hw/misc/apple-silicon/a7iop/rtbuddy.h"
 #include "hw/nvme/nvme.h"
 #include "hw/pci/msi.h"
 #include "hw/pci/msix.h"
@@ -62,7 +62,7 @@ struct AppleANSState {
     MemoryRegion io_mmio;
     MemoryRegion io_ioport;
     MemoryRegion msix;
-    AppleMboxState *mbox;
+    AppleRTBuddy *rtb;
     qemu_irq irq;
 
     NvmeCtrl nvme;
@@ -186,12 +186,13 @@ static void apple_ans_ep_handler(void *opaque, uint32_t ep, uint64_t msg)
     ANS_LOG_MSG(ep, msg);
 }
 
-static const struct AppleMboxOps ans_mailbox_ops = {
+static const AppleRTBuddyOps ans_mailbox_ops = {
     .start = apple_ans_start,
     .wakeup = apple_ans_start,
 };
 
-SysBusDevice *apple_ans_create(DTBNode *node, uint32_t protocol_version)
+SysBusDevice *apple_ans_create(DTBNode *node, AppleA7IOPVersion version,
+                               uint32_t protocol_version)
 {
     DeviceState *dev;
     AppleANSState *s;
@@ -215,11 +216,11 @@ SysBusDevice *apple_ans_create(DTBNode *node, uint32_t protocol_version)
 
     reg = (uint64_t *)prop->value;
 
-    s->mbox = apple_mbox_create("ANS2", s, reg[1], protocol_version,
-                                &ans_mailbox_ops);
-    object_property_add_child(OBJECT(s), "mbox", OBJECT(s->mbox));
-    apple_mbox_register_endpoint(s->mbox, 1, apple_ans_ep_handler);
-    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox), 0));
+    s->rtb = apple_rtbuddy_new(s, "ANS2", reg[1], version, protocol_version,
+                               &ans_mailbox_ops);
+    object_property_add_child(OBJECT(s), "rtbuddy", OBJECT(s->rtb));
+    apple_rtbuddy_register_user_ep(s->rtb, 0, s, apple_ans_ep_handler);
+    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->rtb), 0));
 
     memory_region_init_io(&s->iomems[1], OBJECT(dev), &ascv2_core_reg_ops, s,
                           TYPE_APPLE_ANS ".ascv2-core-reg", reg[3]);
@@ -229,7 +230,7 @@ SysBusDevice *apple_ans_create(DTBNode *node, uint32_t protocol_version)
                           TYPE_APPLE_ANS ".iop-autoboot-reg", reg[5]);
     sysbus_init_mmio(sbd, &s->iomems[2]);
 
-    sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->mbox));
+    sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->rtb));
     sysbus_init_irq(sbd, &s->irq);
 
     child = get_dtb_node(node, "iop-ans-nub");
@@ -278,14 +279,14 @@ static void apple_ans_realize(DeviceState *dev, Error **errp)
 
     pci_realize_and_unref(PCI_DEVICE(&s->nvme), pci->bus, &error_fatal);
 
-    sysbus_realize(SYS_BUS_DEVICE(s->mbox), errp);
+    sysbus_realize(SYS_BUS_DEVICE(s->rtb), errp);
 }
 
 static void apple_ans_unrealize(DeviceState *dev)
 {
     AppleANSState *s = APPLE_ANS(dev);
 
-    qdev_unrealize(DEVICE(s->mbox));
+    qdev_unrealize(DEVICE(s->rtb));
 }
 
 static int apple_ans_post_load(void *opaque, int version_id)

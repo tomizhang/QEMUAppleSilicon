@@ -1,0 +1,16 @@
+# mailbox.c
+
+apple_a7iop_mailbox_send(const char *role, uint8_t endpoint, uint64_t qword0, uint64_t qword1) "%s EP%d QWORD0 0x%016" PRIx64 " QWORD1 0x%016" PRIx64
+apple_a7iop_mailbox_recv(const char *role, uint8_t endpoint, uint64_t qword0, uint64_t qword1) "%s EP%d QWORD0 0x%016" PRIx64 " QWORD1 0x%016" PRIx64
+
+# core.c
+
+apple_a7iop_update_ap_irq(const char *role, bool a2i_empty, bool i2a_empty, bool a2i_nonempty_masked, bool a2i_empty_masked, bool i2a_nonempty_masked, bool i2a_empty_masked) "%s a2i_empty %d i2a_empty %d a2i_nonempty_masked %d a2i_empty_masked %d i2a_nonempty_masked %d i2a_empty_masked %d"
+
+# rtbuddy.c
+
+apple_rtbuddy_handle_mgmt_msg(const char *role, uint64_t raw, int state) "%s 0x%016" PRIx64 " state %d" 
+apple_rtbuddy_rollcall_finished(const char *role) "%s"
+apple_rtbuddy_mgmt_send_hello(const char *role) "%s"
+apple_rtbuddy_iop_start(const char *role) "%s"
+apple_rtbuddy_iop_wakeup(const char *role) "%s"

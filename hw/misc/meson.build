@@ -142,7 +142,11 @@ system_ss.add(when: 'CONFIG_NRF51_SOC', if_true: files('nrf51_rng.c'))
 system_ss.add(when: 'CONFIG_GRLIB', if_true: files('grlib_ahb_apb_pnp.c'))
 system_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
     'apple-silicon/aes.c',
-    'apple-silicon/mailbox.c',
+    'apple-silicon/a7iop/core.c',
+    'apple-silicon/a7iop/mailbox.c',
+    'apple-silicon/a7iop/regs_v2.c',
+    'apple-silicon/a7iop/regs_v4.c',
+    'apple-silicon/a7iop/rtbuddy.c',
     'apple-silicon/smc.c',
     'apple-silicon/roswell.c',
     'pmu_d2255.c'))

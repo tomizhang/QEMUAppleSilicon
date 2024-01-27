@@ -21,9 +21,10 @@
 #include "crypto/random.h"
 #include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/a9.h"
-#include "hw/arm/apple-silicon/sep.h"
 #include "hw/arm/apple-silicon/boot.h"
+#include "hw/arm/apple-silicon/sep.h"
 #include "hw/core/cpu.h"
+#include "hw/misc/apple-silicon/a7iop/core.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "qemu/log.h"
@@ -261,23 +262,30 @@ static const MemoryRegionOps misc2_reg_ops = {
 };
 
 
-static const struct AppleMboxOps sep_mailbox_ops = {};
-
 AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
                                 uint32_t build_version, bool modern)
 {
     DeviceState *dev;
+    AppleA7IOP *a7iop;
     AppleSEPState *s;
     SysBusDevice *sbd;
     DTBProp *prop;
     uint64_t *reg;
 
     dev = qdev_new(TYPE_APPLE_SEP);
+    a7iop = APPLE_A7IOP(dev);
     s = APPLE_SEP(dev);
+    sbd = SYS_BUS_DEVICE(dev);
+
+    prop = find_dtb_prop(node, "reg");
+    g_assert(prop);
+    reg = (uint64_t *)prop->value;
+
+    apple_a7iop_init(a7iop, "SEP", reg[1],
+                     modern ? APPLE_A7IOP_V4 : APPLE_A7IOP_V2, NULL, NULL);
     s->base = base;
     s->modern = modern;
 
-    sbd = SYS_BUS_DEVICE(dev);
     if (modern) {
         s->cpu = ARM_CPU(apple_a13_cpu_create(NULL, g_strdup("sep-cpu"), cpu_id,
                                               0, -1, 'P'));
@@ -288,22 +296,6 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     }
     object_property_set_uint(OBJECT(s->cpu), "rvbar", s->base & ~0xFFF, NULL);
     object_property_add_child(OBJECT(dev), DEVICE(s->cpu)->id, OBJECT(s->cpu));
-
-    prop = find_dtb_prop(node, "reg");
-    g_assert(prop);
-    reg = (uint64_t *)prop->value;
-
-    s->mbox = apple_mbox_create("SEP", s, reg[1],
-                                BUILD_VERSION_MAJOR(build_version) - 3,
-                                &sep_mailbox_ops);
-    apple_mbox_set_real(s->mbox, true);
-
-    object_property_add_child(OBJECT(s), "mbox", OBJECT(s->mbox));
-
-    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox),
-                                                 modern ? APPLE_MBOX_MMIO_V3 :
-                                                          APPLE_MBOX_MMIO_V2));
-    sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->mbox));
 
     memory_region_init_io(&s->trng_mr, OBJECT(dev), &trng_reg_ops,
                           &s->trng_state, "sep.trng", 0x10000);
@@ -318,7 +310,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
                           "sep.misc2", 0x100);
     sysbus_init_mmio(sbd, &s->misc2_mr);
     DTBNode *child = find_dtb_node(node, "iop-sep-nub");
-    assert(child);
+    g_assert(child);
     //! SEPFW needs to be loaded by restore, supposedly
     // uint32_t data = 1;
     // set_dtb_prop(child, "sepfw-loaded", sizeof(data), &data);
@@ -332,44 +324,49 @@ static void apple_sep_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
     cpu_set_pc(cpu, s->base);
 }
 
-static void apple_sep_reset(DeviceState *dev)
-{
-    AppleSEPState *s = APPLE_SEP(dev);
-    run_on_cpu(CPU(s->cpu), apple_sep_cpu_reset_work, RUN_ON_CPU_HOST_PTR(s));
-}
-
 static void apple_sep_realize(DeviceState *dev, Error **errp)
 {
-    AppleSEPState *s = APPLE_SEP(dev);
-    sysbus_realize(SYS_BUS_DEVICE(s->mbox), errp);
-    qdev_realize(DEVICE(s->cpu), NULL, errp);
+    AppleSEPState *s;
+    AppleSEPClass *sc;
 
-    qdev_connect_gpio_out_named(DEVICE(s->mbox), APPLE_MBOX_IOP_IRQ, 0,
+    s = APPLE_SEP(dev);
+    sc = APPLE_SEP_GET_CLASS(dev);
+    if (sc->parent_realize) {
+        sc->parent_realize(dev, errp);
+    }
+    qdev_realize(DEVICE(s->cpu), NULL, errp);
+    qdev_connect_gpio_out_named(dev, APPLE_A7IOP_IOP_IRQ, 0,
                                 qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_IRQ));
 }
 
-static void apple_sep_unrealize(DeviceState *dev)
+static void apple_sep_reset(DeviceState *dev)
 {
-    AppleSEPState *s = APPLE_SEP(dev);
+    AppleSEPState *s;
+    AppleSEPClass *sc;
 
-    qdev_unrealize(DEVICE(s->mbox));
+    s = APPLE_SEP(dev);
+    sc = APPLE_SEP_GET_CLASS(dev);
+    if (sc->parent_reset) {
+        sc->parent_reset(dev);
+    }
+    run_on_cpu(CPU(s->cpu), apple_sep_cpu_reset_work, RUN_ON_CPU_HOST_PTR(s));
 }
 
 static void apple_sep_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
-
-    dc->realize = apple_sep_realize;
-    dc->unrealize = apple_sep_unrealize;
-    dc->reset = apple_sep_reset;
+    AppleSEPClass *sc = APPLE_SEP_CLASS(klass);
+    device_class_set_parent_realize(dc, apple_sep_realize, &sc->parent_realize);
+    device_class_set_parent_reset(dc, apple_sep_reset, &sc->parent_reset);
     dc->desc = "Apple SEP";
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }
 
 static const TypeInfo apple_sep_info = {
     .name = TYPE_APPLE_SEP,
-    .parent = TYPE_SYS_BUS_DEVICE,
+    .parent = TYPE_APPLE_A7IOP,
     .instance_size = sizeof(AppleSEPState),
+    .class_size = sizeof(AppleSEPClass),
     .class_init = apple_sep_class_init,
 };
 

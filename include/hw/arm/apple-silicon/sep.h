@@ -23,13 +23,13 @@
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/misc/apple-silicon/mailbox.h"
+#include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/sysbus.h"
 #include "qemu/typedefs.h"
 #include "qom/object.h"
 
 #define TYPE_APPLE_SEP "secure-enclave"
-OBJECT_DECLARE_SIMPLE_TYPE(AppleSEPState, APPLE_SEP)
+OBJECT_DECLARE_TYPE(AppleSEPState, AppleSEPClass, APPLE_SEP)
 
 typedef struct {
     uint8_t key[32];
@@ -37,15 +37,25 @@ typedef struct {
     uint32_t config;
 } AppleTRNGState;
 
+#define REG_SIZE (0x10000)
+
+struct AppleSEPClass {
+    /*< private >*/
+    SysBusDeviceClass base_class;
+
+    /*< public >*/
+    DeviceRealize parent_realize;
+    DeviceReset parent_reset;
+};
+
 struct AppleSEPState {
     /*< private >*/
-    SysBusDevice parent_obj;
+    AppleA7IOP parent_obj;
 
     /*< public >*/
     vaddr base;
     ARMCPU *cpu;
     bool modern;
-    AppleMboxState *mbox;
     MemoryRegion *dma_mr;
     AddressSpace *dma_as;
     MemoryRegion trng_mr;

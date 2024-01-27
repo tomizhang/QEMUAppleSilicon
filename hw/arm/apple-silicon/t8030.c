@@ -1019,7 +1019,7 @@ static void t8030_create_ans(MachineState *machine)
     sart = SYS_BUS_DEVICE(
         object_property_get_link(OBJECT(machine), "sart-ans", &error_fatal));
 
-    ans = apple_ans_create(child, tms->rtbuddy_protocol_ver);
+    ans = apple_ans_create(child, APPLE_A7IOP_V4, tms->rtbuddy_protocol_ver);
     g_assert(ans);
     g_assert(object_property_add_const_link(
         OBJECT(ans), "dma-mr", OBJECT(sysbus_mmio_get_region(sart, 1))));
@@ -1446,7 +1446,7 @@ static void t8030_create_smc(MachineState *machine)
     data = T8030_SMC_SRAM_BASE;
     set_dtb_prop(iop_nub, "sram-addr", sizeof(data), &data);
 
-    smc = apple_smc_create(child, tms->rtbuddy_protocol_ver);
+    smc = apple_smc_create(child, APPLE_A7IOP_V4, tms->rtbuddy_protocol_ver);
     g_assert(smc);
 
     object_property_add_child(OBJECT(machine), "smc", OBJECT(smc));
@@ -1511,7 +1511,7 @@ static void t8030_create_sio(MachineState *machine)
     set_dtb_prop(child, "segment-ranges", sizeof(segranges), segranges);
     set_dtb_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
 
-    sio = apple_sio_create(child, tms->rtbuddy_protocol_ver);
+    sio = apple_sio_create(child, APPLE_A7IOP_V4, tms->rtbuddy_protocol_ver);
     g_assert(sio);
 
     object_property_add_child(OBJECT(machine), "sio", OBJECT(sio));

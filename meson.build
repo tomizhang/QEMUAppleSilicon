@@ -3315,6 +3315,7 @@ if have_system
     'hw/mips',
     'hw/misc',
     'hw/misc/apple-silicon',
+    'hw/misc/apple-silicon/a7iop',
     'hw/misc/macio',
     'hw/net',
     'hw/net/can',

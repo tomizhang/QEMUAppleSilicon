@@ -3,14 +3,14 @@
 
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/misc/apple-silicon/mailbox.h"
+#include "hw/misc/apple-silicon/a7iop/rtbuddy.h"
 #include "hw/sysbus.h"
 #include "qemu/iov.h"
 #include "qom/object.h"
 #include "sysemu/dma.h"
 
 #define TYPE_APPLE_SIO "apple.sio"
-OBJECT_DECLARE_SIMPLE_TYPE(AppleSIOState, APPLE_SIO)
+OBJECT_DECLARE_TYPE(AppleSIOState, AppleSIOClass, APPLE_SIO)
 
 #define SIO_NUM_EPS (0xdb)
 
@@ -44,16 +44,27 @@ typedef struct AppleSIODMAEndpoint {
     DMADirection dir;
 } AppleSIODMAEndpoint;
 
-typedef struct AppleSIOState {
-    SysBusDevice parent_obj;
+struct AppleSIOClass {
+    /*< private >*/
+    AppleRTBuddyClass base_class;
+
+    /*< public >*/
+    DeviceRealize parent_realize;
+    DeviceReset parent_reset;
+};
+
+struct AppleSIOState {
+    /*< private >*/
+    AppleRTBuddy parent_obj;
+
+    /*< public >*/
     MemoryRegion ascv2_iomem;
-    AppleMboxState *mbox;
     MemoryRegion *dma_mr;
     AddressSpace dma_as;
 
     AppleSIODMAEndpoint eps[SIO_NUM_EPS];
     uint32_t params[0x100];
-} AppleSIOState;
+};
 
 int apple_sio_dma_read(AppleSIODMAEndpoint *ep, void *buffer, size_t len);
 int apple_sio_dma_write(AppleSIODMAEndpoint *ep, void *buffer, size_t len);
@@ -61,6 +72,7 @@ int apple_sio_dma_remaining(AppleSIODMAEndpoint *ep);
 AppleSIODMAEndpoint *apple_sio_get_endpoint(AppleSIOState *s, int ep);
 AppleSIODMAEndpoint *apple_sio_get_endpoint_from_node(AppleSIOState *s,
                                                       DTBNode *node, int idx);
-SysBusDevice *apple_sio_create(DTBNode *node, uint32_t protocol_version);
+SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
+                               uint32_t protocol_version);
 
 #endif /* APPLE_SIO_H */

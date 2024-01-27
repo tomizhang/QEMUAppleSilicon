@@ -3,7 +3,7 @@
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/dma/apple_sio.h"
 #include "hw/irq.h"
-#include "hw/misc/apple-silicon/mailbox.h"
+#include "hw/misc/apple-silicon/a7iop/rtbuddy.h"
 #include "migration/vmstate.h"
 #include "qapi/error.h"
 #include "qemu/bitops.h"
@@ -145,14 +145,17 @@ static void apple_sio_unmap_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep)
 
 static void apple_sio_dma_writeback(AppleSIOState *s, AppleSIODMAEndpoint *ep)
 {
+    AppleRTBuddy *rtb;
     sio_msg m = { 0 };
+
+    rtb = APPLE_RTBUDDY(s);
     m.op = DMA_COMPLETE;
     m.ep = ep->id;
     m.param = (1 << 7);
     m.tag = ep->tag;
     m.data = ep->actual_length;
     apple_sio_unmap_dma(s, ep);
-    apple_mbox_send_message(s->mbox, 1, m.raw);
+    apple_rtbuddy_send_user_msg(rtb, 0, m.raw);
 }
 
 int apple_sio_dma_read(AppleSIODMAEndpoint *ep, void *buffer, size_t len)
@@ -195,7 +198,10 @@ int apple_sio_dma_remaining(AppleSIODMAEndpoint *ep)
 static void apple_sio_control(AppleSIOState *s, AppleSIODMAEndpoint *ep,
                               sio_msg m)
 {
+    AppleRTBuddy *rtb;
     sio_msg reply = { 0 };
+
+    rtb = APPLE_RTBUDDY(s);
     reply.ep = m.ep;
     reply.tag = m.tag;
     switch (m.op) {
@@ -212,12 +218,15 @@ static void apple_sio_control(AppleSIOState *s, AppleSIODMAEndpoint *ep,
     default:
         break;
     }
-    apple_mbox_send_message(s->mbox, 1, reply.raw);
+    apple_rtbuddy_send_user_msg(rtb, 0, reply.raw);
 };
 
 static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep, sio_msg m)
 {
+    AppleRTBuddy *rtb;
     sio_msg reply = { 0 };
+
+    rtb = APPLE_RTBUDDY(s);
     reply.ep = m.ep;
     reply.tag = m.tag;
     switch (m.op) {
@@ -284,19 +293,21 @@ static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep, sio_msg m)
         reply.op = ERROR;
         break;
     }
-    apple_mbox_send_message(s->mbox, 1, reply.raw);
+    apple_rtbuddy_send_user_msg(rtb, 0, reply.raw);
 };
 
 static void apple_sio_handle_endpoint(void *opaque, uint32_t ep, uint64_t msg)
 {
-    AppleSIOState *s = APPLE_SIO(opaque);
+    AppleSIOState *sio;
     sio_msg m = { 0 };
+
+    sio = APPLE_SIO(opaque);
     m.raw = msg;
 
     switch (m.ep) {
     case CONTROL:
     case PERF:
-        apple_sio_control(s, &s->eps[CONTROL], m);
+        apple_sio_control(sio, &sio->eps[CONTROL], m);
         break;
     default:
         if (m.ep >= SIO_NUM_EPS) {
@@ -304,7 +315,7 @@ static void apple_sio_handle_endpoint(void *opaque, uint32_t ep, uint64_t msg)
                           m.ep);
             SIO_LOG_MSG(ep, msg);
         } else {
-            apple_sio_dma(s, &s->eps[m.ep], m);
+            apple_sio_dma(sio, &sio->eps[m.ep], m);
         }
         break;
     }
@@ -367,13 +378,13 @@ static const MemoryRegionOps ascv2_core_reg_ops = {
     .valid.unaligned = false,
 };
 
-static const struct AppleMboxOps sio_mailbox_ops = {};
-
-SysBusDevice *apple_sio_create(DTBNode *node, uint32_t protocol_version)
+SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
+                               uint32_t protocol_version)
 {
     DeviceState *dev;
     AppleSIOState *s;
     SysBusDevice *sbd;
+    AppleRTBuddy *rtb;
     DTBNode *child;
     DTBProp *prop;
     uint64_t *reg;
@@ -382,7 +393,7 @@ SysBusDevice *apple_sio_create(DTBNode *node, uint32_t protocol_version)
     dev = qdev_new(TYPE_APPLE_SIO);
     s = APPLE_SIO(dev);
     sbd = SYS_BUS_DEVICE(dev);
-
+    rtb = APPLE_RTBUDDY(dev);
     dev->id = g_strdup("sio");
 
     child = find_dtb_node(node, "iop-sio-nub");
@@ -393,19 +404,13 @@ SysBusDevice *apple_sio_create(DTBNode *node, uint32_t protocol_version)
 
     reg = (uint64_t *)prop->value;
 
-    s->mbox =
-        apple_mbox_create("SIO", s, reg[1], protocol_version, &sio_mailbox_ops);
-    object_property_add_child(OBJECT(s), "mbox", OBJECT(s->mbox));
-    apple_mbox_register_endpoint(s->mbox, 1, &apple_sio_handle_endpoint);
-
-    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->mbox),
-                                                 APPLE_MBOX_MMIO_V3));
+    apple_rtbuddy_init(rtb, NULL, "SIO", reg[1], version, protocol_version,
+                       NULL);
+    apple_rtbuddy_register_user_ep(rtb, 0, s, apple_sio_handle_endpoint);
 
     memory_region_init_io(&s->ascv2_iomem, OBJECT(dev), &ascv2_core_reg_ops, s,
                           TYPE_APPLE_SIO ".ascv2-core-reg", reg[3]);
     sysbus_init_mmio(sbd, &s->ascv2_iomem);
-
-    sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->mbox));
 
     data = 1;
     set_dtb_prop(child, "pre-loaded", 4, (uint8_t *)&data);
@@ -418,16 +423,20 @@ SysBusDevice *apple_sio_create(DTBNode *node, uint32_t protocol_version)
 
 static void apple_sio_realize(DeviceState *dev, Error **errp)
 {
-    AppleSIOState *s = APPLE_SIO(dev);
+    AppleSIOState *s;
+    AppleSIOClass *sioc;
     Object *obj;
 
+    s = APPLE_SIO(dev);
+    sioc = APPLE_SIO_GET_CLASS(dev);
+    if (sioc->parent_realize) {
+        sioc->parent_realize(dev, errp);
+    }
     obj = object_property_get_link(OBJECT(dev), "dma-mr", &error_abort);
 
     s->dma_mr = MEMORY_REGION(obj);
     assert(s->dma_mr);
     address_space_init(&s->dma_as, s->dma_mr, "sio.dma-as");
-
-    sysbus_realize(SYS_BUS_DEVICE(s->mbox), errp);
 
     for (int i = 0; i < SIO_NUM_EPS; i++) {
         s->eps[i].id = i;
@@ -436,17 +445,16 @@ static void apple_sio_realize(DeviceState *dev, Error **errp)
     }
 }
 
-static void apple_sio_unrealize(DeviceState *dev)
-{
-    AppleSIOState *s = APPLE_SIO(dev);
-
-    qdev_unrealize(DEVICE(s->mbox));
-}
-
 static void apple_sio_reset(DeviceState *dev)
 {
-    AppleSIOState *s = APPLE_SIO(dev);
+    AppleSIOState *s;
+    AppleSIOClass *sioc;
 
+    s = APPLE_SIO(dev);
+    sioc = APPLE_SIO_GET_CLASS(dev);
+    if (sioc->parent_reset) {
+        sioc->parent_reset(dev);
+    }
     s->params[PROTOCOL] = 9;
     for (int i = 0; i < SIO_NUM_EPS; i++) {
         if (s->eps[i].mapped) {
@@ -454,23 +462,27 @@ static void apple_sio_reset(DeviceState *dev)
         }
         memset(&s->eps[i].config, 0, sizeof(s->eps[i].config));
     }
-    device_cold_reset(DEVICE(s->mbox));
 }
 
 static void apple_sio_class_init(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(klass);
+    DeviceClass *dc;
+    AppleSIOClass *sioc;
 
-    dc->realize = apple_sio_realize;
-    dc->unrealize = apple_sio_unrealize;
-    dc->reset = apple_sio_reset;
+    dc = DEVICE_CLASS(klass);
+    sioc = APPLE_SIO_CLASS(klass);
+
+    device_class_set_parent_realize(dc, apple_sio_realize,
+                                    &sioc->parent_realize);
+    device_class_set_parent_reset(dc, apple_sio_reset, &sioc->parent_reset);
     dc->desc = "Apple Smart IO DMA Controller";
 }
 
 static const TypeInfo apple_sio_info = {
     .name = TYPE_APPLE_SIO,
-    .parent = TYPE_SYS_BUS_DEVICE,
+    .parent = TYPE_APPLE_RTBUDDY,
     .instance_size = sizeof(AppleSIOState),
+    .class_size = sizeof(AppleSIOClass),
     .class_init = apple_sio_class_init,
 };
 
