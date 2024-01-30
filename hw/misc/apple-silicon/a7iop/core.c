@@ -1,172 +1,31 @@
 #include "qemu/osdep.h"
 #include "block/aio.h"
-#include "hw/irq.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
-#include "hw/misc/apple-silicon/a7iop/mailbox.h"
+#include "hw/misc/apple-silicon/a7iop/mailbox/core.h"
 #include "hw/misc/apple-silicon/a7iop/private.h"
-#include "hw/qdev-core.h"
-#include "hw/sysbus.h"
 #include "qemu/bitops.h"
 #include "qemu/lockable.h"
-#include "trace.h"
 
 #define CPU_CTRL_RUN BIT(4)
 
-#define A2I_EMPTY BIT(0)
-#define A2I_NONEMPTY BIT(4)
-#define I2A_EMPTY BIT(8)
-#define I2A_NONEMPTY BIT(12)
-
-static inline bool i2a_empty_is_unmasked(uint32_t int_mask)
+void apple_a7iop_send_ap(AppleA7IOP *s, AppleA7IOPMessage *msg)
 {
-    return (int_mask & I2A_EMPTY) == 0;
+    apple_a7iop_mailbox_send_ap(s->iop_mailbox, msg);
 }
 
-static inline bool i2a_nonempty_is_unmasked(uint32_t int_mask)
+AppleA7IOPMessage *apple_a7iop_recv_ap(AppleA7IOP *s)
 {
-    return (int_mask & I2A_NONEMPTY) == 0;
+    return apple_a7iop_mailbox_recv_ap(s->iop_mailbox);
 }
 
-static inline bool a2i_empty_is_unmasked(uint32_t int_mask)
+void apple_a7iop_send_iop(AppleA7IOP *s, AppleA7IOPMessage *msg)
 {
-    return (int_mask & A2I_EMPTY) == 0;
+    apple_a7iop_mailbox_send_iop(s->ap_mailbox, msg);
 }
 
-static inline bool a2i_nonempty_is_unmasked(uint32_t int_mask)
+AppleA7IOPMessage *apple_a7iop_recv_iop(AppleA7IOP *s)
 {
-    return (int_mask & A2I_NONEMPTY) == 0;
-}
-
-static void apple_a7iop_update_iop_irq(AppleA7IOP *s)
-{
-    // TODO: Implement properly once KIC is implemented
-    bool a2i_empty;
-    bool i2a_empty;
-
-    a2i_empty = apple_a7iop_mailbox_is_empty(s->a2i);
-    i2a_empty = apple_a7iop_mailbox_is_empty(s->i2a);
-
-    qemu_set_irq(
-        s->iop_irq,
-        (a2i_nonempty_is_unmasked(s->iop_int_mask) && !a2i_empty) ||
-            (a2i_empty_is_unmasked(s->iop_int_mask) && a2i_empty) ||
-            (i2a_nonempty_is_unmasked(s->iop_int_mask) && !i2a_empty) ||
-            (i2a_empty_is_unmasked(s->iop_int_mask) && i2a_empty));
-}
-
-static void apple_a7iop_update_ap_irq(AppleA7IOP *s)
-{
-    bool a2i_empty;
-    bool i2a_empty;
-    bool a2i_nonempty_unmasked;
-    bool a2i_empty_unmasked;
-    bool i2a_nonempty_unmasked;
-    bool i2a_empty_unmasked;
-
-    a2i_empty = apple_a7iop_mailbox_is_empty(s->a2i);
-    i2a_empty = apple_a7iop_mailbox_is_empty(s->i2a);
-    a2i_nonempty_unmasked = a2i_nonempty_is_unmasked(s->int_mask);
-    a2i_empty_unmasked = a2i_empty_is_unmasked(s->int_mask);
-    i2a_nonempty_unmasked = i2a_nonempty_is_unmasked(s->int_mask);
-    i2a_empty_unmasked = i2a_empty_is_unmasked(s->int_mask);
-
-    trace_apple_a7iop_update_ap_irq(
-        s->role, a2i_empty, i2a_empty, !a2i_nonempty_unmasked,
-        !a2i_empty_unmasked, !i2a_nonempty_unmasked, !i2a_empty_unmasked);
-
-    qemu_set_irq(s->irqs[APPLE_A7IOP_IRQ_A2I_NONEMPTY],
-                 a2i_nonempty_unmasked && !a2i_empty);
-    qemu_set_irq(s->irqs[APPLE_A7IOP_IRQ_A2I_EMPTY],
-                 a2i_empty_unmasked && a2i_empty);
-
-    qemu_set_irq(s->irqs[APPLE_A7IOP_IRQ_I2A_NONEMPTY],
-                 i2a_nonempty_unmasked && !i2a_empty);
-    qemu_set_irq(s->irqs[APPLE_A7IOP_IRQ_I2A_EMPTY],
-                 i2a_empty_unmasked && i2a_empty);
-}
-
-static void apple_a7iop_update_irq(AppleA7IOP *s)
-{
-    apple_a7iop_update_ap_irq(s);
-    apple_a7iop_update_iop_irq(s);
-}
-
-void apple_a7iop_send_i2a(AppleA7IOP *s, AppleA7IOPMessage *msg)
-{
-    QEMU_LOCK_GUARD(&s->lock);
-    apple_a7iop_mailbox_send(s->i2a, msg);
-    apple_a7iop_update_irq(s);
-}
-
-AppleA7IOPMessage *apple_a7iop_recv_i2a(AppleA7IOP *s)
-{
-    AppleA7IOPMessage *msg;
-
-    QEMU_LOCK_GUARD(&s->lock);
-    msg = apple_a7iop_mailbox_recv(s->i2a);
-    apple_a7iop_update_irq(s);
-
-    return msg;
-}
-
-void apple_a7iop_send_a2i(AppleA7IOP *s, AppleA7IOPMessage *msg)
-{
-    QEMU_LOCK_GUARD(&s->lock);
-    apple_a7iop_mailbox_send(s->a2i, msg);
-    apple_a7iop_update_irq(s);
-    if (s->bh != NULL) {
-        qemu_bh_schedule(s->bh);
-    }
-}
-
-AppleA7IOPMessage *apple_a7iop_recv_a2i(AppleA7IOP *s)
-{
-    AppleA7IOPMessage *msg;
-
-    QEMU_LOCK_GUARD(&s->lock);
-    msg = apple_a7iop_mailbox_recv(s->a2i);
-    apple_a7iop_update_irq(s);
-    return msg;
-}
-
-uint32_t apple_a7iop_get_int_mask(AppleA7IOP *s)
-{
-    QEMU_LOCK_GUARD(&s->lock);
-    return s->int_mask;
-}
-
-void apple_a7iop_set_int_mask(AppleA7IOP *s, uint32_t value)
-{
-    QEMU_LOCK_GUARD(&s->lock);
-    s->int_mask |= value;
-    apple_a7iop_update_ap_irq(s);
-}
-
-void apple_a7iop_clear_int_mask(AppleA7IOP *s, uint32_t value)
-{
-    QEMU_LOCK_GUARD(&s->lock);
-    s->int_mask &= ~value;
-    apple_a7iop_update_ap_irq(s);
-}
-
-uint32_t apple_a7iop_get_iop_int_mask(AppleA7IOP *s)
-{
-    QEMU_LOCK_GUARD(&s->lock);
-    return s->iop_int_mask;
-}
-
-void apple_a7iop_set_iop_int_mask(AppleA7IOP *s, uint32_t value)
-{
-    QEMU_LOCK_GUARD(&s->lock);
-    s->iop_int_mask |= value;
-    apple_a7iop_update_iop_irq(s);
-}
-
-void apple_a7iop_clear_iop_int_mask(AppleA7IOP *s, uint32_t value)
-{
-    QEMU_LOCK_GUARD(&s->lock);
-    s->iop_int_mask &= ~value;
-    apple_a7iop_update_iop_irq(s);
+    return apple_a7iop_mailbox_recv_iop(s->ap_mailbox);
 }
 
 void apple_a7iop_cpu_start(AppleA7IOP *s, bool wake)
@@ -215,9 +74,8 @@ void apple_a7iop_set_cpu_ctrl(AppleA7IOP *s, uint32_t value)
 
 void apple_a7iop_init(AppleA7IOP *s, const char *role, uint64_t mmio_size,
                       AppleA7IOPVersion version, const AppleA7IOPOps *ops,
-                      QEMUBH *bh)
+                      QEMUBH *iop_bh)
 {
-    int i;
     DeviceState *dev;
     SysBusDevice *sbd;
     char name[32];
@@ -227,30 +85,31 @@ void apple_a7iop_init(AppleA7IOP *s, const char *role, uint64_t mmio_size,
 
     s->role = g_strdup(role);
     s->ops = ops;
-    s->bh = bh;
 
     qemu_mutex_init(&s->lock);
 
-    snprintf(name, sizeof(name), "%s_A2I", role);
-    s->a2i = apple_a7iop_mailbox_new(name);
-    object_property_add_child(OBJECT(dev), "a2i", OBJECT(s->a2i));
-    snprintf(name, sizeof(name), "%s_I2A", role);
-    s->i2a = apple_a7iop_mailbox_new(name);
-    object_property_add_child(OBJECT(dev), "i2a", OBJECT(s->i2a));
+    snprintf(name, sizeof(name), "%s-iop", s->role);
+    s->iop_mailbox = apple_a7iop_mailbox_new(name, version, NULL, NULL, iop_bh);
+    object_property_add_child(OBJECT(dev), "iop-mailbox",
+                              OBJECT(s->iop_mailbox));
+
+    snprintf(name, sizeof(name), "%s-ap", s->role);
+    s->ap_mailbox =
+        apple_a7iop_mailbox_new(name, version, s->iop_mailbox, NULL, NULL);
+    s->iop_mailbox->ap_mailbox = s->ap_mailbox;
+    object_property_add_child(OBJECT(dev), "ap-mailbox", OBJECT(s->ap_mailbox));
 
     switch (version) {
     case APPLE_A7IOP_V2:
         apple_a7iop_init_mmio_v2(s, mmio_size);
         break;
     case APPLE_A7IOP_V4:
-        apple_a7iop_init_mmio_v4(s, mmio_size);
+        apple_a7iop_init_mmio_v4(s, mmio_size, iop_bh);
         break;
     }
     s->version = version;
 
-    for (i = 0; i < APPLE_A7IOP_IRQ_MAX; i++) {
-        sysbus_init_irq(sbd, &s->irqs[i]);
-    }
+    sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->ap_mailbox));
 
     qdev_init_gpio_out_named(dev, &s->iop_irq, APPLE_A7IOP_IOP_IRQ, 1);
 }
@@ -261,21 +120,8 @@ static void apple_a7iop_reset(DeviceState *opaque)
 
     s = APPLE_A7IOP(opaque);
 
-    WITH_QEMU_LOCK_GUARD(&s->lock)
-    {
-        s->iop_int_mask = 0xFFFFFFFF;
-        switch (s->version) {
-        case APPLE_A7IOP_V2:
-            s->int_mask = 0xFFFFFFFF;
-            break;
-        case APPLE_A7IOP_V4:
-            s->int_mask = 0x00000000;
-            break;
-        }
-        s->cpu_status = 0x00000000;
-
-        apple_a7iop_update_irq(s);
-    }
+    QEMU_LOCK_GUARD(&s->lock);
+    s->cpu_status = 0x00000000;
 }
 
 static void apple_a7iop_realize(DeviceState *opaque, Error **errp)
@@ -284,13 +130,8 @@ static void apple_a7iop_realize(DeviceState *opaque, Error **errp)
 
     s = APPLE_A7IOP(opaque);
 
-    sysbus_realize(SYS_BUS_DEVICE(s->a2i), errp);
-    sysbus_realize(SYS_BUS_DEVICE(s->i2a), errp);
-
-    WITH_QEMU_LOCK_GUARD(&s->lock)
-    {
-        apple_a7iop_update_irq(s);
-    }
+    sysbus_realize(SYS_BUS_DEVICE(s->iop_mailbox), errp);
+    sysbus_realize(SYS_BUS_DEVICE(s->ap_mailbox), errp);
 }
 
 static void apple_a7iop_unrealize(DeviceState *opaque)
@@ -299,8 +140,8 @@ static void apple_a7iop_unrealize(DeviceState *opaque)
 
     s = APPLE_A7IOP(opaque);
 
-    qdev_unrealize(DEVICE(s->a2i));
-    qdev_unrealize(DEVICE(s->i2a));
+    qdev_unrealize(DEVICE(s->iop_mailbox));
+    qdev_unrealize(DEVICE(s->ap_mailbox));
 }
 
 static void apple_a7iop_class_init(ObjectClass *oc, void *data)

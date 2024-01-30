@@ -1,5 +1,5 @@
 #include "hw/misc/apple-silicon/a7iop/core.h"
-#include "hw/misc/apple-silicon/a7iop/mailbox.h"
+#include "hw/misc/apple-silicon/a7iop/mailbox/core.h"
 #include "hw/misc/apple-silicon/a7iop/private.h"
 #include "hw/misc/apple-silicon/a7iop/rtbuddy.h"
 #include "qemu/lockable.h"
@@ -42,7 +42,7 @@ static inline AppleA7IOPMessage *apple_rtbuddy_construct_msg(uint32_t ep,
 static inline void apple_rtbuddy_send_msg(AppleRTBuddy *s, uint32_t ep,
                                           uint64_t data)
 {
-    apple_a7iop_send_i2a(APPLE_A7IOP(s), apple_rtbuddy_construct_msg(ep, data));
+    apple_a7iop_send_ap(APPLE_A7IOP(s), apple_rtbuddy_construct_msg(ep, data));
 }
 
 void apple_rtbuddy_send_control_msg(AppleRTBuddy *s, uint32_t ep, uint64_t data)
@@ -160,7 +160,7 @@ static void iop_start_rollcall(AppleRTBuddy *s)
 
     msg = QTAILQ_FIRST(&s->rollcall);
     QTAILQ_REMOVE(&s->rollcall, msg, entry);
-    apple_a7iop_send_i2a(a7iop, msg);
+    apple_a7iop_send_ap(a7iop, msg);
 }
 
 static void apple_rtbuddy_handle_mgmt_msg(void *opaque, uint32_t ep,
@@ -234,7 +234,7 @@ static void apple_rtbuddy_handle_mgmt_msg(void *opaque, uint32_t ep,
             } else {
                 AppleA7IOPMessage *m = QTAILQ_FIRST(&s->rollcall);
                 QTAILQ_REMOVE(&s->rollcall, m, entry);
-                apple_a7iop_send_i2a(a7iop, m);
+                apple_a7iop_send_ap(a7iop, m);
             }
             break;
         }
@@ -311,8 +311,8 @@ static void apple_rtbuddy_bh(void *opaque)
     a7iop = APPLE_A7IOP(opaque);
 
     QEMU_LOCK_GUARD(&s->lock);
-    while (!apple_a7iop_mailbox_is_empty(a7iop->a2i)) {
-        msg = apple_a7iop_recv_a2i(a7iop);
+    while (!apple_a7iop_mailbox_is_empty(a7iop->iop_mailbox)) {
+        msg = apple_a7iop_recv_iop(a7iop);
         data = g_tree_lookup(s->endpoints, GUINT_TO_POINTER(msg->endpoint));
         if (data && data->handler) {
             data->handler(data->opaque,

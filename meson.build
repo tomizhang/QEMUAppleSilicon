@@ -3316,6 +3316,7 @@ if have_system
     'hw/misc',
     'hw/misc/apple-silicon',
     'hw/misc/apple-silicon/a7iop',
+    'hw/misc/apple-silicon/a7iop/mailbox',
     'hw/misc/macio',
     'hw/net',
     'hw/net/can',
