@@ -65,7 +65,7 @@ static const MemoryRegionOps apple_a7iop_reg_ops = {
     .valid.unaligned = false,
 };
 
-void apple_a7iop_init_mmio_v4(AppleA7IOP *s, uint64_t mmio_size, QEMUBH *iop_bh)
+void apple_a7iop_init_mmio_v4(AppleA7IOP *s, uint64_t mmio_size)
 {
     SysBusDevice *sbd;
     char name[32];

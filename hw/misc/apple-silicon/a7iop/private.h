@@ -8,7 +8,6 @@
 #define AKF_STRIDE 0x4000
 
 void apple_a7iop_init_mmio_v2(AppleA7IOP *s, uint64_t mmio_size);
-void apple_a7iop_init_mmio_v4(AppleA7IOP *s, uint64_t mmio_size,
-                              QEMUBH *iop_bh);
+void apple_a7iop_init_mmio_v4(AppleA7IOP *s, uint64_t mmio_size);
 
 #endif /* HW_MISC_APPLE_SILICON_A7IOP_PRIVATE_H */
