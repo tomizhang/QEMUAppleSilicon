@@ -21,7 +21,6 @@
 #define HW_ARM_APPLE_SILICON_SEP_H
 
 #include "qemu/osdep.h"
-#include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/sysbus.h"
@@ -31,19 +30,10 @@
 #define TYPE_APPLE_SEP "secure-enclave"
 OBJECT_DECLARE_TYPE(AppleSEPState, AppleSEPClass, APPLE_SEP)
 
-typedef struct {
-    uint8_t key[32];
-    uint64_t ecid;
-    uint32_t config;
-} AppleTRNGState;
-
-#define REG_SIZE (0x10000)
-
 struct AppleSEPClass {
     /*< private >*/
     SysBusDeviceClass base_class;
 
-    /*< public >*/
     DeviceRealize parent_realize;
     DeviceReset parent_reset;
 };
@@ -52,23 +42,12 @@ struct AppleSEPState {
     /*< private >*/
     AppleA7IOP parent_obj;
 
-    /*< public >*/
-    vaddr base;
-    ARMCPU *cpu;
-    bool modern;
     MemoryRegion *dma_mr;
     AddressSpace *dma_as;
-    MemoryRegion trng_mr;
-    MemoryRegion misc0_mr;
-    MemoryRegion misc1_mr;
-    MemoryRegion misc2_mr;
-    AppleTRNGState trng_state;
-    uint8_t misc0_regs[REG_SIZE];
-    uint8_t misc1_regs[REG_SIZE];
-    uint8_t misc2_regs[REG_SIZE];
+    QemuMutex lock;
+    uint32_t status;
 };
 
-AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
-                                uint32_t build_version, bool modern);
+AppleSEPState *apple_sep_create(DTBNode *node, bool modern);
 
 #endif /* HW_ARM_APPLE_SILICON_SEP_H */

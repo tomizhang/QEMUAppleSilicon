@@ -69,7 +69,6 @@ typedef struct {
     AppleVideoArgs video;
     char *trustcache_filename;
     char *ticket_filename;
-    char *seprom_filename;
     BootMode boot_mode;
     uint32_t build_version;
     uint64_t ecid;

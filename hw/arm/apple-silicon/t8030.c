@@ -66,9 +66,6 @@
 #define T8030_DRAM_BASE (0x800000000ull)
 #define T8030_DRAM_SIZE (4ull * GiB)
 
-#define T8030_SEPROM_BASE (0x240000000ULL)
-#define T8030_SEPROM_SIZE (0x4000000ULL)
-
 #define T8030_GPIO_FORCE_DFU (161)
 
 #define T8030_DISPLAY_BASE (T8030_DRAM_BASE + 0xF7FB4000)
@@ -119,7 +116,7 @@ static void t8030_start_cpus(MachineState *machine, uint64_t cpu_mask)
     T8030MachineState *tms = T8030_MACHINE(machine);
     int i;
 
-    for (i = 0; i < machine->smp.cpus - 1; i++) {
+    for (i = 0; i < machine->smp.cpus; i++) {
         if (test_bit(i, (unsigned long *)&cpu_mask) &&
             apple_a13_cpu_is_powered_off(tms->cpus[i])) {
             apple_a13_cpu_start(tms->cpus[i]);
@@ -284,13 +281,10 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
         phys_ptr += info->ramdisk_size;
     }
 
-    if (tms->sepfw_filename) {
-        info->sep_fw_pa = phys_ptr;
-        macho_load_raw_file(tms->sepfw_filename, nsas, sysmem, "sepfw",
-                            info->sep_fw_pa, &info->sep_fw_size);
-        info->sep_fw_size = align_16k_high(8 * MiB);
-        phys_ptr += info->sep_fw_size;
-    }
+    //! SEPFW
+    info->sep_fw_pa = phys_ptr;
+    info->sep_fw_size = align_16k_high(8 * MiB);
+    phys_ptr += info->sep_fw_size;
 
     //! Kernel boot args
     info->kern_boot_args_pa = phys_ptr;
@@ -325,9 +319,6 @@ static void t8030_memory_setup(MachineState *machine)
     AppleBootInfo *info = &tms->bootinfo;
     DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
     g_autofree char *cmdline = NULL;
-    AddressSpace *nsas = &address_space_memory;
-    g_autofree char *seprom = NULL;
-    unsigned long fsize = 0;
 
     if (t8030_check_panic(machine)) {
         qemu_system_guest_panicked(NULL);
@@ -335,26 +326,6 @@ static void t8030_memory_setup(MachineState *machine)
     }
     info->dram_base = T8030_DRAM_BASE;
     info->dram_size = T8030_DRAM_SIZE;
-
-    if (tms->seprom_filename == NULL) {
-        error_report("Please set path to SEPROM");
-        exit(EXIT_FAILURE);
-    }
-
-    if (!g_file_get_contents(tms->seprom_filename, &seprom, &fsize, NULL)) {
-        error_report("Could not load data from file '%s'",
-                     tms->seprom_filename);
-        exit(EXIT_FAILURE);
-    }
-    address_space_rw(nsas, T8030_SEPROM_BASE, MEMTXATTRS_UNSPECIFIED,
-                     (uint8_t *)seprom, fsize, 1);
-
-    uint64_t value = 0x8000000000000000;
-    address_space_write(nsas, tms->soc_base_pa + 0x42140108,
-                        MEMTXATTRS_UNSPECIFIED, &value, sizeof(value));
-    uint32_t value32 = 0x1;
-    address_space_write(nsas, tms->soc_base_pa + 0x41448000,
-                        MEMTXATTRS_UNSPECIFIED, &value32, sizeof(value32));
 
     nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
     if (!nvram) {
@@ -707,7 +678,7 @@ static void t8030_cpu_setup(MachineState *machine)
 
         next = iter->next;
         node = (DTBNode *)iter->data;
-        if (i >= machine->smp.cpus - 1) {
+        if (i >= machine->smp.cpus) {
             remove_dtb_node(root, node);
             continue;
         }
@@ -739,7 +710,7 @@ static void t8030_create_aic(MachineState *machine)
     timebase = find_dtb_node(soc, "aic-timebase");
     g_assert(timebase);
 
-    tms->aic = apple_aic_create(machine->smp.cpus - 1, child, timebase);
+    tms->aic = apple_aic_create(machine->smp.cpus, child, timebase);
     object_property_add_child(OBJECT(machine), "aic", OBJECT(tms->aic));
     g_assert(tms->aic);
     sysbus_realize(tms->aic, &error_fatal);
@@ -749,7 +720,7 @@ static void t8030_create_aic(MachineState *machine)
 
     reg = (hwaddr *)prop->value;
 
-    for (i = 0; i < machine->smp.cpus - 1; i++) {
+    for (i = 0; i < machine->smp.cpus; i++) {
         memory_region_add_subregion_overlap(
             &tms->cpus[i]->memory, tms->soc_base_pa + reg[0],
             sysbus_mmio_get_region(tms->aic, i), 0);
@@ -1640,8 +1611,7 @@ static void t8030_create_sep(MachineState *machine)
     child = find_dtb_node(armio, "sep");
     g_assert(child);
 
-    sep = apple_sep_create(child, T8030_SEPROM_BASE, A13_MAX_CPU + 1,
-                           tms->build_version, true);
+    sep = apple_sep_create(child, true);
     g_assert(sep);
 
     object_property_add_child(OBJECT(machine), "sep", OBJECT(sep));
@@ -1650,14 +1620,6 @@ static void t8030_create_sep(MachineState *machine)
     g_assert(prop);
     reg = (uint64_t *)prop->value;
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 0, tms->soc_base_pa + reg[0]);
-    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 1,
-                    tms->soc_base_pa + 0x41100000); // TRNG
-    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 2,
-                    tms->soc_base_pa + 0x41080000); // MISC0
-    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 3,
-                    tms->soc_base_pa + 0x41040000); // MISC1
-    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 4,
-                    tms->soc_base_pa + 0x410C4000); // MISC2
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
@@ -1779,9 +1741,6 @@ static void t8030_machine_init(MachineState *machine)
     // allocate_ram(tms->sysmem, "SROM", T8030_SROM_BASE, T8030_SROM_SIZE, 0);
     // allocate_ram(tms->sysmem, "SRAM", T8030_SRAM_BASE, T8030_SRAM_SIZE, 0);
     allocate_ram(tms->sysmem, "DRAM", T8030_DRAM_BASE, T8030_DRAM_SIZE, 0);
-    allocate_ram(tms->sysmem, "SEPROM", T8030_SEPROM_BASE, T8030_SEPROM_SIZE,
-                 0);
-    allocate_ram(tms->sysmem, "DRAM_3", 0x300000000ULL, 0x100000000ULL, 0);
 
     hdr = macho_load_file(machine->kernel_filename, NULL);
     g_assert(hdr);
@@ -1985,42 +1944,6 @@ static char *t8030_get_ticket_filename(Object *obj, Error **errp)
     return g_strdup(tms->ticket_filename);
 }
 
-static void t8030_set_seprom_filename(Object *obj, const char *value,
-                                      Error **errp)
-{
-    T8030MachineState *tms;
-
-    tms = T8030_MACHINE(obj);
-    g_free(tms->seprom_filename);
-    tms->seprom_filename = g_strdup(value);
-}
-
-static char *t8030_get_seprom_filename(Object *obj, Error **errp)
-{
-    T8030MachineState *tms;
-
-    tms = T8030_MACHINE(obj);
-    return g_strdup(tms->seprom_filename);
-}
-
-static void t8030_set_sepfw_filename(Object *obj, const char *value,
-                                     Error **errp)
-{
-    T8030MachineState *tms;
-
-    tms = T8030_MACHINE(obj);
-    g_free(tms->sepfw_filename);
-    tms->sepfw_filename = g_strdup(value);
-}
-
-static char *t8030_get_sepfw_filename(Object *obj, Error **errp)
-{
-    T8030MachineState *tms;
-
-    tms = T8030_MACHINE(obj);
-    return g_strdup(tms->sepfw_filename);
-}
-
 static void t8030_set_boot_mode(Object *obj, const char *value, Error **errp)
 {
     T8030MachineState *tms;
@@ -2176,13 +2099,6 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
                                   t8030_set_ticket_filename);
     object_class_property_set_description(klass, "ticket",
                                           "APTicket to be loaded");
-    object_class_property_add_str(klass, "seprom", t8030_get_seprom_filename,
-                                  t8030_set_seprom_filename);
-    object_class_property_set_description(klass, "seprom",
-                                          "SEPROM to be loaded");
-    object_class_property_add_str(klass, "sepfw", t8030_get_sepfw_filename,
-                                  t8030_set_sepfw_filename);
-    object_class_property_set_description(klass, "sepfw", "SEPFW to be loaded");
     object_class_property_add_str(klass, "boot-mode", t8030_get_boot_mode,
                                   t8030_set_boot_mode);
     object_class_property_set_description(klass, "boot-mode",

@@ -102,7 +102,7 @@ static void s8000_start_cpus(MachineState *machine, uint64_t cpu_mask)
     S8000MachineState *tms = S8000_MACHINE(machine);
     int i;
 
-    for (i = 0; i < machine->smp.cpus - 1; i++) {
+    for (i = 0; i < machine->smp.cpus; i++) {
         if (test_bit(i, (unsigned long *)&cpu_mask) &&
             apple_a9_cpu_is_powered_off(tms->cpus[i])) {
             apple_a9_cpu_start(tms->cpus[i]);
@@ -314,8 +314,6 @@ static void s8000_memory_setup(MachineState *machine)
 {
     S8000MachineState *tms = S8000_MACHINE(machine);
     AppleBootInfo *info = &tms->bootinfo;
-    AddressSpace *nsas = &address_space_memory;
-    hwaddr fsize = 0;
     AppleNvramState *nvram;
     g_autofree char *cmdline;
     MachoHeader64 *hdr;
@@ -330,14 +328,6 @@ static void s8000_memory_setup(MachineState *machine)
 
     info->dram_base = S8000_DRAM_BASE;
     info->dram_size = S8000_DRAM_SIZE;
-
-    if (tms->seprom_filename == NULL) {
-        error_report("Please set path to SEPROM");
-        exit(EXIT_FAILURE);
-    }
-
-    macho_load_raw_file(tms->seprom_filename, nsas, tms->sysmem, "SEPROM",
-                        S8000_SEPROM_BASE, &fsize);
 
     nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
     if (!nvram) {
@@ -572,7 +562,7 @@ static void s8000_cpu_setup(MachineState *machine)
 
         next = iter->next;
         node = (DTBNode *)iter->data;
-        if (i >= machine->smp.cpus - 1) {
+        if (i >= machine->smp.cpus) {
             remove_dtb_node(root, node);
             continue;
         }
@@ -604,7 +594,7 @@ static void s8000_create_aic(MachineState *machine)
     timebase = find_dtb_node(soc, "aic-timebase");
     g_assert(timebase);
 
-    tms->aic = apple_aic_create(machine->smp.cpus - 1, child, timebase);
+    tms->aic = apple_aic_create(machine->smp.cpus, child, timebase);
     object_property_add_child(OBJECT(machine), "aic", OBJECT(tms->aic));
     g_assert(tms->aic);
     sysbus_realize(tms->aic, &error_fatal);
@@ -614,7 +604,7 @@ static void s8000_create_aic(MachineState *machine)
 
     reg = (hwaddr *)prop->value;
 
-    for (i = 0; i < machine->smp.cpus - 1; i++) {
+    for (i = 0; i < machine->smp.cpus; i++) {
         memory_region_add_subregion_overlap(
             &tms->cpus[i]->memory, tms->soc_base_pa + reg[0],
             sysbus_mmio_get_region(tms->aic, i), 0);
@@ -965,8 +955,7 @@ static void s8000_create_sep(MachineState *machine)
     child = find_dtb_node(child, "sep");
     g_assert(child);
 
-    tms->sep = SYS_BUS_DEVICE(
-        apple_sep_create(child, 0, A9_MAX_CPU + 1, tms->build_version, false));
+    tms->sep = SYS_BUS_DEVICE(apple_sep_create(child, false));
     g_assert(tms->sep);
 
     object_property_add_child(OBJECT(machine), "sep", OBJECT(tms->sep));
@@ -976,8 +965,6 @@ static void s8000_create_sep(MachineState *machine)
 
     sysbus_mmio_map_overlap(SYS_BUS_DEVICE(tms->sep), 0,
                             tms->soc_base_pa + reg[0], 2);
-    sysbus_mmio_map_overlap(SYS_BUS_DEVICE(tms->sep), 1,
-                            tms->soc_base_pa + 0xD500000, 2);
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
@@ -1366,24 +1353,6 @@ static char *s8000_get_ticket_filename(Object *obj, Error **errp)
     return g_strdup(tms->ticket_filename);
 }
 
-static void s8000_set_seprom_filename(Object *obj, const char *value,
-                                      Error **errp)
-{
-    S8000MachineState *tms;
-
-    tms = S8000_MACHINE(obj);
-    g_free(tms->seprom_filename);
-    tms->seprom_filename = g_strdup(value);
-}
-
-static char *s8000_get_seprom_filename(Object *obj, Error **errp)
-{
-    S8000MachineState *tms;
-
-    tms = S8000_MACHINE(obj);
-    return g_strdup(tms->seprom_filename);
-}
-
 static void s8000_set_boot_mode(Object *obj, const char *value, Error **errp)
 {
     S8000MachineState *tms;
@@ -1491,10 +1460,6 @@ static void s8000_machine_class_init(ObjectClass *klass, void *data)
                                   s8000_set_ticket_filename);
     object_class_property_set_description(klass, "ticket",
                                           "APTicket to be loaded");
-    object_class_property_add_str(klass, "seprom", s8000_get_seprom_filename,
-                                  s8000_set_seprom_filename);
-    object_class_property_set_description(klass, "seprom",
-                                          "SEPROM to be loaded");
     object_class_property_add_str(klass, "boot-mode", s8000_get_boot_mode,
                                   s8000_set_boot_mode);
     object_class_property_set_description(klass, "boot-mode",
