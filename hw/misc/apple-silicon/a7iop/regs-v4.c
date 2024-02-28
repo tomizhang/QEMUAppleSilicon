@@ -9,7 +9,6 @@
 #include "private.h"
 
 #define REG_CPU_CTRL 0x0044
-#define CPU_CTRL_RUN BIT(4)
 #define REG_CPU_STATUS 0x0048
 #define REG_NMI0 0xC04 // ??
 #define REG_NMI1 0xC14 // ??
