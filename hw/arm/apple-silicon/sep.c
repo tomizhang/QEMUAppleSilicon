@@ -223,39 +223,45 @@ static void apple_sep_handle_l4info(AppleSEPState *s,
 static void apple_sep_do_discovery(AppleSEPState *s)
 {
     AppleA7IOP *a7iop;
-    AppleA7IOPMessage *sent_msg;
-    AppleSEPDiscoveryAdvertiseMessage *sent_advertise_msg;
-    AppleSEPDiscoveryExposeMessage *sent_expose_msg;
+    AppleA7IOPMessage *msg;
+    AppleSEPDiscoveryAdvertiseMessage *advertise_msg;
+    AppleSEPDiscoveryExposeMessage *expose_msg;
 
     a7iop = APPLE_A7IOP(s);
 
     const AppleSEPEndpoint eps[] = {
-        EP_CONTROL,  EP_SECURE_CREDENTIAL, EP_XART_SLAVE,
-        EP_KEYSTORE, EP_XART_MASTER,
+        EP_CONTROL,    EP_XART_STORAGE, EP_XART_REQUESTS, EP_SECURE_CREDENTIAL,
+        EP_XART_SLAVE, EP_KEYSTORE,     EP_XART_MASTER,
     };
     const uint32_t ep_ids[] = {
-        'cntl', 'scrd', 'xars', 'sks ', 'xarm',
+        'cntl', 'arts', 'artr', 'scrd', 'xars', 'sks ', 'xarm',
     };
     for (size_t i = 0; i < (sizeof(eps) / sizeof(AppleSEPEndpoint)); i++) {
-        sent_msg = g_new0(AppleA7IOPMessage, 1);
-        sent_advertise_msg =
-            (AppleSEPDiscoveryAdvertiseMessage *)sent_msg->data;
-        sent_advertise_msg->ep = EP_DISCOVERY;
-        sent_advertise_msg->op = DISCOVERY_OP_ADVERTISE;
-        sent_advertise_msg->id = eps[i];
-        sent_advertise_msg->name = cpu_to_le32(ep_ids[i]);
-        apple_a7iop_send_ap(a7iop, sent_msg);
+        msg = g_new0(AppleA7IOPMessage, 1);
+        advertise_msg = (AppleSEPDiscoveryAdvertiseMessage *)msg->data;
+        advertise_msg->ep = EP_DISCOVERY;
+        advertise_msg->op = DISCOVERY_OP_ADVERTISE;
+        advertise_msg->id = eps[i];
+        advertise_msg->name = cpu_to_le32(ep_ids[i]);
+        apple_a7iop_send_ap(a7iop, msg);
 
-        sent_msg = g_new0(AppleA7IOPMessage, 1);
-        sent_expose_msg = (AppleSEPDiscoveryExposeMessage *)sent_msg->data;
-        sent_expose_msg->ep = EP_DISCOVERY;
-        sent_expose_msg->op = DISCOVERY_OP_EXPOSE;
-        sent_expose_msg->id = eps[i];
-        sent_expose_msg->ool_in_max_pages = 2;
-        sent_expose_msg->ool_in_min_pages = 2;
-        sent_expose_msg->ool_out_max_pages = 2;
-        sent_expose_msg->ool_out_min_pages = 2;
-        apple_a7iop_send_ap(a7iop, sent_msg);
+        msg = g_new0(AppleA7IOPMessage, 1);
+        expose_msg = (AppleSEPDiscoveryExposeMessage *)msg->data;
+        expose_msg->ep = EP_DISCOVERY;
+        expose_msg->op = DISCOVERY_OP_EXPOSE;
+        expose_msg->id = eps[i];
+        if (eps[i] == EP_XART_STORAGE || eps[i] == EP_XART_REQUESTS) {
+            expose_msg->ool_in_max_pages = 1;
+            expose_msg->ool_in_min_pages = 1;
+            expose_msg->ool_out_max_pages = 1;
+            expose_msg->ool_out_min_pages = 1;
+        } else {
+            expose_msg->ool_in_max_pages = 2;
+            expose_msg->ool_in_min_pages = 2;
+            expose_msg->ool_out_max_pages = 2;
+            expose_msg->ool_out_min_pages = 2;
+        }
+        apple_a7iop_send_ap(a7iop, msg);
     }
 }
 
@@ -339,6 +345,10 @@ static void apple_sep_bh(void *opaque)
         switch (sep_msg->ep) {
         case EP_CONTROL:
             apple_sep_handle_control_msg(s, sep_msg);
+            break;
+        case EP_XART_STORAGE:
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "EP_XART_STORAGE: Unknown opcode %d\n", sep_msg->op);
             break;
         case EP_SECURE_CREDENTIAL:
             qemu_log_mask(LOG_GUEST_ERROR,
