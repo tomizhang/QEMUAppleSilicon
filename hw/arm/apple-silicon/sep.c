@@ -29,10 +29,9 @@
 #include "qemu/main-loop.h"
 
 typedef enum {
-    SEP_STATUS_NOT_READY = 0,
+    SEP_STATUS_SLEEPING = 0,
     SEP_STATUS_BOOTSTRAP = 1,
-    SEP_STATUS_TZ0_ACCEPTED = 2,
-    SEP_STATUS_BOOTED = 3,
+    SEP_STATUS_ACTIVE = 2,
 } AppleSEPStatus;
 
 typedef struct {
@@ -273,6 +272,7 @@ static void apple_sep_handle_bootstrap_msg(AppleSEPState *s,
     case BOOTSTRAP_OP_GET_STATUS:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "EP_BOOTSTRAP: BOOTSTRAP_OP_GET_STATUS\n");
+
         sent_msg = g_new0(AppleA7IOPMessage, 1);
         sent_sep_msg = (AppleSEPMessage *)sent_msg->data;
         sent_sep_msg->ep = EP_BOOTSTRAP;
@@ -284,7 +284,8 @@ static void apple_sep_handle_bootstrap_msg(AppleSEPState *s,
     case BOOTSTRAP_OP_CHECK_TZ0:
         qemu_log_mask(LOG_GUEST_ERROR,
                       "EP_BOOTSTRAP: BOOTSTRAP_OP_CHECK_TZ0\n");
-        s->status = SEP_STATUS_TZ0_ACCEPTED;
+
+        s->status = SEP_STATUS_ACTIVE;
         sent_msg = g_new0(AppleA7IOPMessage, 1);
         sent_sep_msg = (AppleSEPMessage *)sent_msg->data;
         sent_sep_msg->ep = EP_BOOTSTRAP;
@@ -293,8 +294,8 @@ static void apple_sep_handle_bootstrap_msg(AppleSEPState *s,
         apple_a7iop_send_ap(a7iop, sent_msg);
         break;
     case BOOTSTRAP_OP_BOOT_IMG4: {
-        qemu_log_mask(LOG_GUEST_ERROR, "EP_BOOTSTRAP: BOOTSTRAP_OP_BOOT_IMG4\n");
-        s->status = SEP_STATUS_BOOTED;
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "EP_BOOTSTRAP: BOOTSTRAP_OP_BOOT_IMG4\n");
 
         sent_msg = g_new0(AppleA7IOPMessage, 1);
         sent_sep_msg = (AppleSEPMessage *)sent_msg->data;
