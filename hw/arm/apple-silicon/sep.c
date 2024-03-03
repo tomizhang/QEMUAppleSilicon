@@ -79,20 +79,29 @@ enum {
     EP_LOGGER = 1, // 'log '
     EP_ART_STORAGE = 2, // 'arts'
     EP_ART_REQUESTS = 3, // 'artr'
-    EP_TRACER = 4, // 'trac'
+    EP_TRACING = 4, // 'trac'
     EP_DEBUG = 5, // 'debu'
-    // 6..=7 = ???
-    EP_TOUCH_ID = 8, // 'mesa'
+    EP_EMBEDDED_ISP = 6, // 'eisp'
+    EP_MOBILE_SKS = 7, // 'msks'
+    EP_SECURE_BIOMETRICS = 8, // 'sbio'
     EP_FACE_ID = 9, // 'sprl'
-    EP_SECURE_CREDENTIAL = 10, // 'scrd'
-    // 11 = ??
+    EP_SECURE_CREDENTIALS = 10, // 'scrd'
+    EP_PAIRING = 11,
     EP_SECURE_ELEMENT = 12, // 'sse '
-    // 13..=14 = ??
+    // 13 = ??
+    EP_HDCP = 14, // 'hdcp'
     EP_UNIT_TESTING = 15, // 'unit'
     EP_XART_SLAVE = 16, // 'xars'
-    // 17 = ??
+    EP_HILO = 17, // 'hilo'
     EP_KEYSTORE = 18, // 'sks '
     EP_XART_MASTER = 19, // 'xarm'
+    EP_SMC = 20, // 'smc'
+    EP_HIBERNATION = 20, // 'hibe'
+    EP_NONP = 21, // 'nonp'
+    EP_CYRS = 22, // 'cyrs'
+    EP_SKDL = 23, // 'skdl'
+    EP_STAC = 24, // 'stac'
+    EP_SIDV = 25, // 'sidv'
     EP_DISCOVERY = 253,
     EP_L4INFO = 254,
     EP_BOOTSTRAP = 255,
@@ -395,7 +404,7 @@ static void apple_sep_handle_l4info(AppleSEPState *s, L4InfoMessage *msg)
 }
 
 static const uint8_t apple_sep_eps[] = {
-    EP_CONTROL,    EP_ART_STORAGE, EP_ART_REQUESTS, EP_SECURE_CREDENTIAL,
+    EP_CONTROL,    EP_ART_STORAGE, EP_ART_REQUESTS, EP_SECURE_CREDENTIALS,
     EP_XART_SLAVE, EP_KEYSTORE,    EP_XART_MASTER,
 };
 static const uint32_t apple_sep_endpoint_names[] = {
@@ -500,9 +509,9 @@ static void apple_sep_bh(void *opaque)
             qemu_log_mask(LOG_GUEST_ERROR,
                           "EP_ART_REQUESTS: Unknown opcode %d\n", sep_msg->op);
             break;
-        case EP_SECURE_CREDENTIAL:
+        case EP_SECURE_CREDENTIALS:
             qemu_log_mask(LOG_GUEST_ERROR,
-                          "EP_SECURE_CREDENTIAL: Unknown opcode %d\n",
+                          "EP_SECURE_CREDENTIALS: Unknown opcode %d\n",
                           sep_msg->op);
             break;
         case EP_XART_SLAVE:
