@@ -82,8 +82,8 @@ enum {
     EP_TRACER = 4, // 'trac'
     EP_DEBUG = 5, // 'debu'
     // 6..=7 = ???
-    EP_MESA = 8, // 'mesa'
-    EP_SPEARL = 9, // 'sprl'
+    EP_TOUCH_ID = 8, // 'mesa'
+    EP_FACE_ID = 9, // 'sprl'
     EP_SECURE_CREDENTIAL = 10, // 'scrd'
     // 11 = ??
     EP_SECURE_ELEMENT = 12, // 'sse '
