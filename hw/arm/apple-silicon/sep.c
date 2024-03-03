@@ -138,6 +138,16 @@ enum {
 };
 
 enum {
+    DEBUG_OP_COPY_FROM_OBJECT = 0,
+    DEBUG_OP_COPY_TO_OBJECT = 1,
+    DEBUG_OP_CREATE_OBJECT = 3,
+    DEBUG_OP_SHARE_OBJECT = 4,
+    DEBUG_OP_DUMP_TRNG_DATA = 5,
+    DEBUG_OP_PROCESS_INFO = 6,
+    DEBUG_OP_DUMP_COVERAGE = 7,
+};
+
+enum {
     // IOP -> AP
     XART_OP_ACK = 0,
     XART_OP_GET_XART = 0,
