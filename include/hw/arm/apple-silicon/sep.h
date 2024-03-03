@@ -38,6 +38,22 @@ struct AppleSEPClass {
     DeviceReset parent_reset;
 };
 
+#define SEP_ENDPOINT_MAX 0x20
+
+typedef struct {
+    uint8_t in_min_pages;
+    uint8_t in_max_pages;
+    uint8_t out_min_pages;
+    uint8_t out_max_pages;
+} QEMU_PACKED AppleSEPOOLInfo;
+
+typedef struct {
+    uint64_t in_addr;
+    uint32_t in_size;
+    uint64_t out_addr;
+    uint32_t out_size;
+} AppleSEPOOLState;
+
 struct AppleSEPState {
     /*< private >*/
     AppleA7IOP parent_obj;
@@ -45,7 +61,10 @@ struct AppleSEPState {
     MemoryRegion *dma_mr;
     AddressSpace *dma_as;
     QemuMutex lock;
+    bool rsep;
     uint32_t status;
+    AppleSEPOOLInfo ool_info[SEP_ENDPOINT_MAX];
+    AppleSEPOOLState ool_state[SEP_ENDPOINT_MAX];
 };
 
 AppleSEPState *apple_sep_create(DTBNode *node, bool modern);
