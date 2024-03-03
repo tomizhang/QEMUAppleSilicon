@@ -159,6 +159,11 @@ static void t8030_create_s3c_uart(const T8030MachineState *tms, uint32_t port,
 
 static void t8030_patch_kernel(MachoHeader64 *hdr)
 {
+    //! _disable_kprintf_output = 0;
+    *(uint32_t *)vtop_static(0xFFFFFFF0077142C8 + g_virt_slide) = 0;
+    //! AppleSEPManager::_initTimeoutMultiplier 'sim' -> '  m'
+    *(uint32_t *)vtop_static(0xFFFFFFF008B569E0 + g_virt_slide) =
+        cpu_to_le32(0x52840408);
 }
 
 static bool t8030_check_panic(MachineState *machine)
@@ -386,10 +391,10 @@ static void t8030_memory_setup(MachineState *machine)
 
     if (xnu_contains_boot_arg(cmdline, "-restore", false)) {
         //! HACK: Use DEV Hardware model to restore without FDR errors
-        set_dtb_prop(tms->device_tree, "compatible", 29,
+        set_dtb_prop(tms->device_tree, "compatible", 28,
                      "N104DEV\0iPhone12,1\0AppleARM\0$");
     } else {
-        set_dtb_prop(tms->device_tree, "compatible", 28,
+        set_dtb_prop(tms->device_tree, "compatible", 27,
                      "N104AP\0iPhone12,1\0AppleARM\0$");
     }
 

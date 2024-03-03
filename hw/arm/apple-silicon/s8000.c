@@ -387,10 +387,10 @@ static void s8000_memory_setup(MachineState *machine)
 
     if (xnu_contains_boot_arg(cmdline, "-restore", false)) {
         //! HACK: Use DEV Hardware model to restore without FDR errors
-        set_dtb_prop(tms->device_tree, "compatible", 28,
+        set_dtb_prop(tms->device_tree, "compatible", 27,
                      "N66DEV\0iPhone8,2\0AppleARM\0$");
     } else {
-        set_dtb_prop(tms->device_tree, "compatible", 27,
+        set_dtb_prop(tms->device_tree, "compatible", 26,
                      "N66AP\0iPhone8,2\0AppleARM\0$");
     }
 
