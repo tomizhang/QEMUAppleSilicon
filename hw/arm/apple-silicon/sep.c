@@ -95,7 +95,7 @@ enum {
     EP_HILO = 17, // 'hilo'
     EP_KEYSTORE = 18, // 'sks '
     EP_XART_MASTER = 19, // 'xarm'
-    EP_SMC = 20, // 'smc'
+    EP_SMC = 20, // 'smc '
     EP_HIBERNATION = 20, // 'hibe'
     EP_NONP = 21, // 'nonp'
     EP_CYRS = 22, // 'cyrs'
@@ -605,14 +605,26 @@ static void apple_sep_reset(DeviceState *dev)
 
     for (i = 0; i < (sizeof(apple_sep_eps) / sizeof(*apple_sep_eps)); i++) {
         switch (apple_sep_eps[i]) {
+        case EP_LOGGER:
+            s->ool_info[apple_sep_eps[i]].in_max_pages = 0;
+            s->ool_info[apple_sep_eps[i]].in_min_pages = 0;
+            s->ool_info[apple_sep_eps[i]].out_max_pages = 1;
+            s->ool_info[apple_sep_eps[i]].out_min_pages = 1;
+            break;
         case EP_ART_STORAGE:
         case EP_ART_REQUESTS:
-        case EP_XART_SLAVE:
-        case EP_XART_MASTER:
+        case EP_DEBUG:
+        case EP_UNIT_TESTING:
             s->ool_info[apple_sep_eps[i]].in_max_pages = 1;
             s->ool_info[apple_sep_eps[i]].in_min_pages = 1;
             s->ool_info[apple_sep_eps[i]].out_max_pages = 1;
             s->ool_info[apple_sep_eps[i]].out_min_pages = 1;
+            break;
+        case EP_HILO:
+            s->ool_info[apple_sep_eps[i]].in_max_pages = 0;
+            s->ool_info[apple_sep_eps[i]].in_min_pages = 0;
+            s->ool_info[apple_sep_eps[i]].out_max_pages = 0;
+            s->ool_info[apple_sep_eps[i]].out_min_pages = 0;
             break;
         default:
             s->ool_info[apple_sep_eps[i]].in_max_pages = 2;
