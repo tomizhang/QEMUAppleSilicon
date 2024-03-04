@@ -134,6 +134,10 @@ enum {
 };
 
 enum {
+    LOGGER_OP_UPDATE_POSITION = 11,
+};
+
+enum {
     ART_STORAGE_OP_SEND_ART = 20,
     ART_STORAGE_OP_ART_RECEIVED = 21,
 };
