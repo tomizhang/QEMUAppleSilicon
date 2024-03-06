@@ -569,6 +569,10 @@ AppleSEPState *apple_sep_create(DTBNode *node, bool modern)
                      qemu_bh_new(apple_sep_bh, s));
 
     qemu_mutex_init(&s->lock);
+
+    DTBNode *child = find_dtb_node(node, "iop-sep-nub");
+    g_assert(child);
+    remove_dtb_node_by_name(child, "Lynx");
     return s;
 }
 
