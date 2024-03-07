@@ -1,0 +1,21 @@
+ART {}
+
+DEFINITIONS EXPLICIT TAGS ::=
+
+BEGIN
+
+InfoSeq ::= SEQUENCE {
+	Counter INTEGER,
+	ManifestHash OCTET STRING,
+	SleepHash OCTET STRING,
+	Nonce OCTET STRING,
+	Subcounters SET OF ANY
+}
+
+Header ::= SEQUENCE {
+	Version INTEGER,
+	Info InfoSeq,
+	InfoHMAC OCTET STRING
+}
+
+END

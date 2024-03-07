@@ -19,6 +19,7 @@
 
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/boot.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/arm/apple-silicon/sep.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/misc/apple-silicon/a7iop/mailbox/core.h"
@@ -28,6 +29,8 @@
 #include "qemu/log.h"
 #include "qemu/main-loop.h"
 #include "sysemu/dma.h"
+#include "art.h"
+#include "libtasn1.h"
 
 typedef enum {
     SEP_STATUS_SLEEPING = 0,
@@ -240,9 +243,8 @@ static void apple_sep_set_ool_out_addr(AppleSEPState *s, uint8_t ep,
     s->ool_state[ep].out_addr = addr;
 }
 
-static void apple_sep_send_generic_message(AppleSEPState *s, uint8_t ep,
-                                           uint8_t tag, uint8_t op,
-                                           uint8_t param, uint32_t data)
+static void apple_sep_send_message(AppleSEPState *s, uint8_t ep, uint8_t tag,
+                                   uint8_t op, uint8_t param, uint32_t data)
 {
     AppleA7IOP *a7iop;
     AppleA7IOPMessage *sent_msg;
@@ -260,11 +262,16 @@ static void apple_sep_send_generic_message(AppleSEPState *s, uint8_t ep,
     apple_a7iop_send_ap(a7iop, sent_msg);
 }
 
-static void apple_sep_control_ack(AppleSEPState *s, SEPMessage *msg,
-                                  uint8_t param, uint32_t data)
+static void apple_sep_message_reply(AppleSEPState *s, SEPMessage *msg,
+                                    uint8_t op, uint8_t param, uint32_t data)
 {
-    apple_sep_send_generic_message(s, EP_CONTROL, msg->tag, CONTROL_OP_ACK,
-                                   param, data);
+    apple_sep_send_message(s, msg->ep, msg->tag, op, param, data);
+}
+
+static void apple_sep_control_send_ack(AppleSEPState *s, SEPMessage *msg,
+                                       uint8_t param, uint32_t data)
+{
+    apple_sep_message_reply(s, msg, CONTROL_OP_ACK, param, data);
 }
 
 static void apple_sep_handle_control_msg(AppleSEPState *s, SEPMessage *msg)
@@ -274,7 +281,7 @@ static void apple_sep_handle_control_msg(AppleSEPState *s, SEPMessage *msg)
     switch (msg->op) {
     case CONTROL_OP_NOP:
         qemu_log_mask(LOG_GUEST_ERROR, "EP_CONTROL: NOP\n");
-        apple_sep_control_ack(s, msg, 0, 0);
+        apple_sep_control_send_ack(s, msg, 0, 0);
         break;
     case CONTROL_OP_SET_OOL_IN_ADDR:
         set_ool_msg = (SetOOLMessage *)msg;
@@ -283,7 +290,7 @@ static void apple_sep_handle_control_msg(AppleSEPState *s, SEPMessage *msg)
                       set_ool_msg->id, (uint64_t)set_ool_msg->data << 12);
         apple_sep_set_ool_in_addr(s, set_ool_msg->id,
                                   (uint64_t)set_ool_msg->data << 12);
-        apple_sep_control_ack(s, msg, 0, 0);
+        apple_sep_control_send_ack(s, msg, 0, 0);
         break;
     case CONTROL_OP_SET_OOL_OUT_ADDR:
         set_ool_msg = (SetOOLMessage *)msg;
@@ -292,7 +299,7 @@ static void apple_sep_handle_control_msg(AppleSEPState *s, SEPMessage *msg)
                       set_ool_msg->id, (uint64_t)set_ool_msg->data << 12);
         apple_sep_set_ool_out_addr(s, set_ool_msg->id,
                                    (uint64_t)set_ool_msg->data << 12);
-        apple_sep_control_ack(s, msg, 0, 0);
+        apple_sep_control_send_ack(s, msg, 0, 0);
         break;
     case CONTROL_OP_SET_OOL_IN_SIZE:
         set_ool_msg = (SetOOLMessage *)msg;
@@ -300,7 +307,7 @@ static void apple_sep_handle_control_msg(AppleSEPState *s, SEPMessage *msg)
                       "EP_CONTROL: SET_OOL_IN_SIZE (%d, 0x%X)\n",
                       set_ool_msg->id, set_ool_msg->data);
         apple_sep_set_ool_in_size(s, set_ool_msg->id, set_ool_msg->data);
-        apple_sep_control_ack(s, msg, 0, 0);
+        apple_sep_control_send_ack(s, msg, 0, 0);
         break;
     case CONTROL_OP_SET_OOL_OUT_SIZE:
         set_ool_msg = (SetOOLMessage *)msg;
@@ -308,30 +315,54 @@ static void apple_sep_handle_control_msg(AppleSEPState *s, SEPMessage *msg)
                       "EP_CONTROL: SET_OOL_OUT_SIZE (%d, 0x%X)\n",
                       set_ool_msg->id, set_ool_msg->data);
         apple_sep_set_ool_out_size(s, set_ool_msg->id, set_ool_msg->data);
-        apple_sep_control_ack(s, msg, 0, 0);
+        apple_sep_control_send_ack(s, msg, 0, 0);
         break;
     case CONTROL_OP_GET_SECURITY_MODE:
         qemu_log_mask(LOG_GUEST_ERROR, "EP_CONTROL: GET_SECURITY_MODE\n");
-        apple_sep_control_ack(s, msg, 0, 3);
+        apple_sep_control_send_ack(s, msg, 0, 3);
         break;
     case CONTROL_OP_SELF_TEST:
         qemu_log_mask(LOG_GUEST_ERROR, "EP_CONTROL: SELF_TEST\n");
-        apple_sep_control_ack(s, msg, 0, 0);
+        apple_sep_control_send_ack(s, msg, 0, 0);
         break;
-    case CONTROL_OP_ERASE_INSTALL:
+    case CONTROL_OP_ERASE_INSTALL: {
         qemu_log_mask(LOG_GUEST_ERROR, "EP_CONTROL: ERASE_INSTALL\n");
-        apple_sep_control_ack(s, msg, 0, 0);
-        //! TODO: Actually generate this
-        uint8_t art[] = {};
+        apple_sep_control_send_ack(s, msg, 0, 0);
+
+        char error_desc[ASN1_MAX_ERROR_DESCRIPTION_SIZE];
+        asn1_node art_defs = NULL;
+        g_assert(asn1_array2tree(art_definitions_array, &art_defs,
+                                 error_desc) == ASN1_SUCCESS);
+        asn1_node art = NULL;
+        g_assert(asn1_create_element(art_defs, "ART.Header", &art) ==
+                 ASN1_SUCCESS);
+        uint8_t val = 0;
+        asn1_write_value(art, "Version", &val, sizeof(val));
+        uint16_t val16 = 0;
+        asn1_write_value(art, "Info.Counter", &val16, sizeof(val16));
+        char byte0x20[32];
+        bzero(byte0x20, sizeof(byte0x20));
+        asn1_write_value(art, "Info.ManifestHash", byte0x20, 20);
+        asn1_write_value(art, "Info.SleepHash", byte0x20, 20);
+        asn1_write_value(art, "Info.Nonce", byte0x20, 0);
+        asn1_write_value(art, "InfoHMAC", byte0x20, sizeof(byte0x20));
+        char data[512];
+        int data_len = sizeof(data);
+        g_assert(asn1_der_coding(art, "", data, &data_len, error_desc) ==
+                 ASN1_SUCCESS);
+        asn1_delete_structure(&art);
+        asn1_delete_structure(&art_defs);
+
         if (dma_memory_write(s->dma_as, s->ool_state[EP_ART_STORAGE].out_addr,
-                             art, sizeof(art),
+                             data, data_len,
                              MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "EP_XART_STORAGE: Failed to write ART to OOL");
         }
-        apple_sep_send_generic_message(s, EP_ART_STORAGE, 0,
-                                       ART_STORAGE_OP_SEND_ART, 0, 0);
+        apple_sep_send_message(s, EP_ART_STORAGE, 0, ART_STORAGE_OP_SEND_ART, 0,
+                               0);
         break;
+    }
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "EP_CONTROL: Unknown opcode %d\n",
                       msg->op);
@@ -352,47 +383,47 @@ static void apple_sep_handle_arts_msg(AppleSEPState *s, SEPMessage *msg)
     }
 }
 
-static void apple_sep_xart_ack(AppleSEPState *s, SEPMessage *msg, uint8_t param,
-                               uint32_t data)
+static void apple_sep_xart_send_ack(AppleSEPState *s, SEPMessage *message,
+                                    uint8_t param, uint32_t data)
 {
-    apple_sep_send_generic_message(s, msg->ep, msg->tag, XART_OP_ACK, param,
-                                   data);
+    apple_sep_message_reply(s, message, XART_OP_ACK, param, data);
 }
 
 static void apple_sep_handle_xart_msg(AppleSEPState *s, bool slave,
-                                      SEPMessage *msg)
+                                      SEPMessage *message)
 {
-    const char *ep_name;
+    const char *xart_name;
 
-    ep_name = slave ? "SLAVE" : "MASTER";
+    xart_name = slave ? "SLAVE" : "MASTER";
 
-    switch (msg->op) {
+    switch (message->op) {
     case XART_OP_FLUSH_CACHED_XART:
         qemu_log_mask(LOG_GUEST_ERROR, "EP_XART_%s: FLUSH_CACHED_XART\n",
-                      ep_name);
-        apple_sep_xart_ack(s, msg, 0, 0);
+                      xart_name);
+        apple_sep_xart_send_ack(s, message, 0, 0);
         break;
     case XART_OP_COMMIT_HASH:
-        qemu_log_mask(LOG_GUEST_ERROR, "EP_XART_%s: COMMIT_HASH\n", ep_name);
-        apple_sep_xart_ack(s, msg, 0, 0);
+        qemu_log_mask(LOG_GUEST_ERROR, "EP_XART_%s: COMMIT_HASH\n", xart_name);
+        apple_sep_xart_send_ack(s, message, 0, 0);
         break;
     case XART_OP_NONCE_GENERATE:
-        qemu_log_mask(LOG_GUEST_ERROR, "EP_XART_%s: NONCE_GENERATE\n", ep_name);
-        apple_sep_xart_ack(s, msg, 0, 0);
+        qemu_log_mask(LOG_GUEST_ERROR, "EP_XART_%s: NONCE_GENERATE\n",
+                      xart_name);
+        apple_sep_xart_send_ack(s, message, 0, 0);
         break;
     case XART_OP_NONCE_INVALIDATE:
         qemu_log_mask(LOG_GUEST_ERROR, "EP_XART_%s: NONCE_INVALIDATE\n",
-                      ep_name);
-        apple_sep_xart_ack(s, msg, 0, 0);
+                      xart_name);
+        apple_sep_xart_send_ack(s, message, 0, 0);
         break;
     case XART_OP_SHUTDOWN:
-        qemu_log_mask(LOG_GUEST_ERROR, "EP_XART_%s: SHUTDOWN\n", ep_name);
-        apple_sep_xart_ack(s, msg, 0, 0);
+        qemu_log_mask(LOG_GUEST_ERROR, "EP_XART_%s: SHUTDOWN\n", xart_name);
+        apple_sep_xart_send_ack(s, message, 0, 0);
         break;
     default:
         qemu_log_mask(LOG_GUEST_ERROR, "EP_XART_%s: Unknown opcode %d\n",
-                      ep_name, msg->op);
-        apple_sep_xart_ack(s, msg, 0, 0);
+                      xart_name, message->op);
+        apple_sep_xart_send_ack(s, message, 0, 0);
         break;
     }
 }
@@ -408,11 +439,17 @@ static void apple_sep_handle_l4info(AppleSEPState *s, L4InfoMessage *msg)
 }
 
 static const uint8_t apple_sep_eps[] = {
-    EP_CONTROL,    EP_ART_STORAGE, EP_ART_REQUESTS, EP_SECURE_CREDENTIALS,
-    EP_XART_SLAVE, EP_KEYSTORE,    EP_XART_MASTER,
+    EP_CONTROL,
+    EP_LOGGER,
+    EP_ART_STORAGE,
+    EP_ART_REQUESTS,
+    EP_SECURE_CREDENTIALS,
+    EP_XART_SLAVE,
+    EP_KEYSTORE,
+    EP_XART_MASTER,
 };
 static const uint32_t apple_sep_endpoint_names[] = {
-    'cntl', 'arts', 'artr', 'scrd', 'xars', 'sks ', 'xarm',
+    'cntl', 'log ', 'arts', 'artr', 'scrd', 'xars', 'sks ', 'xarm',
 };
 
 static void apple_sep_advertise_eps(AppleSEPState *s)
@@ -451,8 +488,8 @@ static void apple_sep_handle_bootstrap_msg(AppleSEPState *s, SEPMessage *msg)
     case BOOTSTRAP_OP_GET_STATUS:
         qemu_log_mask(LOG_GUEST_ERROR, "EP_BOOTSTRAP: GET_STATUS\n");
 
-        apple_sep_send_generic_message(s, EP_BOOTSTRAP, msg->tag,
-                                       BOOTSTRAP_OP_STATUS_REPLY, 0, s->status);
+        apple_sep_send_message(s, EP_BOOTSTRAP, msg->tag,
+                               BOOTSTRAP_OP_STATUS_REPLY, 0, s->status);
         break;
     case BOOTSTRAP_OP_CHECK_TZ0:
         qemu_log_mask(LOG_GUEST_ERROR, "EP_BOOTSTRAP: CHECK_TZ0\n");
@@ -464,18 +501,18 @@ static void apple_sep_handle_bootstrap_msg(AppleSEPState *s, SEPMessage *msg)
                       s->rsep ? "rsep" : "sepi");
         s->status = SEP_STATUS_ACTIVE;
 
-        apple_sep_send_generic_message(s, EP_BOOTSTRAP, msg->tag,
-                                       BOOTSTRAP_OP_TZ0_ACCEPTED, 0, 0);
+        apple_sep_send_message(s, EP_BOOTSTRAP, msg->tag,
+                               BOOTSTRAP_OP_TZ0_ACCEPTED, 0, 0);
         break;
     case BOOTSTRAP_OP_BOOT_IMG4: {
         qemu_log_mask(LOG_GUEST_ERROR, "EP_BOOTSTRAP: BOOT_IMG4\n");
 
         g_assert(s->rsep == (msg->param == 1));
 
-        apple_sep_send_generic_message(s, EP_BOOTSTRAP, msg->tag,
-                                       BOOTSTRAP_OP_IMG4_ACCEPTED, 0, 0);
-        apple_sep_send_generic_message(s, EP_CONTROL, 0,
-                                       CONTROL_OP_NOTIFY_ALIVE, 0, 0);
+        apple_sep_send_message(s, EP_BOOTSTRAP, msg->tag,
+                               BOOTSTRAP_OP_IMG4_ACCEPTED, 0, 0);
+        apple_sep_send_message(s, EP_CONTROL, 0, CONTROL_OP_NOTIFY_ALIVE, 0, 0);
+
         apple_sep_advertise_eps(s);
         break;
     }
@@ -524,6 +561,7 @@ static void apple_sep_bh(void *opaque)
         case EP_KEYSTORE:
             qemu_log_mask(LOG_GUEST_ERROR, "EP_KEYSTORE: Unknown opcode %d\n",
                           sep_msg->op);
+            apple_sep_message_reply(s, sep_msg, 0xFF, 0, 0);
             break;
         case EP_XART_MASTER:
             apple_sep_handle_xart_msg(s, false, sep_msg);
