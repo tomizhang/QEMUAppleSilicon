@@ -359,8 +359,7 @@ static void t8030_memory_setup(MachineState *machine)
     switch (tms->boot_mode) {
     case kBootModeAuto:
         if (!env_get_bool(nvram, "auto-boot", false)) {
-            asprintf(&cmdline,
-                     "-restore rd=md0 nand-enable-reformat=1 -progress %s",
+            asprintf(&cmdline, "-restore rd=md0 nand-enable-reformat=1 %s",
                      machine->kernel_cmdline);
             break;
         }
