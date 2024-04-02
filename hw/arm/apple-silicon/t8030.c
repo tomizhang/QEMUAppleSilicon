@@ -590,6 +590,8 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
                   base + addr, base);
 #endif
     switch (base + addr) {
+    case 0x3D280088: //! PMGR_AON
+        return 0xFF;
     case 0x3D2BC000:
         // return 0xA050C030; // IBFL | 0x00
         return 0xA55AC33C; // IBFL | 0x10
