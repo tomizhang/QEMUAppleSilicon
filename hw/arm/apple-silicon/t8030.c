@@ -159,11 +159,6 @@ static void t8030_create_s3c_uart(const T8030MachineState *tms, uint32_t port,
 
 static void t8030_patch_kernel(MachoHeader64 *hdr)
 {
-    //! _disable_kprintf_output = 0;
-    *(uint32_t *)vtop_static(0xFFFFFFF0077142C8 + g_virt_slide) = 0;
-    //! AppleSEPManager::_initTimeoutMultiplier 'sim' -> '  m'
-    *(uint32_t *)vtop_static(0xFFFFFFF008B569E0 + g_virt_slide) =
-        cpu_to_le32(0x52840408);
 }
 
 static bool t8030_check_panic(MachineState *machine)
