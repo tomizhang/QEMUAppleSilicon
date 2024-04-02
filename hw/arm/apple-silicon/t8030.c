@@ -1880,6 +1880,8 @@ static void t8030_machine_init(MachineState *machine)
         case 15:
             QEMU_FALLTHROUGH;
         case 16:
+            QEMU_FALLTHROUGH;
+        case 17:
             tms->rtbuddy_protocol_ver = 12;
             break;
         default:
