@@ -1315,7 +1315,7 @@ MachoFilesetEntryCommand *macho_get_fileset(MachoHeader64 *header,
     for (uint32_t i = 0; i < header->n_cmds; i++) {
         if (fileset->cmd == LC_FILESET_ENTRY) {
             const char *entry_id = (char *)fileset + fileset->entry_id;
-            if (strcmp(entry_id, entry) == 0) {
+            if (!strcmp(entry_id, entry)) {
                 return fileset;
             }
         }

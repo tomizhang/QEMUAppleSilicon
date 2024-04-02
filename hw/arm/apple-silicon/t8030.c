@@ -241,6 +241,7 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
 
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
     macho_highest_lowest(hdr, &virt_low, &virt_end);
+    g_virt_base = virt_low;
 
     get_kaslr_slides(tms, &g_phys_slide, &g_virt_slide);
 
@@ -299,6 +300,116 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     info->device_tree_pa = phys_ptr;
     dtb_va = ptov_static(info->device_tree_pa);
     phys_ptr += align_16k_high(info->device_tree_size);
+
+    mem_size =
+        machine->maxram_size -
+        (T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE));
+
+    macho_load_dtb(tms->device_tree, nsas, sysmem, "DeviceTree", info);
+
+    top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
+
+    info_report("Boot args: [%s]", cmdline);
+    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_pa,
+                         g_virt_base, g_phys_base, mem_size,
+                         top_of_kernel_data_pa, dtb_va, info->device_tree_size,
+                         tms->video_args, cmdline);
+    g_virt_base = virt_low;
+}
+
+static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
+{
+    MachineState *machine = MACHINE(tms);
+    MachoHeader64 *hdr = tms->kernel;
+    MemoryRegion *sysmem = tms->sysmem;
+    AddressSpace *nsas = &address_space_memory;
+    hwaddr virt_low;
+    hwaddr virt_end;
+    hwaddr dtb_va;
+    hwaddr top_of_kernel_data_pa;
+    hwaddr mem_size;
+    hwaddr phys_ptr;
+    hwaddr amcc_lower;
+    hwaddr amcc_upper;
+    AppleBootInfo *info = &tms->bootinfo;
+    uint64_t extradata_size;
+    uint64_t l2_remaining;
+    MachoSegmentCommand64 *prelink_info_seg;
+    DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
+
+    g_phys_base = (hwaddr)macho_get_buffer(hdr);
+    macho_highest_lowest(hdr, &virt_low, &virt_end);
+    g_virt_base = virt_low;
+
+    prelink_info_seg = macho_get_segment(hdr, "__PRELINK_INFO");
+
+    extradata_size =
+        align_16k_high(info->device_tree_size + info->trustcache_size);
+    assert(extradata_size < L2_GRANULE);
+
+    get_kaslr_slides(tms, &g_phys_slide, &g_virt_slide);
+
+    l2_remaining = (virt_low + g_virt_slide) & L2_GRANULE_MASK;
+
+    if (extradata_size >= l2_remaining) {
+        uint64_t grown_slide = align_16k_high(extradata_size - l2_remaining);
+        g_phys_slide += grown_slide;
+        g_virt_slide += grown_slide;
+    }
+
+    g_phys_base = phys_ptr = T8030_KERNEL_REGION_BASE;
+    phys_ptr |= (virt_low & L2_GRANULE_MASK);
+    phys_ptr += g_phys_slide;
+    phys_ptr -= extradata_size;
+
+    //! Device tree
+    info->device_tree_pa = phys_ptr;
+    phys_ptr += info->device_tree_size;
+
+    //! TrustCache
+    info->trustcache_pa = phys_ptr;
+    macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
+                          info->trustcache_pa);
+    phys_ptr += align_16k_high(info->trustcache_size);
+
+    g_virt_base += g_virt_slide;
+    g_virt_base -= phys_ptr - g_phys_base;
+    info->kern_entry =
+        arm_load_macho(hdr, nsas, sysmem, memory_map, phys_ptr, g_virt_slide);
+    info_report("Kernel virtual base: 0x" TARGET_FMT_lx, g_virt_base);
+    info_report("Kernel physical base: 0x" TARGET_FMT_lx, g_phys_base);
+    info_report("Kernel virtual slide: 0x" TARGET_FMT_lx, g_virt_slide);
+    info_report("Kernel physical slide: 0x" TARGET_FMT_lx, g_phys_slide);
+    info_report("Kernel entry point: 0x" TARGET_FMT_lx, info->kern_entry);
+
+    virt_end += g_virt_slide;
+    phys_ptr = vtop_static(align_16k_high(virt_end));
+
+    amcc_lower = info->device_tree_pa;
+    amcc_upper = vtop_static(prelink_info_seg->vmaddr + g_virt_slide) +
+                 prelink_info_seg->vmsize - 1;
+    for (int i = 0; i < 4; i++) {
+        AMCC_REG(tms, AMCC_LOWER(i)) = (amcc_lower - T8030_DRAM_BASE) >> 14;
+        AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - T8030_DRAM_BASE) >> 14;
+    }
+
+    dtb_va = ptov_static(info->device_tree_pa);
+
+    if (machine->initrd_filename) {
+        info->ramdisk_pa = phys_ptr;
+        macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
+                           info->ramdisk_pa, &info->ramdisk_size);
+        info->ramdisk_size = align_16k_high(info->ramdisk_size);
+        phys_ptr += info->ramdisk_size;
+    }
+
+    //! SEPFW
+    info->sep_fw_pa = phys_ptr;
+    info->sep_fw_size = align_16k_high(8 * MiB);
+    phys_ptr += info->sep_fw_size;
+
+    info->kern_boot_args_pa = phys_ptr;
+    phys_ptr += align_16k_high(0x4000);
 
     mem_size =
         machine->maxram_size -
@@ -389,7 +500,7 @@ static void t8030_memory_setup(MachineState *machine)
     }
 
     if (xnu_contains_boot_arg(cmdline, "-restore", false)) {
-        //! HACK: Use DEV Hardware model to restore without FDR errors
+        //! HACK: Use DEV model to restore without FDR errors
         set_dtb_prop(tms->device_tree, "compatible", 28,
                      "N104DEV\0iPhone12,1\0AppleARM\0$");
     } else {
@@ -445,6 +556,9 @@ static void t8030_memory_setup(MachineState *machine)
     switch (hdr->file_type) {
     case MH_EXECUTE:
         t8030_load_classic_kc(tms, cmdline);
+        break;
+    case MH_FILESET:
+        t8030_load_fileset_kc(tms, cmdline);
         break;
     default:
         error_setg(&error_abort, "%s: Unsupported kernelcache type: 0x%x\n",
