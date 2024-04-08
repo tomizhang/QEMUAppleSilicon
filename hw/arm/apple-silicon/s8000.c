@@ -1102,9 +1102,6 @@ static void apple_a9_reset(void *opaque)
     tms = S8000_MACHINE(machine);
     CPU_FOREACH (cpu) {
         tcpu = APPLE_A9(cpu);
-        if (tcpu->cpu_id == A9_MAX_CPU + 1) {
-            continue;
-        }
         object_property_set_int(OBJECT(cpu), "rvbar", S8000_TZ1_BASE,
                                 &error_abort);
         if (tcpu->cpu_id == 0) {
@@ -1441,7 +1438,7 @@ static void s8000_machine_class_init(ObjectClass *klass, void *data)
     mc->desc = "S8000";
     mc->init = s8000_machine_init;
     mc->reset = s8000_machine_reset;
-    mc->max_cpus = A9_MAX_CPU + 1;
+    mc->max_cpus = A9_MAX_CPU;
     mc->no_sdcard = 1;
     mc->no_floppy = 1;
     mc->no_cdrom = 1;

@@ -1788,7 +1788,7 @@ static void t8030_cpu_reset(void *opaque)
 
     CPU_FOREACH (cpu) {
         AppleA13State *tcpu = APPLE_A13(cpu);
-        if (tcpu == NULL || tcpu->cpu_id == A13_MAX_CPU + 1) {
+        if (tcpu == NULL) {
             continue;
         }
         object_property_set_uint(OBJECT(cpu), "rvbar",
@@ -2197,7 +2197,7 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
     mc->desc = "T8030";
     mc->init = t8030_machine_init;
     mc->reset = t8030_machine_reset;
-    mc->max_cpus = A13_MAX_CPU + 1;
+    mc->max_cpus = A13_MAX_CPU;
     mc->no_sdcard = 1;
     mc->no_floppy = 1;
     mc->no_cdrom = 1;
