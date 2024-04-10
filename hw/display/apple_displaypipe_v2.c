@@ -133,7 +133,7 @@ static uint8_t *apple_genpipev2_read_fb(GenPipeState *s, AddressSpace *dma_as,
 static bool apple_genpipev2_init(GenPipeState *s, size_t index, uint32_t width,
                                  uint32_t height)
 {
-    memset(s, 0, sizeof(*s));
+    bzero(s, sizeof(*s));
     s->index = index;
     s->width = width;
     s->height = height;
@@ -316,16 +316,24 @@ static const GraphicHwOps apple_displaypipe_v2_ops = {
     .gfx_update = apple_displaypipe_v2_gfx_update,
 };
 
-static void apple_displaypipe_v2_realize(DeviceState *dev, Error **errp)
+static void apple_displaypipe_v2_reset(DeviceState *dev)
 {
     AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(dev);
 
+    qemu_irq_lower(s->irqs[0]);
     s->uppipe_int_filter = 0;
     s->frame_processed = false;
     apple_genpipev2_init(&s->genpipe0, 0, s->width, s->height);
     apple_genpipev2_init(&s->genpipe1, 1, s->width, s->height);
+}
+
+static void apple_displaypipe_v2_realize(DeviceState *dev, Error **errp)
+{
+    AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(dev);
+
     s->console = graphic_console_init(dev, 0, &apple_displaypipe_v2_ops, s);
     qemu_console_resize(s->console, s->width, s->height);
+    apple_displaypipe_v2_reset(dev);
 }
 
 static Property apple_displaypipe_v2_props[] = {
@@ -345,6 +353,7 @@ static void apple_displaypipe_v2_class_init(ObjectClass *klass, void *data)
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
     device_class_set_props(dc, apple_displaypipe_v2_props);
     dc->realize = apple_displaypipe_v2_realize;
+    dc->reset = apple_displaypipe_v2_reset;
 }
 
 static const TypeInfo apple_displaypipe_v2_type_info = {
