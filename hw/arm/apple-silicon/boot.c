@@ -75,6 +75,7 @@ static const char *KEEP_COMP[] = {
     "sart,t8030\0$",
     "sio-dma-controller\0$",
     "smc-pmu\0$",
+    "smc-tempsensor\0$",
     "soc-tuner,s8000\0$",
     "soc-tuner,t8030\0$",
     "spi-1,samsung\0$",
@@ -460,7 +461,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     prop = set_dtb_prop(child, "effective-production-status-ap", sizeof(data),
                         &data);
 
-    // these are needed by the image4 parser module$
+    // these are needed by the image4 parser module
     set_dtb_prop(child, "security-domain", sizeof(data), &data);
     set_dtb_prop(child, "chip-epoch", sizeof(data), &data);
     set_dtb_prop(child, "amfi-allows-trust-cache-load", sizeof(data), &data);
