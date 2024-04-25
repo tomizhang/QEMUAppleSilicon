@@ -178,7 +178,7 @@ static bool aes_process_command(AppleAESState *s, AESCommand *cmd)
     bool locked = false;
 #define lock_reg()                  \
     do {                            \
-        qemu_mutex_lock_iothread(); \
+        bql_lock(); \
         locked = true;              \
     } while (0)
     switch (COMMAND_OPCODE(cmd->command)) {
@@ -340,11 +340,11 @@ static void *aes_thread(void *opaque)
         }
         if (cmd) {
             if (!aes_process_command(s, cmd)) {
-                qemu_mutex_lock_iothread();
+                bql_lock();
             }
             s->reg.command_fifo_status.level -= cmd->data_len;
             aes_update_command_fifo_status(s);
-            qemu_mutex_unlock_iothread();
+            bql_unlock();
 
             if (cmd->data) {
                 g_free(cmd->data);
