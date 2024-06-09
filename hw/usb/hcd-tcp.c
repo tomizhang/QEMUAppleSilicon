@@ -357,8 +357,9 @@ static void usb_tcp_host_attach(USBPort *uport)
         close(sock);
         return;
     }
+    object_ref(ioc);
     qio_channel_set_blocking(ioc, false, NULL);
-    s->closed = 0;
+    s->closed = false;
     s->ioc = ioc;
 
     migrate_add_blocker(&s->migration_blocker, NULL);
