@@ -92,15 +92,18 @@ static const char *KEEP_COMP[] = {
 };
 
 static const char *REM_NAMES[] = {
-    "aop-gpio\0$", "backlight\0$",   "baseband-spmi\0$",  "dart-ane\0$",
-    "dart-aop\0$", "dart-apcie2\0$", "dart-apcie3\0$",    "dart-avd\0$",
-    "dart-ave\0$", "dart-isp\0$",    "dart-jpeg0\0$",     "dart-jpeg1\0$",
-    "dart-pmp\0$", "dart-rsm\0$",    "dart-scaler\0$",    "dockchannel-uart\0$",
-    "dotara\0$",   "pmp\0$",         "stockholm-spmi\0$",
+    "aop-gpio\0$",      "backlight\0$",        "baseband\0$",
+    "baseband-spmi\0$", "dart-ane\0$",         "dart-aop\0$",
+    "dart-apcie2\0$",   "dart-apcie3\0$",      "dart-avd\0$",
+    "dart-ave\0$",      "dart-isp\0$",         "dart-jpeg0\0$",
+    "dart-jpeg1\0$",    "dart-pmp\0$",         "dart-rsm\0$",
+    "dart-scaler\0$",   "dockchannel-uart\0$", "dotara\0$",
+    "pmp\0$",           "stockholm-spmi\0$",
 };
 
 static const char *REM_DEV_TYPES[] = {
-    "aop\0$", "backlight\0$", "bluetooth\0$", "pmp\0$", "wlan\0$",
+    "aop\0$", "backlight\0$", "bluetooth\0$",
+    "pmp\0$", "wlan\0$",      "baseband\0$",
 };
 
 static const char *REM_PROPS[] = {
@@ -120,6 +123,8 @@ static const char *REM_PROPS[] = {
     "nvme-coastguard",
     "pmp",
     "soc-tuning",
+    "baseband-chipset",
+    "has-baseband",
 };
 
 static void allocate_and_copy(MemoryRegion *mem, AddressSpace *as,
