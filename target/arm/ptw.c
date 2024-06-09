@@ -285,7 +285,6 @@ static bool regime_translation_disabled(CPUARMState *env, ARMMMUIdx mmu_idx,
         return true;
 
     default:
-        info_report("regime_is_user: mmu_idx=0x%X\n", mmu_idx);
         g_assert_not_reached();
     }
 

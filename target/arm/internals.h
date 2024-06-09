@@ -992,7 +992,6 @@ static inline bool regime_is_user(CPUARMState *env, ARMMMUIdx mmu_idx)
     case ARMMMUIdx_E10_1_PAN:
     case ARMMMUIdx_GE10_1:
     case ARMMMUIdx_GE10_1_PAN:
-        info_report("regime_is_user: mmu_idx=0x%X\n", mmu_idx);
         g_assert_not_reached();
     }
 }
