@@ -558,13 +558,12 @@ static void apple_sep_handle_bootstrap_msg(AppleSEPState *s, SEPMessage *msg)
 static uint8_t *apple_sep_gen_sks_hash(uint8_t *msg_buf,
                                        const uint32_t msg_size)
 {
+    const uint32_t ipc_version =
+        *(uint32_t *)(msg_buf + offsetof(KeystoreIPCHeader, ipc_version));
     struct iovec iov[] = {
         {
             .iov_base = msg_buf + offsetof(KeystoreIPCHeader, ipc_version),
-            .iov_len = *(uint32_t *)(msg_buf + offsetof(KeystoreIPCHeader,
-                                                        ipc_version)) == 2 ?
-                           0x40 :
-                           0x38,
+            .iov_len = ipc_version == 2 ? 0x40 : 0x38,
         },
         {
             .iov_base = msg_buf + KEYSTORE_IPC_HEADER_SIZE,
@@ -588,10 +587,11 @@ static void apple_sep_keystore_send_ipc_resp(AppleSEPState *s,
                                              const uint32_t resp_size)
 {
     KeystoreIPCHeader *resp_hdr;
+    uint8_t *resp_hash;
 
     resp_hdr = (KeystoreIPCHeader *)resp_buf;
+    resp_hash = apple_sep_gen_sks_hash(resp_buf, resp_size);
 
-    uint8_t *resp_hash = apple_sep_gen_sks_hash(resp_buf, resp_size);
     memcpy(resp_hdr->payload_hash, resp_hash, sizeof(resp_hdr->payload_hash));
     g_free(resp_hash);
 
@@ -641,10 +641,6 @@ static void apple_sep_handle_keystore_msg(AppleSEPState *s,
         break;
     }
     case 0x02: {
-        // uint64_t *lword = (uint64_t *)(msg_hdr + 1);
-        // uint32_t *word = (uint32_t *)(lword + 1);
-        // qemu_log_mask(LOG_GUEST_ERROR, "SEP KeyStore // Copy Keybag 0x%llX
-        // 0x%X\n", *lword, *word);
         uint32_t *word0 = (uint32_t *)(msg_hdr + 1);
         uint64_t *lword = (uint64_t *)(word0 + 1);
         uint32_t *word1 = (uint32_t *)(lword + 1);
@@ -653,8 +649,6 @@ static void apple_sep_handle_keystore_msg(AppleSEPState *s,
                       *lword, *word1);
 
         const uint32_t resp_size = KEYSTORE_IPC_HEADER_SIZE + 0x4 + 0x4 + 0x10;
-        // const uint32_t resp_size = KEYSTORE_IPC_HEADER_SIZE + 0x4 + 0x4 +
-        // 0x20;
         uint8_t *resp_buf = g_new0(uint8_t, resp_size);
 
         KeystoreIPCHeader *resp_hdr = (KeystoreIPCHeader *)resp_buf;
@@ -671,10 +665,7 @@ static void apple_sep_handle_keystore_msg(AppleSEPState *s,
         *selector = 0;
         uint32_t *payload_blob = selector + 1;
         *payload_blob = 0x10;
-        //*payload_blob = 0x20;
         memset(payload_blob + 1, 0xAF, *payload_blob);
-        // memset(payload_blob + 1, 0x00, *payload_blob);
-        // memset(payload_blob + 1, 0xff, *payload_blob);
         apple_sep_keystore_send_ipc_resp(s, msg, resp_buf, resp_size);
         g_free(resp_buf);
         break;
