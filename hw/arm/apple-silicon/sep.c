@@ -769,6 +769,7 @@ static void apple_sep_handle_keystore_msg(AppleSEPState *s,
         resp_hdr->audit_session_id = msg_hdr->audit_session_id;
         memcpy(resp_hdr->ipc_digest, msg_hdr->ipc_digest,
                sizeof(resp_hdr->ipc_digest));
+        // Uh... who?
         uint32_t *selector = (uint32_t *)(resp_hdr + 1);
         *selector = 0;
         apple_sep_keystore_send_ipc_resp(s, msg, resp_buf, resp_size);
@@ -788,6 +789,7 @@ static void apple_sep_handle_keystore_msg(AppleSEPState *s,
         resp_hdr->audit_session_id = msg_hdr->audit_session_id;
         memcpy(resp_hdr->ipc_digest, msg_hdr->ipc_digest,
                sizeof(resp_hdr->ipc_digest));
+        // Guessing...
         uint32_t *selector = (uint32_t *)(resp_hdr + 1);
         *selector = 0;
         apple_sep_keystore_send_ipc_resp(s, msg, resp_buf, resp_size);
@@ -807,6 +809,7 @@ static void apple_sep_handle_keystore_msg(AppleSEPState *s,
         resp_hdr->audit_session_id = msg_hdr->audit_session_id;
         memcpy(resp_hdr->ipc_digest, msg_hdr->ipc_digest,
                sizeof(resp_hdr->ipc_digest));
+        // Guessing.
         uint32_t *selector = (uint32_t *)(resp_hdr + 1);
         *selector = 0;
         apple_sep_keystore_send_ipc_resp(s, msg, resp_buf, resp_size);
@@ -833,8 +836,10 @@ static void apple_sep_handle_keystore_msg(AppleSEPState *s,
         resp_hdr->audit_session_id = msg_hdr->audit_session_id;
         memcpy(resp_hdr->ipc_digest, msg_hdr->ipc_digest,
                sizeof(resp_hdr->ipc_digest));
+        // Again, guessing.
         uint32_t *selector = (uint32_t *)(resp_hdr + 1);
         *selector = 0;
+        // FIXME: This is a DER! See `_decode_extended_state`.
         uint32_t *state_blob = selector + 1;
         *state_blob = 0x9;
         memcpy(state_blob + 1, "applehax", *state_blob);
