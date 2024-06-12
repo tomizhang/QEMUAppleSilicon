@@ -10877,7 +10877,7 @@ void arm_log_exception(CPUState *cs)
             [EXCP_UNALIGNED] = "v7M UNALIGNED UsageFault",
             [EXCP_DIVBYZERO] = "v7M DIVBYZERO UsageFault",
             [EXCP_VSERR] = "Virtual SERR",
-            // [EXCP_GPC] = "Granule Protection Check",
+            [EXCP_GPC] = "Granule Protection Check",
             [EXCP_GENTER] = "Guarded Execution Enter",
             [EXCP_GXF_ABORT] = "Guarded Execution Abort",
         };
@@ -11634,15 +11634,15 @@ static void arm_cpu_do_interrupt_aarch64(CPUState *cs)
     }
 
     switch (cs->exception_index) {
-    // case EXCP_GPC:
-    //     qemu_log_mask(CPU_LOG_INT, "...with MFAR 0x%" PRIx64 "\n",
-    //                   env->cp15.mfar_el3);
-    //     goto EXC_ABORT;
+    case EXCP_GPC:
+        qemu_log_mask(CPU_LOG_INT, "...with MFAR 0x%" PRIx64 "\n",
+                      env->cp15.mfar_el3);
+        goto EXC_ABORT;
     case EXCP_GXF_ABORT:
         addr = env->gxf.gxf_abort_el[new_el];
         genter = true;
         /* fall through */
-    // EXC_ABORT:
+    EXC_ABORT:
     case EXCP_PREFETCH_ABORT:
     case EXCP_DATA_ABORT:
         /*

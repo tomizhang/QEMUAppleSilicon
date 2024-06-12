@@ -192,37 +192,37 @@ void arm_deliver_fault(ARMCPU *cpu, vaddr addr,
         target_el = 2;
     }
 
-    // if (report_as_gpc_exception(cpu, current_el, fi)) {
-    //     target_el = 3;
+    if (report_as_gpc_exception(cpu, current_el, fi)) {
+        target_el = 3;
 
-    //     fsr = compute_fsr_fsc(env, fi, target_el, mmu_idx, &fsc);
+        fsr = compute_fsr_fsc(env, fi, target_el, mmu_idx, &fsc);
 
-    //     syn = syn_gpc(fi->stage2 && fi->type == ARMFault_GPCFOnWalk,
-    //                   access_type == MMU_INST_FETCH,
-    //                   encode_gpcsc(fi), is_vncr,
-    //                   0, fi->s1ptw,
-    //                   access_type == MMU_DATA_STORE, fsc);
+        syn = syn_gpc(fi->stage2 && fi->type == ARMFault_GPCFOnWalk,
+                      access_type == MMU_INST_FETCH,
+                      encode_gpcsc(fi), is_vncr,
+                      0, fi->s1ptw,
+                      access_type == MMU_DATA_STORE, fsc);
 
-    //     env->cp15.mfar_el3 = fi->paddr;
-    //     switch (fi->paddr_space) {
-    //     case ARMSS_Secure:
-    //         break;
-    //     case ARMSS_NonSecure:
-    //         env->cp15.mfar_el3 |= R_MFAR_NS_MASK;
-    //         break;
-    //     case ARMSS_Root:
-    //         env->cp15.mfar_el3 |= R_MFAR_NSE_MASK;
-    //         break;
-    //     case ARMSS_Realm:
-    //         env->cp15.mfar_el3 |= R_MFAR_NSE_MASK | R_MFAR_NS_MASK;
-    //         break;
-    //     default:
-    //         g_assert_not_reached();
-    //     }
+        env->cp15.mfar_el3 = fi->paddr;
+        switch (fi->paddr_space) {
+        case ARMSS_Secure:
+            break;
+        case ARMSS_NonSecure:
+            env->cp15.mfar_el3 |= R_MFAR_NS_MASK;
+            break;
+        case ARMSS_Root:
+            env->cp15.mfar_el3 |= R_MFAR_NSE_MASK;
+            break;
+        case ARMSS_Realm:
+            env->cp15.mfar_el3 |= R_MFAR_NSE_MASK | R_MFAR_NS_MASK;
+            break;
+        default:
+            g_assert_not_reached();
+        }
 
-    //     exc = EXCP_GPC;
-    //     goto do_raise;
-    // }
+        exc = EXCP_GPC;
+        goto do_raise;
+    }
 
     /* If SCR_EL3.GPF is unset, GPF may still be routed to EL2. */
     if (fi->gpcf == GPCF_Fail && target_el < 2) {

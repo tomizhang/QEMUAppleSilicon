@@ -60,9 +60,9 @@
 #define EXCP_UNALIGNED      22   /* v7M UNALIGNED UsageFault */
 #define EXCP_DIVBYZERO      23   /* v7M DIVBYZERO UsageFault */
 #define EXCP_VSERR          24
-// #define EXCP_GPC            25   /* v9 Granule Protection Check Fault */
-#define EXCP_GENTER         25
-#define EXCP_GXF_ABORT      26
+#define EXCP_GPC            25   /* v9 Granule Protection Check Fault */
+#define EXCP_GENTER         26
+#define EXCP_GXF_ABORT      27
 /* NB: add new EXCP_ defines to the array in arm_log_exception() too */
 
 #define ARMV7M_EXCP_RESET   1
