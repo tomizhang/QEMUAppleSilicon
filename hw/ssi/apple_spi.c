@@ -303,8 +303,8 @@ static void apple_spi_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
     if (addr >= REG_MAX) {
         qemu_log_mask(LOG_UNIMP,
-                      "%s: reg WRITE @ 0x" HWADDREG_FMT_plx
-                      " value: 0x" HWADDREG_FMT_plx "\n",
+                      "%s: reg WRITE @ 0x" HWADDR_FMT_plx
+                      " value: 0x" HWADDR_FMT_plx "\n",
                       __func__, addr, data);
         return;
     }
@@ -367,7 +367,7 @@ static uint64_t apple_spi_reg_read(void *opaque, hwaddr addr, unsigned size)
     bool run = false;
 
     if (addr >= REG_MAX) {
-        qemu_log_mask(LOG_UNIMP, "%s: reg READ @ 0x" HWADDREG_FMT_plx "\n",
+        qemu_log_mask(LOG_UNIMP, "%s: reg READ @ 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
         return 0;
     }

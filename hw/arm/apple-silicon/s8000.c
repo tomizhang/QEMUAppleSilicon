@@ -38,6 +38,7 @@
 #include "hw/nvram/apple_nvram.h"
 #include "hw/qdev-core.h"
 #include "hw/ssi/apple_spi.h"
+#include "hw/ssi/ssi.h"
 #include "hw/usb/apple_otg.h"
 #include "hw/watchdog/apple_wdt.h"
 #include "qapi/error.h"
