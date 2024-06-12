@@ -18,11 +18,11 @@
  * -> num domains = (0x240 + 31)>>5 = 18 (domains)
  * 0x240/18 = 32 (bits) of an uint32_t
  *
- * Commands such as rAIC_EIR_MASK_SET/CLR assign each domain to a 32bit
+ * Commands such as REG_AIC_EIR_MASK_SET/CLR assign each domain to a 32bit
  * register. When masking/unmasking-ing IRQ n, write to (aic_base +
  * command_reg_base + (n / 32) * 4) a uint32_t which has (n % 32)-th bit set,
- * command_reg_base is 0x4100 for rAIC_EIR_MASK_SET, 0x4180 for
- * rAIC_EIR_MASK_CLR.
+ * command_reg_base is 0x4100 for REG_AIC_EIR_MASK_SET, 0x4180 for
+ * REG_AIC_EIR_MASK_CLR.
  *
  * T8030 uses both fast IPI, and AIC IPIs.
  * AIC IPIs' vectors are right after IRQs' vectors.
@@ -35,12 +35,12 @@
 #define AIC_CPU_COUNT (6)
 #define AIC_VERSION (2)
 
-#define rAIC_REV (0x0000)
-#define rAIC_CAP0 (0x0004)
-#define rAIC_CAP1 (0x0008)
-#define rAIC_RST (0x000C)
+#define REG_AIC_REV (0x0000)
+#define REG_AIC_CAP0 (0x0004)
+#define REG_AIC_CAP1 (0x0008)
+#define REG_AIC_RST (0x000C)
 
-#define rAIC_GLB_CFG (0x0010)
+#define REG_AIC_GLB_CFG (0x0010)
 #define AIC_GLBCFG_IEN (1 << 0)
 #define AIC_GLBCFG_AEWT(_t) ((_t) << 4)
 #define AIC_GLBCFG_SEWT(_t) ((_t) << 8)
@@ -52,32 +52,32 @@
 #define AIC_GLBCFG_WT_MASK (15)
 #define AIC_GLBCFG_WT_64MICRO (7)
 
-#define rAIC_WHOAMI (0x2000)
-#define rAIC_IACK (0x2004)
-#define rAIC_IPI_SET (0x2008)
-#define rAIC_IPI_CLR (0x200C)
+#define REG_AIC_WHOAMI (0x2000)
+#define REG_AIC_IACK (0x2004)
+#define REG_AIC_IPI_SET (0x2008)
+#define REG_AIC_IPI_CLR (0x200C)
 #define AIC_IPI_NORMAL (1 << 0)
 #define AIC_IPI_SELF (1 << 31)
-#define rAIC_IPI_MASK_SET (0x2024)
-#define rAIC_IPI_MASK_CLR (0x2028)
-#define rAIC_IPI_DEFER_SET (0x202C)
-#define rAIC_IPI_DEFER_CLR (0x2030)
+#define REG_AIC_IPI_MASK_SET (0x2024)
+#define REG_AIC_IPI_MASK_CLR (0x2028)
+#define REG_AIC_IPI_DEFER_SET (0x202C)
+#define REG_AIC_IPI_DEFER_CLR (0x2030)
 
-#define rAIC_EIR_DEST(_n) (0x3000 + ((_n)*4))
-#define rAIC_EIR_SW_SET(_n) (0x4000 + ((_n)*4))
-#define rAIC_EIR_SW_CLR(_n) (0x4080 + ((_n)*4))
-#define rAIC_EIR_MASK_SET(_n) (0x4100 + ((_n)*4))
-#define rAIC_EIR_MASK_CLR(_n) (0x4180 + ((_n)*4))
-#define rAIC_EIR_INT_RO(_n) (0x4200 + ((_n)*4))
+#define REG_AIC_EIR_DEST(_n) (0x3000 + ((_n) * 4))
+#define REG_AIC_EIR_SW_SET(_n) (0x4000 + ((_n) * 4))
+#define REG_AIC_EIR_SW_CLR(_n) (0x4080 + ((_n) * 4))
+#define REG_AIC_EIR_MASK_SET(_n) (0x4100 + ((_n) * 4))
+#define REG_AIC_EIR_MASK_CLR(_n) (0x4180 + ((_n) * 4))
+#define REG_AIC_EIR_INT_RO(_n) (0x4200 + ((_n) * 4))
 
-#define rAIC_WHOAMI_Pn(_n) (0x5000 + ((_n)*0x80))
-#define rAIC_IACK_Pn(_n) (0x5004 + ((_n)*0x80))
-#define rAIC_IPI_SET_Pn(_n) (0x5008 + ((_n)*0x80))
-#define rAIC_IPI_CLR_Pn(_n) (0x500C + ((_n)*0x80))
-#define rAIC_IPI_MASK_SET_Pn(_n) (0x5024 + ((_n)*0x80))
-#define rAIC_IPI_MASK_CLR_Pn(_n) (0x5028 + ((_n)*0x80))
-#define rAIC_IPI_DEFER_SET_Pn(_n) (0x502C + ((_n)*0x80))
-#define rAIC_IPI_DEFER_CLR_Pn(_n) (0x5030 + ((_n)*0x80))
+#define REG_AIC_WHOAMI_Pn(_n) (0x5000 + ((_n) * 0x80))
+#define REG_AIC_IACK_Pn(_n) (0x5004 + ((_n) * 0x80))
+#define REG_AIC_IPI_SET_Pn(_n) (0x5008 + ((_n) * 0x80))
+#define REG_AIC_IPI_CLR_Pn(_n) (0x500C + ((_n) * 0x80))
+#define REG_AIC_IPI_MASK_SET_Pn(_n) (0x5024 + ((_n) * 0x80))
+#define REG_AIC_IPI_MASK_CLR_Pn(_n) (0x5028 + ((_n) * 0x80))
+#define REG_AIC_IPI_DEFER_SET_Pn(_n) (0x502C + ((_n) * 0x80))
+#define REG_AIC_IPI_DEFER_CLR_Pn(_n) (0x5030 + ((_n) * 0x80))
 
 #define kAIC_INT_SPURIOUS (0x00000)
 #define kAIC_INT_EXT (0x10000)
@@ -85,14 +85,14 @@
 #define kAIC_INT_IPI_NORM (0x40001)
 #define kAIC_INT_IPI_SELF (0x40002)
 
-#define AIC_INT_EXT(_v) (((_v)&0x70000) == kAIC_INT_EXT)
-#define AIC_INT_IPI(_v) (((_v)&0x70000) == kAIC_INT_IPI)
+#define AIC_INT_EXT(_v) (((_v) & 0x70000) == kAIC_INT_EXT)
+#define AIC_INT_IPI(_v) (((_v) & 0x70000) == kAIC_INT_IPI)
 
-#define AIC_INT_EXTID(_v) ((_v)&0x3FF)
+#define AIC_INT_EXTID(_v) ((_v) & 0x3FF)
 
 #define AIC_SRC_TO_EIR(_s) ((_s) >> 5)
-#define AIC_SRC_TO_MASK(_s) (1 << ((_s)&0x1F))
-#define AIC_EIR_TO_SRC(_s, _v) (((_s) << 5) + ((_v)&0x1F))
+#define AIC_SRC_TO_MASK(_s) (1 << ((_s) & 0x1F))
+#define AIC_EIR_TO_SRC(_s, _v) (((_s) << 5) + ((_v) & 0x1F))
 
 #define kAIC_MAX_EXTID (AIC_INT_COUNT)
 #define kAIC_VEC_IPI (kAIC_MAX_EXTID)
@@ -229,15 +229,15 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
     WITH_QEMU_LOCK_GUARD(&s->mutex)
     {
         switch (addr) {
-        case rAIC_RST:
+        case REG_AIC_RST:
             apple_aic_reset(DEVICE(s));
             break;
 
-        case rAIC_GLB_CFG:
+        case REG_AIC_GLB_CFG:
             s->global_cfg = data;
             break;
 
-        case rAIC_IPI_SET: {
+        case REG_AIC_IPI_SET: {
             int i;
 
             for (i = 0; i < s->numCPU; i++) {
@@ -258,7 +258,7 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             break;
         }
 
-        case rAIC_IPI_CLR: {
+        case REG_AIC_IPI_CLR: {
             int i;
 
             for (i = 0; i < s->numCPU; i++) {
@@ -274,15 +274,15 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             break;
         }
 
-        case rAIC_IPI_MASK_SET:
+        case REG_AIC_IPI_MASK_SET:
             o->ipi_mask |= (val & (AIC_IPI_NORMAL | AIC_IPI_SELF));
             break;
 
-        case rAIC_IPI_MASK_CLR:
+        case REG_AIC_IPI_MASK_CLR:
             o->ipi_mask &= ~(val & (AIC_IPI_NORMAL | AIC_IPI_SELF));
             break;
 
-        case rAIC_IPI_DEFER_SET: {
+        case REG_AIC_IPI_DEFER_SET: {
             int i;
 
             for (i = 0; i < s->numCPU; i++) {
@@ -298,7 +298,7 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             break;
         }
 
-        case rAIC_IPI_DEFER_CLR: {
+        case REG_AIC_IPI_DEFER_CLR: {
             int i;
 
             for (i = 0; i < s->numCPU; i++) {
@@ -314,8 +314,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             break;
         }
 
-        case rAIC_EIR_DEST(0)... rAIC_EIR_DEST(AIC_INT_COUNT): {
-            uint32_t vector = (addr - rAIC_EIR_DEST(0)) / 4;
+        case REG_AIC_EIR_DEST(0)... REG_AIC_EIR_DEST(AIC_INT_COUNT): {
+            uint32_t vector = (addr - REG_AIC_EIR_DEST(0)) / 4;
             if (unlikely(vector >= s->numIRQ)) {
                 break;
             }
@@ -323,8 +323,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             break;
         }
 
-        case rAIC_EIR_SW_SET(0)... rAIC_EIR_SW_SET(kAIC_NUM_EIRS): {
-            uint32_t eir = (addr - rAIC_EIR_SW_SET(0)) / 4;
+        case REG_AIC_EIR_SW_SET(0)... REG_AIC_EIR_SW_SET(kAIC_NUM_EIRS): {
+            uint32_t eir = (addr - REG_AIC_EIR_SW_SET(0)) / 4;
             if (unlikely(eir >= s->numEIR)) {
                 break;
             }
@@ -332,8 +332,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             break;
         }
 
-        case rAIC_EIR_SW_CLR(0)... rAIC_EIR_SW_CLR(kAIC_NUM_EIRS): {
-            uint32_t eir = (addr - rAIC_EIR_SW_CLR(0)) / 4;
+        case REG_AIC_EIR_SW_CLR(0)... REG_AIC_EIR_SW_CLR(kAIC_NUM_EIRS): {
+            uint32_t eir = (addr - REG_AIC_EIR_SW_CLR(0)) / 4;
             if (unlikely(eir >= s->numEIR)) {
                 break;
             }
@@ -341,8 +341,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             break;
         }
 
-        case rAIC_EIR_MASK_SET(0)... rAIC_EIR_MASK_SET(kAIC_NUM_EIRS): {
-            uint32_t eir = (addr - rAIC_EIR_MASK_SET(0)) / 4;
+        case REG_AIC_EIR_MASK_SET(0)... REG_AIC_EIR_MASK_SET(kAIC_NUM_EIRS): {
+            uint32_t eir = (addr - REG_AIC_EIR_MASK_SET(0)) / 4;
             if (unlikely(eir >= s->numEIR)) {
                 break;
             }
@@ -350,8 +350,8 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             break;
         }
 
-        case rAIC_EIR_MASK_CLR(0)... rAIC_EIR_MASK_CLR(kAIC_NUM_EIRS): {
-            uint32_t eir = (addr - rAIC_EIR_MASK_CLR(0)) / 4;
+        case REG_AIC_EIR_MASK_CLR(0)... REG_AIC_EIR_MASK_CLR(kAIC_NUM_EIRS): {
+            uint32_t eir = (addr - REG_AIC_EIR_MASK_CLR(0)) / 4;
 
             if (unlikely(eir >= s->numEIR)) {
                 break;
@@ -374,7 +374,7 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
             break;
         }
 
-        case rAIC_WHOAMI_Pn(0)... rAIC_WHOAMI_Pn(AIC_CPU_COUNT) - 4: {
+        case REG_AIC_WHOAMI_Pn(0)... REG_AIC_WHOAMI_Pn(AIC_CPU_COUNT) - 4: {
             uint32_t cpu = ((addr - 0x5000) / 0x80);
             if (unlikely(cpu >= s->numCPU)) {
                 break;
@@ -404,19 +404,19 @@ static uint64_t apple_aic_read(void *opaque, hwaddr addr, unsigned size)
     WITH_QEMU_LOCK_GUARD(&s->mutex)
     {
         switch (addr) {
-        case rAIC_REV:
+        case REG_AIC_REV:
             return 2;
 
-        case rAIC_CAP0:
+        case REG_AIC_CAP0:
             return (((uint64_t)s->numCPU - 1) << 16) | (s->numIRQ);
 
-        case rAIC_GLB_CFG:
+        case REG_AIC_GLB_CFG:
             return s->global_cfg;
 
-        case rAIC_WHOAMI:
+        case REG_AIC_WHOAMI:
             return o->cpu_id;
 
-        case rAIC_IACK: {
+        case REG_AIC_IACK: {
             int i;
 
             qemu_irq_lower(o->irq);
@@ -445,8 +445,8 @@ static uint64_t apple_aic_read(void *opaque, hwaddr addr, unsigned size)
             return kAIC_INT_SPURIOUS;
         }
 
-        case rAIC_EIR_DEST(0)... rAIC_EIR_DEST(AIC_INT_COUNT): {
-            uint32_t vector = (addr - rAIC_EIR_DEST(0)) / 4;
+        case REG_AIC_EIR_DEST(0)... REG_AIC_EIR_DEST(AIC_INT_COUNT): {
+            uint32_t vector = (addr - REG_AIC_EIR_DEST(0)) / 4;
 
             if (unlikely(vector >= s->numIRQ)) {
                 break;
@@ -455,8 +455,8 @@ static uint64_t apple_aic_read(void *opaque, hwaddr addr, unsigned size)
             return s->eir_dest[vector];
         }
 
-        case rAIC_EIR_MASK_SET(0)... rAIC_EIR_MASK_SET(kAIC_NUM_EIRS): {
-            uint32_t eir = (addr - rAIC_EIR_MASK_SET(0)) / 4;
+        case REG_AIC_EIR_MASK_SET(0)... REG_AIC_EIR_MASK_SET(kAIC_NUM_EIRS): {
+            uint32_t eir = (addr - REG_AIC_EIR_MASK_SET(0)) / 4;
 
             if (unlikely(eir >= s->numEIR)) {
                 break;
@@ -465,8 +465,8 @@ static uint64_t apple_aic_read(void *opaque, hwaddr addr, unsigned size)
             return s->eir_mask[eir];
         }
 
-        case rAIC_EIR_MASK_CLR(0)... rAIC_EIR_MASK_CLR(kAIC_NUM_EIRS): {
-            uint32_t eir = (addr - rAIC_EIR_MASK_CLR(0)) / 4;
+        case REG_AIC_EIR_MASK_CLR(0)... REG_AIC_EIR_MASK_CLR(kAIC_NUM_EIRS): {
+            uint32_t eir = (addr - REG_AIC_EIR_MASK_CLR(0)) / 4;
 
             if (unlikely(eir >= s->numEIR)) {
                 break;
@@ -475,8 +475,8 @@ static uint64_t apple_aic_read(void *opaque, hwaddr addr, unsigned size)
             return s->eir_mask[eir];
         }
 
-        case rAIC_EIR_INT_RO(0)... rAIC_EIR_INT_RO(kAIC_NUM_EIRS): {
-            uint32_t eir = (addr - rAIC_EIR_INT_RO(0)) / 4;
+        case REG_AIC_EIR_INT_RO(0)... REG_AIC_EIR_INT_RO(kAIC_NUM_EIRS): {
+            uint32_t eir = (addr - REG_AIC_EIR_INT_RO(0)) / 4;
 
             if (unlikely(eir >= s->numEIR)) {
                 break;
@@ -484,7 +484,7 @@ static uint64_t apple_aic_read(void *opaque, hwaddr addr, unsigned size)
             return s->eir_state[eir];
         }
 
-        case rAIC_WHOAMI_Pn(0)... rAIC_WHOAMI_Pn(AIC_CPU_COUNT) - 4: {
+        case REG_AIC_WHOAMI_Pn(0)... REG_AIC_WHOAMI_Pn(AIC_CPU_COUNT) - 4: {
             uint32_t cpu = ((addr - 0x5000) / 0x80);
             uint64_t val;
 

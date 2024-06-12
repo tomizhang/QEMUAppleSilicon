@@ -1,8 +1,6 @@
 #include "qemu/osdep.h"
 #include "monitor/hmp-target.h"
 #include "monitor/monitor.h"
-#include "qapi/error.h"
-#include "qapi/qapi-commands-misc-target.h"
 
 void hmp_info_dart(Monitor *mon, const QDict *qdict)
 {

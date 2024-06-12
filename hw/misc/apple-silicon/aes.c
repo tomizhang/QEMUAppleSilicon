@@ -1,6 +1,5 @@
 #include "qemu/osdep.h"
 #include "crypto/cipher.h"
-#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/aes.h"
@@ -176,10 +175,10 @@ static bool aes_process_command(AppleAESState *s, AESCommand *cmd)
 {
     trace_apple_aes_process_command(COMMAND_OPCODE(cmd->command));
     bool locked = false;
-#define lock_reg()                  \
-    do {                            \
-        bql_lock(); \
-        locked = true;              \
+#define lock_reg()     \
+    do {               \
+        bql_lock();    \
+        locked = true; \
     } while (0)
     switch (COMMAND_OPCODE(cmd->command)) {
     case OPCODE_KEY: {

@@ -22,13 +22,7 @@
  */
 
 #include "qemu/osdep.h"
-#include "hw/arm/boot.h"
-#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/loader.h"
-#include "qapi/error.h"
-#include "qemu/error-report.h"
-#include "sysemu/sysemu.h"
 
 #define min(_a, _b) ((_a) < (_b) ? (_a) : (_b))
 

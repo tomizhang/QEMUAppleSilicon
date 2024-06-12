@@ -1,5 +1,4 @@
 #include "qemu/osdep.h"
-#include "block/aio.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/misc/apple-silicon/a7iop/mailbox/core.h"
 #include "hw/misc/apple-silicon/a7iop/private.h"

@@ -3,11 +3,10 @@
 
 #include "qemu/osdep.h"
 #include "hw/sysbus.h"
-#include "qom/object.h"
 #include "hw/usb.h"
 #include "io/channel.h"
 #include "qemu/coroutine.h"
-#include "qapi/error.h"
+#include "qom/object.h"
 
 #define TYPE_USB_TCP_HOST "usb-tcp-host"
 OBJECT_DECLARE_SIMPLE_TYPE(USBTCPHostState, USB_TCP_HOST)

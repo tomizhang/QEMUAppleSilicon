@@ -18,9 +18,8 @@
 #define HW_ARM_APPLE_SILICON_BOOT_H
 
 #include "qemu/osdep.h"
+#include "exec/hwaddr.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/arm/apple-silicon/mem.h"
-#include "hw/arm/boot.h"
 
 #define BOOT_ARGS_REVISION_2 (2)
 #define BOOT_ARGS_VERSION_2 (2)
@@ -122,8 +121,8 @@ typedef struct {
 #define PLATFORM_WATCHOS (4)
 #define PLATFORM_BRIDGEOS (5)
 
-#define BUILD_VERSION_MAJOR(_v) (((_v)&0xFFFF0000) >> 16)
-#define BUILD_VERSION_MINOR(_v) (((_v)&0x0000FF00) >> 8)
+#define BUILD_VERSION_MAJOR(_v) (((_v) & 0xFFFF0000) >> 16)
+#define BUILD_VERSION_MINOR(_v) (((_v) & 0x0000FF00) >> 8)
 
 typedef struct {
     uint32_t cmd;

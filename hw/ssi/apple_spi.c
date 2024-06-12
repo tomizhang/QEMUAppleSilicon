@@ -3,62 +3,60 @@
 #include "hw/dma/apple_sio.h"
 #include "hw/irq.h"
 #include "hw/ssi/apple_spi.h"
+#include "hw/ssi/ssi.h"
 #include "migration/vmstate.h"
-#include "qemu/bitops.h"
 #include "qemu/fifo32.h"
-#include "qemu/lockable.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
-#include "qemu/timer.h"
 
 /* XXX: Based on linux/drivers/spi/spi-apple.c */
 
-#define R_CTRL 0x000
-#define R_CTRL_RUN (1 << 0)
-#define R_CTRL_TX_RESET (1 << 2)
-#define R_CTRL_RX_RESET (1 << 3)
+#define REG_CTRL 0x000
+#define REG_CTRL_RUN (1 << 0)
+#define REG_CTRL_TX_RESET (1 << 2)
+#define REG_CTRL_RX_RESET (1 << 3)
 
-#define R_CFG 0x004
-#define R_CFG_AGD (1 << 0)
-#define R_CFG_CPHA (1 << 1)
-#define R_CFG_CPOL (1 << 2)
-#define R_CFG_MODE(_x) (((_x) >> 5) & 0x3)
-#define R_CFG_MODE_INVALID 0
-#define R_CFG_MODE_IRQ 1
-#define R_CFG_MODE_DMA 2
-#define R_CFG_IE_RXREADY (1 << 7)
-#define R_CFG_IE_TXEMPTY (1 << 8)
-#define R_CFG_LSB_FIRST (1 << 13)
-#define R_CFG_WORD_SIZE(_x) (((_x) >> 15) & 0x3)
-#define R_CFG_WORD_SIZE_8B 0
-#define R_CFG_WORD_SIZE_16B 1
-#define R_CFG_WORD_SIZE_32B 2
-#define R_CFG_IE_COMPLETE (1 << 21)
+#define REG_CFG 0x004
+#define REG_CFG_AGD (1 << 0)
+#define REG_CFG_CPHA (1 << 1)
+#define REG_CFG_CPOL (1 << 2)
+#define REG_CFG_MODE(_x) (((_x) >> 5) & 0x3)
+#define REG_CFG_MODE_INVALID 0
+#define REG_CFG_MODE_IRQ 1
+#define REG_CFG_MODE_DMA 2
+#define REG_CFG_IE_RXREADY (1 << 7)
+#define REG_CFG_IE_TXEMPTY (1 << 8)
+#define REG_CFG_LSB_FIRST (1 << 13)
+#define REG_CFG_WORD_SIZE(_x) (((_x) >> 15) & 0x3)
+#define REG_CFG_WORD_SIZE_8B 0
+#define REG_CFG_WORD_SIZE_16B 1
+#define REG_CFG_WORD_SIZE_32B 2
+#define REG_CFG_IE_COMPLETE (1 << 21)
 
-#define R_STATUS 0x008
-#define R_STATUS_RXREADY (1 << 0)
-#define R_STATUS_TXEMPTY (1 << 1)
-#define R_STATUS_RXOVERFLOW (1 << 3)
-#define R_STATUS_COMPLETE (1 << 22)
-#define R_STATUS_TXFIFO_SHIFT (6)
-#define R_STATUS_TXFIFO_MASK (31 << R_STATUS_TXFIFO_SHIFT)
-#define R_STATUS_RXFIFO_SHIFT (11)
-#define R_STATUS_RXFIFO_MASK (31 << R_STATUS_RXFIFO_SHIFT)
+#define REG_STATUS 0x008
+#define REG_STATUS_RXREADY (1 << 0)
+#define REG_STATUS_TXEMPTY (1 << 1)
+#define REG_STATUS_RXOVERFLOW (1 << 3)
+#define REG_STATUS_COMPLETE (1 << 22)
+#define REG_STATUS_TXFIFO_SHIFT (6)
+#define REG_STATUS_TXFIFO_MASK (31 << REG_STATUS_TXFIFO_SHIFT)
+#define REG_STATUS_RXFIFO_SHIFT (11)
+#define REG_STATUS_RXFIFO_MASK (31 << REG_STATUS_RXFIFO_SHIFT)
 
-#define R_PIN 0x00c
-#define R_PIN_CS (1 << 1)
+#define REG_PIN 0x00c
+#define REG_PIN_CS (1 << 1)
 
-#define R_TXDATA 0x010
-#define R_RXDATA 0x020
-#define R_CLKDIV 0x030
-#define R_CLKDIV_MAX 0x7ff
-#define R_RXCNT 0x034
-#define R_WORD_DELAY 0x038
-#define R_TXCNT 0x04c
-#define R_MAX (0x50)
+#define REG_TXDATA 0x010
+#define REG_RXDATA 0x020
+#define REG_CLKDIV 0x030
+#define REG_CLKDIV_MAX 0x7ff
+#define REG_RXCNT 0x034
+#define REG_WORD_DELAY 0x038
+#define REG_TXCNT 0x04c
+#define REG_MAX (0x50)
 
-#define R_FIFO_DEPTH 16
-#define R_FIFO_MAX_DEPTH (16 * 8)
+#define REG_FIFO_DEPTH 16
+#define REG_FIFO_MAX_DEPTH (16 * 8)
 
 #define REG(_s, _v) ((_s)->regs[(_v) >> 2])
 
@@ -86,12 +84,12 @@ struct AppleSPIState {
 
 static int apple_spi_word_size(AppleSPIState *s)
 {
-    switch (R_CFG_WORD_SIZE(REG(s, R_CFG))) {
-    case R_CFG_WORD_SIZE_8B:
+    switch (REG_CFG_WORD_SIZE(REG(s, REG_CFG))) {
+    case REG_CFG_WORD_SIZE_8B:
         return 1;
-    case R_CFG_WORD_SIZE_16B:
+    case REG_CFG_WORD_SIZE_16B:
         return 2;
-    case R_CFG_WORD_SIZE_32B:
+    case REG_CFG_WORD_SIZE_32B:
         return 4;
     default:
         break;
@@ -102,11 +100,11 @@ static int apple_spi_word_size(AppleSPIState *s)
 static void apple_spi_update_xfer_tx(AppleSPIState *s)
 {
     if (fifo32_is_empty(&s->tx_fifo)) {
-        if ((R_CFG_MODE(REG(s, R_CFG))) == R_CFG_MODE_DMA) {
-            uint8_t buffer[R_FIFO_MAX_DEPTH] = { 0 };
+        if ((REG_CFG_MODE(REG(s, REG_CFG))) == REG_CFG_MODE_DMA) {
+            uint8_t buffer[REG_FIFO_MAX_DEPTH] = { 0 };
             int word_size = apple_spi_word_size(s);
             int dma_len = apple_sio_dma_remaining(s->tx_chan);
-            int xfer_len = REG(s, R_TXCNT) * word_size;
+            int xfer_len = REG(s, REG_TXCNT) * word_size;
             int fifo_len = fifo32_num_free(&s->tx_fifo) * word_size;
             if (dma_len > xfer_len) {
                 dma_len = xfer_len;
@@ -116,7 +114,7 @@ static void apple_spi_update_xfer_tx(AppleSPIState *s)
             }
             dma_len = apple_sio_dma_read(s->tx_chan, buffer, dma_len);
             if (dma_len == 0) {
-                REG(s, R_STATUS) |= R_STATUS_TXEMPTY;
+                REG(s, REG_STATUS) |= REG_STATUS_TXEMPTY;
             } else {
                 for (int i = 0; i < dma_len; i += word_size) {
                     uint32_t v = *(uint32_t *)&buffer[i];
@@ -125,16 +123,16 @@ static void apple_spi_update_xfer_tx(AppleSPIState *s)
                 }
             }
         } else {
-            REG(s, R_STATUS) |= R_STATUS_TXEMPTY;
+            REG(s, REG_STATUS) |= REG_STATUS_TXEMPTY;
         }
     }
 }
 
 static void apple_spi_flush_rx(AppleSPIState *s)
 {
-    uint8_t buffer[R_FIFO_MAX_DEPTH] = { 0 };
+    uint8_t buffer[REG_FIFO_MAX_DEPTH] = { 0 };
     int word_size = apple_spi_word_size(s);
-    if ((R_CFG_MODE(REG(s, R_CFG))) != R_CFG_MODE_DMA) {
+    if ((REG_CFG_MODE(REG(s, REG_CFG))) != REG_CFG_MODE_DMA) {
         return;
     }
     int dma_len = apple_sio_dma_remaining(s->rx_chan);
@@ -157,7 +155,7 @@ static void apple_spi_flush_rx(AppleSPIState *s)
 static void apple_spi_update_xfer_rx(AppleSPIState *s)
 {
     if (!fifo32_is_empty(&s->rx_fifo)) {
-        REG(s, R_STATUS) |= R_STATUS_RXREADY;
+        REG(s, REG_STATUS) |= REG_STATUS_RXREADY;
     }
 }
 
@@ -166,17 +164,17 @@ static void apple_spi_update_irq(AppleSPIState *s)
     uint32_t irq = 0;
     uint32_t mask = 0;
 
-    if (REG(s, R_CFG) & R_CFG_IE_RXREADY) {
-        mask |= R_STATUS_RXREADY;
+    if (REG(s, REG_CFG) & REG_CFG_IE_RXREADY) {
+        mask |= REG_STATUS_RXREADY;
     }
-    if (REG(s, R_CFG) & R_CFG_IE_TXEMPTY) {
-        mask |= R_STATUS_TXEMPTY;
+    if (REG(s, REG_CFG) & REG_CFG_IE_TXEMPTY) {
+        mask |= REG_STATUS_TXEMPTY;
     }
-    if (REG(s, R_CFG) & R_CFG_IE_COMPLETE) {
-        mask |= R_STATUS_COMPLETE;
+    if (REG(s, REG_CFG) & REG_CFG_IE_COMPLETE) {
+        mask |= REG_STATUS_COMPLETE;
     }
 
-    if (REG(s, R_STATUS) & mask) {
+    if (REG(s, REG_STATUS) & mask) {
         irq = 1;
     }
     if (irq != s->last_irq) {
@@ -196,7 +194,7 @@ static void apple_spi_update_cs(AppleSPIState *s)
         }
         qemu_irq cs_pin = qdev_get_gpio_in_named(kid->child, SSI_GPIO_CS, 0);
         if (cs_pin) {
-            qemu_set_irq(cs_pin, (REG(s, R_PIN) & R_PIN_CS) != 0);
+            qemu_set_irq(cs_pin, (REG(s, REG_PIN) & REG_PIN_CS) != 0);
         }
     }
 }
@@ -205,9 +203,9 @@ static void apple_spi_cs_set(void *opaque, int pin, int level)
 {
     AppleSPIState *s = APPLE_SPI(opaque);
     if (level) {
-        REG(s, R_PIN) |= R_PIN_CS;
+        REG(s, REG_PIN) |= REG_PIN_CS;
     } else {
-        REG(s, R_PIN) &= ~R_PIN_CS;
+        REG(s, REG_PIN) &= ~REG_PIN_CS;
     }
     apple_spi_update_cs(s);
 }
@@ -218,16 +216,17 @@ static void apple_spi_run(AppleSPIState *s)
     uint32_t rx;
     int word_size = apple_spi_word_size(s);
 
-    if (R_CFG_MODE(REG(s, R_CFG)) == R_CFG_MODE_INVALID) {
+    if (REG_CFG_MODE(REG(s, REG_CFG)) == REG_CFG_MODE_INVALID) {
         return;
     }
-    if (!(REG(s, R_CTRL) & R_CTRL_RUN)) {
+    if (!(REG(s, REG_CTRL) & REG_CTRL_RUN)) {
         return;
     }
-    if (REG(s, R_RXCNT) == 0 && REG(s, R_TXCNT) == 0) {
+    if (REG(s, REG_RXCNT) == 0 && REG(s, REG_TXCNT) == 0) {
         return;
     }
-    if ((R_CFG_MODE(REG(s, R_CFG))) == R_CFG_MODE_DMA && !s->dma_capable) {
+    if ((REG_CFG_MODE(REG(s, REG_CFG))) == REG_CFG_MODE_DMA &&
+        !s->dma_capable) {
         qemu_log_mask(LOG_GUEST_ERROR,
                       "%s: DMA mode is not supported on this device\n",
                       __func__);
@@ -236,7 +235,7 @@ static void apple_spi_run(AppleSPIState *s)
 
     apple_spi_update_xfer_tx(s);
 
-    while (REG(s, R_TXCNT) && !fifo32_is_empty(&s->tx_fifo)) {
+    while (REG(s, REG_TXCNT) && !fifo32_is_empty(&s->tx_fifo)) {
         tx = fifo32_pop(&s->tx_fifo);
         rx = 0;
         for (int i = 0; i < word_size; i++) {
@@ -244,19 +243,19 @@ static void apple_spi_run(AppleSPIState *s)
             rx |= ssi_transfer(s->spi, tx & 0xff);
             tx >>= 8;
         }
-        REG(s, R_TXCNT)--;
+        REG(s, REG_TXCNT)--;
         apple_spi_update_xfer_tx(s);
-        if (REG(s, R_RXCNT) > 0) {
+        if (REG(s, REG_RXCNT) > 0) {
             if (fifo32_is_full(&s->rx_fifo)) {
                 apple_spi_flush_rx(s);
             }
             if (fifo32_is_full(&s->rx_fifo)) {
                 qemu_log_mask(LOG_GUEST_ERROR, "%s: rx overflow\n", __func__);
-                REG(s, R_STATUS) |= R_STATUS_RXOVERFLOW;
+                REG(s, REG_STATUS) |= REG_STATUS_RXOVERFLOW;
                 break;
             } else {
                 fifo32_push(&s->rx_fifo, rx);
-                REG(s, R_RXCNT)--;
+                REG(s, REG_RXCNT)--;
                 apple_spi_update_xfer_rx(s);
             }
         }
@@ -265,8 +264,8 @@ static void apple_spi_run(AppleSPIState *s)
     if (fifo32_is_full(&s->rx_fifo)) {
         apple_spi_flush_rx(s);
     }
-    while (!fifo32_is_full(&s->rx_fifo) && (REG(s, R_RXCNT) > 0) &&
-           (REG(s, R_CFG) & R_CFG_AGD)) {
+    while (!fifo32_is_full(&s->rx_fifo) && (REG(s, REG_RXCNT) > 0) &&
+           (REG(s, REG_CFG) & REG_CFG_AGD)) {
         rx = 0;
         for (int i = 0; i < word_size; i++) {
             rx <<= 8;
@@ -277,18 +276,18 @@ static void apple_spi_run(AppleSPIState *s)
         }
         if (fifo32_is_full(&s->rx_fifo)) {
             qemu_log_mask(LOG_GUEST_ERROR, "%s: rx overflow\n", __func__);
-            REG(s, R_STATUS) |= R_STATUS_RXOVERFLOW;
+            REG(s, REG_STATUS) |= REG_STATUS_RXOVERFLOW;
             break;
         } else {
             fifo32_push(&s->rx_fifo, rx);
-            REG(s, R_RXCNT)--;
+            REG(s, REG_RXCNT)--;
             apple_spi_update_xfer_rx(s);
         }
     }
 
     apple_spi_flush_rx(s);
-    if (REG(s, R_RXCNT) == 0 && REG(s, R_TXCNT) == 0) {
-        REG(s, R_STATUS) |= R_STATUS_COMPLETE;
+    if (REG(s, REG_RXCNT) == 0 && REG(s, REG_TXCNT) == 0) {
+        REG(s, REG_STATUS) |= REG_STATUS_COMPLETE;
     }
 }
 
@@ -302,35 +301,35 @@ static void apple_spi_reg_write(void *opaque, hwaddr addr, uint64_t data,
     bool cs_flg = false;
     bool run = false;
 
-    if (addr >= R_MAX) {
+    if (addr >= REG_MAX) {
         qemu_log_mask(LOG_UNIMP,
-                      "%s: reg WRITE @ 0x" HWADDR_FMT_plx
-                      " value: 0x" HWADDR_FMT_plx "\n",
+                      "%s: reg WRITE @ 0x" HWADDREG_FMT_plx
+                      " value: 0x" HWADDREG_FMT_plx "\n",
                       __func__, addr, data);
         return;
     }
 
     switch (addr) {
-    case R_CTRL:
-        if (r & R_CTRL_TX_RESET) {
+    case REG_CTRL:
+        if (r & REG_CTRL_TX_RESET) {
             fifo32_reset(&s->tx_fifo);
-            r &= ~R_CTRL_TX_RESET;
+            r &= ~REG_CTRL_TX_RESET;
         }
-        if (r & R_CTRL_RX_RESET) {
+        if (r & REG_CTRL_RX_RESET) {
             fifo32_reset(&s->rx_fifo);
-            r &= ~R_CTRL_RX_RESET;
+            r &= ~REG_CTRL_RX_RESET;
         }
-        if (r & R_CTRL_RUN) {
+        if (r & REG_CTRL_RUN) {
             run = true;
         }
         break;
-    case R_STATUS:
+    case REG_STATUS:
         r = old & (~r);
         break;
-    case R_PIN:
+    case REG_PIN:
         cs_flg = true;
         break;
-    case R_TXDATA: {
+    case REG_TXDATA: {
         int word_size = apple_spi_word_size(s);
         if (fifo32_is_full(&s->tx_fifo)) {
             qemu_log_mask(LOG_GUEST_ERROR, "%s: tx overflow\n", __func__);
@@ -341,9 +340,9 @@ static void apple_spi_reg_write(void *opaque, hwaddr addr, uint64_t data,
         fifo32_push(&s->tx_fifo, r);
         run = true;
         break;
-    case R_TXCNT:
-    case R_RXCNT:
-    case R_CFG:
+    case REG_TXCNT:
+    case REG_RXCNT:
+    case REG_CFG:
         run = true;
         break;
     }
@@ -367,15 +366,15 @@ static uint64_t apple_spi_reg_read(void *opaque, hwaddr addr, unsigned size)
     uint32_t r;
     bool run = false;
 
-    if (addr >= R_MAX) {
-        qemu_log_mask(LOG_UNIMP, "%s: reg READ @ 0x" HWADDR_FMT_plx "\n",
+    if (addr >= REG_MAX) {
+        qemu_log_mask(LOG_UNIMP, "%s: reg READ @ 0x" HWADDREG_FMT_plx "\n",
                       __func__, addr);
         return 0;
     }
 
     r = s->regs[addr >> 2];
     switch (addr) {
-    case R_RXDATA: {
+    case REG_RXDATA: {
         if (fifo32_is_empty(&s->rx_fifo)) {
             qemu_log_mask(LOG_GUEST_ERROR, "%s: rx underflow\n", __func__);
             r = 0;
@@ -387,12 +386,12 @@ static uint64_t apple_spi_reg_read(void *opaque, hwaddr addr, unsigned size)
         }
         break;
     }
-    case R_STATUS: {
+    case REG_STATUS: {
         uint32_t val = 0;
-        val |= fifo32_num_used(&s->tx_fifo) << R_STATUS_TXFIFO_SHIFT;
-        val |= fifo32_num_used(&s->rx_fifo) << R_STATUS_RXFIFO_SHIFT;
-        val &= (R_STATUS_TXFIFO_MASK | R_STATUS_RXFIFO_MASK);
-        r &= ~(R_STATUS_TXFIFO_MASK | R_STATUS_RXFIFO_MASK);
+        val |= fifo32_num_used(&s->tx_fifo) << REG_STATUS_TXFIFO_SHIFT;
+        val |= fifo32_num_used(&s->rx_fifo) << REG_STATUS_RXFIFO_SHIFT;
+        val &= (REG_STATUS_TXFIFO_MASK | REG_STATUS_RXFIFO_MASK);
+        r &= ~(REG_STATUS_TXFIFO_MASK | REG_STATUS_RXFIFO_MASK);
         r |= val;
         break;
     }
@@ -445,8 +444,8 @@ static void apple_spi_realize(DeviceState *dev, struct Error **errp)
     sysbus_init_irq(sbd, &s->cs_line);
     qdev_init_gpio_in_named(dev, apple_spi_cs_set, SSI_GPIO_CS, 1);
 
-    fifo32_create(&s->tx_fifo, R_FIFO_DEPTH);
-    fifo32_create(&s->rx_fifo, R_FIFO_DEPTH);
+    fifo32_create(&s->tx_fifo, REG_FIFO_DEPTH);
+    fifo32_create(&s->rx_fifo, REG_FIFO_DEPTH);
 
     obj = object_property_get_link(OBJECT(dev), "sio", NULL);
     sio = APPLE_SIO(obj);

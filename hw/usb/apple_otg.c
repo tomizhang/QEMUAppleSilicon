@@ -1,37 +1,33 @@
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/irq.h"
 #include "hw/qdev-properties.h"
 #include "hw/usb/apple_otg.h"
 #include "hw/usb/hcd-dwc2.h"
 #include "migration/vmstate.h"
 #include "qapi/error.h"
-#include "qemu/bitops.h"
 #include "qemu/error-report.h"
-#include "qemu/lockable.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
-#include "qemu/timer.h"
 
-#define rAUSB_USB20PHY_CTL (0x00)
-#define rAUSB_USB20PHY_OTGSIG (0x04)
-#define rAUSB_USB20PHY_CFG0 (0x08)
-#define rAUSB_USB20PHY_CFG1 (0x0C)
-#define rAUSB_USB20PHY_BATCTL (0x10)
-#define rAUSB_USB20PHY_TEST (0x1C)
+#define REG_AUSB_USB20PHY_CTL (0x00)
+#define REG_AUSB_USB20PHY_OTGSIG (0x04)
+#define REG_AUSB_USB20PHY_CFG0 (0x08)
+#define REG_AUSB_USB20PHY_CFG1 (0x0C)
+#define REG_AUSB_USB20PHY_BATCTL (0x10)
+#define REG_AUSB_USB20PHY_TEST (0x1C)
 
-#define rAUSB_WIDGET_OTG_QOS (0x14)
-#define rAUSB_WIDGET_OTG_CACHE (0x18)
-#define rAUSB_WIDGET_OTG_ADDR (0x1C)
-#define rAUSB_WIDGET_EHCI0_QOS (0x34)
-#define rAUSB_WIDGET_EHCI0_CACHE (0x38)
-#define rAUSB_WIDGET_EHCI0_ADDR (0x3C)
-#define rAUSB_WIDGET_OHCI0_QOS (0x54)
-#define rAUSB_WIDGET_OHCI0_CACHE (0x58)
-#define rAUSB_WIDGET_OHCI0_ADDR (0x5C)
-#define rAUSB_WIDGET_EHCI1_QOS (0x74)
-#define rAUSB_WIDGET_EHCI1_CACHE (0x78)
-#define rAUSB_WIDGET_EHCI1_ADDR (0x7C)
+#define REG_AUSB_WIDGET_OTG_QOS (0x14)
+#define REG_AUSB_WIDGET_OTG_CACHE (0x18)
+#define REG_AUSB_WIDGET_OTG_ADDR (0x1C)
+#define REG_AUSB_WIDGET_EHCI0_QOS (0x34)
+#define REG_AUSB_WIDGET_EHCI0_CACHE (0x38)
+#define REG_AUSB_WIDGET_EHCI0_ADDR (0x3C)
+#define REG_AUSB_WIDGET_OHCI0_QOS (0x54)
+#define REG_AUSB_WIDGET_OHCI0_CACHE (0x58)
+#define REG_AUSB_WIDGET_OHCI0_ADDR (0x5C)
+#define REG_AUSB_WIDGET_EHCI1_QOS (0x74)
+#define REG_AUSB_WIDGET_EHCI1_CACHE (0x78)
+#define REG_AUSB_WIDGET_EHCI1_ADDR (0x7C)
 
 static void apple_otg_realize(DeviceState *dev, Error **errp)
 {
@@ -143,7 +139,7 @@ static void widget_reg_write(void *opaque, hwaddr addr, uint64_t data,
                   " value: 0x" HWADDR_FMT_plx "\n",
                   addr, data);
     switch (addr) {
-    case rAUSB_WIDGET_OTG_ADDR:
+    case REG_AUSB_WIDGET_OTG_ADDR:
         if (value & (1 << 8)) {
             uint64_t high_addr = (uint64_t)(value & 0xf) << 32;
             if (high_addr != s->high_addr) {
@@ -193,7 +189,7 @@ DeviceState *apple_otg_create(DTBNode *node)
     memory_region_init_io(&s->phy, OBJECT(dev), &phy_reg_ops, s,
                           TYPE_APPLE_OTG ".phy", sizeof(s->phy_reg));
     sysbus_init_mmio(sbd, &s->phy);
-    *(uint32_t *)(s->phy_reg + rAUSB_USB20PHY_OTGSIG) |=
+    *(uint32_t *)(s->phy_reg + REG_AUSB_USB20PHY_OTGSIG) |=
         (1 << 8); // cable connected
     memory_region_init_io(&s->usbctl, OBJECT(dev), &usbctl_reg_ops, s,
                           TYPE_APPLE_OTG ".usbctl", sizeof(s->usbctl_reg));

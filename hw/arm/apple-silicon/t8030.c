@@ -28,7 +28,6 @@
 #include "hw/arm/apple-silicon/sep.h"
 #include "hw/arm/apple-silicon/t8030-config.c.inc"
 #include "hw/arm/apple-silicon/t8030.h"
-#include "hw/arm/boot.h"
 #include "hw/block/apple_ans.h"
 #include "hw/char/apple_uart.h"
 #include "hw/display/apple_displaypipe_v2.h"
@@ -41,18 +40,15 @@
 #include "hw/misc/apple-silicon/roswell.h"
 #include "hw/misc/apple-silicon/smc.h"
 #include "hw/misc/apple-silicon/spmi-pmu.h"
-#include "hw/misc/unimp.h"
 #include "hw/nvram/apple_nvram.h"
 #include "hw/spmi/apple_spmi.h"
 #include "hw/ssi/apple_spi.h"
 #include "hw/ssi/ssi.h"
-#include "hw/usb/apple_otg.h"
 #include "hw/usb/apple_typec.h"
 #include "hw/watchdog/apple_wdt.h"
 #include "qapi/visitor.h"
 #include "qemu/error-report.h"
 #include "qemu/guest-random.h"
-#include "qemu/log.h"
 #include "qemu/units.h"
 #include "sysemu/reset.h"
 #include "sysemu/runstate.h"
@@ -74,7 +70,7 @@
 #define T8030_KERNEL_REGION_BASE (T8030_DRAM_BASE)
 #define T8030_KERNEL_REGION_SIZE (0xF000000ull)
 
-#define T8030_SPI_BASE(_x) (0x35100000ull + (_x)*APPLE_SPI_MMIO_SIZE)
+#define T8030_SPI_BASE(_x) (0x35100000ull + (_x) * APPLE_SPI_MMIO_SIZE)
 
 #define T8030_DWC2_IRQ (495)
 
@@ -107,8 +103,8 @@
 #define T8030_AMCC_SIZE (0x100000ull)
 #define AMCC_PLANE_COUNT (4)
 #define AMCC_PLANE_STRIDE (0x40000ull)
-#define AMCC_LOWER(_p) (0x680 + (_p)*AMCC_PLANE_STRIDE)
-#define AMCC_UPPER(_p) (0x684 + (_p)*AMCC_PLANE_STRIDE)
+#define AMCC_LOWER(_p) (0x680 + (_p) * AMCC_PLANE_STRIDE)
+#define AMCC_UPPER(_p) (0x684 + (_p) * AMCC_PLANE_STRIDE)
 #define AMCC_REG(_tms, _x) *(uint32_t *)(&_tms->amcc_reg[_x])
 
 static void t8030_start_cpus(MachineState *machine, uint64_t cpu_mask)

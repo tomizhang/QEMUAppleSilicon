@@ -21,11 +21,8 @@
 
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/irq.h"
 #include "hw/sysbus.h"
-#include "qemu/timer.h"
 #include "qom/object.h"
-#include "sysemu/dma.h"
 #include "ui/console.h"
 
 #define TYPE_APPLE_DISPLAYPIPE_V2 "apple-displaypipe-v2"

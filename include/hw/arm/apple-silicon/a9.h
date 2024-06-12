@@ -22,10 +22,7 @@
 #define HW_ARM_APPLE_SILICON_A9_H
 
 #include "qemu/osdep.h"
-#include "exec/hwaddr.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/cpu/cluster.h"
-#include "qemu/queue.h"
 #include "cpu.h"
 
 #define A9_MAX_CPU 2

@@ -31,7 +31,6 @@
 #include "migration/vmstate.h"
 #include "qapi/error.h"
 #include "qemu/bitops.h"
-#include "qemu/cutils.h"
 #include "qemu/log.h"
 #include "qom/object.h"
 #include "trace.h"

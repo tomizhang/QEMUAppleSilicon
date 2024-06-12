@@ -18,13 +18,12 @@
  */
 
 #include "qemu/osdep.h"
-#include "hw/arm/apple-silicon/boot.h"
+#include "crypto/hash.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/arm/apple-silicon/sep.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/misc/apple-silicon/a7iop/mailbox/core.h"
 #include "qapi/error.h"
-#include "qemu/error-report.h"
 #include "qemu/lockable.h"
 #include "qemu/log.h"
 #include "qemu/main-loop.h"

@@ -1,16 +1,13 @@
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dart.h"
-#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/irq.h"
+#include "hw/sysbus.h"
 #include "migration/vmstate.h"
 #include "monitor/hmp-target.h"
 #include "monitor/monitor.h"
-#include "monitor/qdev.h"
-#include "qapi/error.h"
 #include "qapi/qmp/qdict.h"
 #include "qemu/bitops.h"
-#include "qemu/log.h"
 #include "qemu/module.h"
 #include "sysemu/dma.h"
 
@@ -33,7 +30,7 @@
 #define DART_MAX_VA_BITS 38
 
 #define DART_PARAMS1 (0x0)
-#define DART_PARAMS1_PAGE_SHIFT(_x) (((_x)&0xf) << 24)
+#define DART_PARAMS1_PAGE_SHIFT(_x) (((_x) & 0xf) << 24)
 
 #define DART_PARAMS2 (0x4)
 #define DART_PARAMS2_BYPASS_SUPPORT (0x1)
@@ -47,8 +44,8 @@
 #define DART_ERROR_STATUS (0x40)
 #define DART_ERROR_STREAM_SHIFT (24)
 #define DART_ERROR_STREAM_LENGTH (4)
-#define DART_ERROR_STREAM(_x) (((_x)&0xf) << 24)
-#define DART_ERROR_CODE(_x) (((_x)&0xf) << 0)
+#define DART_ERROR_STREAM(_x) (((_x) & 0xf) << 24)
+#define DART_ERROR_CODE(_x) (((_x) & 0xf) << 0)
 #define DART_ERROR_FLAG (1 << 31)
 #define DART_ERROR_APF_REJECT (1 << 11)
 #define DART_ERROR_UNKNOWN (1 << 9)
@@ -88,7 +85,7 @@
 #define DART_TTE_ADDR_MASK (0xFFFFFFFFFFull)
 
 #define DART_IOTLB_SID_SHIFT (53)
-#define DART_IOTLB_SID(_x) (((_x)&0xfull) << 53)
+#define DART_IOTLB_SID(_x) (((_x) & 0xfull) << 53)
 #define DART_IOTLB_SID_EX(_x) (((_x) >> 53) & 0xf)
 
 typedef enum {

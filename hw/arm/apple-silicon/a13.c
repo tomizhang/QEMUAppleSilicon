@@ -27,8 +27,9 @@
 #include "hw/or-irq.h"
 #include "hw/qdev-properties.h"
 #include "migration/vmstate.h"
+#include "qapi/error.h"
 #include "qemu/error-report.h"
-#include "qemu/main-loop.h"
+#include "qemu/log.h"
 #include "qemu/queue.h"
 #include "qemu/timer.h"
 #include "sysemu/reset.h"
@@ -68,7 +69,7 @@
 #define IPI_SR_SRC_CPU_MASK \
     (((1 << IPI_SR_SRC_CPU_WIDTH) - 1) << IPI_SR_SRC_CPU_SHIFT)
 #define IPI_SR_SRC_CPU(ipi_sr_val) \
-    (((ipi_sr_val)&IPI_SR_SRC_CPU_MASK) >> IPI_SR_SRC_CPU_SHIFT)
+    (((ipi_sr_val) & IPI_SR_SRC_CPU_MASK) >> IPI_SR_SRC_CPU_SHIFT)
 
 #define IPI_RR_TARGET_CLUSTER_SHIFT 16
 

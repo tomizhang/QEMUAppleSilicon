@@ -1,14 +1,8 @@
 #include "qemu/osdep.h"
-#include "hw/arm/apple-silicon/boot.h"
+#include "exec/address-spaces.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/arm/apple-silicon/sart.h"
-#include "hw/irq.h"
-#include "migration/vmstate.h"
-#include "qapi/error.h"
-#include "qemu/bitops.h"
-#include "qemu/log.h"
 #include "qemu/module.h"
-#include "sysemu/dma.h"
 
 // #define DEBUG_SART
 

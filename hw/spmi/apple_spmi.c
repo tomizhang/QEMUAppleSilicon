@@ -1,14 +1,11 @@
 #include "qemu/osdep.h"
-#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/irq.h"
 #include "hw/spmi/apple_spmi.h"
 #include "migration/vmstate.h"
-#include "qapi/error.h"
 #include "qemu/bitops.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
-#include "sysemu/dma.h"
 
 // #define DEBUG_SPMI
 
@@ -37,9 +34,9 @@
 
 #define SPMI_NUM_IRQ_BANK (9)
 #define SPMI_NUM_IRQ (9 * 32)
-#define SPMI_INT_STATUS_V0(_b) (0x40 + (_b)*4)
-#define SPMI_INT_STATUS_V1(_b) (0x60 + (_b)*4)
-#define SPMI_INT_ENAB(_b) (0x20 + (_b)*4)
+#define SPMI_INT_STATUS_V0(_b) (0x40 + (_b) * 4)
+#define SPMI_INT_STATUS_V1(_b) (0x60 + (_b) * 4)
+#define SPMI_INT_ENAB(_b) (0x20 + (_b) * 4)
 
 #define SPMI_FAULT_UNMAPPED_WRITE (0x00)
 #define SPMI_FAULT_UNSUPPORTED_READ (0x04)

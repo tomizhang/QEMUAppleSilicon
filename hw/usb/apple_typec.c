@@ -1,22 +1,15 @@
 #include "qemu/osdep.h"
-#include "hw/arm/apple-silicon/dtb.h"
-#include "hw/irq.h"
 #include "hw/qdev-properties.h"
 #include "hw/usb/apple_typec.h"
+#include "hw/usb/hcd-tcp.h"
 #include "migration/vmstate.h"
 #include "qapi/error.h"
-#include "qemu/bitops.h"
-#include "qemu/error-report.h"
-#include "qemu/lockable.h"
-#include "qemu/log.h"
 #include "qemu/module.h"
-#include "qemu/timer.h"
 
 static void apple_typec_realize(DeviceState *dev, Error **errp)
 {
     AppleTypeCState *s = APPLE_TYPEC(dev);
     Object *obj;
-    Error *local_err = NULL;
     BusState *bus = NULL;
 
     memory_region_init(&s->dma_container_mr, OBJECT(dev),
