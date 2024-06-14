@@ -858,7 +858,7 @@ static void apple_sep_handle_keystore_msg(AppleSEPState *s,
             "SEP KeyStore // Get Device State 0x%X 0x%llX 0x%X 0x%X\n", *word0,
             *lword, *word1, *word2);
 
-        const uint32_t resp_size = KEYSTORE_IPC_HEADER_SIZE + 0x4 + 0x4 + 0x8;
+        const uint32_t resp_size = KEYSTORE_IPC_HEADER_SIZE + 0x4 + 0x4 + 0x9;
         uint8_t *resp_buf = g_new0(uint8_t, resp_size);
 
         KeystoreIPCHeader *resp_hdr = (KeystoreIPCHeader *)resp_buf;
