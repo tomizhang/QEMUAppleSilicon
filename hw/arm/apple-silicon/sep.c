@@ -723,7 +723,7 @@ static void apple_sep_handle_keystore_msg(AppleSEPState *s,
         *lock_state = *(uint32_t *)(msg_buf + 0x60);
         *lock_state |= (1 << 22);
         uint64_t *device_state = (uint64_t *)(lock_state + 1);
-        *device_state = 0x1 | 0x2 | 0x4;
+        *device_state = 0x1 | 0x2;
         apple_sep_keystore_send_ipc_resp(s, msg, resp_buf, resp_size);
         g_free(resp_buf);
         break;
