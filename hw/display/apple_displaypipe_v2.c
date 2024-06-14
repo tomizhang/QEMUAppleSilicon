@@ -113,9 +113,9 @@ static uint32_t apple_genpipev2_read(GenPipeState *s, hwaddr addr)
 }
 
 static uint8_t *apple_genpipev2_read_fb(GenPipeState *s, AddressSpace *dma_as,
-                                        uint32_t plane_stride, size_t *size_out)
+                                        size_t *size_out)
 {
-    if (s->plane_start && s->plane_end && s->plane_stride && plane_stride) {
+    if (s->plane_start && s->plane_end && s->plane_stride) {
         size_t size = s->plane_end - s->plane_start;
         uint8_t *buf = g_malloc(size);
         if (dma_memory_read(dma_as, s->plane_start, buf, size,
@@ -287,11 +287,11 @@ static void apple_displaypipe_v2_gfx_update(void *opaque)
 
     if (!s->frame_processed) {
         size_t size0 = 0;
-        g_autofree uint8_t *buf0 = apple_genpipev2_read_fb(
-            &s->genpipe0, &s->dma_as, s->genpipe0.plane_stride, &size0);
+        g_autofree uint8_t *buf0 =
+            apple_genpipev2_read_fb(&s->genpipe0, &s->dma_as, &size0);
         size_t size1 = 0;
-        g_autofree uint8_t *buf1 = apple_genpipev2_read_fb(
-            &s->genpipe1, &s->dma_as, s->genpipe0.plane_stride, &size1);
+        g_autofree uint8_t *buf1 =
+            apple_genpipev2_read_fb(&s->genpipe1, &s->dma_as, &size1);
 
         uint8_t *dest = surface_data(surface);
         for (size_t i = 0; i < s->height; i++) {
