@@ -555,18 +555,18 @@ static void apple_sep_handle_bootstrap_msg(AppleSEPState *s, SEPMessage *msg)
     }
 }
 
-static uint8_t *apple_sep_gen_sks_hash(uint8_t *msg_buf,
-                                       const uint32_t msg_size)
+static uint8_t *apple_sep_gen_sks_hash(uint8_t *buf, const uint32_t msg_size)
 {
-    const uint32_t ipc_version =
-        *(uint32_t *)(msg_buf + offsetof(KeystoreIPCHeader, ipc_version));
+    KeystoreIPCHeader *hdr;
+
+    hdr = (KeystoreIPCHeader *)buf;
     struct iovec iov[] = {
         {
-            .iov_base = msg_buf + offsetof(KeystoreIPCHeader, ipc_version),
-            .iov_len = ipc_version == 2 ? 0x40 : 0x38,
+            .iov_base = &hdr->ipc_version,
+            .iov_len = hdr->ipc_version == 2 ? 0x40 : 0x38,
         },
         {
-            .iov_base = msg_buf + KEYSTORE_IPC_HEADER_SIZE,
+            .iov_base = buf + KEYSTORE_IPC_HEADER_SIZE,
             .iov_len = msg_size - KEYSTORE_IPC_HEADER_SIZE,
         },
     };
