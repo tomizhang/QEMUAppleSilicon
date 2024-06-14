@@ -245,11 +245,11 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     g_virt_base += g_virt_slide - g_phys_slide;
 
     //! TrustCache
-    info->trustcache_pa =
+    info->trustcache_addr =
         vtop_static(text_base + g_virt_slide) - info->trustcache_size;
 
     macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
-                          info->trustcache_pa);
+                          info->trustcache_addr);
 
     info->kern_entry = arm_load_macho(hdr, nsas, sysmem, memory_map,
                                       g_phys_base + g_phys_slide, g_virt_slide);
@@ -262,7 +262,7 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     virt_end += g_virt_slide;
     phys_ptr = vtop_static(align_16k_high(virt_end));
 
-    amcc_lower = info->trustcache_pa;
+    amcc_lower = info->trustcache_addr;
     amcc_upper = vtop_static(last_base + g_virt_slide) + last_seg->vmsize - 1;
     for (int i = 0; i < 4; i++) {
         AMCC_REG(tms, AMCC_LOWER(i)) = (amcc_lower - T8030_DRAM_BASE) >> 14;
@@ -271,25 +271,26 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
 
     //! RAM disk
     if (machine->initrd_filename) {
-        info->ramdisk_pa = phys_ptr;
+        info->ramdisk_addr = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
-                           info->ramdisk_pa, &info->ramdisk_size);
+                           info->ramdisk_addr, &info->ramdisk_size);
         info->ramdisk_size = align_16k_high(info->ramdisk_size);
         phys_ptr += info->ramdisk_size;
     }
 
     //! SEPFW
-    info->sep_fw_pa = phys_ptr;
+    info->sep_fw_addr = phys_ptr;
     info->sep_fw_size = align_16k_high(8 * MiB);
     phys_ptr += info->sep_fw_size;
 
     //! Kernel boot args
-    info->kern_boot_args_pa = phys_ptr;
+    info->kern_boot_args_addr = phys_ptr;
+    info->kern_boot_args_size = 0x4000;
     phys_ptr += align_16k_high(0x4000);
 
     //! Device tree
-    info->device_tree_pa = phys_ptr;
-    dtb_va = ptov_static(info->device_tree_pa);
+    info->device_tree_addr = phys_ptr;
+    dtb_va = ptov_static(info->device_tree_addr);
     phys_ptr += align_16k_high(info->device_tree_size);
 
     mem_size =
@@ -301,7 +302,7 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
 
     info_report("Boot args: [%s]", cmdline);
-    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_pa,
+    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,
                          g_virt_base, g_phys_base, mem_size,
                          top_of_kernel_data_pa, dtb_va, info->device_tree_size,
                          tms->video_args, cmdline);
@@ -354,13 +355,13 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     phys_ptr -= extradata_size;
 
     //! Device tree
-    info->device_tree_pa = phys_ptr;
+    info->device_tree_addr = phys_ptr;
     phys_ptr += info->device_tree_size;
 
     //! TrustCache
-    info->trustcache_pa = phys_ptr;
+    info->trustcache_addr = phys_ptr;
     macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
-                          info->trustcache_pa);
+                          info->trustcache_addr);
     phys_ptr += align_16k_high(info->trustcache_size);
 
     g_virt_base += g_virt_slide;
@@ -376,7 +377,7 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     virt_end += g_virt_slide;
     phys_ptr = vtop_static(align_16k_high(virt_end));
 
-    amcc_lower = info->device_tree_pa;
+    amcc_lower = info->device_tree_addr;
     amcc_upper = vtop_static(prelink_info_seg->vmaddr + g_virt_slide) +
                  prelink_info_seg->vmsize - 1;
     for (int i = 0; i < 4; i++) {
@@ -384,22 +385,22 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
         AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - T8030_DRAM_BASE) >> 14;
     }
 
-    dtb_va = ptov_static(info->device_tree_pa);
+    dtb_va = ptov_static(info->device_tree_addr);
 
     if (machine->initrd_filename) {
-        info->ramdisk_pa = phys_ptr;
+        info->ramdisk_addr = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
-                           info->ramdisk_pa, &info->ramdisk_size);
+                           info->ramdisk_addr, &info->ramdisk_size);
         info->ramdisk_size = align_16k_high(info->ramdisk_size);
         phys_ptr += info->ramdisk_size;
     }
 
     //! SEPFW
-    info->sep_fw_pa = phys_ptr;
+    info->sep_fw_addr = phys_ptr;
     info->sep_fw_size = align_16k_high(8 * MiB);
     phys_ptr += info->sep_fw_size;
 
-    info->kern_boot_args_pa = phys_ptr;
+    info->kern_boot_args_addr = phys_ptr;
     phys_ptr += align_16k_high(0x4000);
 
     mem_size =
@@ -411,7 +412,7 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
 
     info_report("Boot args: [%s]", cmdline);
-    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_pa,
+    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,
                          g_virt_base, g_phys_base, mem_size,
                          top_of_kernel_data_pa, dtb_va, info->device_tree_size,
                          tms->video_args, cmdline);
@@ -1767,7 +1768,7 @@ static void t8030_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 
     tms = data.host_ptr;
     cpu_reset(cpu);
-    ARM_CPU(cpu)->env.xregs[0] = tms->bootinfo.kern_boot_args_pa;
+    ARM_CPU(cpu)->env.xregs[0] = tms->bootinfo.kern_boot_args_addr;
     cpu_set_pc(cpu, tms->bootinfo.kern_entry);
 }
 

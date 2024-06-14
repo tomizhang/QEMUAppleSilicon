@@ -222,14 +222,14 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     g_virt_base += g_virt_slide - g_phys_slide;
 
     //! TrustCache
-    info->trustcache_pa =
+    info->trustcache_addr =
         vtop_static(prelink_text_base + g_virt_slide) - info->trustcache_size;
     info_report("__PRELINK_TEXT = " HWADDR_FMT_plx " + " HWADDR_FMT_plx,
                 prelink_text_base, g_virt_slide);
-    info_report("info->trustcache_pa = " HWADDR_FMT_plx, info->trustcache_pa);
+    info_report("info->trustcache_pa = " HWADDR_FMT_plx, info->trustcache_addr);
 
     macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
-                          info->trustcache_pa);
+                          info->trustcache_addr);
 
     info->kern_entry =
         arm_load_macho(hdr, nsas, sysmem, memory_map, phys_ptr, g_virt_slide);
@@ -244,15 +244,15 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     phys_ptr = vtop_static(align_16k_high(virt_end));
 
     //! Device tree
-    info->device_tree_pa = phys_ptr;
-    dtb_va = ptov_static(info->device_tree_pa);
+    info->device_tree_addr = phys_ptr;
+    dtb_va = ptov_static(info->device_tree_addr);
     phys_ptr += align_16k_high(info->device_tree_size);
 
     //! RAM disk
     if (machine->initrd_filename) {
-        info->ramdisk_pa = phys_ptr;
+        info->ramdisk_addr = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
-                           info->ramdisk_pa, &info->ramdisk_size);
+                           info->ramdisk_addr, &info->ramdisk_size);
         info->ramdisk_size = align_16k_high(info->ramdisk_size);
         phys_ptr += info->ramdisk_size;
     }
@@ -266,7 +266,8 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     // }
 
     //! Kernel boot args
-    info->kern_boot_args_pa = phys_ptr;
+    info->kern_boot_args_addr = phys_ptr;
+    info->kern_boot_args_size = 0x4000;
     phys_ptr += align_16k_high(0x4000);
 
     macho_load_dtb(tms->device_tree, nsas, sysmem, "DeviceTree", info);
@@ -274,7 +275,7 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
     top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3FFFull;
 
     info_report("Boot args: [%s]", cmdline);
-    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_pa,
+    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,
                          g_virt_base, g_phys_base, S8000_KERNEL_REGION_SIZE,
                          top_of_kernel_data_pa, dtb_va, info->device_tree_size,
                          tms->video, cmdline);
@@ -296,7 +297,7 @@ static void s8000_load_classic_kc(S8000MachineState *tms, const char *cmdline)
                 tz1_boot_args_pa);
     apple_monitor_setup_boot_args(
         "TZ1_BOOTARGS", sas, tms->sysmem, tz1_boot_args_pa, tz1_virt_low,
-        S8000_TZ1_BASE, S8000_TZ1_SIZE, tms->bootinfo.kern_boot_args_pa,
+        S8000_TZ1_BASE, S8000_TZ1_SIZE, tms->bootinfo.kern_boot_args_addr,
         tms->bootinfo.kern_entry, g_phys_base, g_phys_slide, g_virt_slide,
         info->kern_text_off);
     tms->bootinfo.tz1_entry = tz1_entry;

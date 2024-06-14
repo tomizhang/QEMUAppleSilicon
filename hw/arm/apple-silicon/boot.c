@@ -25,6 +25,7 @@
 #include "crypto/random.h"
 #include "exec/memory.h"
 #include "hw/arm/apple-silicon/boot.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/arm/apple-silicon/mem.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
@@ -496,50 +497,65 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     info->device_tree_size = align_16k_high(get_dtb_node_buffer_size(root));
 }
 
-void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
-                    const char *name, AppleBootInfo *info)
+static void set_memory_range(DTBNode *root, const char *name, uint64_t addr,
+                             uint64_t size)
 {
     DTBNode *child;
     DTBProp *prop;
-    g_autofree uint8_t *buf = NULL;
+
+    g_assert(addr);
+    g_assert(size);
 
     child = get_dtb_node(root, "chosen/memory-map");
+    g_assert(child);
+
+    prop = find_dtb_prop(child, name);
+    g_assert(prop);
+
+    ((uint64_t *)prop->value)[0] = addr;
+    ((uint64_t *)prop->value)[1] = size;
+}
+
+static void remove_memory_range(DTBNode *root, const char *name)
+{
+    DTBNode *child;
+    DTBProp *prop;
+
+    child = get_dtb_node(root, "chosen/memory-map");
+    g_assert(child);
+
     prop = find_dtb_prop(child, "DeviceTree");
-    assert(prop);
-    ((uint64_t *)prop->value)[0] = info->device_tree_pa;
-    ((uint64_t *)prop->value)[1] = info->device_tree_size;
 
-    prop = find_dtb_prop(child, "RAMDisk");
-    assert(prop);
-    if ((info->ramdisk_pa) && (info->ramdisk_size)) {
-        ((uint64_t *)prop->value)[0] = info->ramdisk_pa;
-        ((uint64_t *)prop->value)[1] = info->ramdisk_size;
-    } else {
+    if (prop) {
         remove_dtb_prop(child, prop);
     }
+}
 
-    prop = find_dtb_prop(child, "TrustCache");
-    assert(prop);
-    if ((info->trustcache_pa) && (info->trustcache_size)) {
-        ((uint64_t *)prop->value)[0] = info->trustcache_pa;
-        ((uint64_t *)prop->value)[1] = info->trustcache_size;
+static void set_or_remove_memory_range(DTBNode *root, const char *name,
+                                       uint64_t addr, uint64_t size)
+{
+    if (addr) {
+        set_memory_range(root, name, addr, size);
     } else {
-        remove_dtb_prop(child, prop);
+        remove_memory_range(root, name);
     }
+}
 
-    prop = find_dtb_prop(child, "SEPFW");
-    assert(prop);
-    if (info->sep_fw_pa && info->sep_fw_size) {
-        ((uint64_t *)prop->value)[0] = info->sep_fw_pa;
-        ((uint64_t *)prop->value)[1] = info->sep_fw_size;
-    } else {
-        remove_dtb_prop(child, prop);
-    }
+void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
+                    const char *name, AppleBootInfo *info)
+{
+    g_autofree uint8_t *buf = NULL;
 
-    prop = find_dtb_prop(child, "BootArgs");
-    assert(prop);
-    ((uint64_t *)prop->value)[0] = info->kern_boot_args_pa;
-    ((uint64_t *)prop->value)[1] = sizeof(AppleKernelBootArgs);
+    set_memory_range(root, "DeviceTree", info->device_tree_addr,
+                     info->device_tree_size);
+    set_or_remove_memory_range(root, "RAMDisk", info->ramdisk_addr,
+                               info->ramdisk_size);
+    set_or_remove_memory_range(root, "TrustCache", info->trustcache_addr,
+                               info->trustcache_size);
+    set_or_remove_memory_range(root, "SEPFW", info->sep_fw_addr,
+                               info->sep_fw_size);
+    set_memory_range(root, "BootArgs", info->kern_boot_args_addr,
+                     info->kern_boot_args_size);
 
     if (info->ticket_data && info->ticket_length) {
         QCryptoHashAlgorithm alg = QCRYPTO_HASH_ALG_SHA1;
@@ -571,7 +587,7 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
     assert(info->device_tree_size >= get_dtb_node_buffer_size(root));
     buf = g_malloc0(info->device_tree_size);
     save_dtb(buf, root);
-    allocate_and_copy(mem, as, name, info->device_tree_pa,
+    allocate_and_copy(mem, as, name, info->device_tree_addr,
                       info->device_tree_size, buf);
 }
 
