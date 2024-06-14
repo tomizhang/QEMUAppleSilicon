@@ -858,7 +858,7 @@ static void apple_sep_handle_keystore_msg(AppleSEPState *s,
             "SEP KeyStore // Get Device State 0x%X 0x%llX 0x%X 0x%X\n", *word0,
             *lword, *word1, *word2);
 
-        const uint32_t resp_size = KEYSTORE_IPC_HEADER_SIZE + 0x4 + 0x4 + 0x9;
+        const uint32_t resp_size = KEYSTORE_IPC_HEADER_SIZE + 0x4 + 0x4 + 0x8;
         uint8_t *resp_buf = g_new0(uint8_t, resp_size);
 
         KeystoreIPCHeader *resp_hdr = (KeystoreIPCHeader *)resp_buf;
@@ -876,7 +876,7 @@ static void apple_sep_handle_keystore_msg(AppleSEPState *s,
         *selector = 0;
         // FIXME: This is a DER! See `_decode_extended_state`.
         uint32_t *state_blob = selector + 1;
-        *state_blob = 0x9;
+        *state_blob = 0x8;
         memcpy(state_blob + 1, "applehax", *state_blob);
 
         apple_sep_keystore_send_ipc_resp(s, msg, resp_buf, resp_size);
