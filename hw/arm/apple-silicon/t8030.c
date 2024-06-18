@@ -401,6 +401,7 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     phys_ptr += info->sep_fw_size;
 
     info->kern_boot_args_addr = phys_ptr;
+    info->kern_boot_args_size = 0x4000;
     phys_ptr += align_16k_high(0x4000);
 
     mem_size =
