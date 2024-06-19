@@ -22,6 +22,8 @@
 #include "hw/display/apple_displaypipe_v2.h"
 #include "hw/irq.h"
 #include "hw/qdev-properties.h"
+#include "qemu/error-report.h"
+#include "qemu/log.h"
 #include "qom/object.h"
 #include "sysemu/dma.h"
 #include "ui/console.h"
