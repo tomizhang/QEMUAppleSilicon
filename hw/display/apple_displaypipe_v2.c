@@ -334,11 +334,13 @@ static void apple_displaypipe_v2_gfx_update(void *opaque)
         uint8_t *dest = surface_data(surface);
         for (size_t i = 0; i < s->height; i++) {
             if (size0 && buf0 != NULL)
-                apple_displaypipe_v2_draw_row(s, dest + i * stride,
-                                              buf0 + i * s->genpipe0.plane_stride, s->width, 0);
+                apple_displaypipe_v2_draw_row(
+                    s, dest + i * stride, buf0 + i * s->genpipe0.plane_stride,
+                    s->width, 0);
             if (size1 && buf1 != NULL)
-                apple_displaypipe_v2_draw_row(s, dest + i * stride,
-                                              buf1 + i * s->genpipe1.plane_stride, s->width, 0);
+                apple_displaypipe_v2_draw_row(
+                    s, dest + i * stride, buf1 + i * s->genpipe1.plane_stride,
+                    s->width, 0);
         }
 
         dpy_gfx_update_full(s->console);
