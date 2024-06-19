@@ -57,6 +57,10 @@ static void apple_genpipev2_write(GenPipeState *s, hwaddr addr, uint64_t data)
     switch (addr - GENPIPEV2_BASE_FOR(s->index)) {
     case GENPIPEV2_GP_CONFIG_CONTROL:
         s->config_control = (uint32_t)data;
+#ifdef DEBUG_DISPLAYPIPE_V2
+        info_report("GenPipe %zu: Control <- 0x" HWADDR_FMT_plx, s->index,
+                    data);
+#endif
         break;
 
     case GENPIPEV2_PLANE_START:
@@ -84,6 +88,11 @@ static void apple_genpipev2_write(GenPipeState *s, hwaddr addr, uint64_t data)
         break;
 
     default:
+#ifdef DEBUG_DISPLAYPIPE_V2
+        info_report("GenPipe %zu: Unknown write @ 0x" HWADDR_FMT_plx
+                    " value: 0x" HWADDR_FMT_plx,
+                    s->index, addr, data);
+#endif
         break;
     }
 }
@@ -92,24 +101,51 @@ static uint32_t apple_genpipev2_read(GenPipeState *s, hwaddr addr)
 {
     switch (addr - GENPIPEV2_BASE_FOR(s->index)) {
     case GENPIPEV2_GP_CONFIG_CONTROL:
+#ifdef DEBUG_DISPLAYPIPE_V2
+        info_report("GenPipe %zu: Control -> 0x%x", s->index,
+                    s->config_control);
+#endif
         return s->config_control;
 
     case GENPIPEV2_PLANE_START:
+#ifdef DEBUG_DISPLAYPIPE_V2
+        info_report("GenPipe %zu: Plane Start -> 0x%x", s->index,
+                    s->plane_start);
+#endif
         return s->plane_start;
 
     case GENPIPEV2_PLANE_END:
+#ifdef DEBUG_DISPLAYPIPE_V2
+        info_report("GenPipe %zu: Plane End -> 0x%x", s->index, s->plane_end);
+#endif
         return s->plane_end;
 
     case GENPIPEV2_PLANE_STRIDE:
+#ifdef DEBUG_DISPLAYPIPE_V2
+        info_report("GenPipe %zu: Plane Stride -> 0x%x", s->index,
+                    s->plane_stride);
+#endif
         return s->plane_stride;
 
     case GENPIPEV2_PIXEL_FORMAT:
+#ifdef DEBUG_DISPLAYPIPE_V2
+        info_report("GenPipe %zu: Pixel Format -> 0x%x", s->index,
+                    GENPIPEV2_DFB_PIXEL_FORMAT_BGRA);
+#endif
         return GENPIPEV2_DFB_PIXEL_FORMAT_BGRA;
 
     case GENPIPEV2_FRAME_SIZE:
+#ifdef DEBUG_DISPLAYPIPE_V2
+        info_report("GenPipe %zu: Frame Size -> 0x%x", s->index,
+                    (s->width << 16) | s->height);
+#endif
         return (s->width << 16) | s->height;
 
     default:
+#ifdef DEBUG_DISPLAYPIPE_V2
+        info_report("GenPipe %zu: Unknown read @ 0x" HWADDR_FMT_plx, s->index,
+                    addr);
+#endif
         return 0;
     }
 }
