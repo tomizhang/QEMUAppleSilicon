@@ -28,14 +28,21 @@
 #define TYPE_APPLE_DISPLAYPIPE_V2 "apple-displaypipe-v2"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleDisplayPipeV2State, APPLE_DISPLAYPIPE_V2);
 
-struct GenPipeState {
-    size_t index;
-    uint32_t width, height;
-    uint32_t config_control;
-    uint32_t plane_start, plane_end, plane_stride;
-};
-typedef struct GenPipeState GenPipeState;
+typedef struct {
+    uint32_t start;
+    uint32_t end;
+    uint32_t stride;
+    uint32_t size;
+} GenPipeLayer;
 
+typedef struct {
+    size_t index;
+    uint32_t config_control;
+    uint32_t pixel_format;
+    uint16_t width;
+    uint16_t height;
+    GenPipeLayer layers[2];
+} GenPipeState;
 
 struct AppleDisplayPipeV2State {
     /*< private >*/
@@ -49,7 +56,7 @@ struct AppleDisplayPipeV2State {
     MemoryRegionSection vram_section;
     qemu_irq irqs[9];
     uint32_t uppipe_int_filter;
-    GenPipeState genpipe0, genpipe1;
+    GenPipeState genpipes[2];
     bool frame_processed;
     QemuConsole *console;
 };

@@ -337,7 +337,7 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
 
     extradata_size =
         align_16k_high(info->device_tree_size + info->trustcache_size);
-    assert(extradata_size < L2_GRANULE);
+    g_assert(extradata_size < L2_GRANULE);
 
     get_kaslr_slides(tms, &g_phys_slide, &g_virt_slide);
 
@@ -1952,15 +1952,11 @@ static void t8030_machine_init(MachineState *machine)
     set_dtb_prop(child, "display-scale", sizeof(data), &data);
 
     child = get_dtb_node(tms->device_tree, "product");
-
     data64 = 0x100000027;
     g_assert(
         set_dtb_prop(child, "display-corner-radius", sizeof(data64), &data64));
     data = 0x1;
     g_assert(set_dtb_prop(child, "oled-display", sizeof(data), &data));
-    g_assert(set_dtb_prop(child, "graphics-featureset-class", 7, "MTL1,2"));
-    g_assert(set_dtb_prop(child, "graphics-featureset-fallbacks", 15,
-                          "MTL1,2:GLES2,0"));
     // TODO: PMP
     g_assert(set_dtb_prop(tms->device_tree, "target-type", 4, "sim"));
     data = 0;
