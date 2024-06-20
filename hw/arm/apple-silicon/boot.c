@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2019 Jonathan Afek <jonyafek@me.com>
  * Copyright (c) 2021 Nguyen Hoang Trung (TrungNguyen1909)
- * Copyright (c) 2023 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
  * Copyright (c) 2023 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
