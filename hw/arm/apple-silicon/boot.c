@@ -235,7 +235,7 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
         cnt--;
     }
 
-    assert(cnt == 0);
+    g_assert(cnt == 0);
 }
 
 /*
@@ -444,9 +444,9 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     uint64_t memmap[2] = { 0 };
 
     child = get_dtb_node(root, "chosen");
-    assert(child != NULL);
+    g_assert(child != NULL);
     prop = find_dtb_prop(child, "random-seed");
-    assert(prop != NULL);
+    g_assert(prop != NULL);
     qemu_guest_getrandom_nofail(prop->value, prop->length);
 
     set_dtb_prop(child, "dram-base", 8, &info->dram_base);
@@ -484,7 +484,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     macho_dtb_node_process(root, NULL);
 
     child = get_dtb_node(root, "chosen/memory-map");
-    assert(child != NULL);
+    g_assert(child != NULL);
 
     set_dtb_prop(child, "RAMDisk", sizeof(memmap), memmap);
     set_dtb_prop(child, "TrustCache", sizeof(memmap), memmap);
@@ -571,18 +571,18 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
         }
 
         prop = find_dtb_prop(child, "boot-manifest-hash");
-        assert(prop);
+        g_assert(prop);
 
         if (qcrypto_hash_bytes(alg, info->ticket_data, info->ticket_length,
                                &hash, &hash_len, &err) >= 0) {
-            assert(hash_len == prop->length);
+            g_assert(hash_len == prop->length);
             memcpy(prop->value, hash, hash_len);
         } else {
             error_report_err(err);
         }
     }
 
-    assert(info->device_tree_size >= get_dtb_node_buffer_size(root));
+    g_assert(info->device_tree_size >= get_dtb_node_buffer_size(root));
     buf = g_malloc0(info->device_tree_size);
     save_dtb(buf, root);
     allocate_and_copy(mem, as, name, info->device_tree_addr,
@@ -885,7 +885,7 @@ MachoHeader64 *macho_parse(uint8_t *data, uint32_t len)
     }
 
     macho_highest_lowest(mh, &lowaddr, &highaddr);
-    assert(lowaddr < highaddr);
+    g_assert(lowaddr < highaddr);
 
     phys_base = g_malloc0(highaddr - lowaddr);
     virt_base = lowaddr;
@@ -1221,7 +1221,7 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
                 if (strcmp(segCmd->segname, "__TEXT") == 0) {
                     MachoHeader64 *mh = load_from;
                     MachoSegmentCommand64 *seg;
-                    assert(mh->magic == MACH_MAGIC_64);
+                    g_assert(mh->magic == MACH_MAGIC_64);
                     for (seg = macho_get_firstseg(mh); seg != NULL;
                          seg = macho_get_nextseg(mh, seg)) {
                         MachoSection64 *sp;
