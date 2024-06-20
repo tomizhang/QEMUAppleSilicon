@@ -41,6 +41,7 @@ struct AppleDisplayPipeV2State {
     /*< private >*/
     SysBusDevice parent_obj;
 
+    /*< public >*/
     uint32_t width, height;
     MemoryRegion up_regs, vram;
     MemoryRegion *dma_mr;

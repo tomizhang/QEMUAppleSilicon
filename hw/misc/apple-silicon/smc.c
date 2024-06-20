@@ -12,15 +12,12 @@
 #define TYPE_APPLE_SMC_IOP "apple.smc"
 OBJECT_DECLARE_TYPE(AppleSMCState, AppleSMCClass, APPLE_SMC_IOP)
 
-// #define DEBUG_SMC
+#define DEBUG_SMC
 
 #ifdef DEBUG_SMC
-#define SMC_LOG_MSG(ep, msg)                                                \
-    do {                                                                    \
-        qemu_log_mask(LOG_GUEST_ERROR,                                      \
-                      "SMC: message: ep=%u msg=0x" HWADDR_FMT_plx "\n", ep, \
-                      msg);                                                 \
-    } while (0)
+#define SMC_LOG_MSG(ep, msg)       \
+    qemu_log_mask(LOG_GUEST_ERROR, \
+                  "SMC: message: ep=%u msg=0x" HWADDR_FMT_plx "\n", ep, msg)
 #else
 #define SMC_LOG_MSG(ep, msg) \
     do {                     \

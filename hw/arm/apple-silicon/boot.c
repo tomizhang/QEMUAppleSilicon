@@ -101,8 +101,8 @@ static const char *REM_NAMES[] = {
 };
 
 static const char *REM_DEV_TYPES[] = {
-    "aop\0$", "backlight\0$", "bluetooth\0$",
-    "pmp\0$", "wlan\0$",      "baseband\0$",
+    "aop\0$",       "backlight\0$", "baseband\0$",
+    "bluetooth\0$", "pmp\0$",       "wlan\0$",
 };
 
 static const char *REM_PROPS[] = {
@@ -469,8 +469,8 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     set_dtb_prop(child, "security-domain", sizeof(data), &data);
     set_dtb_prop(child, "chip-epoch", sizeof(data), &data);
     set_dtb_prop(child, "amfi-allows-trust-cache-load", sizeof(data), &data);
-    // data = 1;
-    // set_dtb_prop(child, "debug-enabled", sizeof(data), &data);
+    data = 0;
+    set_dtb_prop(child, "debug-enabled", sizeof(data), &data);
 
     child = get_dtb_node(root, "chosen/manifest-properties");
     set_dtb_prop(child, "BNCH", sizeof(info->boot_nonce_hash),
@@ -486,11 +486,9 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     child = get_dtb_node(root, "chosen/memory-map");
     assert(child != NULL);
 
-    /* Allocate space */
     set_dtb_prop(child, "RAMDisk", sizeof(memmap), memmap);
     set_dtb_prop(child, "TrustCache", sizeof(memmap), memmap);
     set_dtb_prop(child, "SEPFW", sizeof(memmap), memmap);
-
     set_dtb_prop(child, "BootArgs", sizeof(memmap), &memmap);
     set_dtb_prop(child, "DeviceTree", sizeof(memmap), &memmap);
 
