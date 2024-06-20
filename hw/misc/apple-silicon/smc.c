@@ -12,7 +12,7 @@
 #define TYPE_APPLE_SMC_IOP "apple.smc"
 OBJECT_DECLARE_TYPE(AppleSMCState, AppleSMCClass, APPLE_SMC_IOP)
 
-#define DEBUG_SMC
+// #define DEBUG_SMC
 
 #ifdef DEBUG_SMC
 #define SMC_LOG_MSG(ep, msg)       \
