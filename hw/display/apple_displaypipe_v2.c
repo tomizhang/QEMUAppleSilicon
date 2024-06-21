@@ -119,36 +119,36 @@ static void apple_disp_gp_reg_write(GenPipeState *s, hwaddr addr, uint64_t data)
         break;
     }
     case REG_GP_PIXEL_FORMAT: {
-        DISP_DBGLOG("[GP%zu] Pixel Format <- 0x" HWADDR_FMT_plx, s->index,
+        DISP_DBGLOG("[GP%zu] Pixel format <- 0x" HWADDR_FMT_plx, s->index,
                     data);
         s->pixel_format = (uint32_t)data;
         break;
     }
     case REG_GP_LAYER_0_START: {
-        DISP_DBGLOG("[GP%zu] Layer 0 Start <- 0x" HWADDR_FMT_plx, s->index,
+        DISP_DBGLOG("[GP%zu] Layer 0 start <- 0x" HWADDR_FMT_plx, s->index,
                     data);
         s->layers[0].start = (uint32_t)data;
         break;
     }
     case REG_GP_LAYER_0_END: {
-        DISP_DBGLOG("[GP%zu] Layer 0 End <- 0x" HWADDR_FMT_plx, s->index, data);
+        DISP_DBGLOG("[GP%zu] Layer 0 end <- 0x" HWADDR_FMT_plx, s->index, data);
         s->layers[0].end = (uint32_t)data;
         break;
     }
     case REG_GP_LAYER_0_STRIDE: {
         s->layers[0].stride = (uint32_t)data;
-        DISP_DBGLOG("[GP%zu] Layer 0 Stride <- 0x" HWADDR_FMT_plx, s->index,
+        DISP_DBGLOG("[GP%zu] Layer 0 stride <- 0x" HWADDR_FMT_plx, s->index,
                     data);
         break;
     }
     case REG_GP_LAYER_0_SIZE: {
         s->layers[0].size = (uint32_t)data;
-        DISP_DBGLOG("[GP%zu] Layer 0 Size <- 0x" HWADDR_FMT_plx, s->index,
+        DISP_DBGLOG("[GP%zu] Layer 0 size <- 0x" HWADDR_FMT_plx, s->index,
                     data);
         break;
     }
     case REG_GP_FRAME_SIZE: {
-        DISP_DBGLOG("[GP%zu] Frame Size <- 0x" HWADDR_FMT_plx, s->index, data);
+        DISP_DBGLOG("[GP%zu] Frame size <- 0x" HWADDR_FMT_plx, s->index, data);
         s->height = data & 0xFFFF;
         s->width = (data >> 16) & 0xFFFF;
     }
@@ -168,26 +168,31 @@ static uint32_t apple_disp_gp_reg_read(GenPipeState *s, hwaddr addr)
         DISP_DBGLOG("[GP%zu] Control -> 0x%x", s->index, s->config_control);
         return s->config_control;
     }
+    case REG_GP_PIXEL_FORMAT: {
+        DISP_DBGLOG("[GP%zu] Pixel format -> 0x%x", s->index, s->pixel_format);
+        return s->pixel_format;
+    }
     case REG_GP_LAYER_0_START: {
-        DISP_DBGLOG("[GP%zu] Layer 0 Start -> 0x%x", s->index,
+        DISP_DBGLOG("[GP%zu] Layer 0 start -> 0x%x", s->index,
                     s->layers[0].start);
         return s->layers[0].start;
     }
     case REG_GP_LAYER_0_END: {
-        DISP_DBGLOG("[GP%zu] Layer 0 End -> 0x%x", s->index, s->layers[0].end);
+        DISP_DBGLOG("[GP%zu] Layer 0 end -> 0x%x", s->index, s->layers[0].end);
         return s->layers[0].end;
     }
     case REG_GP_LAYER_0_STRIDE: {
-        DISP_DBGLOG("[GP%zu] Layer 0 Stride -> 0x%x", s->index,
+        DISP_DBGLOG("[GP%zu] Layer 0 stride -> 0x%x", s->index,
                     s->layers[0].stride);
         return s->layers[0].stride;
     }
-    case REG_GP_PIXEL_FORMAT: {
-        DISP_DBGLOG("[GP%zu] Pixel Format -> 0x%x", s->index, s->pixel_format);
-        return s->pixel_format;
+    case REG_GP_LAYER_0_SIZE: {
+        DISP_DBGLOG("[GP%zu] Layer 0 size -> 0x%x", s->index,
+                    s->layers[0].size);
+        return s->layers[0].size;
     }
     case REG_GP_FRAME_SIZE: {
-        DISP_DBGLOG("[GP%zu] Frame Size -> 0x%x (width: %d height: %d)",
+        DISP_DBGLOG("[GP%zu] Frame size -> 0x%x (width: %d height: %d)",
                     s->index, (s->width << 16) | s->height, s->width,
                     s->height);
         return (s->width << 16) | s->height;
