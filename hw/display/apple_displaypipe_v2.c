@@ -19,6 +19,8 @@
  */
 
 #include "qemu/osdep.h"
+#include "block/aio.h"
+#include "exec/memory.h"
 #include "hw/display/apple_displaypipe_v2.h"
 #include "hw/irq.h"
 #include "hw/qdev-properties.h"
@@ -60,8 +62,8 @@
  */
 
 #define REG_CONTROL_INT_FILTER 0x45818
-#define REG_CONTROL_VER 0x46020
-#define CONTROL_VER_A1 0x70045
+#define REG_CONTROL_VERSION 0x46020
+#define CONTROL_VERSION_A1 0x70045
 #define REG_CONTROL_FRAME_SIZE 0x4603C
 #define REG_CONTROL_CONFIG 0x46040
 #define REG_CONTROL_OUT_FIFO_CLK_GATE 0x46074
@@ -105,12 +107,15 @@
 #define GP_BLOCK_BASE_FOR(i) (GP_BLOCK_BASE + i * REG_GP_REG_SIZE)
 #define GP_BLOCK_END_FOR(i) (GP_BLOCK_BASE_FOR(i) + (REG_GP_REG_SIZE - 1))
 
-static void apple_genpipev2_write(GenPipeState *s, hwaddr addr, uint64_t data)
+static void apple_disp_gp_reg_write(GenPipeState *s, hwaddr addr, uint64_t data)
 {
     switch (addr - GP_BLOCK_BASE_FOR(s->index)) {
     case REG_GP_CONFIG_CONTROL: {
         DISP_DBGLOG("[GP%zu] Control <- 0x" HWADDR_FMT_plx, s->index, data);
         s->config_control = (uint32_t)data;
+        if (data & GP_CONFIG_CONTROL_RUN) {
+            qemu_bh_schedule(s->bh);
+        }
         break;
     }
     case REG_GP_PIXEL_FORMAT: {
@@ -156,7 +161,7 @@ static void apple_genpipev2_write(GenPipeState *s, hwaddr addr, uint64_t data)
     }
 }
 
-static uint32_t apple_genpipev2_read(GenPipeState *s, hwaddr addr)
+static uint32_t apple_disp_gp_reg_read(GenPipeState *s, hwaddr addr)
 {
     switch (addr - GP_BLOCK_BASE_FOR(s->index)) {
     case REG_GP_CONFIG_CONTROL: {
@@ -219,38 +224,68 @@ static uint8_t *apple_disp_gp_read_layer(GenPipeState *s, size_t i,
     return buf;
 }
 
-static bool apple_genpipev2_init(GenPipeState *s, size_t index, uint32_t width,
-                                 uint32_t height)
+static void apple_gp_draw_bh(void *opaque)
+{
+    GenPipeState *s;
+    size_t size;
+    uint8_t *buf;
+
+    s = (GenPipeState *)opaque;
+    size = 0;
+    buf = apple_disp_gp_read_layer(s, 0, s->dma_as, &size);
+
+    if (buf == NULL) {
+        return;
+    }
+
+    // TODO: Blend both layers. 2nd layer is currently not used.
+    size_t height = size / s->layers[0].stride;
+    for (size_t y = 0; y < height; y++) {
+        uint8_t *dest = memory_region_get_ram_ptr(s->vram);
+        memcpy(dest + (y * (s->width * sizeof(uint32_t))),
+               buf + (y * s->layers[0].stride), s->layers[0].stride);
+    }
+    memory_region_set_dirty(s->vram, 0, height * s->width * sizeof(uint32_t));
+    g_free(buf);
+    s->disp_state->int_filter |= (1UL << 10) | (1UL << 20);
+    qemu_irq_raise(s->disp_state->irqs[0]);
+}
+
+static bool apple_genpipev2_init(GenPipeState *s, size_t index,
+                                 MemoryRegion *vram, AddressSpace *dma_as,
+                                 AppleDisplayPipeV2State *disp_state)
 {
     bzero(s, sizeof(*s));
     s->index = index;
-    s->width = width;
-    s->height = height;
-    s->config_control = GP_CONFIG_CONTROL_ENABLED | GP_CONFIG_CONTROL_USE_DMA;
-    s->pixel_format = GP_PIXEL_FORMAT_ARGB;
+    s->vram = vram;
+    s->dma_as = dma_as;
+    s->bh = qemu_bh_new(apple_gp_draw_bh, s);
+    s->disp_state = disp_state;
     return true;
 }
 
-
-static void apple_displaypipe_v2_write(void *opaque, hwaddr addr, uint64_t data,
-                                       unsigned size)
+static void apple_disp_reg_write(void *opaque, hwaddr addr, uint64_t data,
+                                 unsigned size)
 {
-    AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(opaque);
+    AppleDisplayPipeV2State *s;
+
+    s = APPLE_DISPLAYPIPE_V2(opaque);
+
     if (addr >= 0x200000) {
         addr -= 0x200000;
     }
+
     switch (addr) {
     case GP_BLOCK_BASE_FOR(0)... GP_BLOCK_END_FOR(0):
-        apple_genpipev2_write(&s->genpipes[0], addr, data);
+        apple_disp_gp_reg_write(&s->genpipes[0], addr, data);
         break;
 
     case GP_BLOCK_BASE_FOR(1)... GP_BLOCK_END_FOR(1):
-        apple_genpipev2_write(&s->genpipes[1], addr, data);
+        apple_disp_gp_reg_write(&s->genpipes[1], addr, data);
         break;
 
     case REG_CONTROL_INT_FILTER:
-        s->uppipe_int_filter &= ~(uint32_t)data;
-        s->frame_processed = false;
+        s->int_filter &= ~(uint32_t)data;
         qemu_irq_lower(s->irqs[0]);
         break;
 
@@ -262,28 +297,35 @@ static void apple_displaypipe_v2_write(void *opaque, hwaddr addr, uint64_t data,
     }
 }
 
-static uint64_t apple_displaypipe_v2_read(void *opaque, hwaddr addr,
-                                          const unsigned size)
+static uint64_t apple_disp_reg_read(void *opaque, hwaddr addr,
+                                    const unsigned size)
 {
-    AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(opaque);
+    AppleDisplayPipeV2State *s;
+
+    s = APPLE_DISPLAYPIPE_V2(opaque);
+
     if (addr >= 0x200000) {
         addr -= 0x200000;
     }
+
     switch (addr) {
     case GP_BLOCK_BASE_FOR(0)... GP_BLOCK_END_FOR(0): {
-        return apple_genpipev2_read(&s->genpipes[0], addr);
+        return apple_disp_gp_reg_read(&s->genpipes[0], addr);
     }
     case GP_BLOCK_BASE_FOR(1)... GP_BLOCK_END_FOR(1): {
-        return apple_genpipev2_read(&s->genpipes[1], addr);
+        return apple_disp_gp_reg_read(&s->genpipes[1], addr);
     }
-    case REG_CONTROL_VER: {
-        return CONTROL_VER_A1;
+    case REG_CONTROL_VERSION: {
+        DISP_DBGLOG("[disp] Version -> 0x%x", CONTROL_VERSION_A1);
+        return CONTROL_VERSION_A1;
     }
     case REG_CONTROL_FRAME_SIZE: {
+        DISP_DBGLOG("[disp] Frame Size -> 0x%x", (s->width << 16) | s->height);
         return (s->width << 16) | s->height;
     }
     case REG_CONTROL_INT_FILTER: {
-        return s->uppipe_int_filter;
+        DISP_DBGLOG("[disp] Int Filter -> 0x%x", s->int_filter);
+        return s->int_filter;
     }
     default:
         DISP_DBGLOG("[disp] Unknown read @ 0x" HWADDR_FMT_plx, addr);
@@ -291,9 +333,9 @@ static uint64_t apple_displaypipe_v2_read(void *opaque, hwaddr addr,
     }
 }
 
-static const MemoryRegionOps apple_displaypipe_v2_reg_ops = {
-    .write = apple_displaypipe_v2_write,
-    .read = apple_displaypipe_v2_read,
+static const MemoryRegionOps apple_disp_v2_reg_ops = {
+    .write = apple_disp_reg_write,
+    .read = apple_disp_reg_read,
     .endianness = DEVICE_NATIVE_ENDIAN,
     .impl.min_access_size = 4,
     .impl.max_access_size = 4,
@@ -326,9 +368,8 @@ AppleDisplayPipeV2State *apple_displaypipe_v2_create(MachineState *machine,
     DTBProp *prop = find_dtb_prop(node, "reg");
     g_assert(prop);
     uint64_t *reg = (uint64_t *)prop->value;
-    memory_region_init_io(&s->up_regs, OBJECT(sbd),
-                          &apple_displaypipe_v2_reg_ops, sbd, "up.regs",
-                          reg[1]);
+    memory_region_init_io(&s->up_regs, OBJECT(sbd), &apple_disp_v2_reg_ops, sbd,
+                          "up.regs", reg[1]);
     sysbus_init_mmio(sbd, &s->up_regs);
     object_property_add_const_link(OBJECT(sbd), "up.regs", OBJECT(&s->up_regs));
 
@@ -352,56 +393,18 @@ static void apple_displaypipe_v2_gfx_update(void *opaque)
     AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(opaque);
     DisplaySurface *surface = qemu_console_surface(s->console);
 
-    if ((!s->genpipes[0].layers[0].start || !s->genpipes[0].layers[0].end) &&
-        (!s->genpipes[1].layers[0].start || !s->genpipes[1].layers[0].end)) {
-        int stride = s->width * sizeof(uint32_t);
-        int first = 0, last = 0;
+    int stride = s->width * sizeof(uint32_t);
+    int first = 0, last = 0;
 
-        if (!s->vram_section.mr) {
-            framebuffer_update_memory_section(&s->vram_section, &s->vram, 0,
-                                              s->height, stride);
-        }
-        framebuffer_update_display(
-            surface, &s->vram_section, s->width, s->height, stride, stride, 0,
-            0, apple_displaypipe_v2_draw_row, s, &first, &last);
-        if (first >= 0) {
-            dpy_gfx_update(s->console, 0, first, s->width, last - first + 1);
-        }
-
-        return;
+    if (!s->vram_section.mr) {
+        framebuffer_update_memory_section(&s->vram_section, &s->vram, 0,
+                                          s->height, stride);
     }
-
-    if (!s->frame_processed) {
-        uint8_t *dest = surface_data(surface);
-
-        size_t size = 0;
-        uint8_t *buf =
-            apple_disp_gp_read_layer(&s->genpipes[0], 0, &s->dma_as, &size);
-        if (size && buf != NULL) {
-            size_t height = size / s->genpipes[0].layers[0].stride;
-            for (size_t y = 0; y < height; y++) {
-                memcpy(dest + (y * (s->width * sizeof(uint32_t))),
-                       buf + (y * s->genpipes[0].layers[0].stride),
-                       s->genpipes[0].layers[0].stride);
-            }
-            g_free(buf);
-        }
-
-        buf = apple_disp_gp_read_layer(&s->genpipes[1], 0, &s->dma_as, &size);
-        if (size && buf != NULL) {
-            size_t height = size / s->genpipes[1].layers[0].stride;
-            for (size_t y = 0; y < height; y++) {
-                memcpy(dest + (y * (s->width * sizeof(uint32_t))),
-                       buf + (y * s->genpipes[1].layers[0].stride),
-                       s->genpipes[1].layers[0].stride);
-            }
-            g_free(buf);
-        }
-
-        dpy_gfx_update_full(s->console);
-        s->uppipe_int_filter |= (1UL << 10) | (1UL << 20);
-        qemu_irq_raise(s->irqs[0]);
-        s->frame_processed = true;
+    framebuffer_update_display(surface, &s->vram_section, s->width, s->height,
+                               stride, stride, 0, 0,
+                               apple_displaypipe_v2_draw_row, s, &first, &last);
+    if (first >= 0) {
+        dpy_gfx_update(s->console, 0, first, s->width, last - first + 1);
     }
 }
 
@@ -413,11 +416,10 @@ static void apple_displaypipe_v2_reset(DeviceState *dev)
 {
     AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(dev);
 
+    s->int_filter = 0;
     qemu_irq_lower(s->irqs[0]);
-    s->uppipe_int_filter = 0;
-    s->frame_processed = false;
-    apple_genpipev2_init(&s->genpipes[0], 0, s->width, s->height);
-    apple_genpipev2_init(&s->genpipes[1], 1, s->width, s->height);
+    apple_genpipev2_init(&s->genpipes[0], 0, &s->vram, &s->dma_as, s);
+    apple_genpipev2_init(&s->genpipes[1], 1, &s->vram, &s->dma_as, s);
 }
 
 static void apple_displaypipe_v2_realize(DeviceState *dev, Error **errp)
@@ -426,7 +428,6 @@ static void apple_displaypipe_v2_realize(DeviceState *dev, Error **errp)
 
     s->console = graphic_console_init(dev, 0, &apple_displaypipe_v2_ops, s);
     qemu_console_resize(s->console, s->width, s->height);
-    apple_displaypipe_v2_reset(dev);
 }
 
 static Property apple_displaypipe_v2_props[] = {
@@ -436,7 +437,7 @@ static Property apple_displaypipe_v2_props[] = {
     // iPhone 11
     // DEFINE_PROP_UINT32("width", AppleDisplayPipeV2State, width, 828),
     // DEFINE_PROP_UINT32("height", AppleDisplayPipeV2State, height, 1792),
-    DEFINE_PROP_END_OF_LIST()
+    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void apple_displaypipe_v2_class_init(ObjectClass *klass, void *data)

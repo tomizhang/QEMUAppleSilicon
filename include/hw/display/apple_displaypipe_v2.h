@@ -37,6 +37,11 @@ typedef struct {
 
 typedef struct {
     size_t index;
+    MemoryRegion *vram;
+    AddressSpace *dma_as;
+    QEMUBH *bh;
+    // TODO: Not have this field.
+    AppleDisplayPipeV2State *disp_state;
     uint32_t config_control;
     uint32_t pixel_format;
     uint16_t width;
@@ -55,9 +60,8 @@ struct AppleDisplayPipeV2State {
     AddressSpace dma_as;
     MemoryRegionSection vram_section;
     qemu_irq irqs[9];
-    uint32_t uppipe_int_filter;
+    uint32_t int_filter;
     GenPipeState genpipes[2];
-    bool frame_processed;
     QemuConsole *console;
 };
 
