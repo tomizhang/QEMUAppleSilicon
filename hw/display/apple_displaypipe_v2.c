@@ -194,21 +194,29 @@ static uint32_t apple_genpipev2_read(GenPipeState *s, hwaddr addr)
     }
 }
 
-static uint8_t *apple_disp_gp_read_layer(GenPipeState *s, AddressSpace *dma_as,
-                                         size_t *size_out)
+static uint8_t *apple_disp_gp_read_layer(GenPipeState *s, size_t i,
+                                         AddressSpace *dma_as, size_t *size_out)
 {
-    if (s->layers[0].start && s->layers[0].end && s->layers[0].stride &&
-        s->layers[0].size) {
-        size_t size = s->layers[0].end - s->layers[0].start;
-        uint8_t *buf = g_malloc0(size);
-        if (dma_memory_read(dma_as, s->layers[0].start, buf, size,
-                            MEMTXATTRS_UNSPECIFIED) == MEMTX_OK) {
-            *size_out = size;
-            return buf;
-        }
-    }
+    size_t size;
+    uint8_t *buf;
+
     *size_out = 0;
-    return NULL;
+
+    if (!s->layers[i].start || !s->layers[i].end) {
+        return NULL;
+    }
+
+    size = s->layers[i].end - s->layers[i].start;
+    buf = g_malloc(size);
+
+    if (dma_memory_read(dma_as, s->layers[0].start, buf, size,
+                        MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
+        g_free(buf);
+        return NULL;
+    }
+
+    *size_out = size;
+    return buf;
 }
 
 static bool apple_genpipev2_init(GenPipeState *s, size_t index, uint32_t width,
@@ -368,7 +376,7 @@ static void apple_displaypipe_v2_gfx_update(void *opaque)
 
         size_t size = 0;
         uint8_t *buf =
-            apple_disp_gp_read_layer(&s->genpipes[0], &s->dma_as, &size);
+            apple_disp_gp_read_layer(&s->genpipes[0], 0, &s->dma_as, &size);
         if (size && buf != NULL) {
             size_t height = size / s->genpipes[0].layers[0].stride;
             for (size_t y = 0; y < height; y++) {
@@ -379,7 +387,7 @@ static void apple_displaypipe_v2_gfx_update(void *opaque)
             g_free(buf);
         }
 
-        buf = apple_disp_gp_read_layer(&s->genpipes[1], &s->dma_as, &size);
+        buf = apple_disp_gp_read_layer(&s->genpipes[1], 0, &s->dma_as, &size);
         if (size && buf != NULL) {
             size_t height = size / s->genpipes[1].layers[0].stride;
             for (size_t y = 0; y < height; y++) {
