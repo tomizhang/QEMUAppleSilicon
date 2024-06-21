@@ -214,7 +214,7 @@ static uint8_t *apple_disp_gp_read_layer(GenPipeState *s, size_t i,
     size = s->layers[i].end - s->layers[i].start;
     buf = g_malloc(size);
 
-    if (dma_memory_read(dma_as, s->layers[0].start, buf, size,
+    if (dma_memory_read(dma_as, s->layers[i].start, buf, size,
                         MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
         g_free(buf);
         return NULL;
