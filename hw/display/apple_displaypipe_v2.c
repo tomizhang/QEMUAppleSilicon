@@ -40,10 +40,45 @@
     } while (0);
 #endif
 
-#define REG_DISP_INT_FILTER 0x45818
-#define REG_DISP_VER 0x46020
-#define DISP_VER_A1 0x70045
-#define REG_DISP_FRAME_SIZE 0x4603C
+/**
+ * Block bases
+ * 0x40000  |  Control
+ * 0x48000  |  Vertical Frame Timing Generator
+ * 0x50000  |  Generic Pipe 0
+ * 0x58000  |  Generic Pipe 1
+ * 0x70000  |  White Point Correction
+ * 0x7C000  |  PRC
+ * 0x80000  |  Dither
+ * 0x82000  |  Dither: Enchanced ST Dither 0
+ * 0x83000  |  Dither: Enchanced ST Dither 1
+ * 0x84000  |  CDFD
+ * 0x88000  |  SPLR
+ * 0x90000  |  BICS
+ * 0xA0000  |  PDC
+ * 0xB0000  |  PCC
+ * 0xF0000  |  DBM
+ */
+
+#define REG_CONTROL_INT_FILTER 0x45818
+#define REG_CONTROL_VER 0x46020
+#define CONTROL_VER_A1 0x70045
+#define REG_CONTROL_FRAME_SIZE 0x4603C
+#define REG_CONTROL_CONFIG 0x46040
+#define REG_CONTROL_OUT_FIFO_CLK_GATE 0x46074
+#define REG_CONTROL_OUT_FIFO_DEPTH 0x46084
+#define REG_CONTROL_COMPRESSION_CFG 0x460E0
+#define REG_CONTROL_BACKPRESSURE 0x46120
+#define REG_CONTROL_POWER_GATE_CTRL 0x46158
+#define REG_CONTROL_BIS_UPDATE_INTERVAL 0x46198
+#define REG_CONTROL_MIN_BANDWIDTH_RATE 0x461C0
+#define REG_CONTROL_BANDWIDTH_RATE_SCALE_FACTOR 0x461C4
+#define REG_CONTROL_PIO_DMA_BANDWIDTH_RATE 0x461C8
+#define REG_CONTROL_REPLAY_DMA_BANDWIDTH_RATE 0x461CC
+#define REG_CONTROL_GATE_CONTROL 0x461D0
+#define REG_CONTROL_READ_LINK_GATE_METRIC 0x461D4
+#define REG_CONTROL_READ_LTR_CONFIG 0x461D8
+#define REG_CONTROL_LTR_TIMER 0x461DC
+#define REG_CONTROL_WRITE_LTR_CONFIG 0x461E0
 
 #define GP_BLOCK_BASE 0x50000
 #define REG_GP_REG_SIZE 0x08000
@@ -205,7 +240,7 @@ static void apple_displaypipe_v2_write(void *opaque, hwaddr addr, uint64_t data,
         apple_genpipev2_write(&s->genpipes[1], addr, data);
         break;
 
-    case REG_DISP_INT_FILTER:
+    case REG_CONTROL_INT_FILTER:
         s->uppipe_int_filter &= ~(uint32_t)data;
         s->frame_processed = false;
         qemu_irq_lower(s->irqs[0]);
@@ -233,13 +268,13 @@ static uint64_t apple_displaypipe_v2_read(void *opaque, hwaddr addr,
     case GP_BLOCK_BASE_FOR(1)... GP_BLOCK_END_FOR(1): {
         return apple_genpipev2_read(&s->genpipes[1], addr);
     }
-    case REG_DISP_VER: {
-        return DISP_VER_A1;
+    case REG_CONTROL_VER: {
+        return CONTROL_VER_A1;
     }
-    case REG_DISP_FRAME_SIZE: {
+    case REG_CONTROL_FRAME_SIZE: {
         return (s->width << 16) | s->height;
     }
-    case REG_DISP_INT_FILTER: {
+    case REG_CONTROL_INT_FILTER: {
         return s->uppipe_int_filter;
     }
     default:
