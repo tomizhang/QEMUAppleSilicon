@@ -63,6 +63,7 @@
 
 #define REG_CONTROL_INT_FILTER 0x45818
 #define REG_CONTROL_VERSION 0x46020
+#define CONTROL_VERSION_A0 0x70044
 #define CONTROL_VERSION_A1 0x70045
 #define REG_CONTROL_FRAME_SIZE 0x4603C
 #define REG_CONTROL_CONFIG 0x46040
@@ -91,7 +92,9 @@
 #define GP_CONFIG_CONTROL_ENABLED BIT(31)
 #define REG_GP_PIXEL_FORMAT 0x0001C
 #define GP_PIXEL_FORMAT_BGRA ((BIT(4) << 22) | BIT(24) | BIT(13))
+#define GP_PIXEL_FORMAT_BGRA_MASK ((BIT(4) << 22) | BIT(24) | 3 << 13)
 #define GP_PIXEL_FORMAT_ARGB ((BIT(4) << 22) | BIT(24))
+#define GP_PIXEL_FORMAT_COMPRESSED BIT(30)
 #define REG_GP_LAYER_0_START 0x00030
 #define REG_GP_LAYER_1_START 0x00034
 #define REG_GP_LAYER_0_END 0x00040
@@ -103,6 +106,8 @@
 #define REG_GP_FRAME_SIZE 0x00080
 #define REG_GP_CRC 0x00160
 #define REG_GP_BANDWIDTH_RATE 0x00170
+#define REG_GP_STATUS 0x00184
+#define GP_STATUS_DECOMPRESSION_FAIL BIT(0)
 
 #define GP_BLOCK_BASE_FOR(i) (GP_BLOCK_BASE + i * REG_GP_REG_SIZE)
 #define GP_BLOCK_END_FOR(i) (GP_BLOCK_BASE_FOR(i) + (REG_GP_REG_SIZE - 1))
@@ -244,15 +249,38 @@ static void apple_gp_draw_bh(void *opaque)
     }
 
     // TODO: Blend both layers. 2nd layer is currently not used.
-    size_t height = size / s->layers[0].stride;
-    for (size_t y = 0; y < height; y++) {
-        uint8_t *dest = memory_region_get_ram_ptr(s->vram);
-        memcpy(dest + (y * (s->width * sizeof(uint32_t))),
-               buf + (y * s->layers[0].stride), s->layers[0].stride);
+    uint16_t height = s->layers[0].size & 0xFFFF;
+    uint16_t width = (s->layers[0].size >> 16) & 0xFFFF;
+    DISP_DBGLOG("[GP%zu] Layer 0 width and height is %dx%d.", s->index, width,
+                height);
+    DISP_DBGLOG("[GP%zu] Layer 0 stride is %d.", s->index, s->layers[0].stride);
+    if ((s->pixel_format & GP_PIXEL_FORMAT_BGRA_MASK) ==
+        GP_PIXEL_FORMAT_BGRA_MASK) {
+        DISP_DBGLOG("[GP%zu] Pixel Format is BGRA (0x%X).", s->index,
+                    s->pixel_format);
+    } else if ((s->pixel_format & GP_PIXEL_FORMAT_ARGB) ==
+               GP_PIXEL_FORMAT_ARGB) {
+        DISP_DBGLOG("[GP%zu] Pixel Format is ARGB (0x%X).", s->index,
+                    s->pixel_format);
+    } else {
+        DISP_DBGLOG("[GP%zu] Pixel Format is unknown (0x%X).", s->index,
+                    s->pixel_format);
     }
-    memory_region_set_dirty(s->vram, 0, height * s->width * sizeof(uint32_t));
+    // TODO: Decompress the data and display it properly.
+    uint16_t stride = s->pixel_format & GP_PIXEL_FORMAT_COMPRESSED ?
+                          width :
+                          s->layers[0].stride;
+    for (uint16_t y = 0; y < height; y++) {
+        uint8_t *dest = memory_region_get_ram_ptr(s->vram);
+        memcpy(dest + (y * (s->disp_state->width * sizeof(uint32_t))),
+               buf + (y * stride), width * sizeof(uint32_t));
+    }
+    memory_region_set_dirty(s->vram, 0,
+                            s->height * s->width * sizeof(uint32_t));
     g_free(buf);
-    s->disp_state->int_filter |= (1UL << 10) | (1UL << 20);
+    // TODO: bit 10 might be VBlank, and bit 20 that the transfer finished.
+    s->disp_state->int_filter |= BIT(10) | BIT(20);
+    // TODO: irq 0 might be VBlank, 2 be GP0, 3 be GP1.
     qemu_irq_raise(s->disp_state->irqs[0]);
 }
 
@@ -321,8 +349,8 @@ static uint64_t apple_disp_reg_read(void *opaque, hwaddr addr,
         return apple_disp_gp_reg_read(&s->genpipes[1], addr);
     }
     case REG_CONTROL_VERSION: {
-        DISP_DBGLOG("[disp] Version -> 0x%x", CONTROL_VERSION_A1);
-        return CONTROL_VERSION_A1;
+        DISP_DBGLOG("[disp] Version -> 0x%x", CONTROL_VERSION_A0);
+        return CONTROL_VERSION_A0;
     }
     case REG_CONTROL_FRAME_SIZE: {
         DISP_DBGLOG("[disp] Frame Size -> 0x%x", (s->width << 16) | s->height);
