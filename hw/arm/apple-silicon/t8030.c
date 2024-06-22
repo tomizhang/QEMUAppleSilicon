@@ -1935,7 +1935,10 @@ static void t8030_machine_init(MachineState *machine)
     set_dtb_prop(tms->device_tree, "regulatory-model-number", 32, buffer);
 
     child = get_dtb_node(tms->device_tree, "chosen");
-    data = 0x8030;
+    // TODO: basic AGX emulation, because on t8030 it does not expect
+    // us to be using the SW renderer and messes up. also gives us an AGX
+    // twiddled texture which we don't know how to handle yet.
+    data = 0x8015;
     set_dtb_prop(child, "chip-id", 4, &data);
     data = 0x4; //! board-id ; match with apple_aes.c
     set_dtb_prop(child, "board-id", 4, &data);
