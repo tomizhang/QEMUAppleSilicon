@@ -44,6 +44,7 @@ static const char *KEEP_COMP[] = {
     "arm-io,s8000\0$",
     "arm-io,t8030\0$",
     "atc-phy,t8030\0atc-phy,t8027\0$",
+    "baseband,i19\0$",
     "buttons\0$",
     // "dart,s8000\0dart,s5l8960x\0$",
     "dart,t8020\0$",
@@ -91,18 +92,15 @@ static const char *KEEP_COMP[] = {
 };
 
 static const char *REM_NAMES[] = {
-    "aop-gpio\0$",      "backlight\0$",        "baseband\0$",
-    "baseband-spmi\0$", "dart-ane\0$",         "dart-aop\0$",
-    "dart-apcie2\0$",   "dart-apcie3\0$",      "dart-avd\0$",
-    "dart-ave\0$",      "dart-isp\0$",         "dart-jpeg0\0$",
-    "dart-jpeg1\0$",    "dart-pmp\0$",         "dart-rsm\0$",
-    "dart-scaler\0$",   "dockchannel-uart\0$", "dotara\0$",
-    "pmp\0$",           "stockholm-spmi\0$",
+    "aop-gpio\0$",    "backlight\0$",      "dart-ane\0$",         "dart-aop\0$",
+    "dart-apcie2\0$", "dart-apcie3\0$",    "dart-avd\0$",         "dart-ave\0$",
+    "dart-isp\0$",    "dart-jpeg0\0$",     "dart-jpeg1\0$",       "dart-pmp\0$",
+    "dart-rsm\0$",    "dart-scaler\0$",    "dockchannel-uart\0$", "dotara\0$",
+    "pmp\0$",         "stockholm-spmi\0$",
 };
 
 static const char *REM_DEV_TYPES[] = {
-    "aop\0$",       "backlight\0$", "baseband\0$",
-    "bluetooth\0$", "pmp\0$",       "wlan\0$",
+    "aop\0$", "backlight\0$", "bluetooth\0$", "pmp\0$", "wlan\0$",
 };
 
 static const char *REM_PROPS[] = {
@@ -122,8 +120,6 @@ static const char *REM_PROPS[] = {
     "nvme-coastguard",
     "pmp",
     "soc-tuning",
-    "baseband-chipset",
-    "has-baseband",
 };
 
 static void allocate_and_copy(MemoryRegion *mem, AddressSpace *as,
@@ -477,11 +473,6 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     child = get_dtb_node(root, "chosen/manifest-properties");
     set_dtb_prop(child, "BNCH", sizeof(info->boot_nonce_hash),
                  info->boot_nonce_hash);
-
-    child = get_dtb_node(root, "filesystems");
-    child = get_dtb_node(child, "fstab");
-
-    remove_dtb_node_by_name(child, "baseband-vol");
 
     macho_dtb_node_process(root, NULL);
 
