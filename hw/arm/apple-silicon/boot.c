@@ -471,6 +471,8 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     set_dtb_prop(child, "amfi-allows-trust-cache-load", sizeof(data), &data);
     data = 0;
     set_dtb_prop(child, "debug-enabled", sizeof(data), &data);
+    data = 0;
+    prop = set_dtb_prop(child, "protected-data-access", sizeof(data), &data);
 
     child = get_dtb_node(root, "chosen/manifest-properties");
     set_dtb_prop(child, "BNCH", sizeof(info->boot_nonce_hash),
