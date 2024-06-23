@@ -1,6 +1,7 @@
 #ifndef QEMU_SPMI_H
 #define QEMU_SPMI_H
 
+#include "qemu/osdep.h"
 #include "hw/qdev-core.h"
 #include "qom/object.h"
 

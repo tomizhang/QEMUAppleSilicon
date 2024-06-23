@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Visual Ehrmanntraut.
+ * Copyright (c) 2023-2024 Visual Ehrmanntraut.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -18,9 +18,8 @@
 #define HW_ARM_APPLE_SILICON_BOOT_H
 
 #include "qemu/osdep.h"
+#include "exec/hwaddr.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/arm/apple-silicon/mem.h"
-#include "hw/arm/boot.h"
 
 #define BOOT_ARGS_REVISION_2 (2)
 #define BOOT_ARGS_VERSION_2 (2)
@@ -122,8 +121,8 @@ typedef struct {
 #define PLATFORM_WATCHOS (4)
 #define PLATFORM_BRIDGEOS (5)
 
-#define BUILD_VERSION_MAJOR(_v) (((_v)&0xFFFF0000) >> 16)
-#define BUILD_VERSION_MINOR(_v) (((_v)&0x0000FF00) >> 8)
+#define BUILD_VERSION_MAJOR(_v) (((_v) & 0xFFFF0000) >> 16)
+#define BUILD_VERSION_MINOR(_v) (((_v) & 0x0000FF00) >> 8)
 
 typedef struct {
     uint32_t cmd;
@@ -264,15 +263,16 @@ typedef struct {
     hwaddr kern_entry;
     hwaddr kern_text_off;
     hwaddr tz1_entry;
-    hwaddr device_tree_pa;
+    hwaddr device_tree_addr;
     uint64_t device_tree_size;
-    hwaddr ramdisk_pa;
+    hwaddr ramdisk_addr;
     uint64_t ramdisk_size;
-    hwaddr trustcache_pa;
+    hwaddr trustcache_addr;
     uint64_t trustcache_size;
-    hwaddr sep_fw_pa;
+    hwaddr sep_fw_addr;
     uint64_t sep_fw_size;
-    hwaddr kern_boot_args_pa;
+    hwaddr kern_boot_args_addr;
+    uint64_t kern_boot_args_size;
     hwaddr tz1_boot_args_pa;
     hwaddr dram_base;
     uint64_t dram_size;

@@ -7,11 +7,9 @@
  * one fourth as many.
  * NOTE: Pad the input out with zeroes to a multiple of four words!
  */
-static WK_word *WK_pack_2bits(WK_word *source_buf,
-                              WK_word *source_end,
+static WK_word *WK_pack_2bits(WK_word *source_buf, WK_word *source_end,
                               WK_word *dest_buf)
 {
-
     register WK_word *src_next = source_buf;
     WK_word *dest_next = dest_buf;
 
@@ -36,8 +34,7 @@ static WK_word *WK_pack_2bits(WK_word *source_buf,
  * note: pad out the input with zeroes to an even number of words!
  */
 
-static WK_word *WK_pack_4bits(WK_word *source_buf,
-                              WK_word *source_end,
+static WK_word *WK_pack_4bits(WK_word *source_buf, WK_word *source_end,
                               WK_word *dest_buf)
 {
     register WK_word *src_next = source_buf;
@@ -61,8 +58,7 @@ static WK_word *WK_pack_4bits(WK_word *source_buf,
  * Pack a sequence of three ten bit items into one word.
  * note: pad out the input with zeroes to an even number of words!
  */
-static WK_word *WK_pack_3_tenbits(WK_word *source_buf,
-                                  WK_word *source_end,
+static WK_word *WK_pack_3_tenbits(WK_word *source_buf, WK_word *source_end,
                                   WK_word *dest_buf)
 {
     register WK_word *src_next = source_buf;
@@ -82,9 +78,7 @@ static WK_word *WK_pack_3_tenbits(WK_word *source_buf,
     return dest_next;
 }
 
-unsigned int WKdm_compress(WK_word *src_buf,
-                           WK_word *dest_buf,
-                           int byte_budget)
+unsigned int WKdm_compress(WK_word *src_buf, WK_word *dest_buf, int byte_budget)
 {
     unsigned num_input_words = TARGET_PAGE_SIZE / BYTES_PER_WORD;
     DictionaryElement dictionary[DICTIONARY_SIZE];
@@ -98,9 +92,9 @@ unsigned int WKdm_compress(WK_word *src_buf,
      * sizes of these arrays should be increased if you want to compress
      * pages larger than 16KB
      */
-    WK_word tempTagsArray[4096];         /* tags for everything          */
-    WK_word tempQPosArray[4096];         /* queue positions for matches  */
-    WK_word tempLowBitsArray[4096];     /* low bits for partial matches */
+    WK_word tempTagsArray[4096]; /* tags for everything          */
+    WK_word tempQPosArray[4096]; /* queue positions for matches  */
+    WK_word tempLowBitsArray[4096]; /* low bits for partial matches */
 
     /*
      * boundary_tmp will be used for keeping track of what's where in
@@ -116,8 +110,8 @@ unsigned int WKdm_compress(WK_word *src_buf,
      */
     WK_word *next_full_patt;
     WK_word *start_next_full_patt;
-    char *next_tag = (char *) tempTagsArray;
-    char *next_qp = (char *) tempQPosArray;
+    char *next_tag = (char *)tempTagsArray;
+    char *next_qp = (char *)tempQPosArray;
     char *start_next_qp = next_qp;
     WK_word *next_low_bits = tempLowBitsArray;
     WK_word *start_next_low_bits = next_low_bits;
@@ -145,8 +139,9 @@ unsigned int WKdm_compress(WK_word *src_buf,
          * and add it to the base address of the dictionary. Cast back and
          * forth to/from char * so no shifts are needed
          */
-        dict_location = (WK_word *)((void*) (((char*) dictionary) +
-                        HASH_TO_DICT_BYTE_OFFSET(input_word)));
+        dict_location =
+            (WK_word *)((void *)(((char *)dictionary) +
+                                 HASH_TO_DICT_BYTE_OFFSET(input_word)));
 
         dict_word = *dict_location;
 
@@ -157,7 +152,8 @@ unsigned int WKdm_compress(WK_word *src_buf,
         } else {
             WK_word input_high_bits = HIGH_BITS(input_word);
             if (input_high_bits == HIGH_BITS(dict_word)) {
-                RECORD_PARTIAL(dict_location - dictionary, LOW_BITS(input_word));
+                RECORD_PARTIAL(dict_location - dictionary,
+                               LOW_BITS(input_word));
                 *dict_location = input_word;
             } else {
                 byte_budget -= 4;
@@ -184,19 +180,19 @@ unsigned int WKdm_compress(WK_word *src_buf,
         return SV_RETURN;
     }
 
-    if (partial == 0 && hits == (PAGE_SIZE_IN_WORDS - 1) && miss == 1
-        && (tempTagsArray[0] & 0xff) == 2) {
+    if (partial == 0 && hits == (PAGE_SIZE_IN_WORDS - 1) && miss == 1 &&
+        (tempTagsArray[0] & 0xff) == 2) {
         /* same value page */
         return SV_RETURN;
     }
 
-    if (partial == 1 && hits == PAGE_SIZE_IN_WORDS
-        && (tempTagsArray[0] & 0xff) == 1) {
+    if (partial == 1 && hits == PAGE_SIZE_IN_WORDS &&
+        (tempTagsArray[0] & 0xff) == 1) {
         /* same value page */
         return SV_RETURN;
     }
     int sparse_csize = (miss + hits) * 6 + 4;
-    int normal_csize = 2*partial/3 + miss*4 + hits/2 + header_size;
+    int normal_csize = 2 * partial / 3 + miss * 4 + hits / 2 + header_size;
 
     if (sparse_csize < normal_csize) {
         /* Mostly Zero */
@@ -229,9 +225,8 @@ unsigned int WKdm_compress(WK_word *src_buf,
      * because we assume that the page size is a multiple of 16.
      */
 
-    boundary_tmp = WK_pack_2bits(tempTagsArray,
-            (WK_word *) ((void *) next_tag),
-            dest_buf + HEADER_SIZE_IN_WORDS);
+    boundary_tmp = WK_pack_2bits(tempTagsArray, (WK_word *)((void *)next_tag),
+                                 dest_buf + HEADER_SIZE_IN_WORDS);
 
     /* Pack the queue positions into the area just after
      * the full words.  We have to round up the source
@@ -239,28 +234,27 @@ unsigned int WKdm_compress(WK_word *src_buf,
      */
 
     {
-        unsigned int num_bytes_to_pack = (unsigned int)(next_qp - (char *) tempQPosArray);
+        unsigned int num_bytes_to_pack =
+            (unsigned int)(next_qp - (char *)tempQPosArray);
         /* ceil((double) num_bytes_to_pack / 8) */
         unsigned int num_packed_words = (num_bytes_to_pack + 7) >> 3;
         unsigned int num_source_words = num_packed_words * 2;
         WK_word *endQPosArray = tempQPosArray + num_source_words;
 
-        /* Pad out the array with zeros to avoid corrupting real packed values. */
+        /* Pad out the array with zeros to avoid corrupting real packed values.
+         */
         for (; /* next_qp is already set as desired */
-                next_qp < (char *)endQPosArray;
-                next_qp++) {
+             next_qp < (char *)endQPosArray; next_qp++) {
             *next_qp = 0;
         }
 
-        boundary_tmp = WK_pack_4bits(tempQPosArray,
-                endQPosArray,
-                next_full_patt);
+        boundary_tmp =
+            WK_pack_4bits(tempQPosArray, endQPosArray, next_full_patt);
         /*
          * Record (into the header) where we stopped packing queue positions,
          * which is where we will start packing low bits.
          */
         SET_LOW_BITS_AREA_START(dest_buf, boundary_tmp);
-
     }
 
     /*
@@ -271,28 +265,26 @@ unsigned int WKdm_compress(WK_word *src_buf,
 
     {
         unsigned int num_tenbits_to_pack =
-                              (unsigned int)(next_low_bits - tempLowBitsArray);
+            (unsigned int)(next_low_bits - tempLowBitsArray);
         /* ceil((double) num_tenbits_to_pack / 3) */
         unsigned int num_packed_words = (num_tenbits_to_pack + 2) / 3;
         unsigned int num_source_words = num_packed_words * 3;
         WK_word *endLowBitsArray = tempLowBitsArray + num_source_words;
 
-        /* Pad out the array with zeros to avoid corrupting real packed values. */
+        /* Pad out the array with zeros to avoid corrupting real packed values.
+         */
 
         for (; /* next_low_bits is already set as desired */
-                next_low_bits < endLowBitsArray;
-                next_low_bits++) {
+             next_low_bits < endLowBitsArray; next_low_bits++) {
             *next_low_bits = 0;
         }
 
-        boundary_tmp = WK_pack_3_tenbits (tempLowBitsArray,
-                endLowBitsArray,
-                boundary_tmp);
+        boundary_tmp =
+            WK_pack_3_tenbits(tempLowBitsArray, endLowBitsArray, boundary_tmp);
 
-        SET_LOW_BITS_AREA_END(dest_buf, boundary_tmp);
-
-    }
-
-    return (unsigned int)((char *) boundary_tmp - (char *) dest_buf);
+SET_LOW_BITS_AREA_END
+(dest_buf, boundary_tmp);
 }
 
+return (unsigned int)((char *)boundary_tmp - (char *)dest_buf);
+}

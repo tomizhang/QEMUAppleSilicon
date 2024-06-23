@@ -1196,7 +1196,7 @@ static void dwc2_update_out_ep(DWC2State *s, int ep)
 static void dwc2_device_process_packet(DWC2State *s, USBPacket *p)
 {
     int ep = p->ep->nr;
-    assert(qemu_mutex_iothread_locked());
+    assert(bql_locked());
     int pktsize = p->iov.size - p->actual_length;
 
     switch (p->pid) {
@@ -1578,7 +1578,7 @@ static void dwc2_device_process_async(DWC2State *s, USBEndpoint *ep)
         return;
     }
 
-    assert(qemu_mutex_iothread_locked());
+    assert(bql_locked());
     if ((p = QTAILQ_FIRST(&ep->queue)) == NULL) {
         return;
     }

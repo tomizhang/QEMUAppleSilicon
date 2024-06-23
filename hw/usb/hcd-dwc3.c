@@ -31,7 +31,6 @@
 #include "migration/vmstate.h"
 #include "qapi/error.h"
 #include "qemu/bitops.h"
-#include "qemu/cutils.h"
 #include "qemu/log.h"
 #include "qom/object.h"
 #include "trace.h"
@@ -1441,7 +1440,7 @@ static void dwc3_process_packet(DWC3State *s, DWC3Endpoint *ep, USBPacket *p)
 
     DPRINTF("%s: pid: 0x%x ep: %d id: 0x%llx (%d/%d)\n", __func__, p->pid,
             ep->epid, p->id, p->actual_length, usb_packet_size(p));
-    assert(qemu_mutex_iothread_locked());
+    assert(bql_locked());
     if (ep->stalled && p->actual_length == 0) {
         p->status = USB_RET_STALL;
         goto complete;

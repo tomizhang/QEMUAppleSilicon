@@ -3,8 +3,6 @@
 #include "exec/memory.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/sysbus.h"
-#include "qemu/bitops.h"
-#include "qemu/lockable.h"
 #include "qemu/log.h"
 #include "private.h"
 

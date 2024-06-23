@@ -1,7 +1,7 @@
 /*
  * General Apple XNU memory utilities.
  *
- * Copyright (c) 2023 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,13 +18,10 @@
  */
 
 #include "qemu/osdep.h"
-#include "exec/address-spaces.h"
 #include "exec/hwaddr.h"
 #include "exec/memory.h"
 #include "hw/arm/apple-silicon/mem.h"
 #include "qapi/error.h"
-#include "qemu/error-report.h"
-#include "sysemu/sysemu.h"
 
 hwaddr g_virt_base, g_phys_base, g_virt_slide, g_phys_slide;
 

@@ -1,7 +1,7 @@
 /*
  * Apple A13 CPU.
  *
- * Copyright (c) 2023 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
  * Copyright (c) 2023 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
@@ -27,8 +27,9 @@
 #include "hw/or-irq.h"
 #include "hw/qdev-properties.h"
 #include "migration/vmstate.h"
+#include "qapi/error.h"
 #include "qemu/error-report.h"
-#include "qemu/main-loop.h"
+#include "qemu/log.h"
 #include "qemu/queue.h"
 #include "qemu/timer.h"
 #include "sysemu/reset.h"
@@ -68,7 +69,7 @@
 #define IPI_SR_SRC_CPU_MASK \
     (((1 << IPI_SR_SRC_CPU_WIDTH) - 1) << IPI_SR_SRC_CPU_SHIFT)
 #define IPI_SR_SRC_CPU(ipi_sr_val) \
-    (((ipi_sr_val)&IPI_SR_SRC_CPU_MASK) >> IPI_SR_SRC_CPU_SHIFT)
+    (((ipi_sr_val) & IPI_SR_SRC_CPU_MASK) >> IPI_SR_SRC_CPU_SHIFT)
 
 #define IPI_RR_TARGET_CLUSTER_SHIFT 16
 
@@ -717,10 +718,10 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
         object_property_set_bool(obj, "start-powered-off", true, NULL);
     }
 
-    // XXX: QARMA is too slow
+    // QARMA is too slow
     object_property_set_bool(obj, "pauth-impdef", true, NULL);
 
-    //! Need to set the CPU frequencies instead of iBoot
+    // Need to set the CPU frequencies instead of iBoot
     if (node) {
         freq = 24000000;
 

@@ -1,6 +1,5 @@
 #include "qemu/osdep.h"
 #include "crypto/cipher.h"
-#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/aes.h"
@@ -176,10 +175,10 @@ static bool aes_process_command(AppleAESState *s, AESCommand *cmd)
 {
     trace_apple_aes_process_command(COMMAND_OPCODE(cmd->command));
     bool locked = false;
-#define lock_reg()                  \
-    do {                            \
-        qemu_mutex_lock_iothread(); \
-        locked = true;              \
+#define lock_reg()     \
+    do {               \
+        bql_lock();    \
+        locked = true; \
     } while (0)
     switch (COMMAND_OPCODE(cmd->command)) {
     case OPCODE_KEY: {
@@ -340,11 +339,11 @@ static void *aes_thread(void *opaque)
         }
         if (cmd) {
             if (!aes_process_command(s, cmd)) {
-                qemu_mutex_lock_iothread();
+                bql_lock();
             }
             s->reg.command_fifo_status.level -= cmd->data_len;
             aes_update_command_fifo_status(s);
-            qemu_mutex_unlock_iothread();
+            bql_unlock();
 
             if (cmd->data) {
                 g_free(cmd->data);
@@ -370,11 +369,11 @@ static void aes_security_reg_write(void *opaque, hwaddr addr, uint64_t data,
 static uint64_t aes_security_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     switch (addr) {
-    case 0x20: //! board-id
+    case 0x20: // board-id
         return 0x4;
-    case 0x34: //? bit 24 = is fresh boot?
+    case 0x34: // bit 24 = is fresh boot?
         return (1 << 24) | (1 << 25);
-    default: //! We don't know the rest
+    default: // We don't know the rest
         return 0xFF;
     }
 }
@@ -684,7 +683,7 @@ SysBusDevice *apple_aes_create(DTBNode *node)
     }
 
     prop = find_dtb_prop(node, "reg");
-    assert(prop);
+    g_assert(prop);
 
     reg = (uint64_t *)prop->value;
 

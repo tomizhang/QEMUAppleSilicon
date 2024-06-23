@@ -7,11 +7,9 @@ const char hashLookupTable[] = HASH_LOOKUP_TABLE_CONTENTS;
  *  two bit values as bytes (with the low two bits of each byte holding
  *  the actual value.
  */
-static WK_word *WK_unpack_2bits(WK_word *input_buf,
-                                WK_word *input_end,
+static WK_word *WK_unpack_2bits(WK_word *input_buf, WK_word *input_end,
                                 WK_word *output_buf)
 {
-
     register WK_word *input_next = input_buf;
     register WK_word *output_next = output_buf;
     register WK_word packing_mask = TWO_BITS_PACKING_MASK;
@@ -32,7 +30,6 @@ static WK_word *WK_unpack_2bits(WK_word *input_buf,
     }
 
     return output_next;
-
 }
 
 /* unpack four bits consumes any number of words (between input_buf
@@ -41,11 +38,9 @@ static WK_word *WK_unpack_2bits(WK_word *input_buf,
  * (The four-bit values occupy the low halves of the bytes in the
  * result).
  */
-static WK_word *WK_unpack_4bits(WK_word *input_buf,
-                                WK_word *input_end,
+static WK_word *WK_unpack_4bits(WK_word *input_buf, WK_word *input_end,
                                 WK_word *output_buf)
 {
-
     register WK_word *input_next = input_buf;
     register WK_word *output_next = output_buf;
     register WK_word packing_mask = FOUR_BITS_PACKING_MASK;
@@ -65,17 +60,14 @@ static WK_word *WK_unpack_4bits(WK_word *input_buf,
     }
 
     return output_next;
-
 }
 
 /* unpack_3_tenbits unpacks three 10-bit items from (the low 30 bits of)
  * a 32-bit word
  */
-static WK_word *WK_unpack_3_tenbits(WK_word *input_buf,
-                                    WK_word *input_end,
+static WK_word *WK_unpack_3_tenbits(WK_word *input_buf, WK_word *input_end,
                                     WK_word *output_buf)
 {
-
     register WK_word *input_next = input_buf;
     register WK_word *output_next = output_buf;
     register WK_word packing_mask = LOW_BITS_MASK;
@@ -96,7 +88,6 @@ static WK_word *WK_unpack_3_tenbits(WK_word *input_buf,
     }
 
     return output_next;
-
 }
 
 /*********************************************************************
@@ -107,11 +98,8 @@ static WK_word *WK_unpack_3_tenbits(WK_word *input_buf,
  * fixes them
  */
 
-bool WKdm_decompress(WK_word *src_buf,
-                     WK_word *dest_buf,
-                     unsigned int size)
+bool WKdm_decompress(WK_word *src_buf, WK_word *dest_buf, unsigned int size)
 {
-
     DictionaryElement dictionary[DICTIONARY_SIZE];
     unsigned int words = size / BYTES_PER_WORD;
 
@@ -121,9 +109,9 @@ bool WKdm_decompress(WK_word *src_buf,
     /* sizes of these arrays should be increased if you want to compress
      * pages larger than 16KB
      */
-    WK_word tempTagsArray[4096];        /* tags for everything          */
-    WK_word tempQPosArray[4096];        /* queue positions for matches  */
-    WK_word tempLowBitsArray[4096];    /* low bits for partial matches */
+    WK_word tempTagsArray[4096]; /* tags for everything          */
+    WK_word tempQPosArray[4096]; /* queue positions for matches  */
+    WK_word tempLowBitsArray[4096]; /* low bits for partial matches */
 
     (void)words;
 
@@ -141,31 +129,27 @@ bool WKdm_decompress(WK_word *src_buf,
 
     PRELOAD_DICTIONARY;
 
-    if ((TAGS_AREA_START(src_buf) >= src_buf + words)
-        || (TAGS_AREA_END(src_buf) >= src_buf + words)
-        || (QPOS_AREA_START(src_buf) >= src_buf + words)
-        || (LOW_BITS_AREA_START(src_buf) >= src_buf + words)
-        || (LOW_BITS_AREA_END(src_buf) >= src_buf + words)) {
-            return false;
+    if ((TAGS_AREA_START(src_buf) >= src_buf + words) ||
+        (TAGS_AREA_END(src_buf) >= src_buf + words) ||
+        (QPOS_AREA_START(src_buf) >= src_buf + words) ||
+        (LOW_BITS_AREA_START(src_buf) >= src_buf + words) ||
+        (LOW_BITS_AREA_END(src_buf) >= src_buf + words)) {
+        return false;
     }
 
-    WK_unpack_2bits(TAGS_AREA_START(src_buf),
-                    TAGS_AREA_END(src_buf),
+    WK_unpack_2bits(TAGS_AREA_START(src_buf), TAGS_AREA_END(src_buf),
                     tempTagsArray);
 
-    WK_unpack_4bits(QPOS_AREA_START(src_buf),
-                    QPOS_AREA_END(src_buf),
+    WK_unpack_4bits(QPOS_AREA_START(src_buf), QPOS_AREA_END(src_buf),
                     tempQPosArray);
 
     WK_unpack_3_tenbits(LOW_BITS_AREA_START(src_buf),
-                        LOW_BITS_AREA_END(src_buf),
-                        tempLowBitsArray);
+                        LOW_BITS_AREA_END(src_buf), tempLowBitsArray);
 
     {
-        register char *next_tag = (char *) tempTagsArray;
-        char *tags_area_end =
-            ((char *) tempTagsArray) + PAGE_SIZE_IN_WORDS;
-        char *next_q_pos = (char *) tempQPosArray;
+        register char *next_tag = (char *)tempTagsArray;
+        char *tags_area_end = ((char *)tempTagsArray) + PAGE_SIZE_IN_WORDS;
+        char *next_q_pos = (char *)tempQPosArray;
         WK_word *next_low_bits = tempLowBitsArray;
         WK_word *next_full_word = FULL_WORD_AREA_START(src_buf);
 
@@ -198,15 +182,15 @@ bool WKdm_decompress(WK_word *src_buf,
                 /* add in stored low bits from temp array */
                 temp = temp | *(next_low_bits++);
 
-                *dict_location = temp;      /* replace old value in dict. */
-                *next_output = temp;    /* and echo it to output */
+                *dict_location = temp; /* replace old value in dict. */
+                *next_output = temp; /* and echo it to output */
                 break;
             }
             case MISS_TAG: {
                 WK_word missed_word = *(next_full_word++);
-                WK_word *dict_location = (WK_word *)
-                                         ((void *) (((char *) dictionary) +
-                                         HASH_TO_DICT_BYTE_OFFSET(missed_word)));
+                WK_word *dict_location = (WK_word *)((
+                    void *)(((char *)dictionary) +
+                            HASH_TO_DICT_BYTE_OFFSET(missed_word)));
                 *dict_location = missed_word;
                 *next_output = missed_word;
                 break;

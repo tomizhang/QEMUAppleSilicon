@@ -16,11 +16,11 @@
 
 #define MSG_TYPE_SET_IOP_PSTATE 6
 
-#define MSG_GET_PSTATE(_x) ((_x)&0xFFF)
+#define MSG_GET_PSTATE(_x) ((_x) & 0xFFF)
 #define PSTATE_SLPNOMEM 0x0
 // #define PSTATE_ON 0x20
 #define PSTATE_WAIT_VR 0x201
-#define PSTATE_PWRGATE 0x202 //! Eh?
+#define PSTATE_PWRGATE 0x202 // Eh?
 #define PSTATE_ON 0x220
 
 #define MSG_TYPE_SET_AP_PSTATE_ACK 7

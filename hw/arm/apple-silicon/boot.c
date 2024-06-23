@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2019 Jonathan Afek <jonyafek@me.com>
  * Copyright (c) 2021 Nguyen Hoang Trung (TrungNguyen1909)
- * Copyright (c) 2023 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
  * Copyright (c) 2023 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
@@ -23,14 +23,13 @@
 #include "qemu/osdep.h"
 #include "crypto/hash.h"
 #include "crypto/random.h"
+#include "exec/memory.h"
 #include "hw/arm/apple-silicon/boot.h"
+#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/arm/apple-silicon/mem.h"
-#include "hw/arm/boot.h"
-#include "hw/loader.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "qemu/guest-random.h"
-#include "sysemu/sysemu.h"
 #include "img4.h"
 #include "lzfse.h"
 #include "lzss.h"
@@ -45,6 +44,7 @@ static const char *KEEP_COMP[] = {
     "arm-io,s8000\0$",
     "arm-io,t8030\0$",
     "atc-phy,t8030\0atc-phy,t8027\0$",
+    "baseband,i19\0$",
     "buttons\0$",
     // "dart,s8000\0dart,s5l8960x\0$",
     "dart,t8020\0$",
@@ -75,6 +75,7 @@ static const char *KEEP_COMP[] = {
     "sart,t8030\0$",
     "sio-dma-controller\0$",
     "smc-pmu\0$",
+    "smc-tempsensor\0$",
     "soc-tuner,s8000\0$",
     "soc-tuner,t8030\0$",
     "spi-1,samsung\0$",
@@ -91,11 +92,11 @@ static const char *KEEP_COMP[] = {
 };
 
 static const char *REM_NAMES[] = {
-    "aop-gpio\0$", "backlight\0$",   "baseband-spmi\0$",  "dart-ane\0$",
-    "dart-aop\0$", "dart-apcie2\0$", "dart-apcie3\0$",    "dart-avd\0$",
-    "dart-ave\0$", "dart-isp\0$",    "dart-jpeg0\0$",     "dart-jpeg1\0$",
-    "dart-pmp\0$", "dart-rsm\0$",    "dart-scaler\0$",    "dockchannel-uart\0$",
-    "dotara\0$",   "pmp\0$",         "stockholm-spmi\0$",
+    "aop-gpio\0$",    "backlight\0$",      "dart-ane\0$",         "dart-aop\0$",
+    "dart-apcie2\0$", "dart-apcie3\0$",    "dart-avd\0$",         "dart-ave\0$",
+    "dart-isp\0$",    "dart-jpeg0\0$",     "dart-jpeg1\0$",       "dart-pmp\0$",
+    "dart-rsm\0$",    "dart-scaler\0$",    "dockchannel-uart\0$", "dotara\0$",
+    "pmp\0$",         "stockholm-spmi\0$",
 };
 
 static const char *REM_DEV_TYPES[] = {
@@ -230,7 +231,7 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
         cnt--;
     }
 
-    assert(cnt == 0);
+    g_assert(cnt == 0);
 }
 
 /*
@@ -439,9 +440,9 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     uint64_t memmap[2] = { 0 };
 
     child = get_dtb_node(root, "chosen");
-    assert(child != NULL);
+    g_assert(child != NULL);
     prop = find_dtb_prop(child, "random-seed");
-    assert(prop != NULL);
+    g_assert(prop != NULL);
     qemu_guest_getrandom_nofail(prop->value, prop->length);
 
     set_dtb_prop(child, "dram-base", 8, &info->dram_base);
@@ -460,82 +461,92 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     prop = set_dtb_prop(child, "effective-production-status-ap", sizeof(data),
                         &data);
 
-    // these are needed by the image4 parser module$
+    // these are needed by the image4 parser module
     set_dtb_prop(child, "security-domain", sizeof(data), &data);
     set_dtb_prop(child, "chip-epoch", sizeof(data), &data);
     set_dtb_prop(child, "amfi-allows-trust-cache-load", sizeof(data), &data);
-    // data = 1;
-    // set_dtb_prop(child, "debug-enabled", sizeof(data), &data);
+    data = 1;
+    set_dtb_prop(child, "debug-enabled", sizeof(data), &data);
+    data = 0;
+    prop = set_dtb_prop(child, "protected-data-access", sizeof(data), &data);
 
     child = get_dtb_node(root, "chosen/manifest-properties");
     set_dtb_prop(child, "BNCH", sizeof(info->boot_nonce_hash),
                  info->boot_nonce_hash);
 
-    child = get_dtb_node(root, "filesystems");
-    child = get_dtb_node(child, "fstab");
-
-    remove_dtb_node_by_name(child, "baseband-vol");
-
     macho_dtb_node_process(root, NULL);
 
     child = get_dtb_node(root, "chosen/memory-map");
-    assert(child != NULL);
+    g_assert(child != NULL);
 
-    /* Allocate space */
     set_dtb_prop(child, "RAMDisk", sizeof(memmap), memmap);
     set_dtb_prop(child, "TrustCache", sizeof(memmap), memmap);
     set_dtb_prop(child, "SEPFW", sizeof(memmap), memmap);
-
     set_dtb_prop(child, "BootArgs", sizeof(memmap), &memmap);
     set_dtb_prop(child, "DeviceTree", sizeof(memmap), &memmap);
 
     info->device_tree_size = align_16k_high(get_dtb_node_buffer_size(root));
 }
 
-void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
-                    const char *name, AppleBootInfo *info)
+static void set_memory_range(DTBNode *root, const char *name, uint64_t addr,
+                             uint64_t size)
 {
     DTBNode *child;
     DTBProp *prop;
-    g_autofree uint8_t *buf = NULL;
+
+    g_assert(addr);
+    g_assert(size);
 
     child = get_dtb_node(root, "chosen/memory-map");
+    g_assert(child);
+
+    prop = find_dtb_prop(child, name);
+    g_assert(prop);
+
+    ((uint64_t *)prop->value)[0] = addr;
+    ((uint64_t *)prop->value)[1] = size;
+}
+
+static void remove_memory_range(DTBNode *root, const char *name)
+{
+    DTBNode *child;
+    DTBProp *prop;
+
+    child = get_dtb_node(root, "chosen/memory-map");
+    g_assert(child);
+
     prop = find_dtb_prop(child, "DeviceTree");
-    assert(prop);
-    ((uint64_t *)prop->value)[0] = info->device_tree_pa;
-    ((uint64_t *)prop->value)[1] = info->device_tree_size;
 
-    prop = find_dtb_prop(child, "RAMDisk");
-    assert(prop);
-    if ((info->ramdisk_pa) && (info->ramdisk_size)) {
-        ((uint64_t *)prop->value)[0] = info->ramdisk_pa;
-        ((uint64_t *)prop->value)[1] = info->ramdisk_size;
-    } else {
+    if (prop) {
         remove_dtb_prop(child, prop);
     }
+}
 
-    prop = find_dtb_prop(child, "TrustCache");
-    assert(prop);
-    if ((info->trustcache_pa) && (info->trustcache_size)) {
-        ((uint64_t *)prop->value)[0] = info->trustcache_pa;
-        ((uint64_t *)prop->value)[1] = info->trustcache_size;
+static void set_or_remove_memory_range(DTBNode *root, const char *name,
+                                       uint64_t addr, uint64_t size)
+{
+    if (addr) {
+        set_memory_range(root, name, addr, size);
     } else {
-        remove_dtb_prop(child, prop);
+        remove_memory_range(root, name);
     }
+}
 
-    prop = find_dtb_prop(child, "SEPFW");
-    assert(prop);
-    if (info->sep_fw_pa && info->sep_fw_size) {
-        ((uint64_t *)prop->value)[0] = info->sep_fw_pa;
-        ((uint64_t *)prop->value)[1] = info->sep_fw_size;
-    } else {
-        remove_dtb_prop(child, prop);
-    }
+void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
+                    const char *name, AppleBootInfo *info)
+{
+    g_autofree uint8_t *buf = NULL;
 
-    prop = find_dtb_prop(child, "BootArgs");
-    assert(prop);
-    ((uint64_t *)prop->value)[0] = info->kern_boot_args_pa;
-    ((uint64_t *)prop->value)[1] = sizeof(AppleKernelBootArgs);
+    set_memory_range(root, "DeviceTree", info->device_tree_addr,
+                     info->device_tree_size);
+    set_or_remove_memory_range(root, "RAMDisk", info->ramdisk_addr,
+                               info->ramdisk_size);
+    set_or_remove_memory_range(root, "TrustCache", info->trustcache_addr,
+                               info->trustcache_size);
+    set_or_remove_memory_range(root, "SEPFW", info->sep_fw_addr,
+                               info->sep_fw_size);
+    set_memory_range(root, "BootArgs", info->kern_boot_args_addr,
+                     info->kern_boot_args_size);
 
     if (info->ticket_data && info->ticket_length) {
         QCryptoHashAlgorithm alg = QCRYPTO_HASH_ALG_SHA1;
@@ -553,21 +564,21 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
         }
 
         prop = find_dtb_prop(child, "boot-manifest-hash");
-        assert(prop);
+        g_assert(prop);
 
         if (qcrypto_hash_bytes(alg, info->ticket_data, info->ticket_length,
                                &hash, &hash_len, &err) >= 0) {
-            assert(hash_len == prop->length);
+            g_assert(hash_len == prop->length);
             memcpy(prop->value, hash, hash_len);
         } else {
             error_report_err(err);
         }
     }
 
-    assert(info->device_tree_size >= get_dtb_node_buffer_size(root));
+    g_assert(info->device_tree_size >= get_dtb_node_buffer_size(root));
     buf = g_malloc0(info->device_tree_size);
     save_dtb(buf, root);
-    allocate_and_copy(mem, as, name, info->device_tree_pa,
+    allocate_and_copy(mem, as, name, info->device_tree_addr,
                       info->device_tree_size, buf);
 }
 
@@ -867,7 +878,7 @@ MachoHeader64 *macho_parse(uint8_t *data, uint32_t len)
     }
 
     macho_highest_lowest(mh, &lowaddr, &highaddr);
-    assert(lowaddr < highaddr);
+    g_assert(lowaddr < highaddr);
 
     phys_base = g_malloc0(highaddr - lowaddr);
     virt_base = lowaddr;
@@ -1203,7 +1214,7 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
                 if (strcmp(segCmd->segname, "__TEXT") == 0) {
                     MachoHeader64 *mh = load_from;
                     MachoSegmentCommand64 *seg;
-                    assert(mh->magic == MACH_MAGIC_64);
+                    g_assert(mh->magic == MACH_MAGIC_64);
                     for (seg = macho_get_firstseg(mh); seg != NULL;
                          seg = macho_get_nextseg(mh, seg)) {
                         MachoSection64 *sp;
@@ -1315,7 +1326,7 @@ MachoFilesetEntryCommand *macho_get_fileset(MachoHeader64 *header,
     for (uint32_t i = 0; i < header->n_cmds; i++) {
         if (fileset->cmd == LC_FILESET_ENTRY) {
             const char *entry_id = (char *)fileset + fileset->entry_id;
-            if (strcmp(entry_id, entry) == 0) {
+            if (!strcmp(entry_id, entry)) {
                 return fileset;
             }
         }

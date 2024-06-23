@@ -1,7 +1,7 @@
 /*
  * Apple SEP.
  *
- * Copyright (c) 2023 Visual Ehrmanntraut.
+ * Copyright (c) 2023-2024 Visual Ehrmanntraut.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,14 +21,10 @@
 #include "crypto/random.h"
 #include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/a9.h"
-#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/sep.h"
 #include "hw/core/cpu.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
-#include "qapi/error.h"
-#include "qemu/error-report.h"
 #include "qemu/log.h"
-#include "qemu/units.h"
 
 #define REG_TRNG_FIFO_OUTPUT_BASE (0x00)
 #define REG_TRNG_FIFO_OUTPUT_END (0x0C)
@@ -311,7 +307,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     sysbus_init_mmio(sbd, &s->misc2_mr);
     DTBNode *child = find_dtb_node(node, "iop-sep-nub");
     g_assert(child);
-    //! SEPFW needs to be loaded by restore, supposedly
+    // SEPFW needs to be loaded by restore, supposedly
     // uint32_t data = 1;
     // set_dtb_prop(child, "sepfw-loaded", sizeof(data), &data);
     return s;

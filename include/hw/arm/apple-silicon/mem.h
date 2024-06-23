@@ -23,6 +23,7 @@
 #ifndef HW_ARM_APPLE_SILICON_MEM_H
 #define HW_ARM_APPLE_SILICON_MEM_H
 
+#include "qemu/osdep.h"
 #include "exec/hwaddr.h"
 
 extern hwaddr g_virt_base;

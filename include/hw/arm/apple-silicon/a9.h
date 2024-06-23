@@ -1,7 +1,7 @@
 /*
  * Apple A9 CPU.
  *
- * Copyright (c) 2023 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
  * Copyright (c) 2023 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
@@ -22,10 +22,7 @@
 #define HW_ARM_APPLE_SILICON_A9_H
 
 #include "qemu/osdep.h"
-#include "exec/hwaddr.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/cpu/cluster.h"
-#include "qemu/queue.h"
 #include "cpu.h"
 
 #define A9_MAX_CPU 2

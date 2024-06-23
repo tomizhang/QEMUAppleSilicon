@@ -5,7 +5,6 @@
 #include "hw/sysbus.h"
 #include "hw/usb/hcd-dwc2.h"
 #include "hw/usb/hcd-dwc3.h"
-#include "hw/usb/hcd-tcp.h"
 #include "qom/object.h"
 
 #define TYPE_APPLE_TYPEC "apple.typec"

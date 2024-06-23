@@ -1,7 +1,7 @@
 /*
  * Apple t8030 SoC.
  *
- * Copyright (c) 2023 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
  * Copyright (c) 2023 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
@@ -23,13 +23,11 @@
 
 #include "qemu/osdep.h"
 #include "exec/hwaddr.h"
-#include "exec/memory.h"
 #include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/boot.h"
 #include "hw/boards.h"
 #include "hw/sysbus.h"
 #include "sysemu/kvm.h"
-#include "cpu.h"
 
 #define TYPE_T8030 "t8030"
 
@@ -67,7 +65,7 @@ typedef struct {
     char *trustcache_filename;
     char *ticket_filename;
     char *seprom_filename;
-    char *sepfw_filename;
+    char *sep_fw_filename;
     BootMode boot_mode;
     uint32_t rtbuddy_protocol_ver;
     uint32_t build_version;

@@ -1,7 +1,7 @@
 /*
  * Apple Roswell.
  *
- * Copyright (c) 2023 Visual Ehrmanntraut.
+ * Copyright (c) 2023-2024 Visual Ehrmanntraut.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,9 +20,7 @@
 #include "qemu/osdep.h"
 #include "hw/i2c/apple_i2c.h"
 #include "hw/misc/apple-silicon/roswell.h"
-#include "migration/vmstate.h"
 #include "qapi/error.h"
-#include "qemu/error-report.h"
 
 static uint8_t apple_roswell_rx(I2CSlave *i2c)
 {

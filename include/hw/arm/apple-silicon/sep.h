@@ -1,7 +1,7 @@
 /*
  * Apple SEP.
  *
- * Copyright (c) 2023 Visual Ehrmanntraut.
+ * Copyright (c) 2023-2024 Visual Ehrmanntraut.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,14 +21,14 @@
 #define HW_ARM_APPLE_SILICON_SEP_H
 
 #include "qemu/osdep.h"
-#include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/sysbus.h"
 #include "qemu/typedefs.h"
 #include "qom/object.h"
+#include "cpu-qom.h"
 
-#define TYPE_APPLE_SEP "secure-enclave"
+#define TYPE_APPLE_SEP "apple-sep"
 OBJECT_DECLARE_TYPE(AppleSEPState, AppleSEPClass, APPLE_SEP)
 
 typedef struct {

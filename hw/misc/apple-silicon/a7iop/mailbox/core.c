@@ -64,9 +64,7 @@ static void apple_a7iop_mailbox_update_irq(AppleA7IOPMailbox *s)
     bool iop_empty;
     bool ap_empty;
     bool iop_underflow;
-    bool iop_overflow;
     bool ap_underflow;
-    bool ap_overflow;
     bool iop_nonempty_unmasked;
     bool iop_empty_unmasked;
     bool ap_nonempty_unmasked;
@@ -75,9 +73,7 @@ static void apple_a7iop_mailbox_update_irq(AppleA7IOPMailbox *s)
     iop_empty = QTAILQ_EMPTY(&s->iop_mailbox->inbox);
     ap_empty = QTAILQ_EMPTY(&s->ap_mailbox->inbox);
     iop_underflow = s->iop_mailbox->underflow;
-    iop_overflow = s->iop_mailbox->overflow;
     ap_underflow = s->ap_mailbox->underflow;
-    ap_overflow = s->ap_mailbox->overflow;
     iop_nonempty_unmasked = iop_nonempty_is_unmasked(s->int_mask);
     iop_empty_unmasked = iop_empty_is_unmasked(s->int_mask);
     ap_nonempty_unmasked = ap_nonempty_is_unmasked(s->int_mask);
@@ -88,14 +84,12 @@ static void apple_a7iop_mailbox_update_irq(AppleA7IOPMailbox *s)
         !iop_empty_unmasked, !ap_nonempty_unmasked, !ap_empty_unmasked);
 
     qemu_set_irq(s->irqs[APPLE_A7IOP_IRQ_IOP_NONEMPTY],
-                 (iop_nonempty_unmasked && !iop_empty) || iop_underflow ||
-                     iop_overflow);
+                 (iop_nonempty_unmasked && !iop_empty) || iop_underflow);
     qemu_set_irq(s->irqs[APPLE_A7IOP_IRQ_IOP_EMPTY],
                  iop_empty_unmasked && iop_empty);
 
     qemu_set_irq(s->irqs[APPLE_A7IOP_IRQ_AP_NONEMPTY],
-                 (ap_nonempty_unmasked && !ap_empty) || ap_underflow ||
-                     ap_overflow);
+                 (ap_nonempty_unmasked && !ap_empty) || ap_underflow);
     qemu_set_irq(s->irqs[APPLE_A7IOP_IRQ_AP_EMPTY],
                  ap_empty_unmasked && ap_empty);
 }
@@ -103,7 +97,7 @@ static void apple_a7iop_mailbox_update_irq(AppleA7IOPMailbox *s)
 bool apple_a7iop_mailbox_is_empty(AppleA7IOPMailbox *s)
 {
     QEMU_LOCK_GUARD(&s->lock);
-    if (s->underflow || s->overflow) {
+    if (s->underflow) {
         return true;
     }
     return QTAILQ_EMPTY(&s->inbox);
@@ -136,12 +130,6 @@ void apple_a7iop_mailbox_send_ap(AppleA7IOPMailbox *s, AppleA7IOPMessage *msg)
 {
     WITH_QEMU_LOCK_GUARD(&s->lock)
     {
-        if (apple_a7iop_mailbox_count(s->ap_mailbox) >= MAX_MESSAGE_COUNT) {
-            s->overflow = true;
-            qemu_log_mask(LOG_GUEST_ERROR, "%s %s overflowed.\n", __FUNCTION__,
-                          s->role);
-            return;
-        }
         if (!s->ap_dir_en) {
             qemu_log_mask(LOG_GUEST_ERROR, "%s %s direction not enabled.\n",
                           __FUNCTION__, s->role);
@@ -160,12 +148,6 @@ void apple_a7iop_mailbox_send_iop(AppleA7IOPMailbox *s, AppleA7IOPMessage *msg)
 {
     WITH_QEMU_LOCK_GUARD(&s->lock)
     {
-        if (apple_a7iop_mailbox_count(s->iop_mailbox) >= MAX_MESSAGE_COUNT) {
-            s->overflow = true;
-            qemu_log_mask(LOG_GUEST_ERROR, "%s %s overflowed.\n", __FUNCTION__,
-                          s->role);
-            return;
-        }
         if (!s->iop_dir_en) {
             qemu_log_mask(LOG_GUEST_ERROR, "%s %s direction not enabled.\n",
                           __FUNCTION__, s->role);
@@ -185,7 +167,7 @@ static AppleA7IOPMessage *apple_a7iop_mailbox_recv(AppleA7IOPMailbox *s)
     AppleA7IOPMessage *msg;
 
     QEMU_LOCK_GUARD(&s->lock);
-    if (s->underflow || s->overflow) {
+    if (s->underflow) {
         return NULL;
     }
     msg = QTAILQ_FIRST(&s->inbox);
@@ -270,11 +252,12 @@ void apple_a7iop_mailbox_clear_int_mask(AppleA7IOPMailbox *s, uint32_t value)
 static inline uint32_t apple_a7iop_mailbox_ctrl(AppleA7IOPMailbox *s)
 {
     QEMU_LOCK_GUARD(&s->lock);
-    if (s->overflow || s->underflow) {
-        return CTRL_OVERFLOW(s->overflow) | CTRL_UNDERFLOW(s->underflow);
+    if (s->underflow) {
+        return CTRL_UNDERFLOW(s->underflow);
     }
     return CTRL_FULL(s->count >= MAX_MESSAGE_COUNT) |
-           CTRL_EMPTY(QTAILQ_EMPTY(&s->inbox)) | CTRL_COUNT(s->count);
+           CTRL_EMPTY(QTAILQ_EMPTY(&s->inbox)) |
+           CTRL_COUNT(MIN(s->count, MAX_MESSAGE_COUNT));
 }
 
 uint32_t apple_a7iop_mailbox_get_iop_ctrl(AppleA7IOPMailbox *s)
@@ -364,7 +347,6 @@ static void apple_a7iop_mailbox_reset(DeviceState *dev)
     s->iop_dir_en = true;
     s->ap_dir_en = true;
     s->underflow = false;
-    s->overflow = false;
     bzero(s->iop_recv_reg, sizeof(s->iop_recv_reg));
     bzero(s->ap_recv_reg, sizeof(s->ap_recv_reg));
     bzero(s->iop_send_reg, sizeof(s->iop_send_reg));

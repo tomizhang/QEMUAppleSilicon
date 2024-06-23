@@ -1,10 +1,8 @@
 #include "qemu/osdep.h"
-#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/irq.h"
 #include "hw/watchdog/apple_wdt.h"
 #include "migration/vmstate.h"
-#include "qapi/error.h"
 #include "qemu/bitops.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
@@ -15,15 +13,13 @@
 #define TYPE_APPLE_WDT "apple.wdt"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleWDTState, APPLE_WDT)
 
-#define min(_a, _b) ((_a) < (_b) ? (_a) : (_b))
-
-#define rCHIP_WDOG_TMR (0x0)
-#define rCHIP_WDOG_RST_CNT (0x4)
-#define rCHIP_WDOG_INTR_CNT (0x8)
-#define rCHIP_WDOG_CTL (0xc)
-#define rSYS_WDOG_TMR (0x10)
-#define rSYS_WDOG_RST_CNT (0x14)
-#define rSYS_WDOG_CTL (0x1c)
+#define REG_CHIP_WDOG_TMR (0x0)
+#define REG_CHIP_WDOG_RST_CNT (0x4)
+#define REG_CHIP_WDOG_INTR_CNT (0x8)
+#define REG_CHIP_WDOG_CTL (0xc)
+#define REG_SYS_WDOG_TMR (0x10)
+#define REG_SYS_WDOG_RST_CNT (0x14)
+#define REG_SYS_WDOG_CTL (0x1c)
 
 #define WDOG_CTL_EN_IRQ (1 << 0)
 #define WDOG_CTL_ACK_IRQ (1 << 1)
@@ -109,7 +105,7 @@ static void wdt_update(void *opaque)
             return;
         } else {
             uint32_t d = s->reg.chip_reset_counter - chip_tmr;
-            expiry = min(expiry, d);
+            expiry = MIN(expiry, d);
         }
     }
 
@@ -121,7 +117,7 @@ static void wdt_update(void *opaque)
             return;
         } else {
             uint32_t d = s->reg.sys_reset_counter - sys_tmr;
-            expiry = min(expiry, d);
+            expiry = MIN(expiry, d);
         }
     }
 
@@ -133,7 +129,7 @@ static void wdt_update(void *opaque)
             }
         } else {
             uint32_t d = s->reg.chip_interrupt_counter - chip_tmr;
-            expiry = min(expiry, d);
+            expiry = MIN(expiry, d);
         }
     }
     expiry *= s->cnt_period_ns;
@@ -160,16 +156,16 @@ static void wdt_reg_write(void *opaque, hwaddr addr, uint64_t data,
     old = *mmio;
 
     switch (addr) {
-    case rCHIP_WDOG_TMR:
+    case REG_CHIP_WDOG_TMR:
         val = wdt_get_clock(s) - val;
         break;
-    case rCHIP_WDOG_CTL:
+    case REG_CHIP_WDOG_CTL:
         if (val & WDOG_CTL_ACK_IRQ) {
             wdt_set_irq(s, 0);
         }
         val &= ~WDOG_CTL_ACK_IRQ;
         break;
-    case rSYS_WDOG_TMR:
+    case REG_SYS_WDOG_TMR:
         val = wdt_get_clock(s) - val;
         break;
     default:
@@ -201,10 +197,10 @@ static uint64_t wdt_reg_read(void *opaque, hwaddr addr, unsigned size)
     val = *mmio;
 
     switch (addr) {
-    case rCHIP_WDOG_TMR:
+    case REG_CHIP_WDOG_TMR:
         val = wdt_get_chip_timer(s);
         break;
-    case rSYS_WDOG_TMR:
+    case REG_SYS_WDOG_TMR:
         val = wdt_get_sys_timer(s);
         break;
     default:

@@ -36,7 +36,6 @@ struct AppleA7IOPMailbox {
     qemu_irq irqs[APPLE_A7IOP_IRQ_MAX];
     bool iop_dir_en;
     bool ap_dir_en;
-    bool overflow;
     bool underflow;
     uint32_t int_mask;
     uint8_t iop_recv_reg[16];

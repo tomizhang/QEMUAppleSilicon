@@ -2,7 +2,6 @@
 #include "exec/hwaddr.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/misc/apple-silicon/a7iop/private.h"
-#include "qemu/bitops.h"
 #include "qemu/log.h"
 
 #define REG_CPU_CTRL 0x0044

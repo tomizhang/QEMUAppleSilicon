@@ -1,7 +1,7 @@
 #ifndef APPLE_I2C_H
 #define APPLE_I2C_H
 
-#include "hw/arm/apple-silicon/dtb.h"
+#include "qemu/osdep.h"
 #include "hw/sysbus.h"
 #include "qemu/fifo8.h"
 #include "qom/object.h"

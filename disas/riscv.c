@@ -903,6 +903,9 @@ typedef enum {
     rv_op_vwsll_vv = 872,
     rv_op_vwsll_vx = 873,
     rv_op_vwsll_vi = 874,
+    rv_op_amocas_w = 875,
+    rv_op_amocas_d = 876,
+    rv_op_amocas_q = 877,
 } rv_op;
 
 /* register names */
@@ -2090,6 +2093,9 @@ const rv_opcode_data rvi_opcode_data[] = {
     { "vwsll.vv", rv_codec_v_r, rv_fmt_vd_vs2_vs1_vm, NULL, 0, 0, 0 },
     { "vwsll.vx", rv_codec_v_r, rv_fmt_vd_vs2_rs1_vm, NULL, 0, 0, 0 },
     { "vwsll.vi", rv_codec_v_i, rv_fmt_vd_vs2_uimm_vm, NULL, 0, 0, 0 },
+    { "amocas.w", rv_codec_r_a, rv_fmt_aqrl_rd_rs2_rs1, NULL, 0, 0, 0 },
+    { "amocas.d", rv_codec_r_a, rv_fmt_aqrl_rd_rs2_rs1, NULL, 0, 0, 0 },
+    { "amocas.q", rv_codec_r_a, rv_fmt_aqrl_rd_rs2_rs1, NULL, 0, 0, 0 },
 };
 
 /* CSR names */
@@ -2184,7 +2190,22 @@ static const char *csr_name(int csrno)
     case 0x0383: return "mibound";
     case 0x0384: return "mdbase";
     case 0x0385: return "mdbound";
-    case 0x03a0: return "pmpcfg3";
+    case 0x03a0: return "pmpcfg0";
+    case 0x03a1: return "pmpcfg1";
+    case 0x03a2: return "pmpcfg2";
+    case 0x03a3: return "pmpcfg3";
+    case 0x03a4: return "pmpcfg4";
+    case 0x03a5: return "pmpcfg5";
+    case 0x03a6: return "pmpcfg6";
+    case 0x03a7: return "pmpcfg7";
+    case 0x03a8: return "pmpcfg8";
+    case 0x03a9: return "pmpcfg9";
+    case 0x03aa: return "pmpcfg10";
+    case 0x03ab: return "pmpcfg11";
+    case 0x03ac: return "pmpcfg12";
+    case 0x03ad: return "pmpcfg13";
+    case 0x03ae: return "pmpcfg14";
+    case 0x03af: return "pmpcfg15";
     case 0x03b0: return "pmpaddr0";
     case 0x03b1: return "pmpaddr1";
     case 0x03b2: return "pmpaddr2";
@@ -2201,6 +2222,54 @@ static const char *csr_name(int csrno)
     case 0x03bd: return "pmpaddr13";
     case 0x03be: return "pmpaddr14";
     case 0x03bf: return "pmpaddr15";
+    case 0x03c0: return "pmpaddr16";
+    case 0x03c1: return "pmpaddr17";
+    case 0x03c2: return "pmpaddr18";
+    case 0x03c3: return "pmpaddr19";
+    case 0x03c4: return "pmpaddr20";
+    case 0x03c5: return "pmpaddr21";
+    case 0x03c6: return "pmpaddr22";
+    case 0x03c7: return "pmpaddr23";
+    case 0x03c8: return "pmpaddr24";
+    case 0x03c9: return "pmpaddr25";
+    case 0x03ca: return "pmpaddr26";
+    case 0x03cb: return "pmpaddr27";
+    case 0x03cc: return "pmpaddr28";
+    case 0x03cd: return "pmpaddr29";
+    case 0x03ce: return "pmpaddr30";
+    case 0x03cf: return "pmpaddr31";
+    case 0x03d0: return "pmpaddr32";
+    case 0x03d1: return "pmpaddr33";
+    case 0x03d2: return "pmpaddr34";
+    case 0x03d3: return "pmpaddr35";
+    case 0x03d4: return "pmpaddr36";
+    case 0x03d5: return "pmpaddr37";
+    case 0x03d6: return "pmpaddr38";
+    case 0x03d7: return "pmpaddr39";
+    case 0x03d8: return "pmpaddr40";
+    case 0x03d9: return "pmpaddr41";
+    case 0x03da: return "pmpaddr42";
+    case 0x03db: return "pmpaddr43";
+    case 0x03dc: return "pmpaddr44";
+    case 0x03dd: return "pmpaddr45";
+    case 0x03de: return "pmpaddr46";
+    case 0x03df: return "pmpaddr47";
+    case 0x03e0: return "pmpaddr48";
+    case 0x03e1: return "pmpaddr49";
+    case 0x03e2: return "pmpaddr50";
+    case 0x03e3: return "pmpaddr51";
+    case 0x03e4: return "pmpaddr52";
+    case 0x03e5: return "pmpaddr53";
+    case 0x03e6: return "pmpaddr54";
+    case 0x03e7: return "pmpaddr55";
+    case 0x03e8: return "pmpaddr56";
+    case 0x03e9: return "pmpaddr57";
+    case 0x03ea: return "pmpaddr58";
+    case 0x03eb: return "pmpaddr59";
+    case 0x03ec: return "pmpaddr60";
+    case 0x03ed: return "pmpaddr61";
+    case 0x03ee: return "pmpaddr62";
+    case 0x03ef: return "pmpaddr63";
     case 0x0780: return "mtohost";
     case 0x0781: return "mfromhost";
     case 0x0782: return "mreset";
@@ -2841,6 +2910,9 @@ static void decode_inst_opcode(rv_decode *dec, rv_isa isa)
             case 34: op = rv_op_amoxor_w; break;
             case 35: op = rv_op_amoxor_d; break;
             case 36: op = rv_op_amoxor_q; break;
+            case 42: op = rv_op_amocas_w; break;
+            case 43: op = rv_op_amocas_d; break;
+            case 44: op = rv_op_amocas_q; break;
             case 66: op = rv_op_amoor_w; break;
             case 67: op = rv_op_amoor_d; break;
             case 68: op = rv_op_amoor_q; break;
@@ -5183,19 +5255,21 @@ print_insn_riscv(bfd_vma memaddr, struct disassemble_info *info, rv_isa isa)
         }
     }
 
-    switch (len) {
-    case 2:
-        (*info->fprintf_func)(info->stream, INST_FMT_2, inst);
-        break;
-    case 4:
-        (*info->fprintf_func)(info->stream, INST_FMT_4, inst);
-        break;
-    case 6:
-        (*info->fprintf_func)(info->stream, INST_FMT_6, inst);
-        break;
-    default:
-        (*info->fprintf_func)(info->stream, INST_FMT_8, inst);
-        break;
+    if (info->show_opcodes) {
+        switch (len) {
+        case 2:
+            (*info->fprintf_func)(info->stream, INST_FMT_2, inst);
+            break;
+        case 4:
+            (*info->fprintf_func)(info->stream, INST_FMT_4, inst);
+            break;
+        case 6:
+            (*info->fprintf_func)(info->stream, INST_FMT_6, inst);
+            break;
+        default:
+            (*info->fprintf_func)(info->stream, INST_FMT_8, inst);
+            break;
+        }
     }
 
     disasm_inst(buf, sizeof(buf), isa, memaddr, inst,

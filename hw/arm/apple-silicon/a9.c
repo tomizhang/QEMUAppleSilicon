@@ -1,7 +1,7 @@
 /*
  * Apple A9 CPU.
  *
- * Copyright (c) 2023 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
  * Copyright (c) 2023 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
@@ -22,16 +22,11 @@
 #include "exec/address-spaces.h"
 #include "hw/arm/apple-silicon/a9.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/irq.h"
 #include "hw/or-irq.h"
 #include "hw/qdev-properties.h"
 #include "migration/vmstate.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
-#include "qemu/log.h"
-#include "qemu/queue.h"
-#include "qemu/timer.h"
-#include "sysemu/reset.h"
 #include "arm-powerctl.h"
 #include "target/arm/cpregs.h"
 
@@ -220,7 +215,7 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
         object_property_set_bool(obj, "start-powered-off", true, NULL);
     }
 
-    //! Need to set the CPU frequencies instead of iBoot
+    // Need to set the CPU frequencies instead of iBoot
     if (node) {
         freq = 24000000;
 

@@ -1,13 +1,8 @@
 #include "qemu/osdep.h"
-#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/irq.h"
-#include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/misc/apple-silicon/a7iop/rtbuddy.h"
 #include "hw/misc/apple-silicon/smc.h"
 #include "hw/qdev-core.h"
-#include "migration/vmstate.h"
-#include "qapi/error.h"
 #include "qemu/bitops.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
@@ -20,12 +15,9 @@ OBJECT_DECLARE_TYPE(AppleSMCState, AppleSMCClass, APPLE_SMC_IOP)
 // #define DEBUG_SMC
 
 #ifdef DEBUG_SMC
-#define SMC_LOG_MSG(ep, msg)                                                \
-    do {                                                                    \
-        qemu_log_mask(LOG_GUEST_ERROR,                                      \
-                      "SMC: message: ep=%u msg=0x" HWADDR_FMT_plx "\n", ep, \
-                      msg);                                                 \
-    } while (0)
+#define SMC_LOG_MSG(ep, msg)       \
+    qemu_log_mask(LOG_GUEST_ERROR, \
+                  "SMC: message: ep=%u msg=0x" HWADDR_FMT_plx "\n", ep, msg)
 #else
 #define SMC_LOG_MSG(ep, msg) \
     do {                     \
@@ -40,10 +32,18 @@ OBJECT_DECLARE_TYPE(AppleSMCState, AppleSMCClass, APPLE_SMC_IOP)
 enum {
     SmcKeyTypeFlag = SMC_MAKE_KEY_TYPE('f', 'l', 'a', 'g'),
     SmcKeyTypeHex = SMC_MAKE_KEY_TYPE('h', 'e', 'x', '_'),
+    SmcKeyTypeSint8 = SMC_MAKE_KEY_TYPE('s', 'i', '8', ' '),
+    SmcKeyTypeSint16 = SMC_MAKE_KEY_TYPE('s', 'i', '1', '6'),
+    SmcKeyTypeSint32 = SMC_MAKE_KEY_TYPE('s', 'i', '3', '2'),
+    SmcKeyTypeSint64 = SMC_MAKE_KEY_TYPE('s', 'i', '6', '4'),
     SmcKeyTypeUint8 = SMC_MAKE_KEY_TYPE('u', 'i', '8', ' '),
     SmcKeyTypeUint16 = SMC_MAKE_KEY_TYPE('u', 'i', '1', '6'),
     SmcKeyTypeUint32 = SMC_MAKE_KEY_TYPE('u', 'i', '3', '2'),
+    SmcKeyTypeUint64 = SMC_MAKE_KEY_TYPE('u', 'i', '6', '4'),
+    SmcKeyTypeSp78 = SMC_MAKE_KEY_TYPE('S', 'p', '7', '8'),
     SmcKeyTypeClh = SMC_MAKE_KEY_TYPE('{', 'c', 'l', 'h'),
+    SmcKeyTypeIoft = SMC_MAKE_KEY_TYPE('i', 'o', 'f', 't'),
+    SmcKeyTypeFlt = SMC_MAKE_KEY_TYPE('f', 'l', 't', ' '),
 };
 
 enum {
@@ -57,6 +57,15 @@ enum {
     SmcKeyADC_ = SMC_MAKE_IDENTIFIER('a', 'D', 'C', '#'),
     SmcKeyAC_N = SMC_MAKE_IDENTIFIER('A', 'C', '-', 'N'),
     SmcKeyBNCB = SMC_MAKE_IDENTIFIER('B', 'N', 'C', 'B'),
+    SmcKeyTG0B = SMC_MAKE_IDENTIFIER('T', 'G', '0', 'B'),
+    SmcKeyTG0V = SMC_MAKE_IDENTIFIER('T', 'G', '0', 'V'),
+    SmcKeyTP1A = SMC_MAKE_IDENTIFIER('T', 'P', '1', 'A'),
+    SmcKeyTP2C = SMC_MAKE_IDENTIFIER('T', 'P', '2', 'C'),
+    SmcKeyTP3R = SMC_MAKE_IDENTIFIER('T', 'P', '3', 'R'),
+    SmcKeyTP4H = SMC_MAKE_IDENTIFIER('T', 'P', '4', 'H'),
+    SmcKeyTP5d = SMC_MAKE_IDENTIFIER('T', 'P', '5', 'd'),
+    SmcKeyTP0Z = SMC_MAKE_IDENTIFIER('T', 'P', '0', 'Z'),
+    SmcKeyB0AP = SMC_MAKE_IDENTIFIER('B', '0', 'A', 'P'),
 };
 
 enum smc_command {
@@ -573,6 +582,48 @@ static void apple_smc_realize(DeviceState *dev, Error **errp)
 #endif
     smc_create_key_func(s, SmcKeyNESN, 4, SmcKeyTypeHex, SMC_ATTR_LITTLE_ENDIAN,
                         &smc_key_reject_read, &smc_key_nesn_write);
+
+    smc_create_key(s, SmcKeyAC_N, 4, SmcKeyTypeUint32, SMC_ATTR_LITTLE_ENDIAN,
+                   &value);
+    value = 0;
+    smc_create_key(s, SmcKeyTG0B, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+                   &value);
+    smc_create_key(s, SmcKeyTG0V, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+                   &value);
+    smc_create_key(s, SmcKeyTP1A, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+                   &value);
+    smc_create_key(s, SmcKeyTP2C, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+                   &value);
+    for (char i = '1'; i <= '5'; i++) {
+        smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'P', i, 'd'), 8,
+                       SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN, &value);
+    }
+    smc_create_key(s, SmcKeyTP3R, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+                   &value);
+    smc_create_key(s, SmcKeyTP4H, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+                   &value);
+    smc_create_key(s, SmcKeyTP0Z, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+                   &value);
+    smc_create_key(s, SmcKeyB0AP, 4, SmcKeyTypeSint32, SMC_ATTR_LITTLE_ENDIAN,
+                   &value);
+    for (char i = '0'; i <= '2'; i++) {
+        smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'h', i, 'a'), 8,
+                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+        smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'h', i, 'f'), 8,
+                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+        smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'h', i, 'x'), 8,
+                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+        smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'c', i, 'a'), 8,
+                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+        smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'c', i, 'f'), 8,
+                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+        smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'c', i, 'x'), 8,
+                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+    }
+    smc_create_key(s, SMC_MAKE_IDENTIFIER('D', '0', 'V', 'R'), 2,
+                   SmcKeyTypeUint16, SMC_ATTR_LITTLE_ENDIAN, &value);
+    smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'V', '0', 's'), 8,
+                   SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN, &value);
 }
 
 static void apple_smc_class_init(ObjectClass *klass, void *data)
