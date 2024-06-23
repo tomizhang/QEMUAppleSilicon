@@ -190,7 +190,7 @@ DeviceState *apple_spmi_pmu_create(DTBNode *node)
     DTBProp *prop;
 
     prop = find_dtb_prop(node, "reg");
-    assert(prop);
+    g_assert(prop);
     spmi_set_slave_sid(SPMI_SLAVE(dev), *(uint32_t *)prop->value);
 
     prop = find_dtb_prop(node, "info-rtc");

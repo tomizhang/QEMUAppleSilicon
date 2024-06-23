@@ -724,7 +724,7 @@ static void apple_sep_sim_handle_keystore_msg(AppleSEPSimState *s,
         memcpy(resp_hdr->ipc_digest, msg_hdr->ipc_digest,
                sizeof(resp_hdr->ipc_digest));
 
-        //! Mostly guessing
+        // Mostly guessing
         uint32_t *selector = (uint32_t *)(resp_hdr + 1);
         *selector = 0;
         uint32_t *lock_state = selector + 1;

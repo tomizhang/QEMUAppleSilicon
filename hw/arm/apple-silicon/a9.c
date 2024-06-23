@@ -215,7 +215,7 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
         object_property_set_bool(obj, "start-powered-off", true, NULL);
     }
 
-    //! Need to set the CPU frequencies instead of iBoot
+    // Need to set the CPU frequencies instead of iBoot
     if (node) {
         freq = 24000000;
 

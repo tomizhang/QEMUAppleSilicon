@@ -369,11 +369,11 @@ static void aes_security_reg_write(void *opaque, hwaddr addr, uint64_t data,
 static uint64_t aes_security_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     switch (addr) {
-    case 0x20: //! board-id
+    case 0x20: // board-id
         return 0x4;
-    case 0x34: //? bit 24 = is fresh boot?
+    case 0x34: // bit 24 = is fresh boot?
         return (1 << 24) | (1 << 25);
-    default: //! We don't know the rest
+    default: // We don't know the rest
         return 0xFF;
     }
 }
@@ -683,7 +683,7 @@ SysBusDevice *apple_aes_create(DTBNode *node)
     }
 
     prop = find_dtb_prop(node, "reg");
-    assert(prop);
+    g_assert(prop);
 
     reg = (uint64_t *)prop->value;
 

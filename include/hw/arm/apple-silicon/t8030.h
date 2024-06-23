@@ -23,13 +23,11 @@
 
 #include "qemu/osdep.h"
 #include "exec/hwaddr.h"
-#include "exec/memory.h"
 #include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/boot.h"
 #include "hw/boards.h"
 #include "hw/sysbus.h"
 #include "sysemu/kvm.h"
-#include "cpu.h"
 
 #define TYPE_T8030 "t8030"
 
@@ -66,6 +64,8 @@ typedef struct {
     AppleVideoArgs video_args;
     char *trustcache_filename;
     char *ticket_filename;
+    char *seprom_filename;
+    char *sep_fw_filename;
     BootMode boot_mode;
     uint32_t rtbuddy_protocol_ver;
     uint32_t build_version;

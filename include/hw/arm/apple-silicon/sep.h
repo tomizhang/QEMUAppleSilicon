@@ -17,8 +17,8 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef HW_ARM_APPLE_SILICON_SEP_SIM_H
-#define HW_ARM_APPLE_SILICON_SEP_SIM_H
+#ifndef HW_ARM_APPLE_SILICON_SEP_H
+#define HW_ARM_APPLE_SILICON_SEP_H
 
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
@@ -26,47 +26,49 @@
 #include "hw/sysbus.h"
 #include "qemu/typedefs.h"
 #include "qom/object.h"
+#include "cpu-qom.h"
 
-#define TYPE_APPLE_SEP_SIM "apple-sep-sim"
-OBJECT_DECLARE_TYPE(AppleSEPSimState, AppleSEPSimClass, APPLE_SEP_SIM)
+#define TYPE_APPLE_SEP "apple-sep"
+OBJECT_DECLARE_TYPE(AppleSEPState, AppleSEPClass, APPLE_SEP)
 
-struct AppleSEPSimClass {
+typedef struct {
+    uint8_t key[32];
+    uint64_t ecid;
+    uint32_t config;
+} AppleTRNGState;
+
+#define REG_SIZE (0x10000)
+
+struct AppleSEPClass {
     /*< private >*/
     SysBusDeviceClass base_class;
 
+    /*< public >*/
     DeviceRealize parent_realize;
     DeviceReset parent_reset;
 };
 
-#define SEP_ENDPOINT_MAX 0x20
-
-typedef struct {
-    uint8_t in_min_pages;
-    uint8_t in_max_pages;
-    uint8_t out_min_pages;
-    uint8_t out_max_pages;
-} QEMU_PACKED AppleSEPSimOOLInfo;
-
-typedef struct {
-    uint64_t in_addr;
-    uint32_t in_size;
-    uint64_t out_addr;
-    uint32_t out_size;
-} AppleSEPSimOOLState;
-
-struct AppleSEPSimState {
+struct AppleSEPState {
     /*< private >*/
     AppleA7IOP parent_obj;
 
+    /*< public >*/
+    vaddr base;
+    ARMCPU *cpu;
+    bool modern;
     MemoryRegion *dma_mr;
     AddressSpace *dma_as;
-    QemuMutex lock;
-    bool rsep;
-    uint32_t status;
-    AppleSEPSimOOLInfo ool_info[SEP_ENDPOINT_MAX];
-    AppleSEPSimOOLState ool_state[SEP_ENDPOINT_MAX];
+    MemoryRegion trng_mr;
+    MemoryRegion misc0_mr;
+    MemoryRegion misc1_mr;
+    MemoryRegion misc2_mr;
+    AppleTRNGState trng_state;
+    uint8_t misc0_regs[REG_SIZE];
+    uint8_t misc1_regs[REG_SIZE];
+    uint8_t misc2_regs[REG_SIZE];
 };
 
-AppleSEPSimState *apple_sep_sim_create(DTBNode *node, bool modern);
+AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
+                                uint32_t build_version, bool modern);
 
-#endif /* HW_ARM_APPLE_SILICON_SEP_SIM_H */
+#endif /* HW_ARM_APPLE_SILICON_SEP_H */

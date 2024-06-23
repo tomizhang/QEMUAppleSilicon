@@ -2,7 +2,7 @@
  * Apple t8030 SoC.
  *
  * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
- * Copyright (c) 2023 Christian Inci (chris-pcguy).
+ * Copyright (c) 2023-2024 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,12 +20,15 @@
 
 #include "qemu/osdep.h"
 #include "exec/address-spaces.h"
+#include "exec/memattrs.h"
+#include "exec/memory.h"
 #include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/dart.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/arm/apple-silicon/mem.h"
 #include "hw/arm/apple-silicon/sart.h"
 #include "hw/arm/apple-silicon/sep-sim.h"
+#include "hw/arm/apple-silicon/sep.h"
 #include "hw/arm/apple-silicon/t8030-config.c.inc"
 #include "hw/arm/apple-silicon/t8030.h"
 #include "hw/block/apple_ans.h"
@@ -55,73 +58,89 @@
 #include "sysemu/sysemu.h"
 #include "target/arm/arm-powerctl.h"
 
-#define T8030_SROM_BASE (0x100000000ull)
-#define T8030_SROM_SIZE (0x80000ull)
-#define T8030_SRAM_BASE (0x19C000000ull)
-#define T8030_SRAM_SIZE (0x400000ull)
-#define T8030_DRAM_BASE (0x800000000ull)
+#define T8030_SROM_BASE 0x100000000ull
+#define T8030_SROM_SIZE 0x80000ull
+
+#define T8030_SRAM_BASE 0x19C000000ull
+#define T8030_SRAM_SIZE 0x400000ull
+
+#define T8030_DRAM_BASE 0x800000000ull
 #define T8030_DRAM_SIZE (4ull * GiB)
 
-#define T8030_GPIO_FORCE_DFU (161)
+#define T8030_SEPROM_BASE 0x240000000ull
+#define T8030_SEPROM_SIZE 0x4000000ull
+
+#define T8030_GPIO_FORCE_DFU 161
 
 #define T8030_DISPLAY_BASE (T8030_DRAM_BASE + 0xF7FB4000)
-#define T8030_DISPLAY_SIZE (67 * 1024 * 1024)
+#define T8030_DISPLAY_SIZE (67ull * MiB)
 
-#define T8030_KERNEL_REGION_BASE (T8030_DRAM_BASE)
-#define T8030_KERNEL_REGION_SIZE (0xF000000ull)
+#define T8030_KERNEL_REGION_BASE T8030_DRAM_BASE
+#define T8030_KERNEL_REGION_SIZE 0xF000000ull
 
 #define T8030_SPI_BASE(_x) (0x35100000ull + (_x) * APPLE_SPI_MMIO_SIZE)
 
-#define T8030_DWC2_IRQ (495)
+#define T8030_DWC2_IRQ 495
 
-#define T8030_NUM_UARTS (9)
-#define T8030_NUM_SPIS (4)
+#define T8030_NUM_UARTS 9
+#define T8030_NUM_SPIS 4
 
-#define T8030_ANS_TEXT_BASE (0x800024000ull)
-#define T8030_ANS_TEXT_SIZE (0x124000ull)
-#define T8030_ANS_DATA_BASE (0x8FC400000ull)
-#define T8030_ANS_DATA_SIZE (0x3C00000ull)
-#define T8030_SMC_REGION_SIZE (0x80000ull)
-#define T8030_SMC_TEXT_BASE (0x23FE00000ull)
-#define T8030_SMC_TEXT_SIZE (0x30000ull)
-#define T8030_SMC_DATA_BASE (0x23FE30000ull)
-#define T8030_SMC_DATA_SIZE (0x30000ull)
-#define T8030_SMC_SRAM_BASE (0x23FE60000ull)
-#define T8030_SMC_SRAM_SIZE (0x4000ull)
+#define T8030_ANS_TEXT_BASE 0x800024000ull
+#define T8030_ANS_TEXT_SIZE 0x124000ull
+#define T8030_ANS_DATA_BASE 0x8FC400000ull
+#define T8030_ANS_DATA_SIZE 0x3C00000ull
+#define T8030_SMC_REGION_SIZE 0x80000ull
+#define T8030_SMC_TEXT_BASE 0x23FE00000ull
+#define T8030_SMC_TEXT_SIZE 0x30000ull
+#define T8030_SMC_DATA_BASE 0x23FE30000ull
+#define T8030_SMC_DATA_SIZE 0x30000ull
+#define T8030_SMC_SRAM_BASE 0x23FE60000ull
+#define T8030_SMC_SRAM_SIZE 0x4000ull
 
-#define T8030_SIO_TEXT_BASE (0x8010A8000ull)
-#define T8030_SIO_TEXT_SIZE (0x1C000ull)
-#define T8030_SIO_TEXT_REMAP (0x200000ull)
-#define T8030_SIO_DATA_BASE (0x80186C000ull)
-#define T8030_SIO_DATA_SIZE (0xF8000ull)
-#define T8030_SIO_DATA_REMAP (0x220000ull)
+#define T8030_SIO_TEXT_BASE 0x8010A8000ull
+#define T8030_SIO_TEXT_SIZE 0x1C000ull
+#define T8030_SIO_TEXT_REMAP 0x200000ull
+#define T8030_SIO_DATA_BASE 0x80186C000ull
+#define T8030_SIO_DATA_SIZE 0xF8000ull
+#define T8030_SIO_DATA_REMAP 0x220000ull
 
-#define T8030_PANIC_BASE (0x8FC2B4000ull)
-#define T8030_PANIC_SIZE (0x100000ull)
+#define T8030_PANIC_BASE 0x8FC2B4000ull
+#define T8030_PANIC_SIZE 0x100000ull
 
-#define T8030_AMCC_BASE (0x200000000ull)
-#define T8030_AMCC_SIZE (0x100000ull)
-#define AMCC_PLANE_COUNT (4)
-#define AMCC_PLANE_STRIDE (0x40000ull)
+#define T8030_AMCC_BASE 0x200000000ull
+#define T8030_AMCC_SIZE 0x100000ull
+#define AMCC_PLANE_COUNT 4
+#define AMCC_PLANE_STRIDE 0x40000ull
 #define AMCC_LOWER(_p) (0x680 + (_p) * AMCC_PLANE_STRIDE)
 #define AMCC_UPPER(_p) (0x684 + (_p) * AMCC_PLANE_STRIDE)
-#define AMCC_REG(_tms, _x) *(uint32_t *)(&_tms->amcc_reg[_x])
+#define AMCC_REG(_tms, _x) *(uint32_t *)(&t8030_machine->amcc_reg[_x])
+
+static size_t t8030_real_cpu_count(T8030MachineState *t8030_machine)
+{
+    MachineState *machine;
+
+    machine = MACHINE(t8030_machine);
+
+    return (t8030_machine->seprom_filename || t8030_machine->sep_fw_filename) ?
+               machine->smp.cpus - 1 :
+               machine->smp.cpus;
+}
 
 static void t8030_start_cpus(MachineState *machine, uint64_t cpu_mask)
 {
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     int i;
 
-    for (i = 0; i < machine->smp.cpus; i++) {
+    for (i = 0; i < t8030_real_cpu_count(t8030_machine); i++) {
         if (test_bit(i, (unsigned long *)&cpu_mask) &&
-            apple_a13_cpu_is_powered_off(tms->cpus[i])) {
-            apple_a13_cpu_start(tms->cpus[i]);
+            apple_a13_cpu_is_powered_off(t8030_machine->cpus[i])) {
+            apple_a13_cpu_start(t8030_machine->cpus[i]);
         }
     }
 }
 
-static void t8030_create_s3c_uart(const T8030MachineState *tms, uint32_t port,
-                                  Chardev *chr)
+static void t8030_create_s3c_uart(const T8030MachineState *t8030_machine,
+                                  uint32_t port, Chardev *chr)
 {
     DeviceState *dev;
     hwaddr base;
@@ -129,7 +148,7 @@ static void t8030_create_s3c_uart(const T8030MachineState *tms, uint32_t port,
     int vector;
     DTBProp *prop;
     hwaddr *uart_offset;
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io/uart0");
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io/uart0");
     char name[32] = { 0 };
 
     g_assert(port < T8030_NUM_UARTS);
@@ -141,14 +160,14 @@ static void t8030_create_s3c_uart(const T8030MachineState *tms, uint32_t port,
     g_assert(prop);
 
     uart_offset = (hwaddr *)prop->value;
-    base = tms->soc_base_pa + uart_offset[0] + uart_offset[1] * port;
+    base = t8030_machine->soc_base_pa + uart_offset[0] + uart_offset[1] * port;
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
 
     vector = *(uint32_t *)prop->value + port;
-    dev = apple_uart_create(base, 15, 0, chr,
-                            qdev_get_gpio_in(DEVICE(tms->aic), vector));
+    dev = apple_uart_create(
+        base, 15, 0, chr, qdev_get_gpio_in(DEVICE(t8030_machine->aic), vector));
     g_assert(dev);
     dev->id = g_strdup(name);
 }
@@ -159,20 +178,27 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
 
 static bool t8030_check_panic(MachineState *machine)
 {
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    if (!tms->panic_size) {
+    T8030MachineState *t8030_machine;
+    AppleEmbeddedPanicHeader *panic_info;
+    bool ret;
+
+    t8030_machine = T8030_MACHINE(machine);
+
+    if (!t8030_machine->panic_size) {
         return false;
     }
-    g_autofree AppleEmbeddedPanicHeader *panic_info =
-        g_malloc0(tms->panic_size);
-    g_autofree void *buffer = g_malloc0(tms->panic_size);
 
-    address_space_rw(&address_space_memory, tms->panic_base,
-                     MEMTXATTRS_UNSPECIFIED, panic_info, tms->panic_size, 0);
-    address_space_rw(&address_space_memory, tms->panic_base,
-                     MEMTXATTRS_UNSPECIFIED, buffer, tms->panic_size, 1);
+    panic_info = g_malloc0(t8030_machine->panic_size);
 
-    return panic_info->magic == EMBEDDED_PANIC_MAGIC;
+    address_space_rw(&address_space_memory, t8030_machine->panic_base,
+                     MEMTXATTRS_UNSPECIFIED, panic_info,
+                     t8030_machine->panic_size, false);
+    address_space_set(&address_space_memory, t8030_machine->panic_base, 0,
+                      t8030_machine->panic_size, MEMTXATTRS_UNSPECIFIED);
+
+    ret = panic_info->magic == EMBEDDED_PANIC_MAGIC;
+    g_free(panic_info);
+    return ret;
 }
 
 static size_t get_kaslr_random(void)
@@ -185,8 +211,8 @@ static size_t get_kaslr_random(void)
 #define L2_GRANULE ((0x4000) * (0x4000 / 8))
 #define L2_GRANULE_MASK (L2_GRANULE - 1)
 
-static void get_kaslr_slides(T8030MachineState *tms, hwaddr *phys_slide_out,
-                             hwaddr *virt_slide_out)
+static void get_kaslr_slides(T8030MachineState *t8030_machine,
+                             hwaddr *phys_slide_out, hwaddr *virt_slide_out)
 {
     hwaddr slide_phys = 0, slide_virt = 0;
     const size_t slide_granular = (1 << 21);
@@ -194,7 +220,7 @@ static void get_kaslr_slides(T8030MachineState *tms, hwaddr *phys_slide_out,
     const size_t slide_virt_max = 0x100 * (2 * 1024 * 1024);
     size_t random_value = get_kaslr_random();
 
-    if (tms->kaslr_off) {
+    if (t8030_machine->kaslr_off) {
         *phys_slide_out = 0;
         *virt_slide_out = 0;
         return;
@@ -210,11 +236,12 @@ static void get_kaslr_slides(T8030MachineState *tms, hwaddr *phys_slide_out,
     *virt_slide_out = slide_virt;
 }
 
-static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
+static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
+                                  const char *cmdline)
 {
-    MachineState *machine = MACHINE(tms);
-    MachoHeader64 *hdr = tms->kernel;
-    MemoryRegion *sysmem = tms->sysmem;
+    MachineState *machine = MACHINE(t8030_machine);
+    MachoHeader64 *hdr = t8030_machine->kernel;
+    MemoryRegion *sysmem = t8030_machine->sysmem;
     AddressSpace *nsas = &address_space_memory;
     hwaddr virt_low;
     hwaddr virt_end;
@@ -224,17 +251,18 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     hwaddr phys_ptr;
     hwaddr amcc_lower;
     hwaddr amcc_upper;
-    AppleBootInfo *info = &tms->bootinfo;
+    AppleBootInfo *info = &t8030_machine->bootinfo;
     hwaddr last_base;
     MachoSegmentCommand64 *last_seg;
     hwaddr text_base;
-    DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
+    DTBNode *memory_map =
+        get_dtb_node(t8030_machine->device_tree, "/chosen/memory-map");
 
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
     macho_highest_lowest(hdr, &virt_low, &virt_end);
     g_virt_base = virt_low;
 
-    get_kaslr_slides(tms, &g_phys_slide, &g_virt_slide);
+    get_kaslr_slides(t8030_machine, &g_phys_slide, &g_virt_slide);
 
     last_seg = macho_get_segment(hdr, "__LAST");
     last_base = last_seg->vmaddr;
@@ -244,12 +272,12 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     phys_ptr += g_phys_slide;
     g_virt_base += g_virt_slide - g_phys_slide;
 
-    //! TrustCache
+    // TrustCache
     info->trustcache_addr =
         vtop_static(text_base + g_virt_slide) - info->trustcache_size;
 
-    macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
-                          info->trustcache_addr);
+    macho_load_trustcache(t8030_machine->trustcache, info->trustcache_size,
+                          nsas, sysmem, info->trustcache_addr);
 
     info->kern_entry = arm_load_macho(hdr, nsas, sysmem, memory_map,
                                       g_phys_base + g_phys_slide, g_virt_slide);
@@ -265,11 +293,13 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     amcc_lower = info->trustcache_addr;
     amcc_upper = vtop_static(last_base + g_virt_slide) + last_seg->vmsize - 1;
     for (int i = 0; i < 4; i++) {
-        AMCC_REG(tms, AMCC_LOWER(i)) = (amcc_lower - T8030_DRAM_BASE) >> 14;
-        AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - T8030_DRAM_BASE) >> 14;
+        AMCC_REG(t8030_machine, AMCC_LOWER(i)) =
+            (amcc_lower - T8030_DRAM_BASE) >> 14;
+        AMCC_REG(t8030_machine, AMCC_UPPER(i)) =
+            (amcc_upper - T8030_DRAM_BASE) >> 14;
     }
 
-    //! RAM disk
+    // RAM disk
     if (machine->initrd_filename) {
         info->ramdisk_addr = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
@@ -278,17 +308,21 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
         phys_ptr += info->ramdisk_size;
     }
 
-    //! SEPFW
+    // SEPFW
     info->sep_fw_addr = phys_ptr;
+    if (t8030_machine->sep_fw_filename) {
+        macho_load_raw_file(t8030_machine->sep_fw_filename, nsas, sysmem,
+                            "sepfw", info->sep_fw_addr, &info->sep_fw_size);
+    }
     info->sep_fw_size = align_16k_high(8 * MiB);
     phys_ptr += info->sep_fw_size;
 
-    //! Kernel boot args
+    // Kernel boot args
     info->kern_boot_args_addr = phys_ptr;
     info->kern_boot_args_size = 0x4000;
     phys_ptr += align_16k_high(0x4000);
 
-    //! Device tree
+    // Device tree
     info->device_tree_addr = phys_ptr;
     dtb_va = ptov_static(info->device_tree_addr);
     phys_ptr += align_16k_high(info->device_tree_size);
@@ -297,7 +331,8 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
         machine->maxram_size -
         (T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE));
 
-    macho_load_dtb(tms->device_tree, nsas, sysmem, "DeviceTree", info);
+    macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
+                   info);
 
     top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
 
@@ -305,15 +340,16 @@ static void t8030_load_classic_kc(T8030MachineState *tms, const char *cmdline)
     macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,
                          g_virt_base, g_phys_base, mem_size,
                          top_of_kernel_data_pa, dtb_va, info->device_tree_size,
-                         tms->video_args, cmdline);
+                         t8030_machine->video_args, cmdline);
     g_virt_base = virt_low;
 }
 
-static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
+static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
+                                  const char *cmdline)
 {
-    MachineState *machine = MACHINE(tms);
-    MachoHeader64 *hdr = tms->kernel;
-    MemoryRegion *sysmem = tms->sysmem;
+    MachineState *machine = MACHINE(t8030_machine);
+    MachoHeader64 *hdr = t8030_machine->kernel;
+    MemoryRegion *sysmem = t8030_machine->sysmem;
     AddressSpace *nsas = &address_space_memory;
     hwaddr virt_low;
     hwaddr virt_end;
@@ -323,11 +359,12 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     hwaddr phys_ptr;
     hwaddr amcc_lower;
     hwaddr amcc_upper;
-    AppleBootInfo *info = &tms->bootinfo;
+    AppleBootInfo *info = &t8030_machine->bootinfo;
     uint64_t extradata_size;
     uint64_t l2_remaining;
     MachoSegmentCommand64 *prelink_info_seg;
-    DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
+    DTBNode *memory_map =
+        get_dtb_node(t8030_machine->device_tree, "/chosen/memory-map");
 
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
     macho_highest_lowest(hdr, &virt_low, &virt_end);
@@ -339,7 +376,7 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
         align_16k_high(info->device_tree_size + info->trustcache_size);
     g_assert(extradata_size < L2_GRANULE);
 
-    get_kaslr_slides(tms, &g_phys_slide, &g_virt_slide);
+    get_kaslr_slides(t8030_machine, &g_phys_slide, &g_virt_slide);
 
     l2_remaining = (virt_low + g_virt_slide) & L2_GRANULE_MASK;
 
@@ -354,14 +391,14 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     phys_ptr += g_phys_slide;
     phys_ptr -= extradata_size;
 
-    //! Device tree
+    // Device tree
     info->device_tree_addr = phys_ptr;
     phys_ptr += info->device_tree_size;
 
-    //! TrustCache
+    // TrustCache
     info->trustcache_addr = phys_ptr;
-    macho_load_trustcache(tms->trustcache, info->trustcache_size, nsas, sysmem,
-                          info->trustcache_addr);
+    macho_load_trustcache(t8030_machine->trustcache, info->trustcache_size,
+                          nsas, sysmem, info->trustcache_addr);
     phys_ptr += align_16k_high(info->trustcache_size);
 
     g_virt_base += g_virt_slide;
@@ -381,8 +418,10 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     amcc_upper = vtop_static(prelink_info_seg->vmaddr + g_virt_slide) +
                  prelink_info_seg->vmsize - 1;
     for (int i = 0; i < 4; i++) {
-        AMCC_REG(tms, AMCC_LOWER(i)) = (amcc_lower - T8030_DRAM_BASE) >> 14;
-        AMCC_REG(tms, AMCC_UPPER(i)) = (amcc_upper - T8030_DRAM_BASE) >> 14;
+        AMCC_REG(t8030_machine, AMCC_LOWER(i)) =
+            (amcc_lower - T8030_DRAM_BASE) >> 14;
+        AMCC_REG(t8030_machine, AMCC_UPPER(i)) =
+            (amcc_upper - T8030_DRAM_BASE) >> 14;
     }
 
     dtb_va = ptov_static(info->device_tree_addr);
@@ -395,7 +434,7 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
         phys_ptr += info->ramdisk_size;
     }
 
-    //! SEPFW
+    // SEPFW
     info->sep_fw_addr = phys_ptr;
     info->sep_fw_size = align_16k_high(8 * MiB);
     phys_ptr += info->sep_fw_size;
@@ -408,7 +447,8 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
         machine->maxram_size -
         (T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE));
 
-    macho_load_dtb(tms->device_tree, nsas, sysmem, "DeviceTree", info);
+    macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
+                   info);
 
     top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
 
@@ -416,25 +456,50 @@ static void t8030_load_fileset_kc(T8030MachineState *tms, const char *cmdline)
     macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,
                          g_virt_base, g_phys_base, mem_size,
                          top_of_kernel_data_pa, dtb_va, info->device_tree_size,
-                         tms->video_args, cmdline);
+                         t8030_machine->video_args, cmdline);
     g_virt_base = virt_low;
 }
 
 static void t8030_memory_setup(MachineState *machine)
 {
     MachoHeader64 *hdr;
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     AppleNvramState *nvram = NULL;
-    AppleBootInfo *info = &tms->bootinfo;
-    DTBNode *memory_map = get_dtb_node(tms->device_tree, "/chosen/memory-map");
-    g_autofree char *cmdline = NULL;
+    AppleBootInfo *info = &t8030_machine->bootinfo;
+    DTBNode *memory_map =
+        get_dtb_node(t8030_machine->device_tree, "/chosen/memory-map");
+    AddressSpace *nsas = &address_space_memory;
+    char *cmdline = NULL;
+    char *seprom = NULL;
+    unsigned long fsize = 0;
 
     if (t8030_check_panic(machine)) {
         qemu_system_guest_panicked(NULL);
         return;
     }
+
     info->dram_base = T8030_DRAM_BASE;
     info->dram_size = T8030_DRAM_SIZE;
+
+    if (t8030_machine->seprom_filename) {
+        if (!g_file_get_contents(t8030_machine->seprom_filename, &seprom,
+                                 &fsize, NULL)) {
+            error_setg(&error_fatal, "Could not load data from file '%s'",
+                       t8030_machine->seprom_filename);
+            return;
+        }
+        address_space_rw(nsas, T8030_SEPROM_BASE, MEMTXATTRS_UNSPECIFIED,
+                         (uint8_t *)seprom, fsize, true);
+
+        g_free(seprom);
+
+        uint64_t value = 0x8000000000000000;
+        address_space_write(nsas, t8030_machine->soc_base_pa + 0x42140108,
+                            MEMTXATTRS_UNSPECIFIED, &value, sizeof(value));
+        uint32_t value32 = 0x1;
+        address_space_write(nsas, t8030_machine->soc_base_pa + 0x41448000,
+                            MEMTXATTRS_UNSPECIFIED, &value32, sizeof(value32));
+    }
 
     nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
     if (!nvram) {
@@ -443,15 +508,15 @@ static void t8030_memory_setup(MachineState *machine)
     };
     apple_nvram_load(nvram);
 
-    info_report("boot_mode: %u", tms->boot_mode);
-    switch (tms->boot_mode) {
+    info_report("boot_mode: %u", t8030_machine->boot_mode);
+    switch (t8030_machine->boot_mode) {
     case kBootModeEnterRecovery:
         env_set(nvram, "auto-boot", "false", 0);
-        tms->boot_mode = kBootModeAuto;
+        t8030_machine->boot_mode = kBootModeAuto;
         break;
     case kBootModeExitRecovery:
         env_set(nvram, "auto-boot", "true", 0);
-        tms->boot_mode = kBootModeAuto;
+        t8030_machine->boot_mode = kBootModeAuto;
         break;
     default:
         break;
@@ -460,7 +525,7 @@ static void t8030_memory_setup(MachineState *machine)
     info_report("auto-boot=%s",
                 env_get_bool(nvram, "auto-boot", false) ? "true" : "false");
 
-    switch (tms->boot_mode) {
+    switch (t8030_machine->boot_mode) {
     case kBootModeAuto:
         if (!env_get_bool(nvram, "auto-boot", false)) {
             asprintf(&cmdline, "-restore rd=md0 nand-enable-reformat=1 %s",
@@ -484,25 +549,26 @@ static void t8030_memory_setup(MachineState *machine)
         error_report("%s: Failed to read NVRAM", __func__);
     }
 
-    if (tms->ticket_filename) {
-        if (!g_file_get_contents(tms->ticket_filename, &info->ticket_data,
+    if (t8030_machine->ticket_filename) {
+        if (!g_file_get_contents(t8030_machine->ticket_filename,
+                                 &info->ticket_data,
                                  (gsize *)&info->ticket_length, NULL)) {
             error_report("%s: Failed to read ticket from file %s", __func__,
-                         tms->ticket_filename);
+                         t8030_machine->ticket_filename);
         }
     }
 
     if (xnu_contains_boot_arg(cmdline, "-restore", false)) {
-        //! HACK: Use DEV model to restore without FDR errors
-        set_dtb_prop(tms->device_tree, "compatible", 28,
+        // HACK: Use DEV model to restore without FDR errors
+        set_dtb_prop(t8030_machine->device_tree, "compatible", 28,
                      "N104DEV\0iPhone12,1\0AppleARM\0$");
     } else {
-        set_dtb_prop(tms->device_tree, "compatible", 27,
+        set_dtb_prop(t8030_machine->device_tree, "compatible", 27,
                      "N104AP\0iPhone12,1\0AppleARM\0$");
     }
 
     if (!xnu_contains_boot_arg(cmdline, "rd=", true)) {
-        DTBNode *chosen = find_dtb_node(tms->device_tree, "chosen");
+        DTBNode *chosen = find_dtb_node(t8030_machine->device_tree, "chosen");
         DTBProp *prop = find_dtb_prop(chosen, "root-matching");
 
         if (prop) {
@@ -513,7 +579,7 @@ static void t8030_memory_setup(MachineState *machine)
         }
     }
 
-    DTBNode *pram = find_dtb_node(tms->device_tree, "pram");
+    DTBNode *pram = find_dtb_node(t8030_machine->device_tree, "pram");
     if (pram) {
         uint64_t panic_reg[2] = { 0 };
         uint64_t panic_base = T8030_PANIC_BASE;
@@ -523,13 +589,13 @@ static void t8030_memory_setup(MachineState *machine)
         panic_reg[1] = panic_size;
 
         set_dtb_prop(pram, "reg", sizeof(panic_reg), &panic_reg);
-        DTBNode *chosen = find_dtb_node(tms->device_tree, "chosen");
+        DTBNode *chosen = find_dtb_node(t8030_machine->device_tree, "chosen");
         set_dtb_prop(chosen, "embedded-panic-log-size", 8, &panic_size);
-        tms->panic_base = panic_base;
-        tms->panic_size = panic_size;
+        t8030_machine->panic_base = panic_base;
+        t8030_machine->panic_size = panic_size;
     }
 
-    DTBNode *vram = find_dtb_node(tms->device_tree, "vram");
+    DTBNode *vram = find_dtb_node(t8030_machine->device_tree, "vram");
     if (vram) {
         uint64_t vram_reg[2] = { 0 };
         uint64_t vram_base = T8030_DISPLAY_BASE;
@@ -539,25 +605,27 @@ static void t8030_memory_setup(MachineState *machine)
         set_dtb_prop(vram, "reg", sizeof(vram_reg), &vram_reg);
     }
 
-    hdr = tms->kernel;
+    hdr = t8030_machine->kernel;
     g_assert(hdr);
 
     macho_allocate_segment_records(memory_map, hdr);
 
-    macho_populate_dtb(tms->device_tree, info);
+    macho_populate_dtb(t8030_machine->device_tree, info);
 
     switch (hdr->file_type) {
     case MH_EXECUTE:
-        t8030_load_classic_kc(tms, cmdline);
+        t8030_load_classic_kc(t8030_machine, cmdline);
         break;
     case MH_FILESET:
-        t8030_load_fileset_kc(tms, cmdline);
+        t8030_load_fileset_kc(t8030_machine, cmdline);
         break;
     default:
         error_setg(&error_abort, "%s: Unsupported kernelcache type: 0x%x\n",
                    __func__, hdr->file_type);
         break;
     }
+
+    g_free(cmdline);
 }
 
 static void pmgr_unk_reg_write(void *opaque, hwaddr addr, uint64_t data,
@@ -583,7 +651,7 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
                   base + addr, base);
 #endif
     switch (base + addr) {
-    case 0x3D280088: //! PMGR_AON
+    case 0x3D280088: // PMGR_AON
         return 0xFF;
     case 0x3D2BC000:
         // return 0xA050C030; // IBFL | 0x00
@@ -638,7 +706,7 @@ static void pmgr_reg_write(void *opaque, hwaddr addr, uint64_t data,
                            unsigned size)
 {
     MachineState *machine = MACHINE(opaque);
-    T8030MachineState *tms = T8030_MACHINE(opaque);
+    T8030MachineState *t8030_machine = T8030_MACHINE(opaque);
     uint32_t value = data;
 
     if (addr >= 0x80000 && addr <= 0x8C000) {
@@ -655,18 +723,18 @@ static void pmgr_reg_write(void *opaque, hwaddr addr, uint64_t data,
         t8030_start_cpus(machine, data);
         return;
     }
-    memcpy(tms->pmgr_reg + addr, &value, size);
+    memcpy(t8030_machine->pmgr_reg + addr, &value, size);
 }
 
 static uint64_t pmgr_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
-    T8030MachineState *tms = T8030_MACHINE(opaque);
+    T8030MachineState *t8030_machine = T8030_MACHINE(opaque);
     uint64_t result = 0;
     switch (addr) {
-    case 0xF0010: //! AppleT8030PMGR::commonSramCheck
+    case 0xF0010: // AppleT8030PMGR::commonSramCheck
         result = 0x5000;
         break;
-    case 0x80C00: //! SEP Power State, Manual & Actual: Run Max
+    case 0x80C00: // SEP Power State, Manual & Actual: Run Max
         result = 0xFF;
         break;
 #if 0
@@ -678,7 +746,7 @@ static uint64_t pmgr_reg_read(void *opaque, hwaddr addr, unsigned size)
         break;
 #endif
     default:
-        memcpy(&result, tms->pmgr_reg + addr, size);
+        memcpy(&result, t8030_machine->pmgr_reg + addr, size);
         break;
     }
 #if 0
@@ -698,15 +766,15 @@ static const MemoryRegionOps pmgr_reg_ops = {
 static void amcc_reg_write(void *opaque, hwaddr addr, uint64_t data,
                            unsigned size)
 {
-    T8030MachineState *tms = T8030_MACHINE(opaque);
+    T8030MachineState *t8030_machine = T8030_MACHINE(opaque);
     uint32_t value = data;
 
-    memcpy(tms->amcc_reg + addr, &value, size);
+    memcpy(t8030_machine->amcc_reg + addr, &value, size);
 }
 
 static uint64_t amcc_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
-    T8030MachineState *tms = T8030_MACHINE(opaque);
+    T8030MachineState *t8030_machine = T8030_MACHINE(opaque);
     switch (addr) {
     case 0x6A0:
     case 0x406A0:
@@ -735,7 +803,7 @@ static uint64_t amcc_reg_read(void *opaque, hwaddr addr, unsigned size)
         return 0x1;
     default: {
         uint64_t result = 0;
-        memcpy(&result, tms->amcc_reg + addr, size);
+        memcpy(&result, t8030_machine->amcc_reg + addr, size);
         return result;
     }
     }
@@ -748,26 +816,30 @@ static const MemoryRegionOps amcc_reg_ops = {
 
 static void t8030_cluster_setup(MachineState *machine)
 {
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
 
     for (int i = 0; i < A13_MAX_CLUSTER; i++) {
-        g_autofree char *name = NULL;
+        char *name = NULL;
 
         name = g_strdup_printf("cluster%d", i);
-        object_initialize_child(OBJECT(machine), name, &tms->clusters[i],
+        object_initialize_child(OBJECT(machine), name,
+                                &t8030_machine->clusters[i],
                                 TYPE_APPLE_A13_CLUSTER);
-        qdev_prop_set_uint32(DEVICE(&tms->clusters[i]), "cluster-id", i);
+        g_free(name);
+        qdev_prop_set_uint32(DEVICE(&t8030_machine->clusters[i]), "cluster-id",
+                             i);
     }
 }
 
 static void t8030_cluster_realize(MachineState *machine)
 {
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     for (int i = 0; i < A13_MAX_CLUSTER; i++) {
-        qdev_realize(DEVICE(&tms->clusters[i]), NULL, &error_fatal);
-        if (tms->clusters[i].base) {
-            memory_region_add_subregion(tms->sysmem, tms->clusters[i].base,
-                                        &tms->clusters[i].mr);
+        qdev_realize(DEVICE(&t8030_machine->clusters[i]), NULL, &error_fatal);
+        if (t8030_machine->clusters[i].base) {
+            memory_region_add_subregion(t8030_machine->sysmem,
+                                        t8030_machine->clusters[i].base,
+                                        &t8030_machine->clusters[i].mr);
         }
     }
 }
@@ -776,13 +848,13 @@ static void t8030_cpu_setup(MachineState *machine)
 {
     unsigned int i;
     DTBNode *root;
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     GList *iter;
     GList *next = NULL;
 
     t8030_cluster_setup(machine);
 
-    root = find_dtb_node(tms->device_tree, "cpus");
+    root = find_dtb_node(t8030_machine->device_tree, "cpus");
     g_assert(root);
 
     for (iter = root->child_nodes, i = 0; iter; iter = next, i++) {
@@ -791,18 +863,18 @@ static void t8030_cpu_setup(MachineState *machine)
 
         next = iter->next;
         node = (DTBNode *)iter->data;
-        if (i >= machine->smp.cpus) {
+        if (i >= t8030_real_cpu_count(t8030_machine)) {
             remove_dtb_node(root, node);
             continue;
         }
 
-        tms->cpus[i] = apple_a13_cpu_create(node, NULL, 0, 0, 0, 0);
-        cluster_id = tms->cpus[i]->cluster_id;
+        t8030_machine->cpus[i] = apple_a13_cpu_create(node, NULL, 0, 0, 0, 0);
+        cluster_id = t8030_machine->cpus[i]->cluster_id;
 
-        object_property_add_child(OBJECT(&tms->clusters[cluster_id]),
-                                  DEVICE(tms->cpus[i])->id,
-                                  OBJECT(tms->cpus[i]));
-        qdev_realize(DEVICE(tms->cpus[i]), NULL, &error_fatal);
+        object_property_add_child(OBJECT(&t8030_machine->clusters[cluster_id]),
+                                  DEVICE(t8030_machine->cpus[i])->id,
+                                  OBJECT(t8030_machine->cpus[i]));
+        qdev_realize(DEVICE(t8030_machine->cpus[i]), NULL, &error_fatal);
     }
     t8030_cluster_realize(machine);
 }
@@ -812,8 +884,8 @@ static void t8030_create_aic(MachineState *machine)
     unsigned int i;
     hwaddr *reg;
     DTBProp *prop;
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    DTBNode *soc = find_dtb_node(tms->device_tree, "arm-io");
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
+    DTBNode *soc = find_dtb_node(t8030_machine->device_tree, "arm-io");
     DTBNode *child;
     DTBNode *timebase;
 
@@ -823,22 +895,26 @@ static void t8030_create_aic(MachineState *machine)
     timebase = find_dtb_node(soc, "aic-timebase");
     g_assert(timebase);
 
-    tms->aic = apple_aic_create(machine->smp.cpus, child, timebase);
-    object_property_add_child(OBJECT(machine), "aic", OBJECT(tms->aic));
-    g_assert(tms->aic);
-    sysbus_realize(tms->aic, &error_fatal);
+    t8030_machine->aic =
+        apple_aic_create(t8030_real_cpu_count(t8030_machine), child, timebase);
+    object_property_add_child(OBJECT(machine), "aic",
+                              OBJECT(t8030_machine->aic));
+    g_assert(t8030_machine->aic);
+    sysbus_realize(t8030_machine->aic, &error_fatal);
 
     prop = find_dtb_prop(child, "reg");
     g_assert(prop);
 
     reg = (hwaddr *)prop->value;
 
-    for (i = 0; i < machine->smp.cpus; i++) {
+    for (i = 0; i < t8030_real_cpu_count(t8030_machine); i++) {
         memory_region_add_subregion_overlap(
-            &tms->cpus[i]->memory, tms->soc_base_pa + reg[0],
-            sysbus_mmio_get_region(tms->aic, i), 0);
-        sysbus_connect_irq(tms->aic, i,
-                           qdev_get_gpio_in(DEVICE(tms->cpus[i]), ARM_CPU_IRQ));
+            &t8030_machine->cpus[i]->memory,
+            t8030_machine->soc_base_pa + reg[0],
+            sysbus_mmio_get_region(t8030_machine->aic, i), 0);
+        sysbus_connect_irq(
+            t8030_machine->aic, i,
+            qdev_get_gpio_in(DEVICE(t8030_machine->cpus[i]), ARM_CPU_IRQ));
     }
 }
 
@@ -848,8 +924,8 @@ static void t8030_pmgr_setup(MachineState *machine)
     int i;
     char name[32];
     DTBProp *prop;
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
 
     g_assert(child);
     child = find_dtb_node(child, "pmgr");
@@ -867,12 +943,13 @@ static void t8030_pmgr_setup(MachineState *machine)
             memory_region_init_io(mem, OBJECT(machine), &pmgr_unk_reg_ops,
                                   (void *)reg[i], name, reg[i + 1]);
         } else {
-            memory_region_init_io(mem, OBJECT(machine), &pmgr_reg_ops, tms,
-                                  "pmgr-reg", reg[i + 1]);
+            memory_region_init_io(mem, OBJECT(machine), &pmgr_reg_ops,
+                                  t8030_machine, "pmgr-reg", reg[i + 1]);
         }
-        memory_region_add_subregion(tms->sysmem,
-                                    reg[i] + reg[i + 1] < tms->soc_size ?
-                                        tms->soc_base_pa + reg[i] :
+        memory_region_add_subregion(t8030_machine->sysmem,
+                                    reg[i] + reg[i + 1] <
+                                            t8030_machine->soc_size ?
+                                        t8030_machine->soc_base_pa + reg[i] :
                                         reg[i],
                                     mem);
     }
@@ -883,7 +960,8 @@ static void t8030_pmgr_setup(MachineState *machine)
         snprintf(name, 32, "pmp-reg");
         memory_region_init_io(mem, OBJECT(machine), &pmgr_unk_reg_ops,
                               (void *)0x3BC00000, name, 0x60000);
-        memory_region_add_subregion(tms->sysmem, tms->soc_base_pa + 0x3BC00000,
+        memory_region_add_subregion(t8030_machine->sysmem,
+                                    t8030_machine->soc_base_pa + 0x3BC00000,
                                     mem);
     }
     set_dtb_prop(child, "voltage-states5", sizeof(voltage_states5),
@@ -942,12 +1020,12 @@ static void t8030_pmgr_setup(MachineState *machine)
 
 static void t8030_amcc_setup(MachineState *machine)
 {
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     DTBNode *child;
     uint32_t data;
     uint64_t data64;
 
-    child = get_dtb_node(tms->device_tree, "chosen");
+    child = get_dtb_node(t8030_machine->device_tree, "chosen");
     g_assert(child);
     child = get_dtb_node(child, "lock-regs");
     g_assert(child);
@@ -989,9 +1067,10 @@ static void t8030_amcc_setup(MachineState *machine)
     data = 1;
     set_dtb_prop(child, "lock-reg-value", sizeof(data), &data);
 
-    memory_region_init_io(&tms->amcc, OBJECT(machine), &amcc_reg_ops, tms,
-                          "amcc", T8030_AMCC_SIZE);
-    memory_region_add_subregion(tms->sysmem, T8030_AMCC_BASE, &tms->amcc);
+    memory_region_init_io(&t8030_machine->amcc, OBJECT(machine), &amcc_reg_ops,
+                          t8030_machine, "amcc", T8030_AMCC_SIZE);
+    memory_region_add_subregion(t8030_machine->sysmem, T8030_AMCC_BASE,
+                                &t8030_machine->amcc);
 }
 
 static void t8030_create_dart(MachineState *machine, const char *name)
@@ -1001,10 +1080,13 @@ static void t8030_create_dart(MachineState *machine, const char *name)
     uint64_t *reg;
     uint32_t *ints;
     int i;
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    T8030MachineState *t8030_machine;
+    DTBNode *child;
 
+    t8030_machine = T8030_MACHINE(machine);
+    child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     g_assert(child);
+
     child = find_dtb_node(child, name);
     if (!child)
         return;
@@ -1019,7 +1101,8 @@ static void t8030_create_dart(MachineState *machine, const char *name)
     reg = (uint64_t *)prop->value;
 
     for (int i = 0; i < prop->length / 16; i++) {
-        sysbus_mmio_map(SYS_BUS_DEVICE(dart), i, tms->soc_base_pa + reg[i * 2]);
+        sysbus_mmio_map(SYS_BUS_DEVICE(dart), i,
+                        t8030_machine->soc_base_pa + reg[i * 2]);
     }
 
     prop = find_dtb_prop(child, "interrupts");
@@ -1027,8 +1110,9 @@ static void t8030_create_dart(MachineState *machine, const char *name)
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_connect_irq(SYS_BUS_DEVICE(dart), i,
-                           qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+        sysbus_connect_irq(
+            SYS_BUS_DEVICE(dart), i,
+            qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(dart), &error_fatal);
@@ -1037,8 +1121,8 @@ static void t8030_create_dart(MachineState *machine, const char *name)
 static void t8030_create_sart(MachineState *machine)
 {
     uint64_t *reg;
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     DTBProp *prop;
     SysBusDevice *sart;
 
@@ -1054,7 +1138,7 @@ static void t8030_create_sart(MachineState *machine)
     g_assert(prop);
     reg = (uint64_t *)prop->value;
 
-    sysbus_mmio_map(sart, 0, tms->soc_base_pa + reg[0]);
+    sysbus_mmio_map(sart, 0, t8030_machine->soc_base_pa + reg[0]);
     sysbus_realize_and_unref(sart, &error_fatal);
 }
 
@@ -1064,10 +1148,10 @@ static void t8030_create_ans(MachineState *machine)
     uint32_t *ints;
     DTBProp *prop;
     uint64_t *reg;
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     SysBusDevice *sart;
     SysBusDevice *ans;
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     DTBNode *iop_nub;
     AppleIopSegmentRange segranges[2] = { 0 };
 
@@ -1103,7 +1187,8 @@ static void t8030_create_ans(MachineState *machine)
     sart = SYS_BUS_DEVICE(
         object_property_get_link(OBJECT(machine), "sart-ans", &error_fatal));
 
-    ans = apple_ans_create(child, APPLE_A7IOP_V4, tms->rtbuddy_protocol_ver);
+    ans = apple_ans_create(child, APPLE_A7IOP_V4,
+                           t8030_machine->rtbuddy_protocol_ver);
     g_assert(ans);
     g_assert(object_property_add_const_link(
         OBJECT(ans), "dma-mr", OBJECT(sysbus_mmio_get_region(sart, 1))));
@@ -1114,7 +1199,7 @@ static void t8030_create_ans(MachineState *machine)
     reg = (uint64_t *)prop->value;
 
     for (i = 0; i < 4; i++) {
-        sysbus_mmio_map(ans, i, tms->soc_base_pa + reg[i << 1]);
+        sysbus_mmio_map(ans, i, t8030_machine->soc_base_pa + reg[i << 1]);
     }
 
     prop = find_dtb_prop(child, "interrupts");
@@ -1123,7 +1208,8 @@ static void t8030_create_ans(MachineState *machine)
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_connect_irq(ans, i, qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+        sysbus_connect_irq(
+            ans, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
 
     sysbus_realize_and_unref(ans, &error_fatal);
@@ -1136,8 +1222,8 @@ static void t8030_create_gpio(MachineState *machine, const char *name)
     uint64_t *reg;
     uint32_t *ints;
     int i;
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
 
     child = find_dtb_node(child, name);
     g_assert(child);
@@ -1148,15 +1234,17 @@ static void t8030_create_gpio(MachineState *machine, const char *name)
     prop = find_dtb_prop(child, "reg");
     g_assert(prop);
     reg = (uint64_t *)prop->value;
-    sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, tms->soc_base_pa + reg[0]);
+    sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0,
+                    t8030_machine->soc_base_pa + reg[0]);
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
 
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_connect_irq(SYS_BUS_DEVICE(gpio), i,
-                           qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+        sysbus_connect_irq(
+            SYS_BUS_DEVICE(gpio), i,
+            qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(gpio), &error_fatal);
@@ -1167,8 +1255,8 @@ static void t8030_create_i2c(MachineState *machine, const char *name)
     SysBusDevice *i2c = NULL;
     DTBProp *prop;
     uint64_t *reg;
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
 
     child = find_dtb_node(child, name);
     if (!child)
@@ -1180,12 +1268,13 @@ static void t8030_create_i2c(MachineState *machine, const char *name)
     prop = find_dtb_prop(child, "reg");
     g_assert(prop);
     reg = (uint64_t *)prop->value;
-    sysbus_mmio_map(i2c, 0, tms->soc_base_pa + reg[0]);
+    sysbus_mmio_map(i2c, 0, t8030_machine->soc_base_pa + reg[0]);
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
 
     sysbus_connect_irq(
-        i2c, 0, qdev_get_gpio_in(DEVICE(tms->aic), *(uint32_t *)prop->value));
+        i2c, 0,
+        qdev_get_gpio_in(DEVICE(t8030_machine->aic), *(uint32_t *)prop->value));
 
     sysbus_realize_and_unref(i2c, &error_fatal);
 }
@@ -1197,11 +1286,11 @@ static void t8030_create_spi(MachineState *machine, uint32_t port)
     DTBProp *prop;
     uint64_t *reg;
     uint32_t *ints;
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     Object *sio;
     char name[32] = { 0 };
-    hwaddr base = tms->soc_base_pa + T8030_SPI_BASE(port);
+    hwaddr base = t8030_machine->soc_base_pa + T8030_SPI_BASE(port);
     uint32_t irq = spi_irqs[port];
     uint32_t cs_pin = spi_cs_pins[port];
 
@@ -1226,7 +1315,7 @@ static void t8030_create_spi(MachineState *machine, uint32_t port)
         prop = find_dtb_prop(child, "reg");
         g_assert(prop);
         reg = (uint64_t *)prop->value;
-        base = tms->soc_base_pa + reg[0];
+        base = t8030_machine->soc_base_pa + reg[0];
 
         prop = find_dtb_prop(child, "interrupts");
         g_assert(prop);
@@ -1235,9 +1324,9 @@ static void t8030_create_spi(MachineState *machine, uint32_t port)
     }
     sysbus_mmio_map(spi, 0, base);
 
-    //! The second sysbus IRQ is the cs line
+    // The second sysbus IRQ is the cs line
     sysbus_connect_irq(SYS_BUS_DEVICE(spi), 0,
-                       qdev_get_gpio_in(DEVICE(tms->aic), irq));
+                       qdev_get_gpio_in(DEVICE(t8030_machine->aic), irq));
 
     if (child) {
         prop = find_dtb_prop(child, "function-spi_cs0");
@@ -1257,8 +1346,8 @@ static void t8030_create_spi(MachineState *machine, uint32_t port)
 
 static void t8030_create_usb(MachineState *machine)
 {
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     DTBNode *drd = find_dtb_node(child, "usb-drd");
     DTBNode *dart_usb = find_dtb_node(child, "dart-usb");
     DTBNode *dart_mapper = find_dtb_node(dart_usb, "mapper-usb-drd");
@@ -1302,7 +1391,7 @@ static void t8030_create_usb(MachineState *machine)
     prop = find_dtb_prop(phy, "reg");
     g_assert(prop);
     sysbus_mmio_map(SYS_BUS_DEVICE(atc), 0,
-                    tms->soc_base_pa + ((uint64_t *)prop->value)[0]);
+                    t8030_machine->soc_base_pa + ((uint64_t *)prop->value)[0]);
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(atc), &error_fatal);
 
@@ -1310,11 +1399,13 @@ static void t8030_create_usb(MachineState *machine)
     g_assert(prop);
     ints = (uint32_t *)prop->value;
     for (int i = 0; i < 4; i++) {
-        sysbus_connect_irq(SYS_BUS_DEVICE(atc), i,
-                           qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+        sysbus_connect_irq(
+            SYS_BUS_DEVICE(atc), i,
+            qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
-    sysbus_connect_irq(SYS_BUS_DEVICE(atc), 4,
-                       qdev_get_gpio_in(DEVICE(tms->aic), T8030_DWC2_IRQ));
+    sysbus_connect_irq(
+        SYS_BUS_DEVICE(atc), 4,
+        qdev_get_gpio_in(DEVICE(t8030_machine->aic), T8030_DWC2_IRQ));
 }
 
 static void t8030_create_wdt(MachineState *machine)
@@ -1324,9 +1415,9 @@ static void t8030_create_wdt(MachineState *machine)
     DTBProp *prop;
     uint64_t *reg;
     uint32_t value;
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     SysBusDevice *wdt;
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
 
     g_assert(child);
     child = find_dtb_node(child, "wdt");
@@ -1340,18 +1431,19 @@ static void t8030_create_wdt(MachineState *machine)
     g_assert(prop);
     reg = (uint64_t *)prop->value;
 
-    sysbus_mmio_map(wdt, 0, tms->soc_base_pa + reg[0]);
-    sysbus_mmio_map(wdt, 1, tms->soc_base_pa + reg[2]);
+    sysbus_mmio_map(wdt, 0, t8030_machine->soc_base_pa + reg[0]);
+    sysbus_mmio_map(wdt, 1, t8030_machine->soc_base_pa + reg[2]);
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_connect_irq(wdt, i, qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+        sysbus_connect_irq(
+            wdt, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
 
-    //! TODO: MCC
+    // TODO: MCC
     prop = find_dtb_prop(child, "function-panic_flush_helper");
     if (prop) {
         remove_dtb_prop(child, prop);
@@ -1373,10 +1465,10 @@ static void t8030_create_aes(MachineState *machine)
     uint32_t *ints;
     DTBProp *prop;
     uint64_t *reg;
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     SysBusDevice *aes;
     AppleDARTState *dart;
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     IOMMUMemoryRegion *dma_mr = NULL;
     DTBNode *dart_sio = find_dtb_node(child, "dart-sio");
     DTBNode *dart_aes_mapper = find_dtb_node(dart_sio, "mapper-aes");
@@ -1395,15 +1487,16 @@ static void t8030_create_aes(MachineState *machine)
     g_assert(prop);
     reg = (uint64_t *)prop->value;
 
-    sysbus_mmio_map(aes, 0, tms->soc_base_pa + reg[0]);
-    sysbus_mmio_map(aes, 1, tms->soc_base_pa + reg[2]);
+    sysbus_mmio_map(aes, 0, t8030_machine->soc_base_pa + reg[0]);
+    sysbus_mmio_map(aes, 1, t8030_machine->soc_base_pa + reg[2]);
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
     g_assert(prop->length == 4);
     ints = (uint32_t *)prop->value;
 
-    sysbus_connect_irq(aes, 0, qdev_get_gpio_in(DEVICE(tms->aic), *ints));
+    sysbus_connect_irq(aes, 0,
+                       qdev_get_gpio_in(DEVICE(t8030_machine->aic), *ints));
 
     dart = APPLE_DART(
         object_property_get_link(OBJECT(machine), "dart-sio", &error_fatal));
@@ -1425,8 +1518,8 @@ static void t8030_create_spmi(MachineState *machine, const char *name)
     DTBProp *prop;
     uint64_t *reg;
     uint32_t *ints;
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
 
     g_assert(child);
     child = find_dtb_node(child, name);
@@ -1443,14 +1536,15 @@ static void t8030_create_spmi(MachineState *machine, const char *name)
     reg = (uint64_t *)prop->value;
 
     sysbus_mmio_map(SYS_BUS_DEVICE(spmi), 0,
-                    (tms->soc_base_pa + reg[2]) & ~(APPLE_SPMI_MMIO_SIZE - 1));
+                    (t8030_machine->soc_base_pa + reg[2]) &
+                        ~(APPLE_SPMI_MMIO_SIZE - 1));
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
     ints = (uint32_t *)prop->value;
-    //! XXX: Only the second interrupt's parent is AIC
+    // XXX: Only the second interrupt's parent is AIC
     sysbus_connect_irq(SYS_BUS_DEVICE(spmi), 0,
-                       qdev_get_gpio_in(DEVICE(tms->aic), ints[1]));
+                       qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[1]));
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(spmi), &error_fatal);
 }
@@ -1461,8 +1555,8 @@ static void t8030_create_pmu(MachineState *machine, const char *parent,
     DeviceState *pmu = NULL;
     AppleSPMIState *spmi = NULL;
     DTBProp *prop;
-    T8030MachineState *tms = T8030_MACHINE(machine);
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     uint32_t *ints;
 
     g_assert(child);
@@ -1497,9 +1591,9 @@ static void t8030_create_smc(MachineState *machine)
     DTBProp *prop;
     uint64_t *reg;
     uint64_t data;
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     SysBusDevice *smc;
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     DTBNode *iop_nub;
     AppleIopSegmentRange segranges[2] = { 0 };
 
@@ -1530,7 +1624,8 @@ static void t8030_create_smc(MachineState *machine)
     data = T8030_SMC_SRAM_BASE;
     set_dtb_prop(iop_nub, "sram-addr", sizeof(data), &data);
 
-    smc = apple_smc_create(child, APPLE_A7IOP_V4, tms->rtbuddy_protocol_ver);
+    smc = apple_smc_create(child, APPLE_A7IOP_V4,
+                           t8030_machine->rtbuddy_protocol_ver);
     g_assert(smc);
 
     object_property_add_child(OBJECT(machine), "smc", OBJECT(smc));
@@ -1539,7 +1634,7 @@ static void t8030_create_smc(MachineState *machine)
     reg = (uint64_t *)prop->value;
 
     for (int i = 0; i < prop->length / 16; i++) {
-        sysbus_mmio_map(smc, i, tms->soc_base_pa + reg[i * 2]);
+        sysbus_mmio_map(smc, i, t8030_machine->soc_base_pa + reg[i * 2]);
     }
 
     sysbus_mmio_map(smc, 2, T8030_SMC_SRAM_BASE);
@@ -1549,7 +1644,8 @@ static void t8030_create_smc(MachineState *machine)
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_connect_irq(smc, i, qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+        sysbus_connect_irq(
+            smc, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
 
     sysbus_realize_and_unref(smc, &error_fatal);
@@ -1561,10 +1657,10 @@ static void t8030_create_sio(MachineState *machine)
     uint32_t *ints;
     DTBProp *prop;
     uint64_t *reg;
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     SysBusDevice *sio;
     AppleDARTState *dart;
-    DTBNode *child = find_dtb_node(tms->device_tree, "arm-io");
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     DTBNode *iop_nub;
     AppleIopSegmentRange segranges[2] = { 0 };
     IOMMUMemoryRegion *dma_mr = NULL;
@@ -1595,7 +1691,8 @@ static void t8030_create_sio(MachineState *machine)
     set_dtb_prop(child, "segment-ranges", sizeof(segranges), segranges);
     set_dtb_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
 
-    sio = apple_sio_create(child, APPLE_A7IOP_V4, tms->rtbuddy_protocol_ver);
+    sio = apple_sio_create(child, APPLE_A7IOP_V4,
+                           t8030_machine->rtbuddy_protocol_ver);
     g_assert(sio);
 
     object_property_add_child(OBJECT(machine), "sio", OBJECT(sio));
@@ -1604,7 +1701,7 @@ static void t8030_create_sio(MachineState *machine)
     reg = (uint64_t *)prop->value;
 
     for (int i = 0; i < 2; i++) {
-        sysbus_mmio_map(sio, i, tms->soc_base_pa + reg[i * 2]);
+        sysbus_mmio_map(sio, i, t8030_machine->soc_base_pa + reg[i * 2]);
     }
 
     prop = find_dtb_prop(child, "interrupts");
@@ -1612,7 +1709,8 @@ static void t8030_create_sio(MachineState *machine)
     ints = (uint32_t *)prop->value;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_connect_irq(sio, i, qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+        sysbus_connect_irq(
+            sio, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
 
     dart = APPLE_DART(
@@ -1631,11 +1729,11 @@ static void t8030_create_sio(MachineState *machine)
 
 static void t8030_roswell_create(MachineState *machine)
 {
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     DTBNode *child;
     DTBProp *prop;
 
-    child = find_dtb_node(tms->device_tree, "arm-io/i2c3/roswell");
+    child = find_dtb_node(t8030_machine->device_tree, "arm-io/i2c3/roswell");
     g_assert(child);
 
     prop = find_dtb_prop(child, "reg");
@@ -1645,35 +1743,35 @@ static void t8030_roswell_create(MachineState *machine)
 
 static void t8030_display_create(MachineState *machine)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
     AppleDisplayPipeV2State *s;
     SysBusDevice *sbd;
     DTBNode *child;
     uint64_t *reg;
     DTBProp *prop;
 
-    tms = T8030_MACHINE(machine);
+    t8030_machine = T8030_MACHINE(machine);
 
-    child = find_dtb_node(tms->device_tree, "arm-io/disp0");
+    child = find_dtb_node(t8030_machine->device_tree, "arm-io/disp0");
 
     s = apple_displaypipe_v2_create(machine, child);
     sbd = SYS_BUS_DEVICE(s);
-    tms->video_args.base_addr = T8030_DISPLAY_BASE;
-    tms->video_args.row_bytes = s->width * 4;
-    tms->video_args.width = s->width;
-    tms->video_args.height = s->height;
-    tms->video_args.depth = 32 | ((2 - 1) << 16);
-    tms->video_args.display = 1;
+    t8030_machine->video_args.base_addr = T8030_DISPLAY_BASE;
+    t8030_machine->video_args.row_bytes = s->width * 4;
+    t8030_machine->video_args.width = s->width;
+    t8030_machine->video_args.height = s->height;
+    t8030_machine->video_args.depth = 32 | ((2 - 1) << 16);
+    t8030_machine->video_args.display = 1;
     if (xnu_contains_boot_arg(machine->kernel_cmdline, "-s", false) ||
         xnu_contains_boot_arg(machine->kernel_cmdline, "-v", false)) {
-        tms->video_args.display = 0;
+        t8030_machine->video_args.display = 0;
     }
 
     prop = find_dtb_prop(child, "reg");
     g_assert(prop);
     reg = (uint64_t *)prop->value;
 
-    sysbus_mmio_map(sbd, 0, tms->soc_base_pa + reg[0]);
+    sysbus_mmio_map(sbd, 0, t8030_machine->soc_base_pa + reg[0]);
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
@@ -1681,13 +1779,15 @@ static void t8030_display_create(MachineState *machine)
 
     for (size_t i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_init_irq(sbd, &s->irqs[i]);
-        sysbus_connect_irq(sbd, i, qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+        sysbus_connect_irq(
+            sbd, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
 
     AppleDARTState *dart = APPLE_DART(
         object_property_get_link(OBJECT(machine), "dart-disp0", &error_fatal));
     g_assert(dart);
-    child = find_dtb_node(tms->device_tree, "arm-io/dart-disp0/mapper-disp0");
+    child = find_dtb_node(t8030_machine->device_tree,
+                          "arm-io/dart-disp0/mapper-disp0");
     g_assert(child);
     prop = find_dtb_prop(child, "reg");
     g_assert(prop);
@@ -1700,7 +1800,8 @@ static void t8030_display_create(MachineState *machine)
 
     memory_region_init_ram(&s->vram, OBJECT(sbd), "vram", T8030_DISPLAY_SIZE,
                            &error_fatal);
-    memory_region_add_subregion_overlap(tms->sysmem, tms->video_args.base_addr,
+    memory_region_add_subregion_overlap(t8030_machine->sysmem,
+                                        t8030_machine->video_args.base_addr,
                                         &s->vram, 1);
     object_property_add_const_link(OBJECT(sbd), "vram", OBJECT(&s->vram));
     object_property_add_child(OBJECT(machine), "disp0", OBJECT(sbd));
@@ -1710,7 +1811,73 @@ static void t8030_display_create(MachineState *machine)
 
 static void t8030_create_sep(MachineState *machine)
 {
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
+    DTBNode *armio;
+    DTBNode *child;
+    AppleSEPState *sep;
+    DTBProp *prop;
+    uint64_t *reg;
+    uint32_t *ints;
+    AppleDARTState *dart;
+
+    armio = find_dtb_node(t8030_machine->device_tree, "arm-io");
+    g_assert(armio);
+    child = find_dtb_node(armio, "sep");
+    g_assert(child);
+
+    sep = apple_sep_create(child, T8030_SEPROM_BASE, A13_MAX_CPU + 1,
+                           t8030_machine->build_version, true);
+    g_assert(sep);
+
+    object_property_add_child(OBJECT(machine), "sep", OBJECT(sep));
+
+    prop = find_dtb_prop(child, "reg");
+    g_assert(prop);
+    reg = (uint64_t *)prop->value;
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 0,
+                    t8030_machine->soc_base_pa + reg[0]);
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 1,
+                    t8030_machine->soc_base_pa + 0x41100000); // TRNG
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 2,
+                    t8030_machine->soc_base_pa + 0x41080000); // MISC0
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 3,
+                    t8030_machine->soc_base_pa + 0x41040000); // MISC1
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 4,
+                    t8030_machine->soc_base_pa + 0x410C4000); // MISC2
+
+    prop = find_dtb_prop(child, "interrupts");
+    g_assert(prop);
+    ints = (uint32_t *)prop->value;
+
+    for (int i = 0; i < prop->length / sizeof(uint32_t); i++) {
+        sysbus_connect_irq(
+            SYS_BUS_DEVICE(sep), i,
+            qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
+    }
+
+    dart = APPLE_DART(
+        object_property_get_link(OBJECT(machine), "dart-sep", &error_fatal));
+    g_assert(dart);
+    child = find_dtb_node(armio, "dart-sep");
+    g_assert(child);
+    child = find_dtb_node(child, "mapper-sep");
+    g_assert(child);
+    prop = find_dtb_prop(child, "reg");
+    g_assert(prop);
+    sep->dma_mr =
+        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->value));
+    g_assert(sep->dma_mr);
+    g_assert(object_property_add_const_link(OBJECT(sep), "dma-mr",
+                                            OBJECT(sep->dma_mr)));
+    sep->dma_as = g_new0(AddressSpace, 1);
+    address_space_init(sep->dma_as, sep->dma_mr, "sep.dma");
+
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(sep), &error_fatal);
+}
+
+static void t8030_create_sep_sim(MachineState *machine)
+{
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     DTBNode *armio;
     DTBNode *child;
     AppleSEPSimState *sep;
@@ -1719,7 +1886,7 @@ static void t8030_create_sep(MachineState *machine)
     uint32_t *ints;
     AppleDARTState *dart;
 
-    armio = find_dtb_node(tms->device_tree, "arm-io");
+    armio = find_dtb_node(t8030_machine->device_tree, "arm-io");
     g_assert(armio);
     child = find_dtb_node(armio, "sep");
     g_assert(child);
@@ -1732,15 +1899,17 @@ static void t8030_create_sep(MachineState *machine)
     prop = find_dtb_prop(child, "reg");
     g_assert(prop);
     reg = (uint64_t *)prop->value;
-    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 0, tms->soc_base_pa + reg[0]);
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 0,
+                    t8030_machine->soc_base_pa + reg[0]);
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert(prop);
     ints = (uint32_t *)prop->value;
 
     for (int i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_connect_irq(SYS_BUS_DEVICE(sep), i,
-                           qdev_get_gpio_in(DEVICE(tms->aic), ints[i]));
+        sysbus_connect_irq(
+            SYS_BUS_DEVICE(sep), i,
+            qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
 
     dart = APPLE_DART(
@@ -1765,18 +1934,18 @@ static void t8030_create_sep(MachineState *machine)
 
 static void t8030_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
 
-    tms = data.host_ptr;
+    t8030_machine = data.host_ptr;
     cpu_reset(cpu);
-    ARM_CPU(cpu)->env.xregs[0] = tms->bootinfo.kern_boot_args_addr;
-    cpu_set_pc(cpu, tms->bootinfo.kern_entry);
+    ARM_CPU(cpu)->env.xregs[0] = t8030_machine->bootinfo.kern_boot_args_addr;
+    cpu_set_pc(cpu, t8030_machine->bootinfo.kern_entry);
 }
 
 static void t8030_cpu_reset(void *opaque)
 {
     MachineState *machine = MACHINE(opaque);
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     CPUState *cpu;
     uint64_t m_lo;
     uint64_t m_hi;
@@ -1790,13 +1959,13 @@ static void t8030_cpu_reset(void *opaque)
             continue;
         }
         object_property_set_uint(OBJECT(cpu), "rvbar",
-                                 tms->bootinfo.kern_entry & ~0xFFF,
+                                 t8030_machine->bootinfo.kern_entry & ~0xFFF,
                                  &error_abort);
         object_property_set_uint(OBJECT(cpu), "pauth-mlo", m_lo, &error_abort);
         object_property_set_uint(OBJECT(cpu), "pauth-mhi", m_hi, &error_abort);
         if (tcpu->cpu_id == 0) {
             async_run_on_cpu(cpu, t8030_cpu_reset_work,
-                             RUN_ON_CPU_HOST_PTR(tms));
+                             RUN_ON_CPU_HOST_PTR(t8030_machine));
             continue;
         }
         if (ARM_CPU(cpu)->power_state != PSCI_OFF) {
@@ -1807,36 +1976,37 @@ static void t8030_cpu_reset(void *opaque)
 
 static void t8030_machine_reset(MachineState *machine, ShutdownCause reason)
 {
-    T8030MachineState *tms = T8030_MACHINE(machine);
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     DeviceState *gpio = NULL;
 
     qemu_devices_reset(reason);
-    memset(&tms->pmgr_reg, 0, sizeof(tms->pmgr_reg));
+    memset(&t8030_machine->pmgr_reg, 0, sizeof(t8030_machine->pmgr_reg));
     if (!runstate_check(RUN_STATE_RESTORE_VM) &&
         !runstate_check(RUN_STATE_PRELAUNCH)) {
         if (!runstate_check(RUN_STATE_PAUSED) ||
             reason != SHUTDOWN_CAUSE_NONE) {
-            t8030_memory_setup(MACHINE(tms));
+            t8030_memory_setup(MACHINE(t8030_machine));
         }
     }
-    t8030_cpu_reset(tms);
+    t8030_cpu_reset(t8030_machine);
     gpio =
         DEVICE(object_property_get_link(OBJECT(machine), "gpio", &error_fatal));
 
-    qemu_set_irq(qdev_get_gpio_in(gpio, T8030_GPIO_FORCE_DFU), tms->force_dfu);
+    qemu_set_irq(qdev_get_gpio_in(gpio, T8030_GPIO_FORCE_DFU),
+                 t8030_machine->force_dfu);
 }
 
 static void t8030_machine_init_done(Notifier *notifier, void *data)
 {
-    T8030MachineState *tms =
+    T8030MachineState *t8030_machine =
         container_of(notifier, T8030MachineState, init_done_notifier);
-    t8030_memory_setup(MACHINE(tms));
-    t8030_cpu_reset(tms);
+    t8030_memory_setup(MACHINE(t8030_machine));
+    t8030_cpu_reset(t8030_machine);
 }
 
 static void t8030_machine_init(MachineState *machine)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
     MachoHeader64 *hdr;
     uint64_t kernel_low = 0, kernel_high = 0;
     uint32_t build_version;
@@ -1847,41 +2017,56 @@ static void t8030_machine_init(MachineState *machine)
     DTBProp *prop;
     hwaddr *ranges;
 
-    memset(buffer, 0, sizeof(buffer));
+    bzero(buffer, sizeof(buffer));
 
-    tms = T8030_MACHINE(machine);
-    tms->sysmem = get_system_memory();
-    // allocate_ram(tms->sysmem, "SROM", T8030_SROM_BASE, T8030_SROM_SIZE, 0);
-    // allocate_ram(tms->sysmem, "SRAM", T8030_SRAM_BASE, T8030_SRAM_SIZE, 0);
-    allocate_ram(tms->sysmem, "DRAM", T8030_DRAM_BASE, T8030_DRAM_SIZE, 0);
+    t8030_machine = T8030_MACHINE(machine);
+
+    if (!t8030_machine->sep_fw_filename != !t8030_machine->seprom_filename) {
+        error_setg(&error_abort,
+                   "You need to specify both the SEPROM and the decrypted "
+                   "SEPFW in order to use SEP emulation!");
+        return;
+    }
+
+    t8030_machine->sysmem = get_system_memory();
+    allocate_ram(t8030_machine->sysmem, "SROM", T8030_SROM_BASE,
+                 T8030_SROM_SIZE, 0);
+    allocate_ram(t8030_machine->sysmem, "SRAM", T8030_SRAM_BASE,
+                 T8030_SRAM_SIZE, 0);
+    allocate_ram(t8030_machine->sysmem, "DRAM", T8030_DRAM_BASE,
+                 T8030_DRAM_SIZE, 0);
+    allocate_ram(t8030_machine->sysmem, "SEPROM", T8030_SEPROM_BASE,
+                 T8030_SEPROM_SIZE, 0);
+    allocate_ram(t8030_machine->sysmem, "DRAM_3", 0x300000000ULL,
+                 0x100000000ULL, 0);
 
     hdr = macho_load_file(machine->kernel_filename, NULL);
     g_assert(hdr);
-    tms->kernel = hdr;
+    t8030_machine->kernel = hdr;
     build_version = macho_build_version(hdr);
     info_report("Loading %s %u.%u...", macho_platform_string(hdr),
                 BUILD_VERSION_MAJOR(build_version),
                 BUILD_VERSION_MINOR(build_version));
-    tms->build_version = build_version;
+    t8030_machine->build_version = build_version;
 
-    if (tms->rtbuddy_protocol_ver == 0) {
-        switch (BUILD_VERSION_MAJOR(build_version)) {
-        case 13:
-            tms->rtbuddy_protocol_ver = 10;
-            break;
-        case 14:
-            tms->rtbuddy_protocol_ver = 11;
-            break;
-        case 15:
-            QEMU_FALLTHROUGH;
-        case 16:
-            QEMU_FALLTHROUGH;
-        case 17:
-            tms->rtbuddy_protocol_ver = 12;
-            break;
-        default:
-            break;
-        }
+    switch (BUILD_VERSION_MAJOR(build_version)) {
+    case 13:
+        t8030_machine->rtbuddy_protocol_ver = 10;
+        break;
+    case 14:
+        t8030_machine->rtbuddy_protocol_ver = 11;
+        break;
+    case 15:
+        QEMU_FALLTHROUGH;
+    case 16:
+        QEMU_FALLTHROUGH;
+    case 17:
+        QEMU_FALLTHROUGH;
+    case 18:
+        t8030_machine->rtbuddy_protocol_ver = 12;
+        break;
+    default:
+        break;
     }
 
     macho_highest_lowest(hdr, &kernel_low, &kernel_high);
@@ -1893,12 +2078,14 @@ static void t8030_machine_init(MachineState *machine)
 
     t8030_patch_kernel(hdr);
 
-    tms->device_tree = load_dtb_from_file(machine->dtb);
-    tms->trustcache = load_trustcache_from_file(tms->trustcache_filename,
-                                                &tms->bootinfo.trustcache_size);
+    t8030_machine->device_tree = load_dtb_from_file(machine->dtb);
+    t8030_machine->trustcache =
+        load_trustcache_from_file(t8030_machine->trustcache_filename,
+                                  &t8030_machine->bootinfo.trustcache_size);
     data = 24000000;
-    set_dtb_prop(tms->device_tree, "clock-frequency", sizeof(data), &data);
-    child = find_dtb_node(tms->device_tree, "arm-io");
+    set_dtb_prop(t8030_machine->device_tree, "clock-frequency", sizeof(data),
+                 &data);
+    child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     g_assert(child);
 
     data = 0x20;
@@ -1910,58 +2097,59 @@ static void t8030_machine_init(MachineState *machine)
     g_assert(prop);
 
     ranges = (hwaddr *)prop->value;
-    tms->soc_base_pa = ranges[1];
-    tms->soc_size = ranges[2];
+    t8030_machine->soc_base_pa = ranges[1];
+    t8030_machine->soc_size = ranges[2];
 
     memset(buffer, 0, sizeof(buffer));
     memcpy(buffer, "t8030", 5);
-    set_dtb_prop(tms->device_tree, "platform-name", 32, buffer);
+    set_dtb_prop(t8030_machine->device_tree, "platform-name", 32, buffer);
     memset(buffer, 0, sizeof(buffer));
     memcpy(buffer, "MWL72", 5);
-    set_dtb_prop(tms->device_tree, "model-number", 32, buffer);
+    set_dtb_prop(t8030_machine->device_tree, "model-number", 32, buffer);
     memset(buffer, 0, sizeof(buffer));
     memcpy(buffer, "LL/A", 4);
-    set_dtb_prop(tms->device_tree, "region-info", 32, buffer);
+    set_dtb_prop(t8030_machine->device_tree, "region-info", 32, buffer);
     memset(buffer, 0, sizeof(buffer));
-    set_dtb_prop(tms->device_tree, "config-number", 0x40, buffer);
+    set_dtb_prop(t8030_machine->device_tree, "config-number", 0x40, buffer);
     memset(buffer, 0, sizeof(buffer));
     memcpy(buffer, "C39ZRMDEN72J", 12);
-    set_dtb_prop(tms->device_tree, "serial-number", 32, buffer);
+    set_dtb_prop(t8030_machine->device_tree, "serial-number", 32, buffer);
     memset(buffer, 0, sizeof(buffer));
     memcpy(buffer, "C39948108J9N72J1F", 17);
-    set_dtb_prop(tms->device_tree, "mlb-serial-number", 32, buffer);
+    set_dtb_prop(t8030_machine->device_tree, "mlb-serial-number", 32, buffer);
     memset(buffer, 0, sizeof(buffer));
     memcpy(buffer, "A2111", 5);
-    set_dtb_prop(tms->device_tree, "regulatory-model-number", 32, buffer);
+    set_dtb_prop(t8030_machine->device_tree, "regulatory-model-number", 32,
+                 buffer);
 
-    child = get_dtb_node(tms->device_tree, "chosen");
+    child = get_dtb_node(t8030_machine->device_tree, "chosen");
     // TODO: basic AGX emulation, because on t8030 it does not expect
     // us to be using the SW renderer and messes up. also gives us an AGX
     // twiddled texture which we don't know how to handle yet.
     data = 0x8015;
     set_dtb_prop(child, "chip-id", 4, &data);
-    data = 0x4; //! board-id ; match with apple_aes.c
+    data = 0x4; // board-id ; match with apple_aes.c
     set_dtb_prop(child, "board-id", 4, &data);
 
-    if (tms->ecid == 0) {
-        tms->ecid = 0x1122334455667788;
+    if (t8030_machine->ecid == 0) {
+        t8030_machine->ecid = 0x1122334455667788;
     }
-    set_dtb_prop(child, "unique-chip-id", 8, &tms->ecid);
+    set_dtb_prop(child, "unique-chip-id", 8, &t8030_machine->ecid);
 
-    //! Update the display parameters
+    // Update the display parameters
     data = 0;
     set_dtb_prop(child, "display-rotation", sizeof(data), &data);
     data = 2;
     set_dtb_prop(child, "display-scale", sizeof(data), &data);
 
-    child = get_dtb_node(tms->device_tree, "product");
+    child = get_dtb_node(t8030_machine->device_tree, "product");
     data64 = 0x100000027;
     g_assert(
         set_dtb_prop(child, "display-corner-radius", sizeof(data64), &data64));
     data = 0x1;
     g_assert(set_dtb_prop(child, "oled-display", sizeof(data), &data));
     // TODO: PMP
-    g_assert(set_dtb_prop(tms->device_tree, "target-type", 4, "sim"));
+    g_assert(set_dtb_prop(t8030_machine->device_tree, "target-type", 4, "sim"));
     data = 0;
     g_assert(set_dtb_prop(child, "device-color-policy", sizeof(data), &data));
 
@@ -1970,7 +2158,7 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_aic(machine);
 
     for (int i = 0; i < T8030_NUM_UARTS; i++) {
-        t8030_create_s3c_uart(tms, i, serial_hd(i));
+        t8030_create_s3c_uart(t8030_machine, i, serial_hd(i));
     }
 
     t8030_pmgr_setup(machine);
@@ -2012,77 +2200,117 @@ static void t8030_machine_init(MachineState *machine)
         t8030_create_spi(machine, i);
     }
 
-    t8030_create_sep(machine);
+    if (t8030_machine->seprom_filename && t8030_machine->sep_fw_filename) {
+        t8030_create_sep(machine);
+    } else {
+        t8030_create_sep_sim(machine);
+    }
 
     t8030_roswell_create(machine);
 
     t8030_display_create(machine);
 
-    tms->init_done_notifier.notify = t8030_machine_init_done;
-    qemu_add_machine_init_done_notifier(&tms->init_done_notifier);
+    t8030_machine->init_done_notifier.notify = t8030_machine_init_done;
+    qemu_add_machine_init_done_notifier(&t8030_machine->init_done_notifier);
 }
 
 static void t8030_set_trustcache_filename(Object *obj, const char *value,
                                           Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
 
-    tms = T8030_MACHINE(obj);
-    g_free(tms->trustcache_filename);
-    tms->trustcache_filename = g_strdup(value);
+    t8030_machine = T8030_MACHINE(obj);
+    g_free(t8030_machine->trustcache_filename);
+    t8030_machine->trustcache_filename = g_strdup(value);
 }
 
 static char *t8030_get_trustcache_filename(Object *obj, Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
 
-    tms = T8030_MACHINE(obj);
-    return g_strdup(tms->trustcache_filename);
+    t8030_machine = T8030_MACHINE(obj);
+    return g_strdup(t8030_machine->trustcache_filename);
 }
 
 static void t8030_set_ticket_filename(Object *obj, const char *value,
                                       Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
 
-    tms = T8030_MACHINE(obj);
-    g_free(tms->ticket_filename);
-    tms->ticket_filename = g_strdup(value);
+    t8030_machine = T8030_MACHINE(obj);
+    g_free(t8030_machine->ticket_filename);
+    t8030_machine->ticket_filename = g_strdup(value);
 }
 
 static char *t8030_get_ticket_filename(Object *obj, Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
 
-    tms = T8030_MACHINE(obj);
-    return g_strdup(tms->ticket_filename);
+    t8030_machine = T8030_MACHINE(obj);
+    return g_strdup(t8030_machine->ticket_filename);
+}
+
+static void t8030_set_seprom_filename(Object *obj, const char *value,
+                                      Error **errp)
+{
+    T8030MachineState *t8030_machine;
+
+    t8030_machine = T8030_MACHINE(obj);
+    g_free(t8030_machine->seprom_filename);
+    t8030_machine->seprom_filename = g_strdup(value);
+}
+
+static char *t8030_get_seprom_filename(Object *obj, Error **errp)
+{
+    T8030MachineState *t8030_machine;
+
+    t8030_machine = T8030_MACHINE(obj);
+    return g_strdup(t8030_machine->seprom_filename);
+}
+
+static void t8030_set_sepfw_filename(Object *obj, const char *value,
+                                     Error **errp)
+{
+    T8030MachineState *t8030_machine;
+
+    t8030_machine = T8030_MACHINE(obj);
+    g_free(t8030_machine->sep_fw_filename);
+    t8030_machine->sep_fw_filename = g_strdup(value);
+}
+
+static char *t8030_get_sepfw_filename(Object *obj, Error **errp)
+{
+    T8030MachineState *t8030_machine;
+
+    t8030_machine = T8030_MACHINE(obj);
+    return g_strdup(t8030_machine->sep_fw_filename);
 }
 
 static void t8030_set_boot_mode(Object *obj, const char *value, Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
 
-    tms = T8030_MACHINE(obj);
+    t8030_machine = T8030_MACHINE(obj);
     if (g_str_equal(value, "auto")) {
-        tms->boot_mode = kBootModeAuto;
+        t8030_machine->boot_mode = kBootModeAuto;
     } else if (g_str_equal(value, "manual")) {
-        tms->boot_mode = kBootModeManual;
+        t8030_machine->boot_mode = kBootModeManual;
     } else if (g_str_equal(value, "enter_recovery")) {
-        tms->boot_mode = kBootModeEnterRecovery;
+        t8030_machine->boot_mode = kBootModeEnterRecovery;
     } else if (g_str_equal(value, "exit_recovery")) {
-        tms->boot_mode = kBootModeExitRecovery;
+        t8030_machine->boot_mode = kBootModeExitRecovery;
     } else {
-        tms->boot_mode = kBootModeAuto;
+        t8030_machine->boot_mode = kBootModeAuto;
         error_setg(errp, "Invalid boot mode: %s", value);
     }
 }
 
 static char *t8030_get_boot_mode(Object *obj, Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
 
-    tms = T8030_MACHINE(obj);
-    switch (tms->boot_mode) {
+    t8030_machine = T8030_MACHINE(obj);
+    switch (t8030_machine->boot_mode) {
     case kBootModeManual:
         return g_strdup("manual");
     case kBootModeEnterRecovery:
@@ -2096,73 +2324,46 @@ static char *t8030_get_boot_mode(Object *obj, Error **errp)
     }
 }
 
-static void t8030_get_rtbuddyv2_protocol_version(Object *obj, Visitor *v,
-                                                 const char *name, void *opaque,
-                                                 Error **errp)
-{
-    T8030MachineState *tms;
-    int64_t value;
-
-    tms = T8030_MACHINE(obj);
-    value = tms->rtbuddy_protocol_ver;
-    visit_type_int(v, name, &value, errp);
-}
-
-static void t8030_set_rtbuddyv2_protocol_version(Object *obj, Visitor *v,
-                                                 const char *name, void *opaque,
-                                                 Error **errp)
-{
-    T8030MachineState *tms;
-    int64_t value;
-
-    tms = T8030_MACHINE(obj);
-    if (!visit_type_int(v, name, &value, errp)) {
-        return;
-    }
-
-    tms->rtbuddy_protocol_ver = value;
-}
-
 static void t8030_get_ecid(Object *obj, Visitor *v, const char *name,
                            void *opaque, Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
     int64_t value;
 
-    tms = T8030_MACHINE(obj);
-    value = tms->ecid;
+    t8030_machine = T8030_MACHINE(obj);
+    value = t8030_machine->ecid;
     visit_type_int(v, name, &value, errp);
 }
 
 static void t8030_set_ecid(Object *obj, Visitor *v, const char *name,
                            void *opaque, Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
     int64_t value;
 
-    tms = T8030_MACHINE(obj);
+    t8030_machine = T8030_MACHINE(obj);
 
     if (!visit_type_int(v, name, &value, errp)) {
         return;
     }
 
-    tms->ecid = value;
+    t8030_machine->ecid = value;
 }
 
 static void t8030_set_kaslr_off(Object *obj, bool value, Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
 
-    tms = T8030_MACHINE(obj);
-    tms->kaslr_off = value;
+    t8030_machine = T8030_MACHINE(obj);
+    t8030_machine->kaslr_off = value;
 }
 
 static bool t8030_get_kaslr_off(Object *obj, Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
 
-    tms = T8030_MACHINE(obj);
-    return tms->kaslr_off;
+    t8030_machine = T8030_MACHINE(obj);
+    return t8030_machine->kaslr_off;
 }
 
 static ram_addr_t t8030_machine_fixup_ram_size(ram_addr_t size)
@@ -2173,18 +2374,18 @@ static ram_addr_t t8030_machine_fixup_ram_size(ram_addr_t size)
 
 static void t8030_set_force_dfu(Object *obj, bool value, Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
 
-    tms = T8030_MACHINE(obj);
-    tms->force_dfu = value;
+    t8030_machine = T8030_MACHINE(obj);
+    t8030_machine->force_dfu = value;
 }
 
 static bool t8030_get_force_dfu(Object *obj, Error **errp)
 {
-    T8030MachineState *tms;
+    T8030MachineState *t8030_machine;
 
-    tms = T8030_MACHINE(obj);
-    return tms->force_dfu;
+    t8030_machine = T8030_MACHINE(obj);
+    return t8030_machine->force_dfu;
 }
 
 static void t8030_machine_class_init(ObjectClass *klass, void *data)
@@ -2194,7 +2395,7 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
     mc->desc = "T8030";
     mc->init = t8030_machine_init;
     mc->reset = t8030_machine_reset;
-    mc->max_cpus = A13_MAX_CPU;
+    mc->max_cpus = A13_MAX_CPU + 1;
     mc->no_sdcard = 1;
     mc->no_floppy = 1;
     mc->no_cdrom = 1;
@@ -2213,15 +2414,17 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
                                   t8030_set_ticket_filename);
     object_class_property_set_description(klass, "ticket",
                                           "APTicket to be loaded");
+    object_class_property_add_str(klass, "seprom", t8030_get_seprom_filename,
+                                  t8030_set_seprom_filename);
+    object_class_property_set_description(klass, "seprom",
+                                          "SEPROM to be loaded");
+    object_class_property_add_str(klass, "sepfw", t8030_get_sepfw_filename,
+                                  t8030_set_sepfw_filename);
+    object_class_property_set_description(klass, "sepfw", "SEPFW to be loaded");
     object_class_property_add_str(klass, "boot-mode", t8030_get_boot_mode,
                                   t8030_set_boot_mode);
     object_class_property_set_description(klass, "boot-mode",
                                           "Boot mode of the machine");
-    object_class_property_add(klass, "rtbuddyv2-protocol-version", "int",
-                              t8030_get_rtbuddyv2_protocol_version,
-                              t8030_set_rtbuddyv2_protocol_version, NULL, NULL);
-    object_class_property_set_description(klass, "rtbuddyv2-protocol-version",
-                                          "RTBuddyV2 protocol version");
     object_class_property_add(klass, "ecid", "uint64", t8030_get_ecid,
                               t8030_set_ecid, NULL, NULL);
     object_class_property_set_description(klass, "ecid", "Device ECID");

@@ -23,14 +23,12 @@
 
 #include "qemu/osdep.h"
 #include "exec/hwaddr.h"
-#include "exec/memory.h"
 #include "hw/arm/apple-silicon/a9.h"
 #include "hw/arm/apple-silicon/boot.h"
 #include "hw/boards.h"
 #include "hw/cpu/cluster.h"
 #include "hw/sysbus.h"
 #include "sysemu/kvm.h"
-#include "cpu.h"
 
 #define TYPE_S8000 "s8000"
 
@@ -69,6 +67,8 @@ typedef struct {
     AppleVideoArgs video;
     char *trustcache_filename;
     char *ticket_filename;
+    char *seprom_filename;
+    char *sep_fw_filename;
     BootMode boot_mode;
     uint32_t build_version;
     uint64_t ecid;

@@ -718,10 +718,10 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
         object_property_set_bool(obj, "start-powered-off", true, NULL);
     }
 
-    // XXX: QARMA is too slow
+    // QARMA is too slow
     object_property_set_bool(obj, "pauth-impdef", true, NULL);
 
-    //! Need to set the CPU frequencies instead of iBoot
+    // Need to set the CPU frequencies instead of iBoot
     if (node) {
         freq = 24000000;
 
