@@ -1202,7 +1202,7 @@ static CGEventRef handleTapEvent(CGEventTapProxy proxy, CGEventType type, CGEven
 
         // create a window
         window = [[NSWindow alloc] initWithContentRect:[cocoaView frame]
-            styleMask:NSWindowStyleMaskTitled|NSFullSizeContentViewWindowMask|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskClosable
+            styleMask:NSWindowStyleMaskTitled|NSWindowStyleMaskFullSizeContentView|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskClosable
             backing:NSBackingStoreBuffered defer:NO];
         if(!window) {
             error_report("(cocoa) can't create window");
