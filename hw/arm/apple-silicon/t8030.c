@@ -25,7 +25,7 @@
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/arm/apple-silicon/mem.h"
 #include "hw/arm/apple-silicon/sart.h"
-#include "hw/arm/apple-silicon/sep.h"
+#include "hw/arm/apple-silicon/sep-sim.h"
 #include "hw/arm/apple-silicon/t8030-config.c.inc"
 #include "hw/arm/apple-silicon/t8030.h"
 #include "hw/block/apple_ans.h"
@@ -1713,7 +1713,7 @@ static void t8030_create_sep(MachineState *machine)
     T8030MachineState *tms = T8030_MACHINE(machine);
     DTBNode *armio;
     DTBNode *child;
-    AppleSEPState *sep;
+    AppleSEPSimState *sep;
     DTBProp *prop;
     uint64_t *reg;
     uint32_t *ints;
@@ -1724,7 +1724,7 @@ static void t8030_create_sep(MachineState *machine)
     child = find_dtb_node(armio, "sep");
     g_assert(child);
 
-    sep = apple_sep_create(child, true);
+    sep = apple_sep_sim_create(child, true);
     g_assert(sep);
 
     object_property_add_child(OBJECT(machine), "sep", OBJECT(sep));

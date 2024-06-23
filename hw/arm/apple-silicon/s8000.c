@@ -25,7 +25,7 @@
 #include "hw/arm/apple-silicon/mem.h"
 #include "hw/arm/apple-silicon/s8000-config.c.inc"
 #include "hw/arm/apple-silicon/s8000.h"
-#include "hw/arm/apple-silicon/sep.h"
+#include "hw/arm/apple-silicon/sep-sim.h"
 #include "hw/arm/exynos4210.h"
 #include "hw/block/apple_nvme_mmu.h"
 #include "hw/display/adbe_v2.h"
@@ -949,7 +949,7 @@ static void s8000_create_sep(MachineState *machine)
     child = find_dtb_node(child, "sep");
     g_assert(child);
 
-    tms->sep = SYS_BUS_DEVICE(apple_sep_create(child, false));
+    tms->sep = SYS_BUS_DEVICE(apple_sep_sim_create(child, false));
     g_assert(tms->sep);
 
     object_property_add_child(OBJECT(machine), "sep", OBJECT(tms->sep));

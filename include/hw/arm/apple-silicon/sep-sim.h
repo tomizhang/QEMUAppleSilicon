@@ -27,10 +27,10 @@
 #include "qemu/typedefs.h"
 #include "qom/object.h"
 
-#define TYPE_APPLE_SEP "secure-enclave"
-OBJECT_DECLARE_TYPE(AppleSEPState, AppleSEPClass, APPLE_SEP)
+#define TYPE_APPLE_SEP_SIM "apple-sep-sim"
+OBJECT_DECLARE_TYPE(AppleSEPSimState, AppleSEPSimClass, APPLE_SEP_SIM)
 
-struct AppleSEPClass {
+struct AppleSEPSimClass {
     /*< private >*/
     SysBusDeviceClass base_class;
 
@@ -45,16 +45,16 @@ typedef struct {
     uint8_t in_max_pages;
     uint8_t out_min_pages;
     uint8_t out_max_pages;
-} QEMU_PACKED AppleSEPOOLInfo;
+} QEMU_PACKED AppleSEPSimOOLInfo;
 
 typedef struct {
     uint64_t in_addr;
     uint32_t in_size;
     uint64_t out_addr;
     uint32_t out_size;
-} AppleSEPOOLState;
+} AppleSEPSimOOLState;
 
-struct AppleSEPState {
+struct AppleSEPSimState {
     /*< private >*/
     AppleA7IOP parent_obj;
 
@@ -63,10 +63,10 @@ struct AppleSEPState {
     QemuMutex lock;
     bool rsep;
     uint32_t status;
-    AppleSEPOOLInfo ool_info[SEP_ENDPOINT_MAX];
-    AppleSEPOOLState ool_state[SEP_ENDPOINT_MAX];
+    AppleSEPSimOOLInfo ool_info[SEP_ENDPOINT_MAX];
+    AppleSEPSimOOLState ool_state[SEP_ENDPOINT_MAX];
 };
 
-AppleSEPState *apple_sep_create(DTBNode *node, bool modern);
+AppleSEPSimState *apple_sep_sim_create(DTBNode *node, bool modern);
 
 #endif /* HW_ARM_APPLE_SILICON_SEP_H */
