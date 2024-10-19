@@ -17,6 +17,16 @@
 #ifndef HW_ARM_APPLE_SILICON_BOOT_H
 #define HW_ARM_APPLE_SILICON_BOOT_H
 
+
+#define ENABLE_BASEBAND 0
+//#define ENABLE_BASEBAND 1
+//#define ENABLE_SEP 1
+#define ENABLE_SEP 1
+//#define ENABLE_SEP_SECURITY 0
+#define ENABLE_SEP_SECURITY 1
+//#define ENABLE_ROSWELL 1
+#define ENABLE_ROSWELL 0
+
 #include "qemu/osdep.h"
 #include "exec/hwaddr.h"
 #include "hw/arm/apple-silicon/dtb.h"
@@ -147,6 +157,8 @@ typedef struct {
     uint32_t flags;
     uint32_t reserved;
 } MachoHeader64;
+
+extern MachoHeader64 *xnu_header;
 
 typedef struct {
     uint32_t cmd;

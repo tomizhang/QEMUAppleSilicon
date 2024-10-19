@@ -63,6 +63,7 @@ struct AppleDisplayPipeV2State {
     uint32_t int_filter;
     GenPipeState genpipes[2];
     QemuConsole *console;
+    bool invalidated;
 };
 
 AppleDisplayPipeV2State *apple_displaypipe_v2_create(MachineState *machine,

@@ -78,6 +78,7 @@ typedef struct {
     char pmgr_reg[0x100000];
     bool kaslr_off;
     bool force_dfu;
+    uint32_t board_id;
 } S8000MachineState;
 
 #endif /* HW_ARM_APPLE_SILICON_S8000_H */

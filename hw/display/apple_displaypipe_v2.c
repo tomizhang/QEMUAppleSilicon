@@ -2,7 +2,7 @@
  * Apple Display Pipe V2 Controller.
  *
  * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
- * Copyright (c) 2023 Christian Inci (chris-pcguy).
+ * Copyright (c) 2023-2024 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -31,7 +31,7 @@
 #include "ui/pixel_ops.h"
 #include "framebuffer.h"
 
-// #define DEBUG_DISP
+#define DEBUG_DISP
 
 #ifdef DEBUG_DISP
 #define DISP_DBGLOG(fmt, ...) \
@@ -141,21 +141,22 @@ static void apple_disp_gp_reg_write(GenPipeState *s, hwaddr addr, uint64_t data)
         break;
     }
     case REG_GP_LAYER_0_STRIDE: {
-        s->layers[0].stride = (uint32_t)data;
         DISP_DBGLOG("[GP%zu] Layer 0 stride <- 0x" HWADDR_FMT_plx, s->index,
                     data);
+        s->layers[0].stride = (uint32_t)data;
         break;
     }
     case REG_GP_LAYER_0_SIZE: {
-        s->layers[0].size = (uint32_t)data;
         DISP_DBGLOG("[GP%zu] Layer 0 size <- 0x" HWADDR_FMT_plx, s->index,
                     data);
+        s->layers[0].size = (uint32_t)data;
         break;
     }
     case REG_GP_FRAME_SIZE: {
         DISP_DBGLOG("[GP%zu] Frame size <- 0x" HWADDR_FMT_plx, s->index, data);
         s->height = data & 0xFFFF;
         s->width = (data >> 16) & 0xFFFF;
+        break;
     }
     default: {
         DISP_DBGLOG("[GP%zu] Unknown write @ 0x" HWADDR_FMT_plx
@@ -236,6 +237,7 @@ static uint8_t *apple_disp_gp_read_layer(GenPipeState *s, size_t i,
 
 static void apple_gp_draw_bh(void *opaque)
 {
+    //return;
     GenPipeState *s;
     size_t size;
     uint8_t *buf;
@@ -270,13 +272,17 @@ static void apple_gp_draw_bh(void *opaque)
     uint16_t stride = s->pixel_format & GP_PIXEL_FORMAT_COMPRESSED ?
                           width :
                           s->layers[0].stride;
+#if 1
     for (uint16_t y = 0; y < height; y++) {
         uint8_t *dest = memory_region_get_ram_ptr(s->vram);
+#if 1
         memcpy(dest + (y * (s->disp_state->width * sizeof(uint32_t))),
                buf + (y * stride), width * sizeof(uint32_t));
+#endif
     }
     memory_region_set_dirty(s->vram, 0,
                             s->height * s->width * sizeof(uint32_t));
+#endif
     g_free(buf);
     // TODO: bit 10 might be VBlank, and bit 20 that the transfer finished.
     s->disp_state->int_filter |= BIT(10) | BIT(20);
@@ -407,6 +413,8 @@ AppleDisplayPipeV2State *apple_displaypipe_v2_create(MachineState *machine,
                           "up.regs", reg[1]);
     sysbus_init_mmio(sbd, &s->up_regs);
     object_property_add_const_link(OBJECT(sbd), "up.regs", OBJECT(&s->up_regs));
+    //
+    s->invalidated = 1; // set it in both places, here and in reset
 
     return s;
 }
@@ -417,24 +425,38 @@ static void apple_displaypipe_v2_draw_row(void *opaque, uint8_t *dest,
 {
     while (width--) {
         uint32_t colour = ldl_le_p(src);
-        src += sizeof(colour);
+        //
         memcpy(dest, &colour, sizeof(colour));
+        src += sizeof(colour);
         dest += sizeof(colour);
     }
 }
 
+static void apple_displaypipe_v2_invalidate(void *opaque)
+{
+    //return;
+    AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(opaque);
+    s->invalidated = 1;
+}
+
 static void apple_displaypipe_v2_gfx_update(void *opaque)
 {
+    //return;
     AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(opaque);
     DisplaySurface *surface = qemu_console_surface(s->console);
 
     int stride = s->width * sizeof(uint32_t);
     int first = 0, last = 0;
 
-    if (!s->vram_section.mr) {
+#if 1
+    ////if (!s->vram_section.mr)
+    if (s->invalidated)
+    {
         framebuffer_update_memory_section(&s->vram_section, &s->vram, 0,
                                           s->height, stride);
+        s->invalidated = 0;
     }
+#endif
     framebuffer_update_display(surface, &s->vram_section, s->width, s->height,
                                stride, stride, 0, 0,
                                apple_displaypipe_v2_draw_row, s, &first, &last);
@@ -444,6 +466,7 @@ static void apple_displaypipe_v2_gfx_update(void *opaque)
 }
 
 static const GraphicHwOps apple_displaypipe_v2_ops = {
+    .invalidate = apple_displaypipe_v2_invalidate,
     .gfx_update = apple_displaypipe_v2_gfx_update,
 };
 
@@ -451,10 +474,12 @@ static void apple_displaypipe_v2_reset(DeviceState *dev)
 {
     AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(dev);
 
+    s->invalidated = 1;
     s->int_filter = 0;
     qemu_irq_lower(s->irqs[0]);
     apple_genpipev2_init(&s->genpipes[0], 0, &s->vram, &s->dma_as, s);
     apple_genpipev2_init(&s->genpipes[1], 1, &s->vram, &s->dma_as, s);
+    // TODO: clear the framebuffer during system reset
 }
 
 static void apple_displaypipe_v2_realize(DeviceState *dev, Error **errp)

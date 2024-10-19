@@ -232,9 +232,9 @@ static void apple_rtbuddy_handle_mgmt_msg(void *opaque, uint32_t ep,
                 trace_apple_rtbuddy_rollcall_finished(a7iop->role);
                 apple_rtbuddy_send_msg(s, ep, m.raw);
             } else {
-                AppleA7IOPMessage *m = QTAILQ_FIRST(&s->rollcall);
-                QTAILQ_REMOVE(&s->rollcall, m, entry);
-                apple_a7iop_send_ap(a7iop, m);
+                AppleA7IOPMessage *m2 = QTAILQ_FIRST(&s->rollcall);
+                QTAILQ_REMOVE(&s->rollcall, m2, entry);
+                apple_a7iop_send_ap(a7iop, m2);
             }
             break;
         }

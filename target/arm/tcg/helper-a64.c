@@ -1941,6 +1941,8 @@ uint64_t HELPER(wkdmc)(CPUARMState *env, uint64_t vaddr_in, uint64_t vaddr_out)
     char *out_mem;
     int out_offset;
     int csize;
+    uint8_t scratch[16384] = {0};
+    qemu_log_mask(LOG_GUEST_ERROR, "%s: vaddr_in 0x%" PRIx64 " vaddr_out 0x%" PRIx64 "\n", __func__, vaddr_in, vaddr_out);
 
     if (TARGET_PAGE_BITS < 10 || TARGET_PAGE_BITS > 14) {
         return -1;
@@ -1958,13 +1960,17 @@ uint64_t HELPER(wkdmc)(CPUARMState *env, uint64_t vaddr_in, uint64_t vaddr_out)
         return -1;
     }
 
-    int n = WKdm_compress(in_mem, out_mem + out_offset, csize);
+    g_assert_cmpuint(TARGET_PAGE_SIZE, <=, sizeof(scratch));
+    g_assert_cmpuint(csize, <=, sizeof(scratch));
+    //int n = WKdm_compress(in_mem, out_mem + out_offset, csize);
+    int n = WKdm_compress(in_mem, scratch, csize);
     if (n <= 0) {
         return n;
     }
     if (n > csize) {
         return -1;
     }
+    memcpy(out_mem + out_offset, scratch, n);
     return n >> 6;
 }
 
@@ -1974,6 +1980,8 @@ uint64_t HELPER(wkdmd)(CPUARMState *env, uint64_t vaddr_in, uint64_t vaddr_out)
     uint8_t *in_mem, *out_mem;
     int in_offset;
     int csize;
+    uint8_t scratch2[16384] = {0};
+    qemu_log_mask(LOG_GUEST_ERROR, "%s: vaddr_in 0x%" PRIx64 " vaddr_out 0x%" PRIx64 "\n", __func__, vaddr_in, vaddr_out);
 
     if (TARGET_PAGE_BITS < 10 || TARGET_PAGE_BITS > 14) {
         return 0x3000;
@@ -1991,7 +1999,12 @@ uint64_t HELPER(wkdmd)(CPUARMState *env, uint64_t vaddr_in, uint64_t vaddr_out)
         return 0x3000;
     }
 
-    if (WKdm_decompress(in_mem + in_offset, out_mem, csize)) {
+    g_assert_cmpuint(TARGET_PAGE_SIZE, <=, sizeof(scratch2));
+    g_assert_cmpuint(csize, <=, sizeof(scratch2));
+    //if (WKdm_decompress(in_mem + in_offset, out_mem, csize))
+    if (WKdm_decompress(in_mem + in_offset, scratch2, csize))
+    {
+        memcpy(out_mem, scratch2, TARGET_PAGE_SIZE);
         return 0;
     }
 

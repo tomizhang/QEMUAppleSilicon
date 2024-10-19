@@ -2,6 +2,7 @@
  * Apple SEP.
  *
  * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023-2024 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -41,40 +42,9 @@ typedef struct {
     uint8_t ep;
     uint8_t tag;
     uint8_t op;
-    uint8_t param;
-    uint32_t data;
-} QEMU_PACKED SEPMessage;
-
-typedef struct {
-    uint8_t ep;
-    uint8_t tag;
-    uint8_t op;
-    uint8_t id;
-    uint32_t name;
-} QEMU_PACKED EPAdvertisementMessage;
-
-typedef struct {
-    uint8_t ep;
-    uint8_t tag;
-    uint8_t op;
     uint8_t id;
     AppleSEPSimOOLInfo ool_info;
 } QEMU_PACKED OOLAdvertisementMessage;
-
-typedef struct {
-    uint8_t ep;
-    uint8_t tag;
-    uint16_t size;
-    uint32_t address;
-} QEMU_PACKED L4InfoMessage;
-
-typedef struct {
-    uint8_t ep;
-    uint8_t tag;
-    uint8_t op;
-    uint8_t id;
-    uint32_t data;
-} QEMU_PACKED SetOOLMessage;
 
 enum {
     EP_CONTROL = 0, // 'cntl'
@@ -173,11 +143,12 @@ enum {
     XART_OP_DELETE_LOCKER_RECORD = 7,
     XART_OP_POWERED_UP = 14,
     // AP -> IOP
+    // 2, 3, 4, (5, 6, 7, 8, 14)
     XART_OP_LYNX_AUTHENTICATE = 9,
     XART_OP_LYNX_GET_CPSN = 10,
     XART_OP_LYNX_GET_PUBLIC_KEY = 11,
     XART_OP_FLUSH_CACHED_XART = 12,
-    XART_OP_SHUTDOWN = 13,
+    XART_OP_SHUTDOWN = 13, // AppleSEPXART::xart_shtdwn_vol_unmount
     XART_OP_NONCE_GENERATE = 15,
     XART_OP_NONCE_READ = 16,
     XART_OP_NONCE_INVALIDATE = 17,
@@ -322,7 +293,7 @@ static void apple_sep_sim_handle_control_msg(AppleSEPSimState *s,
     case CONTROL_OP_SET_OOL_IN_ADDR:
         set_ool_msg = (SetOOLMessage *)msg;
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "EP_CONTROL: SET_OOL_IN_ADDR (%d, 0x%llX)\n",
+                      "EP_CONTROL: SET_OOL_IN_ADDR (%d, 0x%" PRIx64 ")\n",
                       set_ool_msg->id, (uint64_t)set_ool_msg->data << 12);
         apple_sep_sim_set_ool_in_addr(s, set_ool_msg->id,
                                       (uint64_t)set_ool_msg->data << 12);
@@ -331,7 +302,7 @@ static void apple_sep_sim_handle_control_msg(AppleSEPSimState *s,
     case CONTROL_OP_SET_OOL_OUT_ADDR:
         set_ool_msg = (SetOOLMessage *)msg;
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "EP_CONTROL: SET_OOL_OUT_ADDR (%d, 0x%llX)\n",
+                      "EP_CONTROL: SET_OOL_OUT_ADDR (%d, 0x%" PRIx64 ")\n",
                       set_ool_msg->id, (uint64_t)set_ool_msg->data << 12);
         apple_sep_sim_set_ool_out_addr(s, set_ool_msg->id,
                                        (uint64_t)set_ool_msg->data << 12);
@@ -468,7 +439,7 @@ static void apple_sep_sim_handle_xart_msg(AppleSEPSimState *s, bool slave,
 
 static void apple_sep_sim_handle_l4info(AppleSEPSimState *s, L4InfoMessage *msg)
 {
-    qemu_log_mask(LOG_GUEST_ERROR, "EP_L4INFO: address 0x%llX size 0x%X\n",
+    qemu_log_mask(LOG_GUEST_ERROR, "EP_L4INFO: address 0x%" PRIx64 " size 0x%X\n",
                   (uint64_t)msg->address << 12, msg->size << 12);
     s->ool_state[EP_CONTROL].in_addr = (uint64_t)msg->address << 12;
     s->ool_state[EP_CONTROL].in_size = msg->size << 12;
@@ -624,7 +595,7 @@ static void apple_sep_sim_handle_keystore_msg(AppleSEPSimState *s,
 #if 0
     char fn[128];
     memset(fn, 0, sizeof(fn));
-    snprintf(fn, sizeof(fn), "/Users/visual/Downloads/SKSMessages/0x%02X_%lld.bin", msg_code,
+    snprintf(fn, sizeof(fn), "/home/ios/SKSMessages/0x%02X_%lld.bin", msg_code,
              msg_hdr->time_msecs);
     g_file_set_contents(fn, (gchar *)msg_buf, msg->size, NULL);
 #endif
@@ -660,7 +631,7 @@ static void apple_sep_sim_handle_keystore_msg(AppleSEPSimState *s,
         uint64_t *lword = (uint64_t *)(word0 + 1);
         uint32_t *word1 = (uint32_t *)(lword + 1);
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "SEP KeyStore // Copy Keybag 0x%X 0x%llX 0x%X\n", *word0,
+                      "SEP KeyStore // Copy Keybag 0x%X 0x%" PRIx64 " 0x%X\n", *word0,
                       *lword, *word1);
 
         const uint32_t resp_size = KEYSTORE_IPC_HEADER_SIZE + 0x4 + 0x4 + 0x10;
@@ -866,7 +837,7 @@ static void apple_sep_sim_handle_keystore_msg(AppleSEPSimState *s,
         uint32_t *word2 = (uint32_t *)(word1 + 1);
         qemu_log_mask(
             LOG_GUEST_ERROR,
-            "SEP KeyStore // Get Device State 0x%X 0x%llX 0x%X 0x%X\n", *word0,
+            "SEP KeyStore // Get Device State 0x%X 0x%" PRIx64 " 0x%X 0x%X\n", *word0,
             *lword, *word1, *word2);
 
         const uint32_t resp_size = KEYSTORE_IPC_HEADER_SIZE + 0x4 + 0x4 + 0x8;

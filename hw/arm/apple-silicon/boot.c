@@ -31,9 +31,12 @@
 #include "qemu/cutils.h"
 #include "qemu/error-report.h"
 #include "qemu/guest-random.h"
+#include "qemu/units.h"
 #include "img4.h"
 #include "lzfse.h"
 #include "lzss.h"
+
+MachoHeader64 *xnu_header;
 
 static const char *KEEP_COMP[] = {
     "adbe0,s8000\0$",
@@ -45,7 +48,9 @@ static const char *KEEP_COMP[] = {
     "arm-io,s8000\0$",
     "arm-io,t8030\0$",
     "atc-phy,t8030\0atc-phy,t8027\0$",
+#if ENABLE_BASEBAND == 1
     "baseband,i19\0$",
+#endif
     "buttons\0$",
     // "dart,s8000\0dart,s5l8960x\0$",
     "dart,t8020\0$",
@@ -71,7 +76,9 @@ static const char *KEEP_COMP[] = {
     "pmgr1,t8030\0$",
     "pmu,d2255\0$",
     "pmu,spmi\0pmu,avus\0$",
+#if ENABLE_ROSWELL == 1
     "roswell\0$",
+#endif
     "sart,coastguard\0$",
     "sart,t8030\0$",
     "sio-dma-controller\0$",
@@ -83,11 +90,13 @@ static const char *KEEP_COMP[] = {
     "spmi,gen0\0$",
     "spmi,t8015\0$",
     "uart-1,samsung\0$",
+#if 1
     "usb-complex,s8000\0usb-complex,s5l8960x\0$",
     "usb-device,s5l8900x\0$",
     "usb-device,s8000\0usb-device,t7000\0usb-device,s5l8900x\0$",
     "usb-device,t7000\0usb-device,s5l8900x\0$",
     "usb-drd,t8030\0usb-drd,t8027\0$",
+#endif
     "wdt,s8000\0wdt,s5l8960x\0$",
     "wdt,t8030\0wdt,s5l8960x\0$",
 };
@@ -98,14 +107,58 @@ static const char *REM_NAMES[] = {
     "dart-isp\0$",    "dart-jpeg0\0$",     "dart-jpeg1\0$",       "dart-pmp\0$",
     "dart-rsm\0$",    "dart-scaler\0$",    "dockchannel-uart\0$", "dotara\0$",
     "pmp\0$",         "stockholm-spmi\0$",
+#if ENABLE_BASEBAND == 0
+    "baseband\0$", "baseband-spmi\0$",
+    "baseband-vol\0$",
+#endif
+#if ENABLE_SEP == 0
+    "sep\0$", "dart-sep\0$",
+    "xart-vol\0$",
+    "pearl-sep\0$", "isp\0$",
+    //"hilo\0$",
+    "xART\0$",
+#endif
+#if 0
+//#if 1
+    "pearl-sep\0$", "isp\0$",
+#endif
+#if 0
+//#if 1
+    //"hilo\0$", // doesn't actually exist
+#endif
+#if 0
+//#if 1
+    "xART\0$",
+    "xart-vol\0$",
+#endif
+#if ENABLE_SEP_SECURITY == 0
+    "pearl-sep\0$", "isp\0$",
+    //"hilo\0$",
+    "Lynx\0$",
+#endif
 };
 
 static const char *REM_DEV_TYPES[] = {
     "aop\0$", "backlight\0$", "bluetooth\0$", "pmp\0$", "wlan\0$",
+#if ENABLE_BASEBAND == 0
+    "baseband\0$", "baseband-spmi\0$",
+#endif
+//#if 1
+//#if 0
+#if ENABLE_SEP_SECURITY == 0
+    "spherecontrol\0$"
+#endif
 };
 
 static const char *REM_PROPS[] = {
+////#if ENABLE_SEP_SECURITY == 0
+//#if 0
+#if ENABLE_SEP == 0
+//#if 1
+    // Really DON'T make this depend on ENABLE_SEP_SECURITY. Make it depend on ENABLE_SEP!
     "content-protect",
+    "encryptable",
+#endif
     "function-brick_id_voltage",
     "function-dock_parent",
     "function-error_handler",
@@ -121,6 +174,16 @@ static const char *REM_PROPS[] = {
     "nvme-coastguard",
     "pmp",
     "soc-tuning",
+#if ENABLE_BASEBAND == 0
+    "baseband-chipset",
+    "has-baseband",
+#endif
+//#if 1
+//#if 0
+#if ENABLE_SEP_SECURITY == 0
+    "pearl-camera",
+    "face-detection-support",
+#endif
 };
 
 static void allocate_and_copy(MemoryRegion *mem, AddressSpace *as,
@@ -423,7 +486,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     set_dtb_prop(child, "firmware-version", 28, "ChefKiss QEMU Apple Silicon");
 
     if (info->nvram_size > XNU_MAX_NVRAM_SIZE) {
-        warn_report("NVRAM size is larger than expected. (%llX vs %X)",
+        warn_report("NVRAM size is larger than expected. (0x%" PRIx64 " vs %X)",
                     info->nvram_size, XNU_MAX_NVRAM_SIZE);
         info->nvram_size = XNU_MAX_NVRAM_SIZE;
     }
@@ -432,21 +495,79 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     set_dtb_prop(child, "nvram-proxy-data", info->nvram_size, info->nvram_data);
 
     data = 1;
+#if 0
+    data = 0;
+#endif
+#if 0
     set_dtb_prop(child, "research-enabled", sizeof(data), &data);
-    prop = set_dtb_prop(child, "effective-production-status-ap", sizeof(data),
-                        &data);
+#endif
+//#if ENABLE_SEP == 0
+//#if ENABLE_SEP_SECURITY == 0
+#if 0
+    data = 0;
+#else
+    data = 1;
+#endif
+    set_dtb_prop(child, "effective-production-status-ap", sizeof(data), &data);
+    set_dtb_prop(child, "effective-security-mode-ap", sizeof(data), &data);
 
+    data = 1;
+    // These are needed by the image4 parser
     set_dtb_prop(child, "security-domain", sizeof(data), &data);
     set_dtb_prop(child, "chip-epoch", sizeof(data), &data);
+#if 1
+    data = 1;
+#endif
     set_dtb_prop(child, "amfi-allows-trust-cache-load", sizeof(data), &data);
     data = 0;
     set_dtb_prop(child, "debug-enabled", sizeof(data), &data);
+    ////data = 0;
+    //data = 1;
+#if ENABLE_SEP_SECURITY
+    data = 1;
+#else
     data = 0;
-    prop = set_dtb_prop(child, "protected-data-access", sizeof(data), &data);
+#endif
+    ////set_dtb_prop(child, "protected-data-access", sizeof(data), &data);
+    //data = 1;
+    ////data = 0;
+    //set_dtb_prop(child, "ephemeral-storage", sizeof(data), &data);
+
+    child = get_dtb_node(root, "defaults");
+    g_assert_nonnull(child);
+    set_dtb_prop(child, "content-protect", sizeof(data), &data);
+    set_dtb_prop(child, "encryptable", sizeof(data), &data);
+    int data_neg = !data;
+    if (data_neg) {
+        set_dtb_prop(child, "no-effaceable-storage", sizeof(data_neg), &data_neg); // any value, including zero, appears to activate it.
+    }
+    //set_dtb_prop(child, "no-protected-data-access", sizeof(data), &data);
+    //data = 1;
+    //set_dtb_prop(child, "no-effaceable-storage", sizeof(data), &data);
+    //data = 0;
+    //set_dtb_prop(child, "content-protect", sizeof(data), &data);
+    //set_dtb_prop(child, "encryptable", sizeof(data), &data);
 
     child = get_dtb_node(root, "chosen/manifest-properties");
     set_dtb_prop(child, "BNCH", sizeof(info->boot_nonce_hash),
                  info->boot_nonce_hash);
+
+#if 1
+    child = get_dtb_node(root, "product");
+    g_assert_nonnull(child);
+#if 0
+    data = 1;
+    set_dtb_prop(child, "boot-ios-diagnostics", sizeof(data), &data); // This causes keystore issues.
+#endif
+#if 0
+    data = 1;
+    set_dtb_prop(child, "allow-hactivation", sizeof(data), &data); // Needs *DEV instead of *AP to be set
+#endif
+
+    child = get_dtb_node(root, "filesystems/fstab/system-vol");
+    g_assert_nonnull(child);
+    set_dtb_prop(child, "vol.fs_type", 3, "rw");
+#endif
 
     macho_dtb_node_process(root, NULL);
 
@@ -461,6 +582,27 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
 
     info->device_tree_size = align_16k_high(get_dtb_node_buffer_size(root));
 }
+
+#if 1
+static void set_memory_range_carveout(DTBNode *root, const char *name, uint64_t addr,
+                             uint64_t size)
+{
+    DTBNode *child;
+    DTBProp *prop;
+
+    g_assert_cmphex(addr, !=, 0);
+    g_assert_cmpuint(size, !=, 0);
+
+    child = get_dtb_node(root, "chosen/carveout-memory-map");
+    g_assert_nonnull(child);
+
+    prop = find_dtb_prop(child, name);
+    g_assert_nonnull(prop);
+
+    ((uint64_t *)prop->value)[0] = addr;
+    ((uint64_t *)prop->value)[1] = size;
+}
+#endif
 
 static void set_memory_range(DTBNode *root, const char *name, uint64_t addr,
                              uint64_t size)
@@ -1134,6 +1276,8 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
     uint64_t virt_low, virt_high;
     macho_highest_lowest(mh, &virt_low, &virt_high);
     bool is_fileset = mh->file_type == MH_FILESET;
+    MachoHeader64 *mh2 = NULL;
+    void *load_from2 = NULL;
 
     cmd = (MachoLoadCommand *)(mh + 1);
     if (!is_fileset) {
@@ -1173,10 +1317,10 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
                      sp = nextsect(sp)) {
                     if ((sp->flags & SECTION_TYPE) ==
                         S_NON_LAZY_SYMBOL_POINTERS) {
-                        void *load_from = (void *)(data + sp->addr - virt_low);
+                        load_from2 = (void *)(data + sp->addr - virt_low);
                         void **nl_symbol_ptr;
-                        for (nl_symbol_ptr = load_from;
-                             nl_symbol_ptr < (void **)(load_from + sp->size);
+                        for (nl_symbol_ptr = load_from2;
+                             nl_symbol_ptr < (void **)(load_from2 + sp->size);
                              nl_symbol_ptr++) {
                             *nl_symbol_ptr += virt_slide;
                         }
@@ -1186,11 +1330,11 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
 
             if (!is_fileset) {
                 if (strcmp(segCmd->segname, "__TEXT") == 0) {
-                    MachoHeader64 *mh = load_from;
+                    mh2 = load_from;
                     MachoSegmentCommand64 *seg;
-                    g_assert_cmphex(mh->magic, ==, MACH_MAGIC_64);
-                    for (seg = macho_get_firstseg(mh); seg != NULL;
-                         seg = macho_get_nextseg(mh, seg)) {
+                    g_assert_cmphex(mh2->magic, ==, MACH_MAGIC_64);
+                    for (seg = macho_get_firstseg(mh2); seg != NULL;
+                         seg = macho_get_nextseg(mh2, seg)) {
                         MachoSection64 *sp;
                         seg->vmaddr += virt_slide;
                         for (sp = firstsect(seg); sp != endsect(seg);
@@ -1204,7 +1348,7 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
 
 #if 0
             error_report(
-                "Loading %s to 0x%llx (filesize: 0x%llX vmsize: 0x%llX)",
+                "Loading %s to 0x%" PRIx64 " (filesize: 0x%" PRIx64 " vmsize: 0x%" PRIx64 ")",
                 region_name, load_to, segCmd->filesize, segCmd->vmsize);
 #endif
             uint8_t *buf = g_malloc0(segCmd->vmsize);
@@ -1215,10 +1359,11 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
 
             if (!is_fileset) {
                 if (strcmp(segCmd->segname, "__TEXT") == 0) {
-                    MachoHeader64 *mh = load_from;
+                    mh2 = load_from;
                     MachoSegmentCommand64 *seg;
-                    for (seg = macho_get_firstseg(mh); seg != NULL;
-                         seg = macho_get_nextseg(mh, seg)) {
+                    g_assert_cmphex(mh2->magic, ==, MACH_MAGIC_64);
+                    for (seg = macho_get_firstseg(mh2); seg != NULL;
+                         seg = macho_get_nextseg(mh2, seg)) {
                         MachoSection64 *sp;
                         seg->vmaddr -= virt_slide;
                         for (sp = firstsect(seg); sp != endsect(seg);
@@ -1235,10 +1380,10 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
                      sp = nextsect(sp)) {
                     if ((sp->flags & SECTION_TYPE) ==
                         S_NON_LAZY_SYMBOL_POINTERS) {
-                        void *load_from = (void *)(data + sp->addr - virt_low);
+                        load_from2 = (void *)(data + sp->addr - virt_low);
                         void **nl_symbol_ptr;
-                        for (nl_symbol_ptr = load_from;
-                             nl_symbol_ptr < (void **)(load_from + sp->size);
+                        for (nl_symbol_ptr = load_from2;
+                             nl_symbol_ptr < (void **)(load_from2 + sp->size);
                              nl_symbol_ptr++) {
                             *nl_symbol_ptr -= virt_slide;
                         }

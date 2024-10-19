@@ -78,6 +78,7 @@ typedef struct {
     uint8_t amcc_reg[0x100000];
     bool kaslr_off;
     bool force_dfu;
+    uint32_t board_id;
 } T8030MachineState;
 
 #endif /* HW_ARM_APPLE_SILICON_T8030_H */

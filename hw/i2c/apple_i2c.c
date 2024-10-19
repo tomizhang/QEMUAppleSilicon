@@ -6,7 +6,7 @@
 #include "qemu/log.h"
 #include "qemu/module.h"
 
-// #define DEBUG_APPLE_I2C
+#define DEBUG_APPLE_I2C
 
 #define MMIO_SIZE (0x10000)
 
@@ -122,7 +122,7 @@ static void apple_i2c_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
     switch (addr) {
     case REG_MTXFIFO: {
-        uint8_t addr = kMTXFIFOData(value) >> 1;
+        uint8_t i2c_addr = kMTXFIFOData(value) >> 1;
         iflg = true;
         if ((value & kMTXFIFOStart)) {
             if (kMTXFIFOData(value) & 1) {
@@ -130,9 +130,9 @@ static void apple_i2c_reg_write(void *opaque, hwaddr addr, uint64_t data,
             } else {
                 s->is_recv = false;
             }
-            if (i2c_start_transfer(s->bus, addr, s->is_recv) != 0) {
+            if (i2c_start_transfer(s->bus, i2c_addr, s->is_recv) != 0) {
                 qemu_log_mask(LOG_GUEST_ERROR, "%s: can't find device @ 0x%x\n",
-                              dev->id, addr);
+                              dev->id, i2c_addr);
                 REG(s, REG_SMSTA) |= kSMSTAmtn;
                 break;
             }
@@ -144,7 +144,7 @@ static void apple_i2c_reg_write(void *opaque, hwaddr addr, uint64_t data,
                 uint8_t len = kMTXFIFOData(value);
                 if (!s->is_recv) {
                     s->is_recv = 1;
-                    if (i2c_start_transfer(s->bus, addr, s->is_recv) != 0) {
+                    if (i2c_start_transfer(s->bus, i2c_addr, s->is_recv) != 0) {
                         REG(s, REG_SMSTA) |= kSMSTAmtn;
                         break;
                     }
@@ -161,7 +161,7 @@ static void apple_i2c_reg_write(void *opaque, hwaddr addr, uint64_t data,
             } else {
                 if (s->is_recv) {
                     s->is_recv = 0;
-                    if (i2c_start_transfer(s->bus, addr, s->is_recv) != 0) {
+                    if (i2c_start_transfer(s->bus, i2c_addr, s->is_recv) != 0) {
                         REG(s, REG_SMSTA) |= kSMSTAmtn;
                         break;
                     }

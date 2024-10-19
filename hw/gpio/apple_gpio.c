@@ -368,6 +368,42 @@ static const MemoryRegionOps gpio_reg_ops = {
     .valid.unaligned = false,
 };
 
+DeviceState *apple_custom_gpio_create(char *name, uint64_t mmio_size, uint32_t gpio_pins, uint32_t gpio_int_groups, uint32_t phandle)
+{
+    int i;
+    DeviceState *dev;
+    SysBusDevice *sbd;
+    AppleGPIOState *s;
+
+    dev = qdev_new(TYPE_APPLE_GPIO);
+    sbd = SYS_BUS_DEVICE(dev);
+    s = APPLE_GPIO(dev);
+
+    s->iomem = g_new(MemoryRegion, 1);
+    dev->id = g_strdup(name);
+    memory_region_init_io(s->iomem, OBJECT(dev), &gpio_reg_ops, s,
+                          (const char *)name, mmio_size);
+    sysbus_init_mmio(sbd, s->iomem);
+
+    s->npins = gpio_pins;
+    assert(s->npins < GPIO_MAX_PIN_NR);
+    qdev_init_gpio_in(dev, apple_gpio_set, s->npins);
+
+    s->out = g_new(qemu_irq, s->npins);
+    qdev_init_gpio_out(dev, s->out, s->npins);
+
+    s->nirqgrps = gpio_int_groups;
+    s->irqs = g_new(qemu_irq, s->nirqgrps);
+
+    for (i = 0; i < s->nirqgrps; i++) {
+        sysbus_init_irq(sbd, &s->irqs[i]);
+    }
+
+    s->phandle = phandle;
+
+    return dev;
+}
+
 DeviceState *apple_gpio_create(DTBNode *node)
 {
     int i;

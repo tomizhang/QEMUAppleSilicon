@@ -192,7 +192,11 @@ static int pmu_d2255_event(I2CSlave *i2c, enum i2c_event event)
         info_report("PMU D2255: transaction nack.");
 #endif
         return -1;
+    default:
+        info_report("PMU D2255: TODO: DEFAULT CASE!!! what to return?");
+        return -1;
     }
+    return 0;
 }
 
 static uint8_t pmu_d2255_rx(I2CSlave *i2c)

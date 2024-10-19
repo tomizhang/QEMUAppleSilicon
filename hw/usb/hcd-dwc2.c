@@ -1252,22 +1252,22 @@ static void dwc2_device_process_packet(DWC2State *s, USBPacket *p)
                 while (dma_memory_read(
                            &s->dma_as, s->diepdma(ep) | SOC_DMA_BASE, &desc,
                            sizeof(desc), MEMTXATTRS_UNSPECIFIED) == MEMTX_OK) {
-                    uint32_t amtDone = 0;
+                    uint32_t amtDone2 = 0;
                     if (DEV_DMA_BUFF_STS_GET(desc.status)) {
                         break;
                     }
                     dma_addr_t nbytes = desc.status & DEV_DMA_NBYTES_MASK;
                     if (sglist.size + nbytes >= pktsize) {
-                        amtDone += pktsize - sglist.size;
+                        amtDone2 += pktsize - sglist.size;
                         nbytes -= pktsize - sglist.size;
                         desc.status |= DEV_DMA_L;
                     } else {
-                        amtDone += nbytes;
+                        amtDone2 += nbytes;
                         nbytes = 0;
                     }
                     desc.status &= ~DEV_DMA_NBYTES_MASK;
                     desc.status |= nbytes & DEV_DMA_NBYTES_MASK;
-                    qemu_sglist_add(&sglist, desc.buf, amtDone);
+                    qemu_sglist_add(&sglist, desc.buf, amtDone2);
                     ioc |= (desc.status & DEV_DMA_IOC) != 0;
                     desc.status &= ~DEV_DMA_BUFF_STS_MASK;
                     desc.status |= DEV_DMA_BUFF_STS_DMADONE
@@ -1315,7 +1315,7 @@ static void dwc2_device_process_packet(DWC2State *s, USBPacket *p)
                                     p->iov.size, sz, pktcnt);
 #endif
                 if (amtDone > 0) {
-                    g_autofree void *buffer = g_malloc0(amtDone);
+                    buffer = g_malloc0(amtDone);
                     if (s->diepdma(ep)) {
                         dma_memory_read(&s->dma_as,
                                         s->diepdma(ep) | SOC_DMA_BASE, buffer,
@@ -1422,7 +1422,7 @@ static void dwc2_device_process_packet(DWC2State *s, USBPacket *p)
                 while (dma_memory_read(
                            &s->dma_as, s->doepdma(ep) | SOC_DMA_BASE, &desc,
                            sizeof(desc), MEMTXATTRS_UNSPECIFIED) == MEMTX_OK) {
-                    uint32_t amtDone = 0;
+                    amtDone = 0;
                     if (DEV_DMA_BUFF_STS_GET(desc.status)) {
                         break;
                     }
@@ -1489,7 +1489,7 @@ static void dwc2_device_process_packet(DWC2State *s, USBPacket *p)
                     usb_packet_copy(p, buffer, amtDone);
 
                     if (s->doepdma(ep)) {
-                        fprintf(stderr, "DWC2 testval0: 0x%llx\n",
+                        fprintf(stderr, "DWC2 testval0: 0x%" PRIx64 "\n",
                                 *(uint64_t *)&(s->doepdma(ep)));
                         dma_memory_write(&s->dma_as,
                                          s->doepdma(ep) | SOC_DMA_BASE, buffer,
@@ -2212,7 +2212,7 @@ static void dwc2_reset_enter(Object *obj, ResetType type)
     s->diepctl(0) |= DXEPCTL_USBACTEP;
     s->doepctl(0) |= DXEPCTL_USBACTEP;
 
-    for (int i = 0; i < DWC2_NB_EP; i++) {
+    for (i = 0; i < DWC2_NB_EP; i++) {
         s->dptxfsiz[i] = (0x100 << FIFOSIZE_DEPTH_SHIFT) | 0x100;
     }
 

@@ -247,8 +247,13 @@ DTBProp *set_dtb_prop(DTBNode *node, const char *name, const uint32_t size,
     }
     strncpy((char *)prop->name, name, DTB_PROP_NAME_LEN);
     prop->length = size;
-    prop->value = g_malloc0(size);
-    memcpy(prop->value, val, size);
+    if (size == 0) {
+        prop->value = NULL;
+    } else {
+        prop->value = g_malloc0(size);
+        //qemu_log_mask(LOG_UNIMP, "%s: prop->value == %p val == %p size == %u\n", __func__, prop->value, val, size);
+        memcpy(prop->value, val, size);
+    }
 
     return prop;
 }
@@ -409,7 +414,7 @@ DTBNode *get_dtb_node(DTBNode *node, const char *path)
         }
 
         if (!found) {
-            DTBNode *child = g_new0(DTBNode, 1);
+            child = g_new0(DTBNode, 1);
 
             set_dtb_prop(child, "name", name_len + 1, (uint8_t *)name);
             node->child_nodes = g_list_append(node->child_nodes, child);

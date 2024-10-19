@@ -11,6 +11,8 @@ arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
     'apple-silicon/dtb.c',
     'apple-silicon/mem.c',
     'apple-silicon/boot.c',
+    'apple-silicon/xnu_pf.c',
+    'apple-silicon/xnu_kpf.c',
 ))
 arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: tasn1)
 arm_ss.add(when: 'CONFIG_APPLE_DART', if_true: files('apple-silicon/dart.c'),

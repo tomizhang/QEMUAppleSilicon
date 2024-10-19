@@ -943,7 +943,7 @@ static void s8000_create_aes(MachineState *machine)
     child = find_dtb_node(child, "aes");
     g_assert_nonnull(child);
 
-    aes = apple_aes_create(child);
+    aes = apple_aes_create(child, s8000_machine->board_id);
     g_assert_nonnull(aes);
 
     object_property_add_child(OBJECT(machine), "aes", OBJECT(aes));
@@ -1205,6 +1205,7 @@ static void s8000_machine_init(MachineState *machine)
     g_assert_nonnull(secure_monitor);
     s8000_machine->kernel = hdr;
     s8000_machine->secure_monitor = secure_monitor;
+    xnu_header = hdr;
     build_version = macho_build_version(hdr);
     info_report("Loading %s %u.%u...", macho_platform_string(hdr),
                 BUILD_VERSION_MAJOR(build_version),
@@ -1269,6 +1270,7 @@ static void s8000_machine_init(MachineState *machine)
     data = 0x8000;
     set_dtb_prop(child, "chip-id", 4, &data);
     data = 0x1; // board-id ; match with apple_aes.c
+    s8000_machine->board_id = data;
     set_dtb_prop(child, "board-id", 4, &data);
 
     if (s8000_machine->ecid == 0) {

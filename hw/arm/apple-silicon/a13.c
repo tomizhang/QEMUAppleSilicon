@@ -132,6 +132,20 @@ void apple_a13_cpu_start(AppleA13State *tcpu)
     }
 }
 
+void apple_a13_cpu_reset(AppleA13State *tcpu)
+{
+    int ret = QEMU_ARM_POWERCTL_RET_SUCCESS;
+
+    if (ARM_CPU(tcpu)->power_state != PSCI_OFF) {
+        ret = arm_reset_cpu(tcpu->mpidr);
+    }
+
+    if (ret != QEMU_ARM_POWERCTL_RET_SUCCESS) {
+        error_report("%s: failed to reset CPU %d: err %d", __func__,
+                     tcpu->cpu_id, ret);
+    }
+}
+
 void apple_a13_cpu_off(AppleA13State *tcpu)
 {
     int ret = QEMU_ARM_POWERCTL_RET_SUCCESS;
@@ -771,7 +785,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
         prop = find_dtb_prop(node, "cpm-impl-reg");
         if (prop) {
             g_assert_cmpuint(prop->length, ==, 16);
-            memcpy(tcpu->cluster_reg, prop->value, 16);
+            memcpy(tcpu->cluster_reg, prop->value, prop->length);
         }
     }
     return tcpu;

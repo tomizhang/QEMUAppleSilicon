@@ -42,6 +42,7 @@ struct AppleSARTState {
 
 static inline uint64_t sart_get_reg(AppleSARTState *s, uint32_t offset)
 {
+    // TODO: ASAN complains about uint64_t*, wants uint32_t*
     return *(uint64_t *)((char *)s->reg + offset);
 }
 
