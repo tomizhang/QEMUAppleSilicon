@@ -512,13 +512,11 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     set_dtb_prop(child, "amfi-allows-trust-cache-load", sizeof(data), &data);
     data = 0;
     set_dtb_prop(child, "debug-enabled", sizeof(data), &data);
-#if ENABLE_SEP == 1
+#if ENABLE_SEP_SECURITY == 1
     data = 1;
 #else
     data = 0;
 #endif
-    set_dtb_prop(child, "protected-data-access", sizeof(data), &data);
-    set_dtb_prop(child, "ephemeral-storage", sizeof(data), &data);
 
     child = get_dtb_node(root, "defaults");
     g_assert_nonnull(child);
