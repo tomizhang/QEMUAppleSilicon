@@ -495,15 +495,8 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     set_dtb_prop(child, "nvram-proxy-data", info->nvram_size, info->nvram_data);
 
     data = 1;
-#if 0
-    data = 0;
-#endif
-#if 0
     set_dtb_prop(child, "research-enabled", sizeof(data), &data);
-#endif
-//#if ENABLE_SEP == 0
-//#if ENABLE_SEP_SECURITY == 0
-#if 0
+#if ENABLE_SEP_SECURITY == 0
     data = 0;
 #else
     data = 1;
@@ -515,44 +508,30 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     // These are needed by the image4 parser
     set_dtb_prop(child, "security-domain", sizeof(data), &data);
     set_dtb_prop(child, "chip-epoch", sizeof(data), &data);
-#if 1
     data = 1;
-#endif
     set_dtb_prop(child, "amfi-allows-trust-cache-load", sizeof(data), &data);
     data = 0;
     set_dtb_prop(child, "debug-enabled", sizeof(data), &data);
-    ////data = 0;
-    //data = 1;
-#if ENABLE_SEP_SECURITY
+#if ENABLE_SEP == 1
     data = 1;
 #else
     data = 0;
 #endif
-    ////set_dtb_prop(child, "protected-data-access", sizeof(data), &data);
-    //data = 1;
-    ////data = 0;
-    //set_dtb_prop(child, "ephemeral-storage", sizeof(data), &data);
+    set_dtb_prop(child, "protected-data-access", sizeof(data), &data);
+    set_dtb_prop(child, "ephemeral-storage", sizeof(data), &data);
 
     child = get_dtb_node(root, "defaults");
     g_assert_nonnull(child);
     set_dtb_prop(child, "content-protect", sizeof(data), &data);
     set_dtb_prop(child, "encryptable", sizeof(data), &data);
-    int data_neg = !data;
-    if (data_neg) {
-        set_dtb_prop(child, "no-effaceable-storage", sizeof(data_neg), &data_neg); // any value, including zero, appears to activate it.
+    if (data == 0) {
+        set_dtb_prop(child, "no-effaceable-storage", 0, &data); // activated via presence of prop
     }
-    //set_dtb_prop(child, "no-protected-data-access", sizeof(data), &data);
-    //data = 1;
-    //set_dtb_prop(child, "no-effaceable-storage", sizeof(data), &data);
-    //data = 0;
-    //set_dtb_prop(child, "content-protect", sizeof(data), &data);
-    //set_dtb_prop(child, "encryptable", sizeof(data), &data);
 
     child = get_dtb_node(root, "chosen/manifest-properties");
     set_dtb_prop(child, "BNCH", sizeof(info->boot_nonce_hash),
                  info->boot_nonce_hash);
 
-#if 1
     child = get_dtb_node(root, "product");
     g_assert_nonnull(child);
 #if 0
@@ -562,11 +541,6 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
 #if 0
     data = 1;
     set_dtb_prop(child, "allow-hactivation", sizeof(data), &data); // Needs *DEV instead of *AP to be set
-#endif
-
-    child = get_dtb_node(root, "filesystems/fstab/system-vol");
-    g_assert_nonnull(child);
-    set_dtb_prop(child, "vol.fs_type", 3, "rw");
 #endif
 
     macho_dtb_node_process(root, NULL);
@@ -583,7 +557,6 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     info->device_tree_size = align_16k_high(get_dtb_node_buffer_size(root));
 }
 
-#if 1
 static void set_memory_range_carveout(DTBNode *root, const char *name, uint64_t addr,
                              uint64_t size)
 {
@@ -602,7 +575,6 @@ static void set_memory_range_carveout(DTBNode *root, const char *name, uint64_t 
     ((uint64_t *)prop->value)[0] = addr;
     ((uint64_t *)prop->value)[1] = size;
 }
-#endif
 
 static void set_memory_range(DTBNode *root, const char *name, uint64_t addr,
                              uint64_t size)
