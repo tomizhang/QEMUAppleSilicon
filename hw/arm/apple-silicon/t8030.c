@@ -189,40 +189,27 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     const uint32_t nop = cpu_to_le32(0xD503201F);
     //! disable_kprintf_output = 0;
     *(uint32_t *)vtop_static(0xFFFFFFF0077142C8 + g_virt_slide) = 0;
-    //! debug_enabled = 1;
-    *(uint32_t *)vtop_static(0xFFFFFFF007038758 + g_virt_slide) = 1;
     //! AppleSEPManager::_initTimeoutMultiplier 'sim' -> '  m'
     *(uint32_t *)vtop_static(0xFFFFFFF008B569E0 + g_virt_slide) =
         cpu_to_le32(0x52840408);
-    // __mac_mount allow union mount
-    *(uint32_t *)vtop_static(0xFFFFFFF007BF3C94 + g_virt_slide) = nop;
-    // __mac_mount allow root mount
-    *(uint32_t *)vtop_static(0xFFFFFFF007BF3CC4 + g_virt_slide) =
-        cpu_to_le32(0xAA1F03E8);
     // gAppleSMCDebugLevel = 0xFFFFFFFF;
     //*(uint32_t *)vtop_static(0xFFFFFFF0099EAA18) = 0xFFFFFFFF;
     // gAppleSMCDebugPath = 0x2;
     //*(uint32_t *)vtop_static(0xFFFFFFF0099EAA1C) = 0x2;
+    // Disable AMX
+    *(uint32_t *)vtop_static(0xFFFFFFF007B64494 + g_virt_slide) = cpu_to_le32(0x5280000A); // _gAMXVersion = 0
+    *(uint32_t *)vtop_static(0xFFFFFFF007B644A4 + g_virt_slide) = cpu_to_le32(0x52810009); // __cpu_capabilities | 0x800 (ucnormal)
 #if ENABLE_SEP == 0
     // Make all AppleSEPKeyStoreUserClient requests do nothing but return success
     *(uint32_t *)vtop_static(0xFFFFFFF008F6F774 + g_virt_slide) = cpu_to_le32(0x52800000);
     *(uint32_t *)vtop_static(0xFFFFFFF008F6F778 + g_virt_slide) = cpu_to_le32(0xD65F0FFF);
 #else
-    // re-enable it in case that the kernel is already patched
-    *(uint32_t *)vtop_static(0xFFFFFFF008F6F774 + g_virt_slide) = cpu_to_le32(0xd10783ff);
-    *(uint32_t *)vtop_static(0xFFFFFFF008F6F778 + g_virt_slide) = cpu_to_le32(0xa9186ffc);
-#endif
-    // Disable AMX
-    *(uint32_t *)vtop_static(0xfffffff007b64494 + g_virt_slide) = cpu_to_le32(0x5280000a); // _gAMXVersion = 0
-    *(uint32_t *)vtop_static(0xfffffff007b644a4 + g_virt_slide) = cpu_to_le32(0x52810009); // __cpu_capabilities | 0x800 (ucnormal)
-    //
-#if ENABLE_SEP == 1
-    *(uint32_t *)vtop_static(0xfffffff008b576b4 + g_virt_slide) = nop; // AppleSEPManager::_tracingEnabled: disable _PE_i_can_has_debugger check, only rely on sep_tracing
-    *(uint32_t *)vtop_static(0xfffffff008b57b28 + g_virt_slide) = nop; // AppleSEPManager::_bootSEP: disable _PE_i_can_has_debugger check, so it won't skip reading bootarg sep-trace-size
-    *(uint32_t *)vtop_static(0xfffffff008b58030 + g_virt_slide) = 0x52a00028; // AppleSEPManager::_loadChannelObjectEntries: use SCOT as TRAC, thus making it bigger.
+    *(uint32_t *)vtop_static(0xFFFFFFF008B576B4 + g_virt_slide) = nop; // AppleSEPManager::_tracingEnabled: disable _PE_i_can_has_debugger check, only rely on sep_tracing
+    *(uint32_t *)vtop_static(0xFFFFFFF008B57B28 + g_virt_slide) = nop; // AppleSEPManager::_bootSEP: disable _PE_i_can_has_debugger check, so it won't skip reading bootarg sep-trace-size
+    *(uint32_t *)vtop_static(0xFFFFFFF008B58030 + g_virt_slide) = cpu_to_le32(0x52A00028); // AppleSEPManager::_loadChannelObjectEntries: use SCOT as TRAC, thus making it bigger.
 #endif
 #if 1
-    *(uint8_t *)vtop_static(0xfffffff0075085fc + g_virt_slide) = 'x'; // com.apple.os.update- -> xom.apple.os.update-
+    *(char *)vtop_static(0xFFFFFFF0075085FC + g_virt_slide) = 'x'; // com.apple.os.update- -> xom.apple.os.update-
 #endif
     kpf();
 }
