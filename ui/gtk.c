@@ -1563,7 +1563,6 @@ static void gd_menu_zoom_fit(GtkMenuItem *item, void *opaque)
 
 static void gd_grab_update(VirtualConsole *vc, bool kbd, bool ptr)
 {
-    return;
     GdkDisplay *display = gtk_widget_get_display(vc->gfx.drawing_area);
     GdkSeat *seat = gdk_display_get_default_seat(display);
     GdkWindow *window = gtk_widget_get_window(vc->gfx.drawing_area);
@@ -1588,7 +1587,6 @@ static void gd_grab_update(VirtualConsole *vc, bool kbd, bool ptr)
 
 static void gd_grab_keyboard(VirtualConsole *vc, const char *reason)
 {
-    return;
     if (vc->s->kbd_owner) {
         if (vc->s->kbd_owner == vc) {
             return;
@@ -1621,7 +1619,6 @@ static void gd_ungrab_keyboard(GtkDisplayState *s)
 
 static void gd_grab_pointer(VirtualConsole *vc, const char *reason)
 {
-    return;
     GdkDisplay *display = gtk_widget_get_display(vc->gfx.drawing_area);
 
     if (vc->s->ptr_owner) {
