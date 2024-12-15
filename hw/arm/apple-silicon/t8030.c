@@ -199,12 +199,20 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     *(uint32_t *)vtop_static(0xFFFFFFF008F6F774 + g_virt_slide) = cpu_to_le32(0x52800000);
     *(uint32_t *)vtop_static(0xFFFFFFF008F6F778 + g_virt_slide) = cpu_to_le32(0xD65F0FFF);
 #else
+    // re-enable it in case that the kernel is already patched
+    *(uint32_t *)vtop_static(0xFFFFFFF008F6F774 + g_virt_slide) = cpu_to_le32(0xd10783ff);
+    *(uint32_t *)vtop_static(0xFFFFFFF008F6F778 + g_virt_slide) = cpu_to_le32(0xa9186ffc);
+
     *(uint32_t *)vtop_static(0xFFFFFFF008B576B4 + g_virt_slide) = nop; // AppleSEPManager::_tracingEnabled: disable _PE_i_can_has_debugger check, only rely on sep_tracing
     *(uint32_t *)vtop_static(0xFFFFFFF008B57B28 + g_virt_slide) = nop; // AppleSEPManager::_bootSEP: disable _PE_i_can_has_debugger check, so it won't skip reading bootarg sep-trace-size
     *(uint32_t *)vtop_static(0xFFFFFFF008B58030 + g_virt_slide) = cpu_to_le32(0x52A00028); // AppleSEPManager::_loadChannelObjectEntries: use SCOT as TRAC, thus making it bigger.
 #endif
 #if 1
     *(char *)vtop_static(0xFFFFFFF0075085FC + g_virt_slide) = 'x'; // com.apple.os.update- -> xom.apple.os.update-
+#endif
+//#if ENABLE_PCIE == 1
+#if 1
+    *(uint32_t *)vtop_static(0xfffffff00984ab1c + g_virt_slide) = cpu_to_le32(0xffffffff); // _gAPCIEdebugFlags: orig == 0x80000001
 #endif
     kpf();
 }
@@ -2047,6 +2055,26 @@ static void t8030_roswell_create(MachineState *machine)
     apple_roswell_create(machine, *(uint32_t *)prop->value);
 }
 
+static void t8030_create_misc(MachineState *machine)
+{
+    DTBProp *prop;
+    T8030MachineState *t8030_machine = T8030_MACHINE(machine);
+    DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
+    uint32_t data;
+    g_assert_nonnull(child);
+    child = find_dtb_node(child, "bluetooth");
+    g_assert_nonnull(child);
+    //data = 0x7; // orig == PCIE
+    data = 0x0; // mod == USB
+    //data = 0x1; // mod == HS
+    //data = 0x2; // mod == H4DS
+    //data = 0x3; // mod == H4BC (UART?)
+    //data = 0x4; // mod == H5
+    //data = 0x5; // mod == BCSP Transport not supported, fallback USB
+    //data = 0x6; // mod == APPLEBT
+    set_dtb_prop(child, "transport-encoding", sizeof(data), &data);
+}
+
 static void t8030_display_create(MachineState *machine)
 {
     T8030MachineState *t8030_machine;
@@ -2568,6 +2596,8 @@ static void t8030_machine_init(MachineState *machine)
 #if ENABLE_ROSWELL == 1
     t8030_roswell_create(machine);
 #endif
+
+    t8030_create_misc(machine);
 
     t8030_display_create(machine);
 

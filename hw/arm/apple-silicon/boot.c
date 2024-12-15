@@ -99,6 +99,12 @@ static const char *KEEP_COMP[] = {
 #endif
     "wdt,s8000\0wdt,s5l8960x\0$",
     "wdt,t8030\0wdt,s5l8960x\0$",
+#if 0
+    "wlan-pcie,bcm4378\0wlan-pcie,bcm\0$",
+#endif
+#if 1
+    "bluetooth,n88\0$",
+#endif
 };
 
 static const char *REM_NAMES[] = {
@@ -117,18 +123,21 @@ static const char *REM_NAMES[] = {
     "pearl-sep\0$", "isp\0$",
     "xART\0$",
 #endif
-#if ENABLE_SEP_SECURITY == 0
+#if ENABLE_SEP_SECURITY == 0 // necessary?
     "pearl-sep\0$", "isp\0$",
     "Lynx\0$",
 #endif
 };
 
 static const char *REM_DEV_TYPES[] = {
-    "aop\0$", "backlight\0$", "bluetooth\0$", "pmp\0$", "wlan\0$",
+#if 0
+    "bluetooth\0$", "wlan\0$",
+#endif
+    "aop\0$", "backlight\0$", "pmp\0$",
 #if ENABLE_BASEBAND == 0
     "baseband\0$", "baseband-spmi\0$",
 #endif
-#if ENABLE_SEP_SECURITY == 0
+#if ENABLE_SEP_SECURITY == 0 // necessary?
     "spherecontrol\0$"
 #endif
 };
@@ -158,7 +167,7 @@ static const char *REM_PROPS[] = {
     "baseband-chipset",
     "has-baseband",
 #endif
-#if ENABLE_SEP_SECURITY == 0
+#if ENABLE_SEP_SECURITY == 0 // necessary?
     "pearl-camera",
     "face-detection-support",
 #endif
