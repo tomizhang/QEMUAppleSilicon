@@ -74,7 +74,7 @@ static const char *KEEP_COMP[] = {
     "otgphyctrl,s8000\0otgphyctrl,s5l8960x\0$",
     "pmgr1,s8000\0$",
     "pmgr1,t8030\0$",
-    "pmu,d2255\0$",
+    "pmu,d2255\0$", // can cause problems on S8000 (if AIC is configured for T8030?)
     "pmu,spmi\0pmu,avus\0$",
 #if ENABLE_ROSWELL == 1
     "roswell\0$",
@@ -115,25 +115,10 @@ static const char *REM_NAMES[] = {
     "sep\0$", "dart-sep\0$",
     "xart-vol\0$",
     "pearl-sep\0$", "isp\0$",
-    //"hilo\0$",
     "xART\0$",
-#endif
-#if 0
-//#if 1
-    "pearl-sep\0$", "isp\0$",
-#endif
-#if 0
-//#if 1
-    //"hilo\0$", // doesn't actually exist
-#endif
-#if 0
-//#if 1
-    "xART\0$",
-    "xart-vol\0$",
 #endif
 #if ENABLE_SEP_SECURITY == 0
     "pearl-sep\0$", "isp\0$",
-    //"hilo\0$",
     "Lynx\0$",
 #endif
 };
@@ -143,18 +128,13 @@ static const char *REM_DEV_TYPES[] = {
 #if ENABLE_BASEBAND == 0
     "baseband\0$", "baseband-spmi\0$",
 #endif
-//#if 1
-//#if 0
 #if ENABLE_SEP_SECURITY == 0
     "spherecontrol\0$"
 #endif
 };
 
 static const char *REM_PROPS[] = {
-////#if ENABLE_SEP_SECURITY == 0
-//#if 0
 #if ENABLE_SEP == 0
-//#if 1
     // Really DON'T make this depend on ENABLE_SEP_SECURITY. Make it depend on ENABLE_SEP!
     "content-protect",
     "encryptable",
@@ -178,8 +158,6 @@ static const char *REM_PROPS[] = {
     "baseband-chipset",
     "has-baseband",
 #endif
-//#if 1
-//#if 0
 #if ENABLE_SEP_SECURITY == 0
     "pearl-camera",
     "face-detection-support",
@@ -496,11 +474,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
 
     data = 1;
     set_dtb_prop(child, "research-enabled", sizeof(data), &data);
-#if ENABLE_SEP_SECURITY == 0
-    data = 0;
-#else
     data = 1;
-#endif
     set_dtb_prop(child, "effective-production-status-ap", sizeof(data), &data);
     set_dtb_prop(child, "effective-security-mode-ap", sizeof(data), &data);
 
@@ -532,10 +506,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
 
     child = get_dtb_node(root, "product");
     g_assert_nonnull(child);
-#if 0
-    data = 1;
-    set_dtb_prop(child, "boot-ios-diagnostics", sizeof(data), &data); // This causes keystore issues.
-#endif
+    // setting boot-ios-diagnostics to 1 causes keystore issues.
 #if 0
     data = 1;
     set_dtb_prop(child, "allow-hactivation", sizeof(data), &data); // Needs *DEV instead of *AP to be set

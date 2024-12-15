@@ -79,13 +79,11 @@
 #define T8030_DISPLAY_SIZE (67ull * MiB)
 
 // TODO: the overlap can be worked around in two ways, by moving the kernel away or by moving ans_text/sio away.
+// TODO: Fix it properly by implementing a carveout allocator
 
 //#define T8030_KERNEL_REGION_BASE T8030_DRAM_BASE
-#define T8030_KERNEL_REGION_SIZE 0xF000000ull
 #define T8030_KERNEL_REGION_BASE (T8030_DRAM_BASE + (32ull * MiB))
-//#define T8030_KERNEL_REGION_SIZE (0xF000000ull + (32ull * MiB))
-////#define T8030_KERNEL_REGION_SIZE 0x1F000000ull
-////#define T8030_KERNEL_REGION_SIZE 0x2F000000ull
+#define T8030_KERNEL_REGION_SIZE 0xF000000ull
 
 #define T8030_SPI_BASE(_x) (0x35100000ull + (_x) * APPLE_SPI_MMIO_SIZE)
 
@@ -298,10 +296,8 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
         get_dtb_node(t8030_machine->device_tree, "/chosen/memory-map");
 
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
-    ////g_phys_base = (hwaddr)macho_get_buffer(hdr) + (32ull * MiB);
     macho_highest_lowest(hdr, &virt_low, &virt_end);
     g_virt_base = virt_low;
-    ////g_virt_base = virt_low + (16ull * MiB);
 
     get_kaslr_slides(t8030_machine, &g_phys_slide, &g_virt_slide);
 
@@ -309,10 +305,6 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     last_base = last_seg->vmaddr;
     text_base = macho_get_segment(hdr, "__TEXT")->vmaddr;
 
-#if 0
-    g_phys_base = phys_ptr = T8030_KERNEL_REGION_BASE;
-    phys_ptr += g_phys_slide;
-#endif
     g_phys_base = T8030_KERNEL_REGION_BASE;
     g_virt_base += g_virt_slide - g_phys_slide;
 
@@ -352,7 +344,6 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
         phys_ptr += info->ramdisk_size;
     }
 
-    //phys_ptr += 0x4000000;
     // SEPFW
     info->sep_fw_addr = phys_ptr;
     if (t8030_machine->sep_fw_filename) {
@@ -367,7 +358,6 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
         g_file_get_contents(t8030_machine->sep_fw_filename, &sep->sepfw_data, NULL, NULL);
     }
     info->sep_fw_size = align_16k_high(8 * MiB);
-    //info->sep_fw_size += 8 * MiB;
     phys_ptr += info->sep_fw_size;
 
     // Kernel boot args
@@ -384,10 +374,6 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     info_report("Device tree size: 0x" TARGET_FMT_lx, info->device_tree_size);
 
     mem_size = machine->maxram_size - (T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE));
-    //mem_size = machine->maxram_size - ((0x5F000000ull + T8030_KERNEL_REGION_SIZE) - (g_phys_base - T8030_KERNEL_REGION_BASE));
-    //mem_size = 0x78000000;
-    //mem_size = 0xe0000000;
-    //mem_size = 0xf0000000;
     info_report("mem_size: 0x%" PRIx64 "", mem_size);
 
     macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
@@ -548,22 +534,14 @@ static void t8030_memory_setup(MachineState *machine)
                        t8030_machine->seprom_filename);
             return;
         }
-        ////address_space_set(nsas, 0x240100000ull, 0, 0x242200000ull - 0x240100000ull, MEMTXATTRS_UNSPECIFIED);
-        //address_space_set(nsas, T8030_SEPROM_BASE, 0, 0x100000ull, MEMTXATTRS_UNSPECIFIED);
-        //address_space_set(nsas, 0x242200000ull, 0, 0x4000ull, MEMTXATTRS_UNSPECIFIED);
+        // Apparently needed because of a bug occurring on XNU
+        address_space_set(nsas, 0x300000000ULL, 0, 0x8000000ULL, MEMTXATTRS_UNSPECIFIED);
+        address_space_set(nsas, 0x340000000ULL, 0, 0x2000000ULL, MEMTXATTRS_UNSPECIFIED);
         address_space_rw(nsas, T8030_SEPROM_BASE, MEMTXATTRS_UNSPECIFIED,
                          (uint8_t *)seprom, fsize, true);
 
         g_free(seprom);
 
-#if 0
-        uint64_t value = 0x8000000000000000;
-        address_space_write(nsas, t8030_machine->soc_base_pa + 0x42140108,
-                            MEMTXATTRS_UNSPECIFIED, &value, sizeof(value));
-        uint32_t value32 = 0x1;
-        address_space_write(nsas, t8030_machine->soc_base_pa + 0x41448000,
-                            MEMTXATTRS_UNSPECIFIED, &value32, sizeof(value32));
-#endif
         uint64_t value = 0x8000000000000000;
         uint32_t value32_mov_x0_1 = 0xd2800020; // mov x0, #0x1
         uint32_t value32_mov_x0_0 = 0xd2800000; // mov x0, #0x0
@@ -695,21 +673,16 @@ static void t8030_memory_setup(MachineState *machine)
     set_dtb_prop(chosen, "ephemeral-storage", sizeof(restore_enabled), &restore_enabled);
     set_dtb_prop(chosen, "sepfw-load-at-boot", sizeof(restore_enabled_neg), &restore_enabled_neg);
     set_dtb_prop(chosen, "no-sepfw-load-at-boot", sizeof(restore_enabled), &restore_enabled);
-    //set_dtb_prop(chosen, "protected-data-access", sizeof(restore_enabled_neg), &restore_enabled_neg);
-    //set_dtb_prop(chosen, "no-protected-data-access", sizeof(restore_enabled), &restore_enabled);
     uint32_t val_true = 1;
     uint32_t val_false = 0;
 #if ENABLE_SEP == 0
     set_dtb_prop(chosen, "protected-data-access", sizeof(val_false), &val_false); // has to be enabled when SEP is enabled
-    ////set_dtb_prop(chosen, "no-protected-data-access", sizeof(val_true), &val_true); // does this even exist? (beside that link prop)
 #else
     set_dtb_prop(chosen, "protected-data-access", sizeof(val_true), &val_true); // has to be enabled when SEP is enabled
-    ////set_dtb_prop(chosen, "no-protected-data-access", sizeof(val_false), &val_false); // does this even exist? (beside that link prop)
 #endif // ENABLE_SEP == 0
     set_dtb_prop(chosen, "disable-av-content-protection", sizeof(restore_enabled), &restore_enabled);
     set_dtb_prop(chosen, "use-recovery-securityd", sizeof(restore_enabled), &restore_enabled);
     set_dtb_prop(chosen, "disable-accessory-firmware", sizeof(restore_enabled), &restore_enabled);
-    //set_dtb_prop(product, "boot-ios-diagnostics", sizeof(restore_enabled), &restore_enabled);
 #endif
 
     if (!xnu_contains_boot_arg(cmdline, "rd=", true)) {
@@ -833,15 +806,10 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         return 0xFF;
     case 0x3D2BC000: // CURRENT_PROD?
     case 0x3D2BC400: // ??? maybe T8030 current_prod???
-        if (current_prod == 1)
-            return 0xA55AC33C; // IBFL | 0x10
-        return 0xA050C030; // IBFL | 0x00
-#if 0
-    case 0x3D2BC400: // ??? maybe T8030 current_prod???
         // if 0xBC404 returns 1==0xA55AC33C, this will get ignored
-        // return 0xA050C030; // CPFM | 0x00 ; IBFL_base == 0x04
-        return 0xA55AC33C; // CPFM | 0x03 ; IBFL_base == 0x0C
-#endif
+        if (current_prod == 1)
+            return 0xA55AC33C; // IBFL | 0x10 // CPFM | 0x03 ; IBFL_base == 0x0C
+        return 0xA050C030; // IBFL | 0x00 // CPFM | 0x00 ; IBFL_base == 0x04
     case 0x3D2BC200: // RAW_PROD T8020 AP/SEP
         //if (sep->pmgr_base_regs[0x68] != 0) // if T8020 AP/SEP current_prod and raw_prod are disabled, scrd sets a flag
         //    return 0xA050C030;
@@ -860,10 +828,6 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         if (raw_secure_mode)
             return 0xA55AC33C; // CPFM | 0x01 ; IBFL_base == 0x0C
         return 0xA050C030;
-#if 0
-    case 0x3D2BC604: //? maybe also raw secure mode for T8030???
-        return 0xA050C030;
-#endif
     case 0x3D2BC008:
     case 0x3D2BC208: // Security (raw?) Domain BIT0 T8020 SEP
         if ((security_domain & (1 << 0)) != 0)
@@ -878,7 +842,6 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO? AppleSEPROM-A12-D331pAP
         //uint64_t sep_bit30 = 0;
         uint64_t sep_bit30 = ((sep->pmgr_base_regs[0x8000] & 0x1) != 0);
-        //return (1 << 5) | (0 << 30) | (1 << 31); // _rCFG_FUSE0 ; (security epoch & 0x7F) << 5 ;; (0 << 30) | (1 << 31) for SEP
         return (board_id & 0x7) | ((security_epoch & 0x7f) << 5) | (sep_bit30 << 30) | (1 << 31); // (security epoch & 0x7F) << 5 ;; (sep_bit30 << 30) for SEP | (1 << 31) for SEP and AP
     case 0x3D2BC020: // T8030 iBSS: FUN_19c07feac_return_value_causes_crash; same address on T8020 iBoot, but possibly different handling
         if (1)
@@ -916,13 +879,12 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         //return 0x32B3; // memory encryption AMK (Authentication Master Key) disabled
         return 0xC2E9; // memory encryption AMK (Authentication Master Key) enabled
     case 0x3D2E4800: // ???? 0x240002c00 and 0x2400037a4
-        //////return 0x3; // 0x2400037a4
         return pmgr_unk_e4800; // 0x240002c00 and 0x2400037a4
     case 0x3D2E4000 ... 0x3D2E417f: // ???? 0x24000377c
         return pmgr_unk_e4000[((base + addr) - 0x3D2E4000)/4]; // 0x24000377c
+    /* BEGIN: for T8015 */
     /* BEGIN: from T8030 AP AES */
     case 0x3d2d0020: //! board-id
-        //return 0x4;
         return tms->board_id;
     case 0x3d2d0034: //? bit 24 = is first boot ; bit 25 = something with memory encryption?
         return (1 << 24) | (1 << 25);
@@ -935,7 +897,8 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         return (raw_prod << 0) | (raw_secure_mode << 1);
     case 0x352bc018: // CPRV (Chip Revision) T8015
         return ((chip_revision & 0x7) << 8) | (((chip_revision & 0x70) >> 4) << 11);
-    case 0x3c100c4c:
+    /* END: for T8015 */
+    case 0x3c100c4c: // Could that also have been for T8015? No idea anymore.
         return 0x1;
     ///
     default:
@@ -2397,25 +2360,15 @@ static void t8030_machine_init(MachineState *machine)
                  T8030_SRAM_SIZE, 0);
     allocate_ram(t8030_machine->sysmem, "DRAM", T8030_DRAM_BASE,
                  T8030_DRAM_SIZE, 0);
-    allocate_ram(t8030_machine->sysmem, "SEPROM", T8030_SEPROM_BASE,
-                 T8030_SEPROM_SIZE, 0);
     if (t8030_machine->seprom_filename) {
-        //allocate_ram(t8030_machine->sysmem, "DRAM_3", 0x300000000ULL, 0x100000000ULL, 0);
-        ////allocate_ram(t8030_machine->sysmem, "DRAM_3", 0x300000000ULL, 0x1000000ULL, 0);
-        ////allocate_ram(t8030_machine->sysmem, "DRAM_3", 0x300000000ULL, 0x10000000ULL, 0);
-        //allocate_ram(t8030_machine->sysmem, "DRAM_3", 0x300000000ULL, 0x80000000ULL, 0);
-        ////allocate_ram(t8030_machine->sysmem, "DRAM_3", 0x300000000ULL, 0x20000000ULL, 0);
-        ////allocate_ram(t8030_machine->sysmem, "DRAM_3", 0x300000000ULL, 0x40000000ULL, 0);
-        ////allocate_ram(t8030_machine->sysmem, "DRAM_30", 0x300000000ULL, 0x2000000ULL, 0);
-        //allocate_ram(t8030_machine->sysmem, "DRAM_30", 0x300000000ULL, 0x10000000ULL, 0);
-        //allocate_ram(t8030_machine->sysmem, "DRAM_32", 0x320000000ULL, 0x1000000ULL, 0);
-        ////allocate_ram(t8030_machine->sysmem, "DRAM_34", 0x340000000ULL, 0x1000000ULL, 0);
-        //allocate_ram(t8030_machine->sysmem, "DRAM_34", 0x340000000ULL, 0x10000000ULL, 0);
+        allocate_ram(t8030_machine->sysmem, "SEPROM", T8030_SEPROM_BASE,
+                    T8030_SEPROM_SIZE, 0);
         allocate_ram(t8030_machine->sysmem, "DRAM_30", 0x300000000ULL, 0x8000000ULL, 0); // 0x4000000 is too low
         allocate_ram(t8030_machine->sysmem, "DRAM_34", 0x340000000ULL, 0x2000000ULL, 0); // 0x1000000 is too low
     }
     if (t8030_machine->sep_fw_filename) {
         //allocate_ram(t8030_machine->sysmem, "SEPFW_", 0x000000000ULL, 0x1000000ULL, 0);
+        // allocated in sep.c map_sepfw() instead.
     }
 
     hdr = macho_load_file(machine->kernel_filename, NULL);

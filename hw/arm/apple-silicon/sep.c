@@ -374,7 +374,6 @@ static const char *sepos_return_module_thread_string(uint32_t chip_id, uint64_t 
     }
 }
 
-
 static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
                            unsigned size)
 {
@@ -443,7 +442,7 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         // Might not include SEPOS output, as it's not initialized like e.g. SEPD.
         if (addr_mod == 0x30)
         {
-            uint64_t arg1 = *(uint64_t *)&s->debug_trace_regs[addr - 0x30];
+            uint64_t trace_id = *(uint64_t *)&s->debug_trace_regs[addr - 0x30];
             uint64_t arg2 = *(uint64_t *)&s->debug_trace_regs[addr - 0x28];
             uint64_t arg3 = *(uint64_t *)&s->debug_trace_regs[addr - 0x20];
             uint64_t arg4 = *(uint64_t *)&s->debug_trace_regs[addr - 0x18];
@@ -453,157 +452,204 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
             qemu_log_mask(LOG_UNIMP, "\nDEBUG_TRACE: Debug:"
                 " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx
                 " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx
-                " 0x" HWADDR_FMT_plx "\n" , arg1, arg2, arg3, arg4, arg5, tid, time);
+                " 0x" HWADDR_FMT_plx "\n" , trace_id, arg2, arg3, arg4, arg5, tid, time);
             const char *tid_str = sepos_return_module_thread_string(s->chip_id, tid);
-            if (arg1 == 0x82140340 || arg1 == 0x82140324) // 0x82140340 == sent ; 0x82140324 == received
-            {
-                struct sep_message m = { 0 };
-                memcpy((void*)&m+0x00, &s->debug_trace_regs[offset + 0x88], sizeof(uint32_t));
-                memcpy((void*)&m+0x04, &s->debug_trace_regs[offset + 0x90], sizeof(uint32_t));
-                qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: (tid: 0x%05lx/%s): SEP %s mailbox message:"
-                              " endpoint: 0x%02x tag: 0x%02x opcode: 0x%02x(%u) param: 0x%02x data: 0x%02x\n",
-                              tid, tid_str, (arg1 == 0x82140340) ? "sent" : "received", m.endpoint, m.tag, m.opcode, m.opcode, m.param, m.data);
-            } else if (arg1 == 0x82010004) { // panic
+            switch (trace_id) {
+            case 0x82010004: // panic
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP module panicked\n", tid, tid_str);
-            } else if (arg1 == 0x82030004) { // 0x82030004==initialize_ool_page
+                break;
+            case 0x82030004: // 0x82030004==initialize_ool_page
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: initialize_ool_page:"
                               " obj_id: 0x%02lx address: 0x%02lx\n",
                               tid, tid_str, arg2, arg3);
-            } else if (arg1 == 0x82040005 || arg1 == 0x82040006) { // 0x82040005==before 0x82040006==after SEP_IO__Control
+                break;
+            case 0x82040005: // 0x82040005==before SEP_IO__Control
+                QEMU_FALLTHROUGH;
+            case 0x82040006: // 0x82040006==after SEP_IO__Control
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: %s SEP_IO__Control Sending message to other module:"
                               " fromto: 0x%02lx method: 0x%02lx data0: 0x%02lx data1: 0x%02lx\n",
-                              tid, tid_str, (arg1 == 0x82040005) ? "Before" : "After", arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82050005) { // 0x82050005==SEP_SERVICE__Call: request
+                              tid, tid_str, (trace_id == 0x82040005) ? "Before" : "After", arg2, arg3, arg4, arg5);
+                break;
+            case 0x82050005: // 0x82050005==SEP_SERVICE__Call: request
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_SERVICE__Call: request:"
                               " fromto: 0x%02lx interface_msgid: 0x%02lx method: 0x%02lx data0: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82050006) { // 0x82050006==SEP_SERVICE__Call: response
+                break;
+            case 0x82050006: // 0x82050006==SEP_SERVICE__Call: response
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_SERVICE__Call: response:"
                               " fromto: 0x%02lx interface_msgid: 0x%02lx method: 0x%02lx status/data0: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82060004) { // entered workloop function
+                break;
+            case 0x82060004: // entered workloop function
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP module entered workloop function:"
                               " handlers0: 0x%02lx handlers1: 0x%02lx arg5: 0x%02lx arg6: 0x%02lx\n", tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82060010) { // workloop function: interface_msgid==0xfffe after receiving
+                break;
+            case 0x82060010: // workloop function: interface_msgid==0xfffe after receiving
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP module workloop function:"
                               " interface_msgid==0xfffe after receiving: data0: 0x%02lx\n", tid, tid_str, arg2);
-            } else if (arg1 == 0x82060014) { // workloop function: before handlers0 handler
+                break;
+            case 0x82060014: // workloop function: before handlers0 handler
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP module workloop function: before handlers0 handler:"
                               " handler_index: 0x%02lx data0: 0x%02lx data1: 0x%02lx data2: 0x%02lx\n", tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82060018) { // workloop function: handlers0: handler not found, panic
+                break;
+            case 0x82060018: // workloop function: handlers0: handler not found, panic
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP module workloop function: handlers0: handler not found, panic:"
                               " interface_msgid: 0x%02lx method: 0x%02lx data0: 0x%02lx data1: 0x%02lx\n", tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x8206001c) { // workloop function: interface_msgid==0xfffe before handler
+                break;
+            case 0x8206001c: // workloop function: interface_msgid==0xfffe before handler
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP module workloop function:"
                               " interface_msgid==0xfffe before handler: data0: 0x%02lx handler: 0x%02lx\n", tid, tid_str, arg2, arg3);
-            } else if (arg1 == 0x82080005 || arg1 == 0x82080006) { // 0x82080005==before 0x82080006==after Rpc_Call
+                break;
+            case 0x82080005: // 0x82080005==before Rpc_Call
+                QEMU_FALLTHROUGH;
+            case 0x82080006: // 0x82080006==after Rpc_Call
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: %s Rpc_Call Sending message to other module:"
                               " fromto: 0x%02lx interface_msgid: 0x%02lx ool: 0x%02lx method: 0x%02lx\n",
-                              tid, tid_str, (arg1 == 0x82080005) ? "Before" : "After", arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x8208000d) { // 0x8208000d==before Rpc_Wait
+                              tid, tid_str, (trace_id == 0x82080005) ? "Before" : "After", arg2, arg3, arg4, arg5);
+                break;
+            case 0x8208000d: // 0x8208000d==before Rpc_Wait
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: Before Rpc_Wait Receiving message from other module\n",
                               tid, tid_str);
-            } else if (arg1 == 0x8208000e) { // 0x8208000e==after Rpc_Wait
+                break;
+            case 0x8208000e: // 0x8208000e==after Rpc_Wait
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: After Rpc_Wait Receiving message from other module:"
                               " fromto: 0x%02lx interface_msgid: 0x%02lx ool: 0x%02lx method: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82080019) { // 0x82080019==before Rpc_WaitFrom
+                break;
+            case 0x82080019: // 0x82080019==before Rpc_WaitFrom
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: Before Rpc_WaitFrom Receiving message from other module:"
                               " arg2: 0x%02lx\n",
                               tid, tid_str, arg2);
-            } else if (arg1 == 0x8208001a) { // 0x8208001a==after Rpc_WaitFrom
+                break;
+            case 0x8208001a: // 0x8208001a==after Rpc_WaitFrom
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: After Rpc_WaitFrom Receiving message from other module:"
                               " fromto: 0x%02lx interface_msgid: 0x%02lx ool: 0x%02lx method: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82080011 || arg1 == 0x82080012) { // 0x82080011==before 0x82080012==after Rpc_ReturnWait
+                break;
+            case 0x82080011: // 0x82080011==before Rpc_ReturnWait
+                QEMU_FALLTHROUGH;
+            case 0x82080012: // 0x82080012==after Rpc_ReturnWait
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: %s Rpc_ReturnWait Receiving message from other module:"
                               " fromto: 0x%02lx interface_msgid: 0x%02lx ool: 0x%02lx method: 0x%02lx\n",
-                              tid, tid_str, (arg1 == 0x82080011) ? "Before" : "After", arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82080014) { // 0x82080014==before Rpc_Return return response
+                              tid, tid_str, (trace_id == 0x82080011) ? "Before" : "After", arg2, arg3, arg4, arg5);
+                break;
+            case 0x82080014: // 0x82080014==before Rpc_Return return response
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: Before Rpc_Return return response:"
                               " fromto: 0x%02lx interface_msgid: 0x%02lx ool: 0x%02lx method: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x8208001d) { // 0x8208001d==before Rpc_WaitNotify
+                break;
+            case 0x8208001d: // 0x8208001d==before Rpc_WaitNotify
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: Before Rpc_WaitNotify:"
                               " Rpc_WaitNotify_arg2 != 0: Rpc_WaitNotify_arg1: 0x%02lx\n",
                               tid, tid_str, arg2);
-            } else if (arg1 == 0x8208001e) { // 0x8208001e==after Rpc_WaitNotify
+                break;
+            case 0x8208001e: // 0x8208001e==after Rpc_WaitNotify
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: After Rpc_WaitNotify:"
                               " svc_0x5_0_func_arg2 != 0: svc_0x5_0_func_arg1: 0x%02lx L4_MR0: 0x%02lx\n",
                               tid, tid_str, arg2, arg3);
-            } else if (arg1 == 0x82140004) { // _dispatch_thread_main__intr/SEPD interrupt
-                qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: _dispatch_thread_main__intr/SEPD interrupt 0x%02lx:"
+                break;
+            case 0x82140004: // _dispatch_thread_main__intr/SEPD interrupt
+                qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: _dispatch_thread_main__intr/SEPD interrupt trace_id 0x%02lx:"
                               " arg2: 0x%02lx arg3: 0x%02lx arg4: 0x%02lx arg5: 0x%02lx\n",
-                              tid, tid_str, arg1, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82140014) { // SEP_Driver__Close
+                              tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
+                break;
+            case 0x82140014: // SEP_Driver__Close
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_Driver__Close:"
                               " module_name_int: 0x%02lx fromto: 0x%02lx response_data0: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg5);
-            } else if (arg1 == 0x82140024) { // *_enable_powersave_arg2/SEP_Driver__SetPowerState
+                break;
+            case 0x82140024: // *_enable_powersave_arg2/SEP_Driver__SetPowerState
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_Driver__SetPowerState:"
                               " function called: enable_powersave?: 0x%02lx is_powersave_enabled: 0x%02lx field_cc3: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4);
-            } else if (arg1 == 0x82140031) { // 0x82140031==SEPD_thread_handler: SEP_Driver__before_InterruptAsync
+                break;
+            case 0x82140031: // 0x82140031==SEPD_thread_handler: SEP_Driver__before_InterruptAsync
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEPD_thread_handler: before_InterruptAsync:"
                               " arg2: 0x%02lx\n",
                               tid, tid_str, arg2);
-            } else if (arg1 == 0x82140032) { // 0x82140032==SEPD_thread_handler: SEP_Driver__after_InterruptAsync
+                break;
+            case 0x82140032: // 0x82140032==SEPD_thread_handler: SEP_Driver__after_InterruptAsync
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEPD_thread_handler: after_InterruptAsync\n",
                               tid, tid_str);
-            } else if (arg1 == 0x82140195) { // 0x82140195==AESS_message_received: before AESS_keywrap_cmd_0x02
+                break;
+            case 0x82140195: // 0x82140195==AESS_message_received: before AESS_keywrap_cmd_0x02
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: AESS_message_received: before AESS_keywrap_cmd_0x02:"
                               " data0_low: 0x%02lx data0_high: 0x%02lx data1_low: 0x%02lx data1_high: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82140196) { // 0x82140196==AESS_message_received: after AESS_keywrap_cmd_0x02
+                break;
+            case 0x82140196: // 0x82140196==AESS_message_received: after AESS_keywrap_cmd_0x02
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: AESS_message_received: after AESS_keywrap_cmd_0x02:"
                               " status: 0x%02lx\n",
                               tid, tid_str, arg2);
-            } else if (arg1 == 0x82140328) { // SEP_Driver__Mailbox_RxMessageQueue
+                break;
+            case 0x82140324: // SEP_Driver__Mailbox_Rx
+                struct sep_message m = { 0 };
+                memcpy((void*)&m+0x00, &s->debug_trace_regs[offset + 0x88], sizeof(uint32_t));
+                memcpy((void*)&m+0x04, &s->debug_trace_regs[offset + 0x90], sizeof(uint32_t));
+                qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: (tid: 0x%05lx/%s): SEP_Driver__Mailbox_Rx:"
+                              " endpoint: 0x%02x tag: 0x%02x opcode: 0x%02x(%u) param: 0x%02x data: 0x%02x\n",
+                              tid, tid_str, m.endpoint, m.tag, m.opcode, m.opcode, m.param, m.data);
+                break;
+            case 0x82140328: // SEP_Driver__Mailbox_RxMessageQueue
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_Driver__Mailbox_RxMessageQueue:"
                               " endpoint: 0x%02lx opcode: 0x%02lx arg4: 0x%02lx arg5: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82140334) { // SEP_Driver__Mailbox_ReadMsgFetch
+                break;
+            case 0x82140334: // SEP_Driver__Mailbox_ReadMsgFetch
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_Driver__Mailbox_ReadMsgFetch:"
                               " endpoint: 0x%02lx data: 0x%02lx data2: 0x%02lx read_msg.data[0]: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82140338) { // SEP_Driver__Mailbox_ReadBlocked
+                break;
+            case 0x82140338: // SEP_Driver__Mailbox_ReadBlocked
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_Driver__Mailbox_ReadBlocked:"
                               " for_TRNG_ASC0_ASC1_read_0 returned False: data0: 0x%02lx\n",
                               tid, tid_str, arg2);
-            } else if (arg1 == 0x8214033c) { // SEP_Driver__Mailbox_ReadComplete
+                break;
+            case 0x8214033c: // SEP_Driver__Mailbox_ReadComplete
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_Driver__Mailbox_ReadComplete:"
                               " for_TRNG_ASC0_ASC1_read_0 returned True: data0: 0x%02lx\n",
                               tid, tid_str, arg2);
-            } else if (arg1 == 0x82140340) { // SEP_Driver__Mailbox_Tx
+                break;
+            case 0x82140340: // SEP_Driver__Mailbox_Tx
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_Driver__Mailbox_Tx:"
                               " function_13 returned True:  arg2: 0x%02lx arg3: 0x%02lx arg4: 0x%02lx arg5: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82140344) { // SEP_Driver__Mailbox_TxStall
+                break;
+            case 0x82140344: // SEP_Driver__Mailbox_TxStall
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_Driver__Mailbox_TxStall:"
                               " function_13 returned False: arg2: 0x%02lx arg3: 0x%02lx arg4: 0x%02lx arg5: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4, arg5);
-            } else if (arg1 == 0x82140348 || arg1 == 0x8214034c) { // mod_ASC0_ASC1_function_message_received: 0x82140348 == method_0x4131 ; Mailbox_OOL_In/Mailbox_OOL_Out
-                qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP mod_ASC0_ASC1_function_message_received SEP_Driver Mailbox_OOL_In/Mailbox_OOL_Out:"
-                              " Is%s method_0x4131/Mailbox_OOL_In: arg2: 0x%02lx arg3: 0x%02lx arg4: 0x%02lx\n",
-                              tid, tid_str, (arg1 == 0x82140348) ? "" : " NOT", arg2, arg3, arg4);
-            } else if (arg1 == 0x82140360) { // SEP_Driver__Mailbox_Wake
+                break;
+            case 0x82140348: // mod_ASC0_ASC1_function_message_received: 0x82140348 == method_0x4131/Mailbox_OOL_In
+                QEMU_FALLTHROUGH;
+            case 0x8214034c: // mod_ASC0_ASC1_function_message_received: 0x8214034c == Mailbox_OOL_Out
+                qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP mod_ASC0_ASC1_function_message_received SEP_Driver: Mailbox_OOL_%s:"
+                              " arg2: 0x%02lx arg3: 0x%02lx arg4: 0x%02lx\n",
+                              tid, tid_str, (trace_id == 0x82140348) ? "In" : "Out", arg2, arg3, arg4);
+                break;
+            case 0x82140360: // SEP_Driver__Mailbox_Wake
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_Driver__Mailbox_Wake:"
                               " current value: registers[0x4108]: 0x%08lx SEP_message_incoming: %lu\n", tid, tid_str, arg2, arg3);
-            } else if (arg1 == 0x82140364) { // SEP_Driver__Mailbox_NoData
+                break;
+            case 0x82140364: // SEP_Driver__Mailbox_NoData
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: SEP_Driver__Mailbox_NoData:"
                               " current value: registers[0x4108]: 0x%08lx\n", tid, tid_str, arg2);
-            } else if (arg1 == 0x82140964) { // PMGR_message_received
+                break;
+            case 0x82140964: // PMGR_message_received
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: PMGR_message_received:"
                               " fromto: 0x%02lx data0: 0x%02lx data1: 0x%02lx\n",
                               tid, tid_str, arg2, arg3, arg4);
-            } else if (arg1 == 0x82140968) { // PMGR_enable_clock
+                break;
+            case 0x82140968: // PMGR_enable_clock
                 qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: PMGR_enable_clock:"
                               " enable_clock: 0x%02lx\n",
                               tid, tid_str, arg2);
-            } else { // Unknown trace value
-                qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: Unknown trace value 0x%02lx:"
+                break;
+            default: // Unknown trace value
+                qemu_log_mask(LOG_UNIMP, "DEBUG_TRACE: Description: tid: 0x%05lx/%s: Unknown trace_id 0x%02lx:"
                               " arg2: 0x%02lx arg3: 0x%02lx arg4: 0x%02lx arg5: 0x%02lx\n",
-                              tid, tid_str, arg1, arg2, arg3, arg4, arg5);
+                              tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
+                break;
             }
         }
         break;
@@ -1051,7 +1097,22 @@ static void key_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
-        case 0x8: // command or storage index: 0x20-0x26, 0x30-0x31, 0x04 (without input)
+    case 0x8: // command or storage index: 0x20-0x26, 0x30-0x31, 0x04 (without input)
+        /*
+        cmds:
+        0x0/0x1: wrapping key primary/secondary cmd7_0x4
+        0x2/0x3: auth key primary/secondary cmd7_0x5
+        0x6/0x7: cmd7_0x8
+        0x8/0x9: cmd7_0x9
+        0xa/0xb: sub key primary/secondary cmd7_0x6
+        0xc: cmd7_0xb
+        0xd: cmd7_0xc
+        0xe/0xf: cmd7_0xa
+        0x10..0x16: something about Ks and interfaces cmd7_0x3
+        0x18..0x1e: send data2==data_size_qwords of data cmd7_0x2(cmd7_0x7)
+        0x3f: first 0x40 bytes of random data cmd7_0x7
+        0x40: second 0x40 bytes of random data cmd7_0x7
+        */
         qemu_log_mask(LOG_UNIMP, "SEP KEY_BASE: Offset 0x" HWADDR_FMT_plx ": Execute Command/Storage Index: cmd 0x" HWADDR_FMT_plx "\n", addr, data);
         goto jump_default;
     case 0x308 ... 0x344: // 0x40 bytes of output from TRNG
@@ -1584,7 +1645,7 @@ static void aess_keywrap_uid(AppleAESSState *s, uint8_t *in, uint8_t *out, QCryp
     }
     // TODO: Dirty hack, so iteration_register being set/unset shouldn't result in the same output keys.
     xor_32bit_value(&used_key[0x10], s->reg_0x14_keywrap_iterations_counter, 0x8/4); // seed_bits are only for keywrap
-    fprintf(stderr, "%s: normalized_cmd: 0x%02x cipher_alg: %u; key_len: %lu; iterations: %u\n", __func__, normalized_cmd, cipher_alg, key_len, s->reg_0x14_keywrap_iterations_counter);
+    fprintf(stderr, "%s: s->ctl: 0x%02x normalized_cmd: 0x%02x cipher_alg: %u; key_len: %lu; iterations: %u\n", __func__, s->ctl, normalized_cmd, cipher_alg, key_len, s->reg_0x14_keywrap_iterations_counter);
     hexout("aess_keywrap_uid: used_key", used_key, sizeof(used_key));
     hexout("aess_keywrap_uid: in", in, data_len);
     cipher = qcrypto_cipher_new(
@@ -1699,8 +1760,6 @@ static void aess_handle_cmd(AppleAESSState *s) {
     bool invalid_parameters = register_0x18_keydisable_bit_invalid;
     s->state = 0;
 #if 1
-    //memset(s->tag_out, 0, sizeof(s->tag_out));
-    //memset(s->out, 0, sizeof(s->out));
     memset(s->out_full, 0, sizeof(s->out_full)); // not correct behavior, but SEPFW likes to complain if it doesn't expect the output to be zero, so keep it.
 #endif
 #if 1
@@ -1712,13 +1771,8 @@ static void aess_handle_cmd(AppleAESSState *s) {
         }
     }
 #endif
-    //else if ((s->ctl & 0xff) == 0x2)
-    //else if (!keyselect_non_gid0 && normalized_cmd == 0x2) /* Not GID1 && not Custom */ // Always AES256!!
     else if (!keyselect_non_gid0 && (normalized_cmd == 0x2 || normalized_cmd == 0x12)) /* Not GID1 && not Custom */ // Always AES256!!
     {
-        //uint8_t *in_ptr, *iv_ptr;
-        //in_ptr = s->in;
-        //iv_ptr = s->iv;
 #if 1
         cipher_alg = QCRYPTO_CIPHER_ALG_AES_256;
         key_len = qcrypto_cipher_get_key_len(cipher_alg); // VERY important, otherwise key_len would be too short in case that flag 0x200 is missing.
@@ -1736,7 +1790,6 @@ static void aess_handle_cmd(AppleAESSState *s) {
 #endif
     }
 #if 1
-    //else if (s->ctl == 0x289 || s->ctl == 0x89 || s->ctl == 0x28a || s->ctl == 0x8a)
     else if (normalized_cmd == SEP_AESS_COMMAND_ENCRYPT_CBC || normalized_cmd == SEP_AESS_COMMAND_DECRYPT_CBC || \
         normalized_cmd == SEP_AESS_COMMAND_ENCRYPT_CBC_FORCE_CUSTOM_AES256 || normalized_cmd == SEP_AESS_COMMAND_ENCRYPT_CBC_ONLY_NONCUSTOM_FORCE_CUSTOM_AES256) /* GID0 || GID1 || Custom */
     {
@@ -1874,9 +1927,10 @@ static void aess_handle_cmd(AppleAESSState *s) {
         memcpy(s->custom_key_index[custom_keywrap_index], s->in_full, sizeof(s->custom_key_index[custom_keywrap_index]));
         xor_32bit_value(s->custom_key_index[custom_keywrap_index], 0xdeadbeef, 0x20/4); // unset (real zero-key) != zero-key set (not real zero-key)
         s->custom_key_index_enabled[custom_keywrap_index] = true;
-        qemu_log_mask(LOG_UNIMP, "SEP AESS_BASE: %s: sync/set key command 0x%x\n", __func__, normalized_cmd);
+        qemu_log_mask(LOG_UNIMP, "SEP AESS_BASE: %s: sync/set key command 0x%02x s->ctl 0x%02x\n", __func__, normalized_cmd, s->ctl);
     }
 #endif
+// TODO: other sync commands: 0x205(0x201), 0x204(0x281), 0x245(0x241), 0x244(0x2c1)
 #if 0
     else if (normalized_cmd == 0x...)
     {
@@ -1884,7 +1938,7 @@ static void aess_handle_cmd(AppleAESSState *s) {
 #endif
 #if 1
     else {
-        qemu_log_mask(LOG_UNIMP, "SEP AESS_BASE: %s: Unknown command 0x%x\n", __func__, s->ctl);
+        qemu_log_mask(LOG_UNIMP, "SEP AESS_BASE: %s: Unknown command 0x%02x\n", __func__, s->ctl);
         //valid_command = false;
     }
 #endif
@@ -1907,6 +1961,7 @@ static void aess_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     s = (AppleAESSState *)opaque;
 
 #if ENABLE_CPU_DUMP_STATE
+    qemu_log_mask(LOG_UNIMP, "\n");
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1960,7 +2015,7 @@ static void aess_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
         jump_default:
         qemu_log_mask(LOG_UNIMP,
                       "SEP AESS_BASE: Unknown write at 0x" HWADDR_FMT_plx
-                      " with value 0x" HWADDR_FMT_plx "\n",
+                      " with value 0x%" PRIx64 "\n",
                       addr, data);
         break;
     }
@@ -1975,6 +2030,7 @@ static uint64_t aess_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     uint64_t ret = 0;
 
 #if ENABLE_CPU_DUMP_STATE
+    qemu_log_mask(LOG_UNIMP, "\n");
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -2029,7 +2085,7 @@ static uint64_t aess_base_reg_read(void *opaque, hwaddr addr, unsigned size)
         jump_default:
         qemu_log_mask(LOG_UNIMP,
                       "SEP AESS_BASE: Unknown read at 0x" HWADDR_FMT_plx
-                      " with value 0x" HWADDR_FMT_plx "\n",
+                      " with value 0x%" PRIx64 "\n",
                       addr, ret);
         break;
     }
@@ -2060,6 +2116,9 @@ static void pka_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
+    case 0x0: // maybe command
+        // values: 0x4/0x8/0x10/0x20/0x40/0x80/0x100
+        goto jump_default;
     case 0x4: // maybe status_out0
 #if 0
         s->status0 = data;
@@ -2072,6 +2131,8 @@ static void pka_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
         s->img4out_dgst_clock = data;
         goto jump_default;
     case 0x60 ... 0x7c: // img4out DGST data
+        goto jump_default;
+    case 0x80 ... 0x9c: // some data
         goto jump_default;
     case 0x800: // chip revision clock
         s->chip_revision_clock = data;
@@ -2948,9 +3009,11 @@ static void map_sepfw(AppleSEPState *s) {
     if (s->sepfw_mr == NULL) {
         //__asm__("int3");
         s->sepfw_mr = allocate_ram(get_system_memory(), "SEPFW_", 0x000000000ULL, 0x1000000ULL, 0);
-        AddressSpace *nsas = &address_space_memory;
-        address_space_rw(nsas, 0x4000ULL, MEMTXATTRS_UNSPECIFIED, (uint8_t *)s->sepfw_data, s->sep_fw_size, true);
     }
+    AddressSpace *nsas = &address_space_memory;
+    // Apparently needed because of a bug occurring on XNU
+    address_space_set(nsas, 0x4000ULL, 0, align_16k_high(8 * MiB), MEMTXATTRS_UNSPECIFIED);
+    address_space_rw(nsas, 0x4000ULL, MEMTXATTRS_UNSPECIFIED, (uint8_t *)s->sepfw_data, s->sep_fw_size, true);
 #endif
 }
 #endif

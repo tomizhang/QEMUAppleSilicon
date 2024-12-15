@@ -18,12 +18,8 @@
 #define HW_ARM_APPLE_SILICON_BOOT_H
 
 #define ENABLE_BASEBAND 0
-//#define ENABLE_BASEBAND 1
-//#define ENABLE_SEP 0
 #define ENABLE_SEP 1
-//#define ENABLE_SEP_SECURITY 0
 #define ENABLE_SEP_SECURITY 1
-//#define ENABLE_ROSWELL 1
 #define ENABLE_ROSWELL 0
 
 #include "qemu/osdep.h"
