@@ -100,11 +100,8 @@
 //#define T8030_ANS_REGION_BASE 0x8fc2d0000ull
 //#define T8030_ANS_REGION_SIZE (0xc000ull+T8030_ANS_TEXT_SIZE+T8030_ANS_DATA_SIZE)
 //#define T8030_SMC_REGION_SIZE 0x80000ull
-#define T8030_SMC_TEXT_BASE 0x23FE00000ull
 #define T8030_SMC_TEXT_SIZE 0x30000ull
-#define T8030_SMC_DATA_BASE 0x23FE30000ull
 #define T8030_SMC_DATA_SIZE 0x30000ull
-#define T8030_SMC_SRAM_BASE 0x23FE60000ull
 #define T8030_SMC_SRAM_SIZE 0x4000ull
 
 #define T8030_SIO_TEXT_BASE 0x8010A8000ull
@@ -1869,6 +1866,7 @@ static void t8030_create_smc(MachineState *machine)
     DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     DTBNode *iop_nub;
     AppleIopSegmentRange segranges[2] = { 0 };
+    uint64_t smc_region_base, smc_region_size, smc_text_base, smc_data_base, smc_sram_base;
 
     g_assert_nonnull(child);
     child = find_dtb_node(child, "smc");
@@ -1878,15 +1876,28 @@ static void t8030_create_smc(MachineState *machine)
 
     set_dtb_prop(iop_nub, "segment-names", 14, "__TEXT;__DATA");
 
-    segranges[0].phys = T8030_SMC_TEXT_BASE;
+    prop = find_dtb_prop(iop_nub, "region-base");
+    g_assert_nonnull(prop);
+    smc_region_base = *(uint64_t *)prop->value;
+    prop = find_dtb_prop(iop_nub, "region-size");
+    g_assert_nonnull(prop);
+    smc_region_size = *(uint64_t *)prop->value;
+
+    smc_text_base = smc_region_base;
+    smc_data_base = smc_text_base + T8030_SMC_TEXT_SIZE;
+    smc_sram_base = smc_data_base + T8030_SMC_DATA_SIZE;
+
+    allocate_ram(t8030_machine->sysmem, "SMC_REGION0", smc_region_base, smc_region_size, 0);
+
+    segranges[0].phys = smc_text_base;
     segranges[0].virt = 0x0;
-    segranges[0].remap = T8030_SMC_TEXT_BASE;
+    segranges[0].remap = smc_text_base;
     segranges[0].size = T8030_SMC_TEXT_SIZE;
     segranges[0].flag = 0x1;
 
-    segranges[1].phys = T8030_SMC_DATA_BASE;
+    segranges[1].phys = smc_data_base;
     segranges[1].virt = T8030_SMC_TEXT_SIZE;
-    segranges[1].remap = T8030_SMC_DATA_BASE;
+    segranges[1].remap = smc_data_base;
     segranges[1].size = T8030_SMC_DATA_SIZE;
     segranges[1].flag = 0x0;
 
@@ -1899,7 +1910,7 @@ static void t8030_create_smc(MachineState *machine)
 #endif
 #if 1
     // used as a helper for apple_smc_create
-    data = T8030_SMC_SRAM_BASE;
+    data = smc_sram_base;
     set_dtb_prop(iop_nub, "sram-addr", sizeof(data), &data);
 #endif
 #if 0
@@ -1922,7 +1933,7 @@ static void t8030_create_smc(MachineState *machine)
         sysbus_mmio_map(smc, i, t8030_machine->soc_base_pa + reg[i * 2]);
     }
 
-    sysbus_mmio_map(smc, 2, T8030_SMC_SRAM_BASE);
+    sysbus_mmio_map(smc, 2, smc_sram_base);
 
     prop = find_dtb_prop(child, "interrupts");
     g_assert_nonnull(prop);
