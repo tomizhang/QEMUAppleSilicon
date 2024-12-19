@@ -642,7 +642,9 @@ static void apple_dart_dump_pt(Monitor *mon, AppleDARTInstance *o, hwaddr iova,
 {
     AppleDARTState *s = o->s;
     if (level == 3) {
-        monitor_printf(mon, "\t\t\t0x" HWADDR_FMT_plx " ... 0x" HWADDR_FMT_plx " -> 0x%llx %c%c\n",
+        monitor_printf(mon,
+                       "\t\t\t0x" HWADDR_FMT_plx " ... 0x" HWADDR_FMT_plx
+                       " -> 0x%llx %c%c\n",
                        iova << s->page_shift, (iova + 1) << s->page_shift,
                        pte & s->page_mask & DART_TTE_ADDR_MASK,
                        pte & DART_TTE_NO_READ ? '-' : 'r',

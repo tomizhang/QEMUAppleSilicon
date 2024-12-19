@@ -439,7 +439,8 @@ static void apple_sep_sim_handle_xart_msg(AppleSEPSimState *s, bool slave,
 
 static void apple_sep_sim_handle_l4info(AppleSEPSimState *s, L4InfoMessage *msg)
 {
-    qemu_log_mask(LOG_GUEST_ERROR, "EP_L4INFO: address 0x%" PRIx64 " size 0x%X\n",
+    qemu_log_mask(LOG_GUEST_ERROR,
+                  "EP_L4INFO: address 0x%" PRIx64 " size 0x%X\n",
                   (uint64_t)msg->address << 12, msg->size << 12);
     s->ool_state[EP_CONTROL].in_addr = (uint64_t)msg->address << 12;
     s->ool_state[EP_CONTROL].in_size = msg->size << 12;
@@ -631,8 +632,8 @@ static void apple_sep_sim_handle_keystore_msg(AppleSEPSimState *s,
         uint64_t *lword = (uint64_t *)(word0 + 1);
         uint32_t *word1 = (uint32_t *)(lword + 1);
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "SEP KeyStore // Copy Keybag 0x%X 0x%" PRIx64 " 0x%X\n", *word0,
-                      *lword, *word1);
+                      "SEP KeyStore // Copy Keybag 0x%X 0x%" PRIx64 " 0x%X\n",
+                      *word0, *lword, *word1);
 
         const uint32_t resp_size = KEYSTORE_IPC_HEADER_SIZE + 0x4 + 0x4 + 0x10;
         uint8_t *resp_buf = g_new0(uint8_t, resp_size);
@@ -835,10 +836,10 @@ static void apple_sep_sim_handle_keystore_msg(AppleSEPSimState *s,
         uint64_t *lword = (uint64_t *)(word0 + 1);
         uint32_t *word1 = (uint32_t *)(lword + 1);
         uint32_t *word2 = (uint32_t *)(word1 + 1);
-        qemu_log_mask(
-            LOG_GUEST_ERROR,
-            "SEP KeyStore // Get Device State 0x%X 0x%" PRIx64 " 0x%X 0x%X\n", *word0,
-            *lword, *word1, *word2);
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "SEP KeyStore // Get Device State 0x%X 0x%" PRIx64
+                      " 0x%X 0x%X\n",
+                      *word0, *lword, *word1, *word2);
 
         const uint32_t resp_size = KEYSTORE_IPC_HEADER_SIZE + 0x4 + 0x4 + 0x8;
         uint8_t *resp_buf = g_new0(uint8_t, resp_size);

@@ -370,29 +370,31 @@ static void aes_security_reg_write(void *opaque, hwaddr addr, uint64_t data,
 static uint64_t aes_security_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     AppleAESState *s = APPLE_AES(opaque);
-    qemu_log_mask(LOG_GUEST_ERROR, "%s: Read 0x" HWADDR_FMT_plx "\n",
-                    __func__, addr);
+    qemu_log_mask(LOG_GUEST_ERROR, "%s: Read 0x" HWADDR_FMT_plx "\n", __func__,
+                  addr);
     switch (addr) {
     case 0x00: // unknown0
-        //return 0x00; // panic panic(cpu 0 caller 0xfffffff0090dcdb8): "AppleS8000AESAccelerator::AES Error: IntStatus 0x0x2021\n"
-        //return 0x0F; // no panic
-        //return 0xF0; // panic
-        //return 0x07; // no panic
-        //return 0x03; // panic "AppleS8000AESAccelerator::AES Error: IntStatus 0x0x2021\n"
-        //return 0x04; // panic "AppleS8000AESAccelerator::AES Error: IntStatus 0x0xa1\n"
-        //return (1 << 2) | (1 << 1) | (0 << 0); // panic "AppleS8000AESAccelerator::AES Error: IntStatus 0x0xa1\n"
-        //return (1 << 2) | (0 << 1) | (1 << 0); // no panic
-        //return (0 << 2) | (0 << 1) | (1 << 0); // panic "AppleS8000AESAccelerator::AES Error: IntStatus 0x0x2021\n"
-        //return (0 << 2) | (1 << 1) | (0 << 0); // panic "AppleS8000AESAccelerator::AES Error: IntStatus 0x0x2021\n"
-        //return (1 << 2) | (1 << 1) | (1 << 0); // no panic
+        // return 0x00; // panic panic(cpu 0 caller 0xfffffff0090dcdb8):
+        // "AppleS8000AESAccelerator::AES Error: IntStatus 0x0x2021\n" return
+        // 0x0F; // no panic return 0xF0; // panic return 0x07; // no panic
+        // return 0x03; // panic "AppleS8000AESAccelerator::AES Error: IntStatus
+        // 0x0x2021\n" return 0x04; // panic "AppleS8000AESAccelerator::AES
+        // Error: IntStatus 0x0xa1\n" return (1 << 2) | (1 << 1) | (0 << 0); //
+        // panic "AppleS8000AESAccelerator::AES Error: IntStatus 0x0xa1\n"
+        // return (1 << 2) | (0 << 1) | (1 << 0); // no panic
+        // return (0 << 2) | (0 << 1) | (1 << 0); // panic
+        // "AppleS8000AESAccelerator::AES Error: IntStatus 0x0x2021\n" return (0
+        // << 2) | (1 << 1) | (0 << 0); // panic "AppleS8000AESAccelerator::AES
+        // Error: IntStatus 0x0x2021\n" return (1 << 2) | (1 << 1) | (1 << 0);
+        // // no panic
         return (1 << 2) | (1 << 0);
-        //return 0xFF; // (val & 0xf)
+        // return 0xFF; // (val & 0xf)
     case 0x20: // board-id
-        //return 0x4;
+        // return 0x4;
         return s->board_id; // (val & 0x1f)
     case 0x30: // unknown1
         return 0x00;
-        //return 0xFF; // many various flags
+        // return 0xFF; // many various flags
     case 0x34: // bit 24 = is fresh boot?
         return (1 << 24) | (1 << 25);
     default: // We don't know the rest

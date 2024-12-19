@@ -41,11 +41,11 @@ static void apple_a7iop_reg_write(void *opaque, hwaddr addr,
     case REG_SEP_AKF_DISABLE_INTERRUPT_BASE + 0x04: // group 1
     case REG_SEP_AKF_DISABLE_INTERRUPT_BASE + 0x08: // group 2
     case REG_SEP_AKF_DISABLE_INTERRUPT_BASE + 0x0c: // group 3
-        qemu_log_mask(LOG_UNIMP,
-                        "%s AKF: SEP AKF DISABLE INTERRUPT write to 0x" HWADDR_FMT_plx
-                        " of value 0x" HWADDR_FMT_plx " lowest_bit_position: %u \n",
-                        s->role, addr, data, __builtin_ctzl(data));
-        //int int_index
+        qemu_log_mask(
+            LOG_UNIMP,
+            "%s AKF: SEP AKF DISABLE INTERRUPT write to 0x" HWADDR_FMT_plx
+            " of value 0x" HWADDR_FMT_plx " lowest_bit_position: %u \n",
+            s->role, addr, data, __builtin_ctzl(data));
         interrupt_index = (addr - REG_SEP_AKF_DISABLE_INTERRUPT_BASE) >> 2;
         s->iop_mailbox->interrupts_enabled[interrupt_index] &= ~data;
         break;
@@ -53,11 +53,11 @@ static void apple_a7iop_reg_write(void *opaque, hwaddr addr,
     case REG_SEP_AKF_ENABLE_INTERRUPT_BASE + 0x04: // group 1
     case REG_SEP_AKF_ENABLE_INTERRUPT_BASE + 0x08: // group 2
     case REG_SEP_AKF_ENABLE_INTERRUPT_BASE + 0x0c: // group 3
-        qemu_log_mask(LOG_UNIMP,
-                        "%s AKF: SEP AKF ENABLE INTERRUPT write to 0x" HWADDR_FMT_plx
-                        " of value 0x" HWADDR_FMT_plx " lowest_bit_position: %u \n",
-                        s->role, addr, data, __builtin_ctzl(data));
-        //int int_index 
+        qemu_log_mask(
+            LOG_UNIMP,
+            "%s AKF: SEP AKF ENABLE INTERRUPT write to 0x" HWADDR_FMT_plx
+            " of value 0x" HWADDR_FMT_plx " lowest_bit_position: %u \n",
+            s->role, addr, data, __builtin_ctzl(data));
         interrupt_index = (addr - REG_SEP_AKF_ENABLE_INTERRUPT_BASE) >> 2;
         s->iop_mailbox->interrupts_enabled[interrupt_index] |= data;
 #if 0
@@ -91,37 +91,35 @@ static uint64_t apple_a7iop_reg_read(void *opaque, hwaddr addr, unsigned size)
         return apple_a7iop_get_cpu_status(s);
     case REG_V3_UNKNOWN0:
         ret = 1;
-        // TODO: response not interrupt available, but something with REG_V3_CPU_CTRL?
+        // TODO: response not interrupt available, but something with
+        // REG_V3_CPU_CTRL?
         break;
     case REG_V3_UNKNOWN1:
         break;
-    case REG_V3_INTERRUPT_STATUS:
-        //uint32_t interrupt_status = apple_mbox_interrupt_status_pop(s);
+    case REG_V3_INTERRUPT_STATUS: {
         AppleA7IOPMailbox *a7iop_mbox = s->iop_mailbox;
-        ////AppleA7IOPMailbox *a7iop_mbox = s->ap_mailbox;
-        uint32_t interrupt_status = apple_a7iop_interrupt_status_pop(a7iop_mbox);
+        uint32_t interrupt_status =
+            apple_a7iop_interrupt_status_pop(a7iop_mbox);
         apple_a7iop_mailbox_update_irq_status(a7iop_mbox);
         if (interrupt_status) {
             ret = interrupt_status;
-            qemu_log_mask(LOG_UNIMP, "%s: REG_V3_INTERRUPT_STATUS: returning interrupt_status: 0x%05lx\n", s->role, ret);
-        }
-        else if  (a7iop_mbox->iop_nonempty) { // 0
+            qemu_log_mask(LOG_UNIMP,
+                          "%s: REG_V3_INTERRUPT_STATUS: returning "
+                          "interrupt_status: 0x%05llX\n",
+                          s->role, ret);
+        } else if (a7iop_mbox->iop_nonempty) {
             ret = 0x40000;
-        }
-        else if (a7iop_mbox->iop_empty) { // 1
+        } else if (a7iop_mbox->iop_empty) {
             ret = 0x40001;
-        }
-        else if (a7iop_mbox->ap_nonempty) { // 2
+        } else if (a7iop_mbox->ap_nonempty) {
             ret = 0x40002;
-        }
-        else if (a7iop_mbox->ap_empty) { // 3
+        } else if (a7iop_mbox->ap_empty) {
             ret = 0x40003;
-        }
-        else {
+        } else {
             ret = 0x70001;
         }
-        //qemu_log_mask(LOG_UNIMP, "%s: REG_V3_INTERRUPT_STATUS: returning ret: 0x%05lx\n", s->role, ret);
         break;
+    }
     default:
         qemu_log_mask(LOG_UNIMP,
                       "A7IOP(%s): Unknown read from 0x" HWADDR_FMT_plx "\n",

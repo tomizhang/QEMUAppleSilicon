@@ -345,8 +345,8 @@ static uint8_t smc_key_lgpe_write(AppleSMCState *s, smc_key *k, void *payload,
 static uint8_t smc_key_nesn_write(AppleSMCState *s, smc_key *k, void *payload,
                                   uint8_t length)
 {
-    key_response r = { 0 };
 #if 0
+    key_response r = { 0 };
     uint8_t *p = (uint8_t *)payload;
     fprintf(stderr, "NESN: payload: 0x%x\n", *(uint32_t *)payload);
 #endif
@@ -565,14 +565,10 @@ static void apple_smc_realize(DeviceState *dev, Error **errp)
     smc_create_key_func(s, SmcKeyMBSE, 4, SmcKeyTypeHex, SMC_ATTR_LITTLE_ENDIAN,
                         &smc_key_reject_read, &smc_key_mbse_write);
 
-#if 0
     smc_create_key_func(s, SmcKeyLGPB, 1, SmcKeyTypeFlag,
-                        SMC_ATTR_LITTLE_ENDIAN,
-                        NULL, &smc_key_lgpb_write);
+                        SMC_ATTR_LITTLE_ENDIAN, NULL, &smc_key_lgpb_write);
     smc_create_key_func(s, SmcKeyLGPE, 1, SmcKeyTypeFlag,
-                        SMC_ATTR_LITTLE_ENDIAN,
-                        NULL, &smc_key_lgpe_write);
-#endif
+                        SMC_ATTR_LITTLE_ENDIAN, NULL, &smc_key_lgpe_write);
     smc_create_key_func(s, SmcKeyNESN, 4, SmcKeyTypeHex, SMC_ATTR_LITTLE_ENDIAN,
                         &smc_key_reject_read, &smc_key_nesn_write);
 

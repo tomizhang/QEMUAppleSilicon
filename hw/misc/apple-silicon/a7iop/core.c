@@ -110,7 +110,7 @@ void apple_a7iop_init(AppleA7IOP *s, const char *role, uint64_t mmio_size,
 
     sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->ap_mailbox));
 
-    //qdev_init_gpio_out_named(dev, &s->iop_irq, APPLE_A7IOP_IOP_IRQ, 1);
+    // qdev_init_gpio_out_named(dev, &s->iop_irq, APPLE_A7IOP_IOP_IRQ, 1);
 }
 
 static void apple_a7iop_reset(DeviceState *opaque)

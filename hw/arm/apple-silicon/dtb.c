@@ -251,7 +251,6 @@ DTBProp *set_dtb_prop(DTBNode *node, const char *name, const uint32_t size,
         prop->value = NULL;
     } else {
         prop->value = g_malloc0(size);
-        //qemu_log_mask(LOG_UNIMP, "%s: prop->value == %p val == %p size == %u\n", __func__, prop->value, val, size);
         memcpy(prop->value, val, size);
     }
 

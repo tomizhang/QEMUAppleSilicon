@@ -89,8 +89,8 @@ hwaddr get_low_bits_mask_for_bit_index(uint8_t bit_index)
     return (1 << bit_index) - 1;
 }
 
-MemoryRegion *allocate_ram(MemoryRegion *top, const char *name, hwaddr addr, hwaddr size,
-                  int priority)
+MemoryRegion *allocate_ram(MemoryRegion *top, const char *name, hwaddr addr,
+                           hwaddr size, int priority)
 {
     MemoryRegion *sec = g_new(MemoryRegion, 1);
     g_assert_nonnull(sec);

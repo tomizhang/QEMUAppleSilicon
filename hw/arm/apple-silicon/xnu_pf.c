@@ -21,9 +21,8 @@ ApplePfRange *xnu_pf_segment(MachoHeader64 *header, const char *segment_name)
     }
 
     if (header != xnu_header) {
-        return xnu_pf_range_from_va(g_virt_slide +
-                                        (0xffff000000000000 | seg->vmaddr),
-                                    seg->filesize);
+        return xnu_pf_range_from_va(
+            g_virt_slide + (0xffff000000000000 | seg->vmaddr), seg->filesize);
     }
 
     return xnu_pf_range_from_va(xnu_slide_hdr_va(header, seg->vmaddr),
@@ -45,9 +44,8 @@ ApplePfRange *xnu_pf_section(MachoHeader64 *header, const char *segment_name,
     }
 
     if (header != xnu_header) {
-        return xnu_pf_range_from_va(g_virt_slide +
-                                        (0xffff000000000000 | sec->addr),
-                                    sec->size);
+        return xnu_pf_range_from_va(
+            g_virt_slide + (0xffff000000000000 | sec->addr), sec->size);
     }
 
     return xnu_pf_range_from_va(xnu_slide_hdr_va(header, sec->addr), sec->size);

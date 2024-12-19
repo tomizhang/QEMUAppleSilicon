@@ -23,45 +23,29 @@
 
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
+#include "hw/i2c/i2c.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
+#include "hw/nvram/eeprom_at24c.h"
 #include "hw/sysbus.h"
 #include "qemu/typedefs.h"
 #include "qom/object.h"
 #include "cpu-qom.h"
-#include "hw/i2c/i2c.h"
-#include "hw/nvram/eeprom_at24c.h"
-#include <nettle/drbg-ctr.h>
-
-#include <nettle/cmac.h>
-#include <nettle/ccm.h>
-#include <nettle/ecc.h>
-#include <nettle/ecc-curve.h>
-#include <nettle/knuth-lfib.h>
-#include <nettle/ecdsa.h>
-#include <nettle/sha2.h>
-#include <nettle/hmac.h>
-#include <nettle/hkdf.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <string.h>
-#include <sys/param.h>
-#include <endian.h>
-#include <assert.h>
+#include "nettle/drbg-ctr.h"
+#include "nettle/ecc.h"
+#include "nettle/sha2.h"
+#include "stdbool.h"
+#include "stdint.h"
 
 #define TYPE_APPLE_SEP "apple-sep"
 OBJECT_DECLARE_TYPE(AppleSEPState, AppleSEPClass, APPLE_SEP)
 
 #define TYPE_APPLE_SSC "apple-ssc"
 typedef struct AppleSSCState AppleSSCState;
-DECLARE_INSTANCE_CHECKER(AppleSSCState, APPLE_SSC,
-                         TYPE_APPLE_SSC)
+DECLARE_INSTANCE_CHECKER(AppleSSCState, APPLE_SSC, TYPE_APPLE_SSC)
 
-//#define TRACE_BUFFER_BASE_OFFSET 0x10000
-//#define DEBUG_TRACE_SIZE (0x80000)
-// Prevent T8015 AP overlap
+// #define TRACE_BUFFER_BASE_OFFSET 0x10000
+// #define DEBUG_TRACE_SIZE (0x80000)
+//  Prevent T8015 AP overlap
 #define DEBUG_TRACE_SIZE (0x10000)
 
 typedef struct {
@@ -77,36 +61,36 @@ typedef struct {
 
 typedef struct {
     uint32_t chip_id;
-    uint32_t clock;              // 0x4
-    uint32_t ctl;                // 0x8
-    uint32_t state;              // 0xc
-    uint32_t reg_0x10;           // 0x10
+    uint32_t clock; // 0x4
+    uint32_t ctl; // 0x8
+    uint32_t state; // 0xc
+    uint32_t reg_0x10; // 0x10
     uint32_t reg_0x14_keywrap_iterations_counter; // 0x14
     uint32_t reg_0x18_keydisable; // 0x18
-    uint32_t seed_bits;          // 0x1c
-    uint32_t seed_bits_lock;     // 0x20
+    uint32_t seed_bits; // 0x1c
+    uint32_t seed_bits_lock; // 0x20
     union {
         struct {
-            uint8_t iv[16];      // 0x40 // IV for enc, IN for dec?
-            uint8_t in[16];      // 0x50 // IN for enc, IV for dec?
+            uint8_t iv[16]; // 0x40 // IV for enc, IN for dec?
+            uint8_t in[16]; // 0x50 // IN for enc, IV for dec?
         };
         struct {
-            uint8_t in_dec[16];  // 0x40 // IV for enc, IN for dec?
-            uint8_t iv_dec[16];  // 0x50 // IN for enc, IV for dec?
+            uint8_t in_dec[16]; // 0x40 // IV for enc, IN for dec?
+            uint8_t iv_dec[16]; // 0x50 // IN for enc, IV for dec?
         };
         uint8_t in_full[32]; // 0x40
     };
-    //uint8_t in_t8015[16];      // 0x100
-    //uint8_t iv_t8015[16];      // 0x110
+    // uint8_t in_t8015[16];      // 0x100
+    // uint8_t iv_t8015[16];      // 0x110
     union {
         struct {
-            uint8_t tag_out[16];     // 0x60
-            uint8_t out[16];         // 0x70
+            uint8_t tag_out[16]; // 0x60
+            uint8_t out[16]; // 0x70
         };
         uint8_t out_full[32]; // 0x60
     };
-    uint8_t key_256_in[32];  // 0x40 ; for custom key
-    uint8_t key_t8015_in[16];  // 0x100 ; for custom key
+    uint8_t key_256_in[32]; // 0x40 ; for custom key
+    uint8_t key_t8015_in[16]; // 0x100 ; for custom key
     uint8_t key_256_out[32]; // 0x60 ; for custom key
     uint8_t key_128_out[16]; // 0x60 ; for custom key
     //
@@ -114,10 +98,11 @@ typedef struct {
     uint8_t keywrap_key_uid1[32];
     uint8_t custom_key_index[4][32];
     bool custom_key_index_enabled[4];
-    // put keywrap_uid[01]_enabled here, or else ASAN will complain about misalignment.
+    // put keywrap_uid[01]_enabled here, or else ASAN will complain about
+    // misalignment.
     bool keywrap_uid0_enabled;
     bool keywrap_uid1_enabled;
- } AppleAESSState;
+} AppleAESSState;
 
 typedef struct {
     uint32_t status0; // 0x4
@@ -180,28 +165,51 @@ struct AppleSSCState {
     ////bool cmd_0x7_called;
 };
 
-int aes_ccm_crypt(struct AppleSSCState *ssc_state, uint8_t kbkdf_index, uint8_t *prefix, int payload_len, uint8_t *data, uint8_t *out, int encrypt, int response_key);
-int aes_cmac_prefix_public(uint8_t *key, uint8_t *prefix, uint8_t *public0, uint8_t *digest);
-int aes_cmac_prefix_public_public(uint8_t *key, uint8_t *prefix, uint8_t *public0, uint8_t *public1, uint8_t *digest);
-int kbkdf_generate_key(uint8_t *cmac_key, uint8_t *label, uint8_t *context, uint8_t *derived, int length);
+int aes_ccm_crypt(struct AppleSSCState *ssc_state, uint8_t kbkdf_index,
+                  uint8_t *prefix, int payload_len, uint8_t *data, uint8_t *out,
+                  int encrypt, int response_key);
+int aes_cmac_prefix_public(uint8_t *key, uint8_t *prefix, uint8_t *public0,
+                           uint8_t *digest);
+int aes_cmac_prefix_public_public(uint8_t *key, uint8_t *prefix,
+                                  uint8_t *public0, uint8_t *public1,
+                                  uint8_t *digest);
+int kbkdf_generate_key(uint8_t *cmac_key, uint8_t *label, uint8_t *context,
+                       uint8_t *derived, int length);
 void hexout(const char *desc, const uint8_t *in, int in_len);
-int generate_ec_priv(const char *priv, struct ecc_scalar *ecc_key, struct ecc_point *ecc_pub);
+int generate_ec_priv(const char *priv, struct ecc_scalar *ecc_key,
+                     struct ecc_point *ecc_pub);
 int output_ec_pub(struct ecc_point *ecc_pub, uint8_t *pub_xy);
 int input_ec_pub(struct ecc_point *ecc_pub, uint8_t *pub_xy);
-int generate_kbkdf_keys(struct AppleSSCState *ssc_state, struct ecc_scalar *ecc_key, struct ecc_point *ecc_pub_peer, uint8_t *hmac_key, uint8_t *label, uint8_t *context, uint8_t kbkdf_index);
-void hkdf_sha256(int salt_len, uint8_t *salt, int info_len, uint8_t *info, int key_len, uint8_t *key, uint8_t *out);
-void aes_keys_from_sp_key(struct AppleSSCState *ssc_state, uint8_t kbkdf_index, uint8_t *prefix, uint8_t *aes_key_mackey, uint8_t *aes_key_extractorkey);
+int generate_kbkdf_keys(struct AppleSSCState *ssc_state,
+                        struct ecc_scalar *ecc_key,
+                        struct ecc_point *ecc_pub_peer, uint8_t *hmac_key,
+                        uint8_t *label, uint8_t *context, uint8_t kbkdf_index);
+void hkdf_sha256(int salt_len, uint8_t *salt, int info_len, uint8_t *info,
+                 int key_len, uint8_t *key, uint8_t *out);
+void aes_keys_from_sp_key(struct AppleSSCState *ssc_state, uint8_t kbkdf_index,
+                          uint8_t *prefix, uint8_t *aes_key_mackey,
+                          uint8_t *aes_key_extractorkey);
 void do_response_prefix(uint8_t *request, uint8_t *response, uint8_t flags);
-int answer_cmd_0x0_init1(struct AppleSSCState *ssc_state, uint8_t *request, uint8_t *response);
-int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state, uint8_t *request, uint8_t *response);
-int answer_cmd_0x2_disconnect_sp(struct AppleSSCState *ssc_state, uint8_t *request, uint8_t *response);
-int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state, uint8_t *request, uint8_t *response);
-int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state, uint8_t *request, uint8_t *response);
-int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state, uint8_t *request, uint8_t *response);
-int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state, uint8_t *request, uint8_t *response);
-int answer_cmd_0x7_init0(struct AppleSSCState *ssc_state, uint8_t *request, uint8_t *response);
-int answer_cmd_0x8_save(struct AppleSSCState *ssc_state, uint8_t *request, uint8_t *response);
-int answer_cmd_0x9_panic(struct AppleSSCState *ssc_state, uint8_t *request, uint8_t *response);
+int answer_cmd_0x0_init1(struct AppleSSCState *ssc_state, uint8_t *request,
+                         uint8_t *response);
+int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state, uint8_t *request,
+                              uint8_t *response);
+int answer_cmd_0x2_disconnect_sp(struct AppleSSCState *ssc_state,
+                                 uint8_t *request, uint8_t *response);
+int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
+                                  uint8_t *request, uint8_t *response);
+int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state,
+                                      uint8_t *request, uint8_t *response);
+int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
+                                       uint8_t *request, uint8_t *response);
+int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
+                                 uint8_t *request, uint8_t *response);
+int answer_cmd_0x7_init0(struct AppleSSCState *ssc_state, uint8_t *request,
+                         uint8_t *response);
+int answer_cmd_0x8_save(struct AppleSSCState *ssc_state, uint8_t *request,
+                        uint8_t *response);
+int answer_cmd_0x9_panic(struct AppleSSCState *ssc_state, uint8_t *request,
+                         uint8_t *response);
 
 #define REG_SIZE (0x10000)
 
@@ -268,7 +276,7 @@ struct AppleSEPState {
     hwaddr trace_buffer_base_offset;
     hwaddr debug_trace_size;
     gchar *sepfw_data;
-    //uint8_t *sepfw_data;
+    // uint8_t *sepfw_data;
     MemoryRegion *sepfw_mr;
     int debug_trace_mmio_index;
 };
@@ -279,7 +287,8 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
                                 bool modern, uint32_t chip_id);
 #else
 AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
-                                uint32_t build_version, bool modern, uint32_t chip_id);
+                                uint32_t build_version, bool modern,
+                                uint32_t chip_id);
 #endif
 
 AppleSSCState *apple_ssc_create(MachineState *machine, uint8_t addr);

@@ -78,10 +78,11 @@
 #define T8030_DISPLAY_BASE (T8030_DRAM_BASE + 0xF7FB4000)
 #define T8030_DISPLAY_SIZE (67ull * MiB)
 
-// TODO: the overlap can be worked around in two ways, by moving the kernel away or by moving ans_text/sio away.
+// TODO: the overlap can be worked around in two ways, by moving the kernel away
+// or by moving ans_text/sio away.
 // TODO: Fix it properly by implementing a carveout allocator
 
-//#define T8030_KERNEL_REGION_BASE T8030_DRAM_BASE
+// #define T8030_KERNEL_REGION_BASE T8030_DRAM_BASE
 #define T8030_KERNEL_REGION_BASE (T8030_DRAM_BASE + (32ull * MiB))
 #define T8030_KERNEL_REGION_SIZE 0xF000000ull
 
@@ -93,13 +94,14 @@
 #define T8030_NUM_SPIS 4
 
 #define T8030_ANS_TEXT_BASE 0x800024000ull
-//#define T8030_ANS_TEXT_BASE 0x8fc2dc000ull
+// #define T8030_ANS_TEXT_BASE 0x8fc2dc000ull
 #define T8030_ANS_TEXT_SIZE 0x124000ull
 #define T8030_ANS_DATA_BASE 0x8FC400000ull
 #define T8030_ANS_DATA_SIZE 0x3C00000ull
-//#define T8030_ANS_REGION_BASE 0x8fc2d0000ull
-//#define T8030_ANS_REGION_SIZE (0xc000ull+T8030_ANS_TEXT_SIZE+T8030_ANS_DATA_SIZE)
-//#define T8030_SMC_REGION_SIZE 0x80000ull
+// #define T8030_ANS_REGION_BASE 0x8fc2d0000ull
+// #define T8030_ANS_REGION_SIZE
+// (0xc000ull+T8030_ANS_TEXT_SIZE+T8030_ANS_DATA_SIZE) #define
+// T8030_SMC_REGION_SIZE 0x80000ull
 #define T8030_SMC_TEXT_SIZE 0x30000ull
 #define T8030_SMC_DATA_SIZE 0x30000ull
 #define T8030_SMC_SRAM_SIZE 0x4000ull
@@ -192,27 +194,42 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     // gAppleSMCDebugPath = 0x2;
     //*(uint32_t *)vtop_static(0xFFFFFFF0099EAA1C) = 0x2;
     // Disable AMX
-    *(uint32_t *)vtop_static(0xFFFFFFF007B64494 + g_virt_slide) = cpu_to_le32(0x5280000A); // _gAMXVersion = 0
-    *(uint32_t *)vtop_static(0xFFFFFFF007B644A4 + g_virt_slide) = cpu_to_le32(0x52810009); // __cpu_capabilities | 0x800 (ucnormal)
+    *(uint32_t *)vtop_static(0xFFFFFFF007B64494 + g_virt_slide) =
+        cpu_to_le32(0x5280000A); // _gAMXVersion = 0
+    *(uint32_t *)vtop_static(0xFFFFFFF007B644A4 + g_virt_slide) =
+        cpu_to_le32(0x52810009); // __cpu_capabilities | 0x800 (ucnormal)
 #if ENABLE_SEP == 0
-    // Make all AppleSEPKeyStoreUserClient requests do nothing but return success
-    *(uint32_t *)vtop_static(0xFFFFFFF008F6F774 + g_virt_slide) = cpu_to_le32(0x52800000);
-    *(uint32_t *)vtop_static(0xFFFFFFF008F6F778 + g_virt_slide) = cpu_to_le32(0xD65F0FFF);
+    // Make all AppleSEPKeyStoreUserClient requests do nothing but return
+    // success
+    *(uint32_t *)vtop_static(0xFFFFFFF008F6F774 + g_virt_slide) =
+        cpu_to_le32(0x52800000);
+    *(uint32_t *)vtop_static(0xFFFFFFF008F6F778 + g_virt_slide) =
+        cpu_to_le32(0xD65F0FFF);
 #else
     // re-enable it in case that the kernel is already patched
-    *(uint32_t *)vtop_static(0xFFFFFFF008F6F774 + g_virt_slide) = cpu_to_le32(0xd10783ff);
-    *(uint32_t *)vtop_static(0xFFFFFFF008F6F778 + g_virt_slide) = cpu_to_le32(0xa9186ffc);
+    *(uint32_t *)vtop_static(0xFFFFFFF008F6F774 + g_virt_slide) =
+        cpu_to_le32(0xd10783ff);
+    *(uint32_t *)vtop_static(0xFFFFFFF008F6F778 + g_virt_slide) =
+        cpu_to_le32(0xa9186ffc);
 
-    *(uint32_t *)vtop_static(0xFFFFFFF008B576B4 + g_virt_slide) = nop; // AppleSEPManager::_tracingEnabled: disable _PE_i_can_has_debugger check, only rely on sep_tracing
-    *(uint32_t *)vtop_static(0xFFFFFFF008B57B28 + g_virt_slide) = nop; // AppleSEPManager::_bootSEP: disable _PE_i_can_has_debugger check, so it won't skip reading bootarg sep-trace-size
-    *(uint32_t *)vtop_static(0xFFFFFFF008B58030 + g_virt_slide) = cpu_to_le32(0x52A00028); // AppleSEPManager::_loadChannelObjectEntries: use SCOT as TRAC, thus making it bigger.
+    *(uint32_t *)vtop_static(0xFFFFFFF008B576B4 + g_virt_slide) =
+        nop; // AppleSEPManager::_tracingEnabled: disable _PE_i_can_has_debugger
+             // check, only rely on sep_tracing
+    *(uint32_t *)vtop_static(0xFFFFFFF008B57B28 + g_virt_slide) =
+        nop; // AppleSEPManager::_bootSEP: disable _PE_i_can_has_debugger check,
+             // so it won't skip reading bootarg sep-trace-size
+    *(uint32_t *)vtop_static(0xFFFFFFF008B58030 + g_virt_slide) =
+        cpu_to_le32(0x52A00028); // AppleSEPManager::_loadChannelObjectEntries:
+                                 // use SCOT as TRAC, thus making it bigger.
 #endif
 #if 1
-    *(char *)vtop_static(0xFFFFFFF0075085FC + g_virt_slide) = 'x'; // com.apple.os.update- -> xom.apple.os.update-
+    *(char *)vtop_static(0xFFFFFFF0075085FC + g_virt_slide) =
+        'x'; // com.apple.os.update- -> xom.apple.os.update-
 #endif
-//#if ENABLE_PCIE == 1
+// #if ENABLE_PCIE == 1
 #if 1
-    *(uint32_t *)vtop_static(0xfffffff00984ab1c + g_virt_slide) = cpu_to_le32(0xffffffff); // _gAPCIEdebugFlags: orig == 0x80000001
+    *(uint32_t *)vtop_static(0xfffffff00984ab1c + g_virt_slide) =
+        cpu_to_le32(0xffffffff); // _gAPCIEdebugFlags: orig == 0x80000001
 #endif
     kpf();
 }
@@ -352,15 +369,21 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     // SEPFW
     info->sep_fw_addr = phys_ptr;
     if (t8030_machine->sep_fw_filename) {
-        macho_load_raw_file(t8030_machine->sep_fw_filename, nsas, sysmem, "sepfw", info->sep_fw_addr, &info->sep_fw_size);
-        //size_t garbage = 0;
-        //macho_load_raw_file(t8030_machine->sep_fw_filename, nsas, sysmem, "sepfw", 0x4000ULL, &garbage);
-        //macho_load_raw_file(t8030_machine->sep_fw_filename, nsas, sysmem, "sepfw", info->sep_fw_addr, &garbage);
-        ////address_space_write(nsas, 0x4000ULL, MEMTXATTRS_UNSPECIFIED, const void *buf, garbage);
-        AppleSEPState *sep = APPLE_SEP(object_property_get_link(OBJECT(machine), "sep", &error_fatal));
+        macho_load_raw_file(t8030_machine->sep_fw_filename, nsas, sysmem,
+                            "sepfw", info->sep_fw_addr, &info->sep_fw_size);
+        // size_t garbage = 0;
+        // macho_load_raw_file(t8030_machine->sep_fw_filename, nsas, sysmem,
+        // "sepfw", 0x4000ULL, &garbage);
+        // macho_load_raw_file(t8030_machine->sep_fw_filename, nsas, sysmem,
+        // "sepfw", info->sep_fw_addr, &garbage);
+        ////address_space_write(nsas, 0x4000ULL, MEMTXATTRS_UNSPECIFIED, const
+        /// void *buf, garbage);
+        AppleSEPState *sep = APPLE_SEP(
+            object_property_get_link(OBJECT(machine), "sep", &error_fatal));
         sep->sep_fw_addr = info->sep_fw_addr;
         sep->sep_fw_size = info->sep_fw_size;
-        g_file_get_contents(t8030_machine->sep_fw_filename, &sep->sepfw_data, NULL, NULL);
+        g_file_get_contents(t8030_machine->sep_fw_filename, &sep->sepfw_data,
+                            NULL, NULL);
     }
     info->sep_fw_size = align_16k_high(8 * MiB);
     phys_ptr += info->sep_fw_size;
@@ -374,11 +397,14 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     info->device_tree_addr = phys_ptr;
     dtb_va = ptov_static(info->device_tree_addr);
     phys_ptr += align_16k_high(info->device_tree_size);
-    info_report("Device tree physical base: 0x" TARGET_FMT_lx, info->device_tree_addr);
+    info_report("Device tree physical base: 0x" TARGET_FMT_lx,
+                info->device_tree_addr);
     info_report("Device tree virtual base: 0x" TARGET_FMT_lx, dtb_va);
     info_report("Device tree size: 0x" TARGET_FMT_lx, info->device_tree_size);
 
-    mem_size = machine->maxram_size - (T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE));
+    mem_size =
+        machine->maxram_size -
+        (T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE));
     info_report("mem_size: 0x%" PRIx64 "", mem_size);
 
     macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
@@ -540,8 +566,10 @@ static void t8030_memory_setup(MachineState *machine)
             return;
         }
         // Apparently needed because of a bug occurring on XNU
-        address_space_set(nsas, 0x300000000ULL, 0, 0x8000000ULL, MEMTXATTRS_UNSPECIFIED);
-        address_space_set(nsas, 0x340000000ULL, 0, 0x2000000ULL, MEMTXATTRS_UNSPECIFIED);
+        address_space_set(nsas, 0x300000000ULL, 0, 0x8000000ULL,
+                          MEMTXATTRS_UNSPECIFIED);
+        address_space_set(nsas, 0x340000000ULL, 0, 0x2000000ULL,
+                          MEMTXATTRS_UNSPECIFIED);
         address_space_rw(nsas, T8030_SEPROM_BASE, MEMTXATTRS_UNSPECIFIED,
                          (uint8_t *)seprom, fsize, true);
 
@@ -551,39 +579,102 @@ static void t8030_memory_setup(MachineState *machine)
         uint32_t value32_mov_x0_1 = 0xd2800020; // mov x0, #0x1
         uint32_t value32_mov_x0_0 = 0xd2800000; // mov x0, #0x0
         uint32_t value32_nop = 0xd503201f; // nop
-        //uint32_t value32_mov_w0_0x10000000 = 0x52a20000; // mov w0, #0x10000000
+        // uint32_t value32_mov_w0_0x10000000 = 0x52a20000; // mov w0,
+        // #0x10000000
         uint32_t value32_mov_w0_8030 = 0x52900600; // mov w0, #0x8030
         uint32_t value32_mov_w8_8030 = 0x52900608; // mov w8, #0x8030
-        //uint32_t value32_mov_w0_0 = 0x52800000; // mov w0, #0x0
-        //uint32_t value32_mov_w8_0x1000 = 0x52820008;
+        // uint32_t value32_mov_w0_0 = 0x52800000; // mov w0, #0x0
+        // uint32_t value32_mov_w8_0x1000 = 0x52820008;
 #if 1 // for T8020 SEPROM
-        address_space_write(nsas, t8030_machine->soc_base_pa + 0x42140108, MEMTXATTRS_UNSPECIFIED, &value, sizeof(value)); // _entry: prevent busy-loop (data section): 240000024: data_242140108 = 0x4 should set (data_242140108 & 0x8000000000000000) != 0
-        ////address_space_write(nsas, T8030_SEPROM_BASE + 0x0d2c8, MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); // image4_validate_property_callback: skip AMNM
-        ////address_space_write(nsas, T8030_SEPROM_BASE + 0x12144, MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); // maybe_Img4DecodeEvaluateTrust: Skip RSA verification result.
-        // not actually stuck, it just takes a while to complete while GDB is in use.
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x121d8, MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); // maybe_Img4DecodeEvaluateTrust: payload_raw hashing stuck, nop'ing
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x121dc, MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); // maybe_Img4DecodeEvaluateTrust: nop'ing result of payload_raw hashing
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x0abd8, MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0, sizeof(value32_mov_x0_0)); // memcmp_validstrs30: fake success
-        ////address_space_write(nsas, T8030_SEPROM_BASE + 0x0ca84, MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0, sizeof(value32_mov_x0_0)); // memcmp_validstrs14: fake success
-        //address_space_write(nsas, T8030_SEPROM_BASE + 0x091b4, MEMTXATTRS_UNSPECIFIED, &value32_mov_w0_8030, sizeof(value32_mov_w0_8030)); // get_chipid: patch get_chipid to return 0x8030 instead of 0x8020
-        //address_space_write(nsas, T8030_SEPROM_BASE + 0x09178, MEMTXATTRS_UNSPECIFIED, &value32_mov_w8_8030, sizeof(value32_mov_w8_8030)); // another chipid
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x077ac, MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_1, sizeof(value32_mov_x0_1)); // load_sepos: jump over img4_compare_verified_values_true_on_success
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x123bc, MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0, sizeof(value32_mov_x0_0)); // maybe_verify_rsa_signature: return fake return value
-        //*(uint32_t *)vtop_static(0xfffffff008b4e018 + g_virt_slide) = value32_mov_w0_0x10000000; // AppleSEPBooter::getBootTimeout: increase timeout for debugging (GDB tracing). The _initTimeoutMultiplier change is preferred compared to this.
-        //*(uint32_t *)vtop_static(0xfffffff008b576b4 + g_virt_slide) = value32_nop; // AppleSEPManager::_tracingEnabled: Don't require _PE_i_can_has_debugger.
-        //*(uint32_t *)vtop_static(0xfffffff008b57ad4 + g_virt_slide) = value32_mov_x0_1; // AppleSEPManager::_bootSEP:: Don't require _PE_i_can_has_debugger.
-        //*(uint32_t *)vtop_static(0xfffffff008b56b18 + g_virt_slide) = value32_nop; // AppleSEPManager::_initPMControl: Don't require _PE_i_can_has_debugger. // _PE_parse_boot_argn "sep_pm"
-        //*(uint32_t *)vtop_static(0xfffffff007a231d8 + g_virt_slide) = value32_mov_x0_1; // _kern_config_is_development
-        //*(uint32_t *)vtop_static(0xfffffff008b56aa4 + g_virt_slide) = value32_mov_w8_0x1000; // AppleSEPManager::_initTimeoutMultiplier: Increasing the FastSIM timeout. Conflicts with getBootTimeout.
-        //*(uint32_t *)vtop_static(0xfffffff0079f95a8 + g_virt_slide) = value32_mov_w0_0; // SEP::_kern_register_coredump_helper: Needed for the bootSEP patch.
-        //*(uint32_t *)vtop_static(0xfffffff008794f24 + g_virt_slide) = value32_mov_x0_0; // ApplePMGR::_cpuIdle: skip time check
+        address_space_write(
+            nsas, t8030_machine->soc_base_pa + 0x42140108,
+            MEMTXATTRS_UNSPECIFIED, &value,
+            sizeof(value)); // _entry: prevent busy-loop (data section):
+                            // 240000024: data_242140108 = 0x4 should set
+                            // (data_242140108 & 0x8000000000000000) != 0
+        ////address_space_write(nsas, T8030_SEPROM_BASE + 0x0d2c8,
+        /// MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); //
+        /// image4_validate_property_callback: skip AMNM
+        ////address_space_write(nsas, T8030_SEPROM_BASE + 0x12144,
+        /// MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); //
+        /// maybe_Img4DecodeEvaluateTrust: Skip RSA verification result.
+        // not actually stuck, it just takes a while to complete while GDB is in
+        // use.
+        address_space_write(
+            nsas, T8030_SEPROM_BASE + 0x121d8, MEMTXATTRS_UNSPECIFIED,
+            &value32_nop,
+            sizeof(value32_nop)); // maybe_Img4DecodeEvaluateTrust: payload_raw
+                                  // hashing stuck, nop'ing
+        address_space_write(
+            nsas, T8030_SEPROM_BASE + 0x121dc, MEMTXATTRS_UNSPECIFIED,
+            &value32_nop,
+            sizeof(value32_nop)); // maybe_Img4DecodeEvaluateTrust: nop'ing
+                                  // result of payload_raw hashing
+        address_space_write(
+            nsas, T8030_SEPROM_BASE + 0x0abd8, MEMTXATTRS_UNSPECIFIED,
+            &value32_mov_x0_0,
+            sizeof(value32_mov_x0_0)); // memcmp_validstrs30: fake success
+        ////address_space_write(nsas, T8030_SEPROM_BASE + 0x0ca84,
+        /// MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
+        /// sizeof(value32_mov_x0_0));
+        ///// memcmp_validstrs14: fake success
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x091b4,
+        // MEMTXATTRS_UNSPECIFIED, &value32_mov_w0_8030,
+        // sizeof(value32_mov_w0_8030)); // get_chipid: patch get_chipid to
+        // return 0x8030 instead of 0x8020 address_space_write(nsas,
+        // T8030_SEPROM_BASE + 0x09178, MEMTXATTRS_UNSPECIFIED,
+        // &value32_mov_w8_8030, sizeof(value32_mov_w8_8030)); // another chipid
+        address_space_write(
+            nsas, T8030_SEPROM_BASE + 0x077ac, MEMTXATTRS_UNSPECIFIED,
+            &value32_mov_x0_1,
+            sizeof(
+                value32_mov_x0_1)); // load_sepos: jump over
+                                    // img4_compare_verified_values_true_on_success
+        address_space_write(
+            nsas, T8030_SEPROM_BASE + 0x123bc, MEMTXATTRS_UNSPECIFIED,
+            &value32_mov_x0_0,
+            sizeof(value32_mov_x0_0)); // maybe_verify_rsa_signature: return
+                                       // fake return value
+        //*(uint32_t *)vtop_static(0xfffffff008b4e018 + g_virt_slide) =
+        // value32_mov_w0_0x10000000; // AppleSEPBooter::getBootTimeout:
+        // increase timeout for debugging (GDB tracing). The
+        // _initTimeoutMultiplier change is preferred compared to this.
+        //*(uint32_t *)vtop_static(0xfffffff008b576b4 + g_virt_slide) =
+        // value32_nop; // AppleSEPManager::_tracingEnabled: Don't require
+        //_PE_i_can_has_debugger.
+        //*(uint32_t *)vtop_static(0xfffffff008b57ad4 + g_virt_slide) =
+        // value32_mov_x0_1; // AppleSEPManager::_bootSEP:: Don't require
+        //_PE_i_can_has_debugger.
+        //*(uint32_t *)vtop_static(0xfffffff008b56b18 + g_virt_slide) =
+        // value32_nop; // AppleSEPManager::_initPMControl: Don't require
+        //_PE_i_can_has_debugger. // _PE_parse_boot_argn "sep_pm"
+        //*(uint32_t *)vtop_static(0xfffffff007a231d8 + g_virt_slide) =
+        // value32_mov_x0_1; // _kern_config_is_development
+        //*(uint32_t *)vtop_static(0xfffffff008b56aa4 + g_virt_slide) =
+        // value32_mov_w8_0x1000; // AppleSEPManager::_initTimeoutMultiplier:
+        // Increasing the FastSIM timeout. Conflicts with getBootTimeout.
+        //*(uint32_t *)vtop_static(0xfffffff0079f95a8 + g_virt_slide) =
+        // value32_mov_w0_0; // SEP::_kern_register_coredump_helper: Needed for
+        // the bootSEP patch.
+        //*(uint32_t *)vtop_static(0xfffffff008794f24 + g_virt_slide) =
+        // value32_mov_x0_0; // ApplePMGR::_cpuIdle: skip time check
         ////////
-        //address_space_write(nsas, T8030_SEPROM_BASE + 0x0d2c8, MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); // image4_validate_property_callback: skip AMNM
-        //address_space_write(nsas, T8030_SEPROM_BASE + 0x12144, MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); // maybe_Img4DecodeEvaluateTrust: Skip RSA verification result.
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x0d2c8,
+        // MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); //
+        // image4_validate_property_callback: skip AMNM
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x12144,
+        // MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); //
+        // maybe_Img4DecodeEvaluateTrust: Skip RSA verification result.
 #if 1
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x0ca84, MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0, sizeof(value32_mov_x0_0)); // memcmp_validstrs14: fake success; for nvram bypass?
+        address_space_write(
+            nsas, T8030_SEPROM_BASE + 0x0ca84, MEMTXATTRS_UNSPECIFIED,
+            &value32_mov_x0_0,
+            sizeof(value32_mov_x0_0)); // memcmp_validstrs14: fake success; for
+                                       // nvram bypass?
 #endif
-        //address_space_write(nsas, T8030_SEPROM_BASE + 0x02ab0, MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0, sizeof(value32_mov_x0_0)); // memcmp_validstrs20: fake success
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x02ab0,
+        // MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0, sizeof(value32_mov_x0_0));
+        // // memcmp_validstrs20: fake success
 #endif // for T8020 SEPROM
     }
 
@@ -652,13 +743,17 @@ static void t8030_memory_setup(MachineState *machine)
         set_dtb_prop(t8030_machine->device_tree, "compatible", 29,
                      "N104DEV\0iPhone12,1\0AppleARM\0$");
 #if 1
-        // will cause this error after recovery reboot "mount_apfs: unrecognized option 'size=262144'"
-        // but it missing causes recovery errors, so revert it below for the reboot
-        // Data volume for recovery, because iBoot doesn't run. from ephemeral-recovery-data-vol
-        DTBNode *data_vol = find_dtb_node(t8030_machine->device_tree, "filesystems/fstab/data-vol");
-        set_dtb_prop(data_vol, "vol.fs_mntopts", 49, "nosuid,nodev,size=262144,template=/private/var/\0$");
+        // will cause this error after recovery reboot "mount_apfs: unrecognized
+        // option 'size=262144'" but it missing causes recovery errors, so
+        // revert it below for the reboot Data volume for recovery, because
+        // iBoot doesn't run. from ephemeral-recovery-data-vol
+        DTBNode *data_vol = find_dtb_node(t8030_machine->device_tree,
+                                          "filesystems/fstab/data-vol");
+        set_dtb_prop(data_vol, "vol.fs_mntopts", 49,
+                     "nosuid,nodev,size=262144,template=/private/var/\0$");
         uint32_t mount_order = 0;
-        set_dtb_prop(data_vol, "vol.fs_mntorder", sizeof(mount_order), &mount_order);
+        set_dtb_prop(data_vol, "vol.fs_mntorder", sizeof(mount_order),
+                     &mount_order);
 #endif
         restore_enabled = 1;
     } else {
@@ -666,28 +761,38 @@ static void t8030_memory_setup(MachineState *machine)
                      "N104AP\0iPhone12,1\0AppleARM\0$");
 #if 1
         // set back original values
-        DTBNode *data_vol = find_dtb_node(t8030_machine->device_tree, "filesystems/fstab/data-vol");
+        DTBNode *data_vol = find_dtb_node(t8030_machine->device_tree,
+                                          "filesystems/fstab/data-vol");
         set_dtb_prop(data_vol, "vol.fs_mntopts", 14, "nosuid,nodev\0$");
         uint32_t mount_order = 3;
-        set_dtb_prop(data_vol, "vol.fs_mntorder", sizeof(mount_order), &mount_order);
+        set_dtb_prop(data_vol, "vol.fs_mntorder", sizeof(mount_order),
+                     &mount_order);
 #endif
         restore_enabled = 0;
     }
     uint32_t restore_enabled_neg = !restore_enabled;
 #if 1
-    set_dtb_prop(chosen, "ephemeral-storage", sizeof(restore_enabled), &restore_enabled);
-    set_dtb_prop(chosen, "sepfw-load-at-boot", sizeof(restore_enabled_neg), &restore_enabled_neg);
-    set_dtb_prop(chosen, "no-sepfw-load-at-boot", sizeof(restore_enabled), &restore_enabled);
-    uint32_t val_true = 1;
-    uint32_t val_false = 0;
+    set_dtb_prop(chosen, "ephemeral-storage", sizeof(restore_enabled),
+                 &restore_enabled);
+    set_dtb_prop(chosen, "sepfw-load-at-boot", sizeof(restore_enabled_neg),
+                 &restore_enabled_neg);
+    set_dtb_prop(chosen, "no-sepfw-load-at-boot", sizeof(restore_enabled),
+                 &restore_enabled);
 #if ENABLE_SEP == 0
-    set_dtb_prop(chosen, "protected-data-access", sizeof(val_false), &val_false); // has to be enabled when SEP is enabled
+    uint32_t val_false = 0;
+    set_dtb_prop(chosen, "protected-data-access", sizeof(val_false),
+                 &val_false); // has to be enabled when SEP is enabled
 #else
-    set_dtb_prop(chosen, "protected-data-access", sizeof(val_true), &val_true); // has to be enabled when SEP is enabled
+    uint32_t val_true = 1;
+    set_dtb_prop(chosen, "protected-data-access", sizeof(val_true),
+                 &val_true); // has to be enabled when SEP is enabled
 #endif // ENABLE_SEP == 0
-    set_dtb_prop(chosen, "disable-av-content-protection", sizeof(restore_enabled), &restore_enabled);
-    set_dtb_prop(chosen, "use-recovery-securityd", sizeof(restore_enabled), &restore_enabled);
-    set_dtb_prop(chosen, "disable-accessory-firmware", sizeof(restore_enabled), &restore_enabled);
+    set_dtb_prop(chosen, "disable-av-content-protection",
+                 sizeof(restore_enabled), &restore_enabled);
+    set_dtb_prop(chosen, "use-recovery-securityd", sizeof(restore_enabled),
+                 &restore_enabled);
+    set_dtb_prop(chosen, "disable-accessory-firmware", sizeof(restore_enabled),
+                 &restore_enabled);
 #endif
 
     if (!xnu_contains_boot_arg(cmdline, "rd=", true)) {
@@ -750,7 +855,7 @@ static void t8030_memory_setup(MachineState *machine)
 }
 
 static uint64_t pmgr_unk_e4800 = 0;
-static uint32_t pmgr_unk_e4000[0x180/4] = {0};
+static uint32_t pmgr_unk_e4000[0x180 / 4] = { 0 };
 
 static void pmgr_unk_reg_write(void *opaque, hwaddr addr, uint64_t data,
                                unsigned size)
@@ -761,7 +866,7 @@ static void pmgr_unk_reg_write(void *opaque, hwaddr addr, uint64_t data,
         pmgr_unk_e4800 = data; // 0x240002c00 and 0x2400037a4
         break;
     case 0x3D2E4000 ... 0x3D2E417f: // ???? 0x24000377c
-        pmgr_unk_e4000[((base + addr) - 0x3D2E4000)/4] = data; // 0x24000377c
+        pmgr_unk_e4000[((base + addr) - 0x3D2E4000) / 4] = data; // 0x24000377c
         break;
     default:
         break;
@@ -780,32 +885,33 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     T8030MachineState *tms = T8030_MACHINE(machine);
     AppleSEPState *sep;
     hwaddr base = (hwaddr)opaque;
-    sep = APPLE_SEP(object_property_get_link(OBJECT(machine), "sep", &error_fatal));
+    sep = APPLE_SEP(
+        object_property_get_link(OBJECT(machine), "sep", &error_fatal));
 
 #if 1
-    if ((((base + addr) & 0xfffffffb) != 0x10E20020) && 
-        (((base + addr) & 0xfffffffb) != 0x11E20020)
-    ) {
-    qemu_log_mask(LOG_UNIMP,
-                  "PMGR reg READ unk @ 0x" TARGET_FMT_lx
-                  " base: 0x" TARGET_FMT_lx "\n",
-                  base + addr, base);
+    if ((((base + addr) & 0xfffffffb) != 0x10E20020) &&
+        (((base + addr) & 0xfffffffb) != 0x11E20020)) {
+        qemu_log_mask(LOG_UNIMP,
+                      "PMGR reg READ unk @ 0x" TARGET_FMT_lx
+                      " base: 0x" TARGET_FMT_lx "\n",
+                      base + addr, base);
     }
 #endif
     uint32_t chip_revision;
     uint64_t board_id;
-    uint64_t security_epoch; // On IMG4: Security Epoch ; On IMG3: Minimum Epoch, verified on SecureROM s5l8955xsi
+    uint64_t security_epoch; // On IMG4: Security Epoch ; On IMG3: Minimum
+                             // Epoch, verified on SecureROM s5l8955xsi
     int current_prod = 1;
     int current_secure_mode = 1; // T8015 SEPOS Kernel also requires this.
     int security_domain = 1;
     int raw_prod = 1;
     int raw_secure_mode = 1;
-    //chip_revision = 0x01;
+    // chip_revision = 0x01;
     chip_revision = 0x11;
-    //board_id = 0x4;
+    // board_id = 0x4;
     board_id = tms->board_id;
     security_epoch = 0x1;
-    //current_prod = raw_prod = current_secure_mode = raw_secure_mode = 0;
+    // current_prod = raw_prod = current_secure_mode = raw_secure_mode = 0;
     switch (base + addr) {
     case 0x3D280088: // PMGR_AON
         return 0xFF;
@@ -816,10 +922,11 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
             return 0xA55AC33C; // IBFL | 0x10 // CPFM | 0x03 ; IBFL_base == 0x0C
         return 0xA050C030; // IBFL | 0x00 // CPFM | 0x00 ; IBFL_base == 0x04
     case 0x3D2BC200: // RAW_PROD T8020 AP/SEP
-        //if (sep->pmgr_base_regs[0x68] != 0) // if T8020 AP/SEP current_prod and raw_prod are disabled, scrd sets a flag
-        //    return 0xA050C030;
-        //return 0xA55AC33C; // IBFL | 0x10
-        //return 0xA050C030; // not prod. breaks SEPROM
+        // if (sep->pmgr_base_regs[0x68] != 0) // if T8020 AP/SEP current_prod
+        // and raw_prod are disabled, scrd sets a flag
+        //     return 0xA050C030;
+        // return 0xA55AC33C; // IBFL | 0x10
+        // return 0xA050C030; // not prod. breaks SEPROM
         if (raw_prod == 1)
             return 0xA55AC33C; // IBFL | 0x10
         return 0xA050C030; // IBFL | 0x00
@@ -844,24 +951,35 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
             return 0xA55AC33C; // security domain | 0x2
         return 0xA050C030; // security domain | 0x0
     case 0x3D2BC010:
-    case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO? AppleSEPROM-A12-D331pAP
-        //uint64_t sep_bit30 = 0;
-        uint64_t sep_bit30 = ((sep->pmgr_base_regs[0x8000] & 0x1) != 0);
-        return (board_id & 0x7) | ((security_epoch & 0x7f) << 5) | (sep_bit30 << 30) | (1 << 31); // (security epoch & 0x7F) << 5 ;; (sep_bit30 << 30) for SEP | (1 << 31) for SEP and AP
-    case 0x3D2BC020: // T8030 iBSS: FUN_19c07feac_return_value_causes_crash; same address on T8020 iBoot, but possibly different handling
+    case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO?
+                     // AppleSEPROM-A12-D331pAP
+        return (board_id & 0x7) | ((security_epoch & 0x7f) << 5) |
+               (((sep->pmgr_base_regs[0x8000] & 0x1) != 0) << 30) |
+               (1 << 31); // (security epoch & 0x7F) << 5 ;; (sep_bit30 << 30)
+                          // for SEP | (1 << 31) for SEP and AP
+    case 0x3D2BC020: // T8030 iBSS: FUN_19c07feac_return_value_causes_crash;
+                     // same address on T8020 iBoot, but possibly different
+                     // handling
         if (1)
             return 0xA55AC33C;
         return 0xA050C030; // causes panic, so does a invalid value
     case 0x3D2BC02c: // Unknown SEP T8020
-        //return 0xc000ce71;
-        //return 0 << 30; // no panic
-        //return (1 << 31) | (1 << 30); // panic
+        // return 0xc000ce71;
+        // return 0 << 30; // no panic
+        // return (1 << 31) | (1 << 30); // panic
         return (0 << 31) | (1 << 30); // // bit31 causes a panic
     case 0x3D2BC030: // CPRV (Chip Revision) T8030 T8020
-        //return 0xa6016242;
-        //return ((chip_revision & 0x7) << 6) | (((chip_revision & 0x70) >> 4) << 5); // LOW&HIGH NIBBLE T8030, T8020 and AppleSEPROM-S4-S5-B1 // maybe 0x1c0 instead of 0x7
-        //return ((chip_revision & 0x7) << 6) | (((chip_revision & 0x70) >> 4) << 5) | (1 << 1); // LOW&HIGH NIBBLE T8030, T8020 and AppleSEPROM-S4-S5-B1 // maybe 0x1c0 instead of 0x7
-        return ((chip_revision & 0x7) << 6) | (((chip_revision & 0x70) >> 4) << 5) | (0 << 1); // LOW&HIGH NIBBLE T8030, T8020 and AppleSEPROM-S4-S5-B1 // maybe 0x1c0 instead of 0x7 ; bit1 being set causes kernel data abort
+        // return 0xa6016242;
+        // return ((chip_revision & 0x7) << 6) | (((chip_revision & 0x70) >> 4)
+        // << 5); // LOW&HIGH NIBBLE T8030, T8020 and AppleSEPROM-S4-S5-B1 //
+        // maybe 0x1c0 instead of 0x7 return ((chip_revision & 0x7) << 6) |
+        // (((chip_revision & 0x70) >> 4) << 5) | (1 << 1); // LOW&HIGH NIBBLE
+        // T8030, T8020 and AppleSEPROM-S4-S5-B1 // maybe 0x1c0 instead of 0x7
+        return ((chip_revision & 0x7) << 6) |
+               (((chip_revision & 0x70) >> 4) << 5) |
+               (0 << 1); // LOW&HIGH NIBBLE T8030, T8020 and
+                         // AppleSEPROM-S4-S5-B1 // maybe 0x1c0 instead of 0x7 ;
+                         // bit1 being set causes kernel data abort
     case 0x3D2BC100: // ECID LOW T8020
     case 0x3D2BC300: // TODO
     case 0x352bc080: // ECID LOW T8015
@@ -871,37 +989,44 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x352bc084: // ECID HIGH T8015
         return tms->ecid >> 32; // ECID upper
     case 0x3D2BC10c: // T8020 SEP Chip Revision?
-    //case 0x3D2BC30c: // Maybe the T8030 SEP equivalent?
-        // 1 vs. not 1: TRNG/Monitor
-        // 0 vs. not 0: Monitor
-        // 2 vs. not 2: ARTM
-        // Production SARS doesn't like value (0 << 28) in combination with kbkdf_index being 0
-        //return 0; // 0
-        //return 2 << 28; // 1
-        //return 3 << 28; // 1
+        // case 0x3D2BC30c: // Maybe the T8030 SEP equivalent?
+        //  1 vs. not 1: TRNG/Monitor
+        //  0 vs. not 0: Monitor
+        //  2 vs. not 2: ARTM
+        //  Production SARS doesn't like value (0 << 28) in combination with
+        //  kbkdf_index being 0
+        // return 0; // 0
+        // return 2 << 28; // 1
+        // return 3 << 28; // 1
         return 8 << 28; // 2
     case 0x3D2E8000: // ????
-        //return 0x32B3; // memory encryption AMK (Authentication Master Key) disabled
-        return 0xC2E9; // memory encryption AMK (Authentication Master Key) enabled
+        // return 0x32B3; // memory encryption AMK (Authentication Master Key)
+        // disabled
+        return 0xC2E9; // memory encryption AMK (Authentication Master Key)
+                       // enabled
     case 0x3D2E4800: // ???? 0x240002c00 and 0x2400037a4
         return pmgr_unk_e4800; // 0x240002c00 and 0x2400037a4
     case 0x3D2E4000 ... 0x3D2E417f: // ???? 0x24000377c
-        return pmgr_unk_e4000[((base + addr) - 0x3D2E4000)/4]; // 0x24000377c
+        return pmgr_unk_e4000[((base + addr) - 0x3D2E4000) / 4]; // 0x24000377c
     /* BEGIN: for T8015 */
     /* BEGIN: from T8030 AP AES */
     case 0x3d2d0020: //! board-id
         return tms->board_id;
-    case 0x3d2d0034: //? bit 24 = is first boot ; bit 25 = something with memory encryption?
+    case 0x3d2d0034: //? bit 24 = is first boot ; bit 25 = something with memory
+                     // encryption?
         return (1 << 24) | (1 << 25);
-        //return (1 << 24) | (0 << 25);
+        // return (1 << 24) | (0 << 25);
     /* END: from T8030 AP AES */
     ///
     case 0x352bc000: // CURRENT_PROD T8015 AP
-        return (current_prod << 0) | (current_secure_mode << 1) | ((security_domain & 3) << 2) | ((board_id & 7) << 4) | ((security_epoch & 0x7f) << 9);
+        return (current_prod << 0) | (current_secure_mode << 1) |
+               ((security_domain & 3) << 2) | ((board_id & 7) << 4) |
+               ((security_epoch & 0x7f) << 9);
     case 0x352bc200: // RAW_PROD T8015 AP
         return (raw_prod << 0) | (raw_secure_mode << 1);
     case 0x352bc018: // CPRV (Chip Revision) T8015
-        return ((chip_revision & 0x7) << 8) | (((chip_revision & 0x70) >> 4) << 11);
+        return ((chip_revision & 0x7) << 8) |
+               (((chip_revision & 0x70) >> 4) << 11);
     /* END: for T8015 */
     case 0x3c100c4c: // Could that also have been for T8015? No idea anymore.
         return 0x1;
@@ -930,8 +1055,7 @@ static void pmgr_reg_write(void *opaque, hwaddr addr, uint64_t data,
     if (addr >= 0x80000 && addr <= 0x8C000) {
         value = (value & 0xF) << 4 | (value & 0xF);
     }
-#if 1
-    cpu_dump_state(first_cpu, stderr, CPU_DUMP_CODE);
+#if 0
     qemu_log_mask(LOG_UNIMP,
                   "PMGR reg WRITE @ 0x" TARGET_FMT_lx " value: 0x" TARGET_FMT_lx
                   "\n",
@@ -942,9 +1066,9 @@ static void pmgr_reg_write(void *opaque, hwaddr addr, uint64_t data,
         t8030_start_cpus(machine, data);
         return;
     case 0x80C00:
-    //case 0x80400: // T8015
-        cpu_dump_state(first_cpu, stderr, CPU_DUMP_CODE);
-        sep = APPLE_SEP(object_property_get_link(OBJECT(machine), "sep", &error_fatal));
+        // case 0x80400: // T8015
+        sep = APPLE_SEP(
+            object_property_get_link(OBJECT(machine), "sep", &error_fatal));
         if (((data >> 31) & 1) == 1) {
             apple_a13_cpu_reset(APPLE_A13(sep->cpu));
         } else if (((data >> 10) & 1) == 0) {
@@ -1012,12 +1136,14 @@ static uint64_t amcc_reg_read(void *opaque, hwaddr addr, unsigned size)
     T8030MachineState *t8030_machine = T8030_MACHINE(opaque);
     hwaddr orig_addr = addr;
     uint64_t result = 0;
-    uint64_t base = (T8030_KERNEL_REGION_BASE-T8030_DRAM_BASE)+T8030_KERNEL_REGION_SIZE;
-    //uint64_t amcc_size = 0xada0000;
+    uint64_t base =
+        (T8030_KERNEL_REGION_BASE - T8030_DRAM_BASE) + T8030_KERNEL_REGION_SIZE;
+    // uint64_t amcc_size = 0xada0000;
     uint64_t amcc_size = 0xf000000;
-    //uint64_t base = (T8030_KERNEL_REGION_BASE-T8030_DRAM_BASE)+T8030_KERNEL_REGION_SIZE+0x1000000;
-    //uint64_t base = 0x14000000; // T8015
-    //uint64_t amcc_size = 0x6000000; // T8015
+    // uint64_t base =
+    // (T8030_KERNEL_REGION_BASE-T8030_DRAM_BASE)+T8030_KERNEL_REGION_SIZE+0x1000000;
+    // uint64_t base = 0x14000000; // T8015
+    // uint64_t amcc_size = 0x6000000; // T8015
     switch (addr) {
     case 0x6A0:
     case 0x406A0:
@@ -1029,7 +1155,7 @@ static uint64_t amcc_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x406A4:
     case 0x806A4:
     case 0xC06A4:
-        result = ((amcc_size+base)-1)>>12;
+        result = ((amcc_size + base) - 1) >> 12;
         break;
     case 0x6A8:
     case 0x406A8:
@@ -1874,7 +2000,8 @@ static void t8030_create_smc(MachineState *machine)
     DTBNode *child = find_dtb_node(t8030_machine->device_tree, "arm-io");
     DTBNode *iop_nub;
     AppleIopSegmentRange segranges[2] = { 0 };
-    uint64_t smc_region_base, smc_region_size, smc_text_base, smc_data_base, smc_sram_base;
+    uint64_t smc_region_base, smc_region_size, smc_text_base, smc_data_base,
+        smc_sram_base;
 
     g_assert_nonnull(child);
     child = find_dtb_node(child, "smc");
@@ -1895,7 +2022,8 @@ static void t8030_create_smc(MachineState *machine)
     smc_data_base = smc_text_base + T8030_SMC_TEXT_SIZE;
     smc_sram_base = smc_data_base + T8030_SMC_DATA_SIZE;
 
-    allocate_ram(t8030_machine->sysmem, "SMC_REGION0", smc_region_base, smc_region_size, 0);
+    allocate_ram(t8030_machine->sysmem, "SMC_REGION0", smc_region_base,
+                 smc_region_size, 0);
 
     segranges[0].phys = smc_text_base;
     segranges[0].virt = 0x0;
@@ -1911,7 +2039,8 @@ static void t8030_create_smc(MachineState *machine)
 
     set_dtb_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
 
-    // region-size (and region-base) is/are already set in the device tree and sram-addr doesn't seem to exist
+    // region-size (and region-base) is/are already set in the device tree and
+    // sram-addr doesn't seem to exist
 #if 0
     data = T8030_SMC_REGION_SIZE;
     set_dtb_prop(iop_nub, "region-size", sizeof(data), &data);
@@ -2064,14 +2193,14 @@ static void t8030_create_misc(MachineState *machine)
     g_assert_nonnull(child);
     child = find_dtb_node(child, "bluetooth");
     g_assert_nonnull(child);
-    //data = 0x7; // orig == PCIE
+    // data = 0x7; // orig == PCIE
     data = 0x0; // mod == USB
-    //data = 0x1; // mod == HS
-    //data = 0x2; // mod == H4DS
-    //data = 0x3; // mod == H4BC (UART?)
-    //data = 0x4; // mod == H5
-    //data = 0x5; // mod == BCSP Transport not supported, fallback USB
-    //data = 0x6; // mod == APPLEBT
+    // data = 0x1; // mod == HS
+    // data = 0x2; // mod == H4DS
+    // data = 0x3; // mod == H4BC (UART?)
+    // data = 0x4; // mod == H5
+    // data = 0x5; // mod == BCSP Transport not supported, fallback USB
+    // data = 0x6; // mod == APPLEBT
     set_dtb_prop(child, "transport-encoding", sizeof(data), &data);
 }
 
@@ -2154,7 +2283,8 @@ static void t8030_create_sep(MachineState *machine)
     uint32_t *ints;
     AppleDARTState *dart;
 
-    prop = find_dtb_prop(get_dtb_node(t8030_machine->device_tree, "chosen"), "chip-id");
+    prop = find_dtb_prop(get_dtb_node(t8030_machine->device_tree, "chosen"),
+                         "chip-id");
     g_assert_nonnull(prop);
     ////uint32_t chip_id = *(uint32_t *)prop->value;
     uint32_t chip_id = 0x8030; // needed because of the AGX workaround
@@ -2179,11 +2309,11 @@ static void t8030_create_sep(MachineState *machine)
     sep = apple_sep_create(
         child,
         MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->value)),
-        T8030_SEPROM_BASE, A13_MAX_CPU + 1, t8030_machine->build_version, true, chip_id);
+        T8030_SEPROM_BASE, A13_MAX_CPU + 1, t8030_machine->build_version, true,
+        chip_id);
 #else
-    sep = apple_sep_create(
-        child,
-        T8030_SEPROM_BASE, A13_MAX_CPU + 1, t8030_machine->build_version, true, chip_id);
+    sep = apple_sep_create(child, T8030_SEPROM_BASE, A13_MAX_CPU + 1,
+                           t8030_machine->build_version, true, chip_id);
 #endif
     g_assert_nonnull(sep);
 
@@ -2219,7 +2349,8 @@ static void t8030_create_sep(MachineState *machine)
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 12,
                     t8030_machine->soc_base_pa + 0x410C4000); // MISC2
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 13,
-                    t8030_machine->soc_base_pa + 0x41240000); // MISC4 ; Some encrypted data from SEPROM.
+                    t8030_machine->soc_base_pa +
+                        0x41240000); // MISC4 ; Some encrypted data from SEPROM.
     // index 14 is not mapped here
 
     prop = find_dtb_prop(child, "interrupts");
@@ -2285,7 +2416,7 @@ static void t8030_create_sep_sim(MachineState *machine)
         MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->value));
     g_assert_nonnull(sep->dma_mr);
     g_assert_nonnull(object_property_add_const_link(OBJECT(sep), "dma-mr",
-                                            OBJECT(sep->dma_mr)));
+                                                    OBJECT(sep->dma_mr)));
     sep->dma_as = g_new0(AddressSpace, 1);
     address_space_init(sep->dma_as, sep->dma_mr, "sep.dma");
 
@@ -2357,7 +2488,8 @@ static void t8030_machine_reset(MachineState *machine, ShutdownCause reason)
 
     pmgr_unk_e4800 = 0;
     // maybe also reset pmgr_unk_e4000 array
-    memset(pmgr_unk_e4000, 0, sizeof(pmgr_unk_e4000)); // Ah, what the heck. Let's do it.
+    memset(pmgr_unk_e4000, 0,
+           sizeof(pmgr_unk_e4000)); // Ah, what the heck. Let's do it.
 }
 
 static void t8030_machine_init_done(Notifier *notifier, void *data)
@@ -2401,13 +2533,16 @@ static void t8030_machine_init(MachineState *machine)
                  T8030_DRAM_SIZE, 0);
     if (t8030_machine->seprom_filename) {
         allocate_ram(t8030_machine->sysmem, "SEPROM", T8030_SEPROM_BASE,
-                    T8030_SEPROM_SIZE, 0);
-        allocate_ram(t8030_machine->sysmem, "DRAM_30", 0x300000000ULL, 0x8000000ULL, 0); // 0x4000000 is too low
-        allocate_ram(t8030_machine->sysmem, "DRAM_34", 0x340000000ULL, 0x2000000ULL, 0); // 0x1000000 is too low
+                     T8030_SEPROM_SIZE, 0);
+        allocate_ram(t8030_machine->sysmem, "DRAM_30", 0x300000000ULL,
+                     0x8000000ULL, 0); // 0x4000000 is too low
+        allocate_ram(t8030_machine->sysmem, "DRAM_34", 0x340000000ULL,
+                     0x2000000ULL, 0); // 0x1000000 is too low
     }
     if (t8030_machine->sep_fw_filename) {
-        //allocate_ram(t8030_machine->sysmem, "SEPFW_", 0x000000000ULL, 0x1000000ULL, 0);
-        // allocated in sep.c map_sepfw() instead.
+        // allocate_ram(t8030_machine->sysmem, "SEPFW_", 0x000000000ULL,
+        // 0x1000000ULL, 0);
+        //  allocated in sep.c map_sepfw() instead.
     }
 
     hdr = macho_load_file(machine->kernel_filename, NULL);
@@ -2509,7 +2644,7 @@ static void t8030_machine_init(MachineState *machine)
 
     if (t8030_machine->ecid == 0) {
         t8030_machine->ecid = 0x1122334455667788;
-        //t8030_machine->ecid = 0xdd2233aabb6677cc;
+        // t8030_machine->ecid = 0xdd2233aabb6677cc;
     }
     set_dtb_prop(child, "unique-chip-id", 8, &t8030_machine->ecid);
 
@@ -2583,9 +2718,9 @@ static void t8030_machine_init(MachineState *machine)
         t8030_create_spi(machine, i);
     }
 
-//#if ENABLE_SEP == 1
+// #if ENABLE_SEP == 1
 #if 1
-//#if 0
+    // #if 0
     if (t8030_machine->seprom_filename && t8030_machine->sep_fw_filename) {
         t8030_create_sep(machine);
     } else {

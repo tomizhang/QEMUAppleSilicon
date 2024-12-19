@@ -237,7 +237,6 @@ static uint8_t *apple_disp_gp_read_layer(GenPipeState *s, size_t i,
 
 static void apple_gp_draw_bh(void *opaque)
 {
-    //return;
     GenPipeState *s;
     size_t size;
     uint8_t *buf;
@@ -413,8 +412,8 @@ AppleDisplayPipeV2State *apple_displaypipe_v2_create(MachineState *machine,
                           "up.regs", reg[1]);
     sysbus_init_mmio(sbd, &s->up_regs);
     object_property_add_const_link(OBJECT(sbd), "up.regs", OBJECT(&s->up_regs));
-    //
-    s->invalidated = 1; // set it in both places, here and in reset
+
+    s->invalidated = true;
 
     return s;
 }
@@ -425,7 +424,6 @@ static void apple_displaypipe_v2_draw_row(void *opaque, uint8_t *dest,
 {
     while (width--) {
         uint32_t colour = ldl_le_p(src);
-        //
         memcpy(dest, &colour, sizeof(colour));
         src += sizeof(colour);
         dest += sizeof(colour);
@@ -434,29 +432,24 @@ static void apple_displaypipe_v2_draw_row(void *opaque, uint8_t *dest,
 
 static void apple_displaypipe_v2_invalidate(void *opaque)
 {
-    //return;
     AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(opaque);
-    s->invalidated = 1;
+    s->invalidated = true;
 }
 
 static void apple_displaypipe_v2_gfx_update(void *opaque)
 {
-    //return;
     AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(opaque);
     DisplaySurface *surface = qemu_console_surface(s->console);
 
     int stride = s->width * sizeof(uint32_t);
     int first = 0, last = 0;
 
-#if 1
-    ////if (!s->vram_section.mr)
-    if (s->invalidated)
-    {
+    if (s->invalidated) {
         framebuffer_update_memory_section(&s->vram_section, &s->vram, 0,
                                           s->height, stride);
-        s->invalidated = 0;
+        s->invalidated = false;
     }
-#endif
+
     framebuffer_update_display(surface, &s->vram_section, s->width, s->height,
                                stride, stride, 0, 0,
                                apple_displaypipe_v2_draw_row, s, &first, &last);
@@ -474,7 +467,7 @@ static void apple_displaypipe_v2_reset(DeviceState *dev)
 {
     AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(dev);
 
-    s->invalidated = 1;
+    s->invalidated = true;
     s->int_filter = 0;
     qemu_irq_lower(s->irqs[0]);
     apple_genpipev2_init(&s->genpipes[0], 0, &s->vram, &s->dma_as, s);

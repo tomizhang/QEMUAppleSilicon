@@ -467,8 +467,8 @@ static void s8000_memory_setup(MachineState *machine)
 static void pmgr_unk_reg_write(void *opaque, hwaddr addr, uint64_t data,
                                unsigned size)
 {
-    hwaddr base = (hwaddr)opaque;
 #if 0
+    hwaddr base = (hwaddr)opaque;
     qemu_log_mask(LOG_UNIMP,
                   "PMGR reg WRITE unk @ 0x" TARGET_FMT_lx
                   " base: 0x" TARGET_FMT_lx " value: 0x" TARGET_FMT_lx "\n",

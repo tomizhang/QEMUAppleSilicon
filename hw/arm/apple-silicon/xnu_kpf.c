@@ -157,7 +157,8 @@ static bool kpf_amfi_callback(ApplePfPatch *patch, uint32_t *opcode_stream)
         if (adrp) {
             start = adrp;
         }
-        fprintf(stderr, "%s: Found lookup_in_static_trust_cache @ 0x%" PRIx64 "\n",
+        fprintf(stderr,
+                "%s: Found lookup_in_static_trust_cache @ 0x%" PRIx64 "\n",
                 __func__, ptov_static((hwaddr)start));
         /* XXX: allows amfid to do its work
          * this also allows amfid impersonation
@@ -168,7 +169,8 @@ static bool kpf_amfi_callback(ApplePfPatch *patch, uint32_t *opcode_stream)
         break;
     }
     case 1:
-        fprintf(stderr, "%s: Found lookup_in_trust_cache_module @ 0x%" PRIx64 "\n",
+        fprintf(stderr,
+                "%s: Found lookup_in_trust_cache_module @ 0x%" PRIx64 "\n",
                 __func__, ptov_static((hwaddr)start));
         *(start++) = 0x52800040; /* mov w0, 2 */
         *(start++) = 0x39000040; /* strb w0, [x2] */

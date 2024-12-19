@@ -31,7 +31,6 @@
 #include "qemu/cutils.h"
 #include "qemu/error-report.h"
 #include "qemu/guest-random.h"
-#include "qemu/units.h"
 #include "img4.h"
 #include "lzfse.h"
 #include "lzss.h"
@@ -74,7 +73,8 @@ static const char *KEEP_COMP[] = {
     "otgphyctrl,s8000\0otgphyctrl,s5l8960x\0$",
     "pmgr1,s8000\0$",
     "pmgr1,t8030\0$",
-    "pmu,d2255\0$", // can cause problems on S8000 (if AIC is configured for T8030?)
+    "pmu,d2255\0$", // can cause problems on S8000 (if AIC is configured for
+                    // T8030?)
     "pmu,spmi\0pmu,avus\0$",
 #if ENABLE_ROSWELL == 1
     "roswell\0$",
@@ -108,24 +108,21 @@ static const char *KEEP_COMP[] = {
 };
 
 static const char *REM_NAMES[] = {
-    "aop-gpio\0$",    "backlight\0$",      "dart-ane\0$",         "dart-aop\0$",
-    "dart-apcie2\0$", "dart-apcie3\0$",    "dart-avd\0$",         "dart-ave\0$",
-    "dart-isp\0$",    "dart-jpeg0\0$",     "dart-jpeg1\0$",       "dart-pmp\0$",
-    "dart-rsm\0$",    "dart-scaler\0$",    "dockchannel-uart\0$", "dotara\0$",
-    "pmp\0$",         "stockholm-spmi\0$",
+    "aop-gpio\0$",   "backlight\0$",     "dart-ane\0$",
+    "dart-aop\0$",   "dart-apcie2\0$",   "dart-apcie3\0$",
+    "dart-avd\0$",   "dart-ave\0$",      "dart-isp\0$",
+    "dart-jpeg0\0$", "dart-jpeg1\0$",    "dart-pmp\0$",
+    "dart-rsm\0$",   "dart-scaler\0$",   "dockchannel-uart\0$",
+    "dotara\0$",     "pmp\0$",           "stockholm-spmi\0$",
 #if ENABLE_BASEBAND == 0
-    "baseband\0$", "baseband-spmi\0$",
-    "baseband-vol\0$",
+    "baseband\0$",   "baseband-spmi\0$", "baseband-vol\0$",
 #endif
 #if ENABLE_SEP == 0
-    "sep\0$", "dart-sep\0$",
-    "xart-vol\0$",
-    "pearl-sep\0$", "isp\0$",
-    "xART\0$",
+    "sep\0$",        "dart-sep\0$",      "xart-vol\0$",
+    "pearl-sep\0$",  "isp\0$",           "xART\0$",
 #endif
 #if ENABLE_SEP_SECURITY == 0 // necessary?
-    "pearl-sep\0$", "isp\0$",
-    "Lynx\0$",
+    "pearl-sep\0$",  "isp\0$",           "Lynx\0$",
 #endif
 };
 
@@ -133,9 +130,9 @@ static const char *REM_DEV_TYPES[] = {
 #if 0
     "bluetooth\0$", "wlan\0$",
 #endif
-    "aop\0$", "backlight\0$", "pmp\0$",
+    "aop\0$",          "backlight\0$",     "pmp\0$",
 #if ENABLE_BASEBAND == 0
-    "baseband\0$", "baseband-spmi\0$",
+    "baseband\0$",     "baseband-spmi\0$",
 #endif
 #if ENABLE_SEP_SECURITY == 0 // necessary?
     "spherecontrol\0$"
@@ -144,7 +141,8 @@ static const char *REM_DEV_TYPES[] = {
 
 static const char *REM_PROPS[] = {
 #if ENABLE_SEP == 0
-    // Really DON'T make this depend on ENABLE_SEP_SECURITY. Make it depend on ENABLE_SEP!
+    // Really DON'T make this depend on ENABLE_SEP_SECURITY. Make it depend on
+    // ENABLE_SEP!
     "content-protect",
     "encryptable",
 #endif
@@ -506,7 +504,8 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     set_dtb_prop(child, "content-protect", sizeof(data), &data);
     set_dtb_prop(child, "encryptable", sizeof(data), &data);
     if (data == 0) {
-        set_dtb_prop(child, "no-effaceable-storage", 0, &data); // activated via presence of prop
+        set_dtb_prop(child, "no-effaceable-storage", 0,
+                     &data); // activated via presence of prop
     }
 
     child = get_dtb_node(root, "chosen/manifest-properties");
@@ -533,25 +532,6 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     set_dtb_prop(child, "DeviceTree", sizeof(memmap), &memmap);
 
     info->device_tree_size = align_16k_high(get_dtb_node_buffer_size(root));
-}
-
-static void set_memory_range_carveout(DTBNode *root, const char *name, uint64_t addr,
-                             uint64_t size)
-{
-    DTBNode *child;
-    DTBProp *prop;
-
-    g_assert_cmphex(addr, !=, 0);
-    g_assert_cmpuint(size, !=, 0);
-
-    child = get_dtb_node(root, "chosen/carveout-memory-map");
-    g_assert_nonnull(child);
-
-    prop = find_dtb_prop(child, name);
-    g_assert_nonnull(prop);
-
-    ((uint64_t *)prop->value)[0] = addr;
-    ((uint64_t *)prop->value)[1] = size;
 }
 
 static void set_memory_range(DTBNode *root, const char *name, uint64_t addr,
