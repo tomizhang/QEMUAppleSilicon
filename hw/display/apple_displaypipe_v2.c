@@ -491,12 +491,8 @@ static void apple_displaypipe_v2_realize(DeviceState *dev, Error **errp)
 }
 
 static Property apple_displaypipe_v2_props[] = {
-    // iPhone 4/4S
-    DEFINE_PROP_UINT32("width", AppleDisplayPipeV2State, width, 640),
-    DEFINE_PROP_UINT32("height", AppleDisplayPipeV2State, height, 960),
-    // iPhone 11
-    // DEFINE_PROP_UINT32("width", AppleDisplayPipeV2State, width, 828),
-    // DEFINE_PROP_UINT32("height", AppleDisplayPipeV2State, height, 1792),
+    DEFINE_PROP_UINT32("width", AppleDisplayPipeV2State, width, 828),
+    DEFINE_PROP_UINT32("height", AppleDisplayPipeV2State, height, 1792),
     DEFINE_PROP_END_OF_LIST(),
 };
 
