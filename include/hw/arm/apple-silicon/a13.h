@@ -30,8 +30,6 @@
 
 #define A13_MAX_CPU 6
 #define A13_MAX_CLUSTER 2
-#define A13_NUM_ECORE 2
-#define A13_NUM_PCORE 4
 
 #define TYPE_APPLE_A13 "apple-a13-cpu"
 OBJECT_DECLARE_TYPE(AppleA13State, AppleA13Class, APPLE_A13)
