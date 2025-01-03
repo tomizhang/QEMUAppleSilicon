@@ -687,16 +687,12 @@ static void t8030_memory_setup(MachineState *machine)
     info_report("auto-boot=%s",
                 env_get_bool(nvram, "auto-boot", false) ? "true" : "false");
 
-    switch (t8030_machine->boot_mode) {
-    case kBootModeAuto:
-        if (!env_get_bool(nvram, "auto-boot", false)) {
-            asprintf(&cmdline, "-restore rd=md0 nand-enable-reformat=1 %s",
-                     machine->kernel_cmdline);
-            break;
-        }
-        QEMU_FALLTHROUGH;
-    default:
-        asprintf(&cmdline, "%s", machine->kernel_cmdline);
+    if (t8030_machine->boot_mode == kBootModeAuto &&
+        !env_get_bool(nvram, "auto-boot", false)) {
+        asprintf(&cmdline, "-restore rd=md0 nand-enable-reformat=1 %s",
+                 machine->kernel_cmdline);
+    } else {
+        cmdline = g_strdup(machine->kernel_cmdline);
     }
 
     apple_nvram_save(nvram);

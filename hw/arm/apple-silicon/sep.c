@@ -291,9 +291,8 @@ sepos_return_module_thread_string_t8015(uint64_t module_thread_id)
     case 0xd0000:
         return "sse"; // 15
     default:
-        break;
+        return "Unknown";
     }
-    return "Unknown";
 }
 
 static const char *
@@ -394,9 +393,8 @@ sepos_return_module_thread_string_t8020(uint64_t module_thread_id)
     case 0xf0000:
         return "hilo";
     default:
-        break;
+        return "Unknown";
     }
-    return "Unknown";
 }
 
 static const char *sepos_return_module_thread_string(uint32_t chip_id,
@@ -415,17 +413,12 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
     AppleSEPState *s = APPLE_SEP(opaque);
     AddressSpace *nsas = &address_space_memory;
     uint32_t offset = 0;
-#if 0
-    qemu_log_mask(LOG_UNIMP,
-                          "DEBUG_TRACE: Unknown write at 0x" HWADDR_FMT_plx
-                          " of value 0x" HWADDR_FMT_plx " size=%u\n",
-                          addr, data, size);
-    return;
-#endif
+
 #if ENABLE_CPU_DUMP_STATE
     // cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
-    if (!s->shmbuf_base) {
+
+    if (s->shmbuf_base == 0) {
         qemu_log_mask(
             LOG_UNIMP,
             "DEBUG_TRACE: SHMBUF_BASE==NULL: Unknown write at 0x" HWADDR_FMT_plx
@@ -433,6 +426,7 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
             addr, data, size);
         return;
     }
+
     if (s->chip_id >= 0x8015) {
         addr += 0x4000;
 
@@ -449,399 +443,374 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
     } else {
         offset = ((uint32_t *)s->debug_trace_regs)[0x4 / 4];
     }
+
     offset -= 1;
     offset <<= 6;
 
-#if 1
-    switch (addr) {
-    default:
-#endif
-        memcpy(&s->debug_trace_regs[addr], &data, size);
-        uint32_t addr_mod = addr % 0x40;
-        if (addr != 0x40 && // offset register
-            addr_mod != 0x20 && addr_mod != 0x28 && addr_mod != 0x00 &&
-            addr_mod != 0x08 && addr_mod != 0x10 && addr_mod != 0x18 &&
-            addr_mod != 0x30) {
-#if 0
-            qemu_log_mask(LOG_UNIMP,
-                          "DEBUG_TRACE: addr/offset mismatch addr: 0x" HWADDR_FMT_plx
-                          " offset: 0x" HWADDR_FMT_plx " addr-offset: 0x" HWADDR_FMT_plx "\n",
-                          addr, offset, addr-offset);
-#endif
-            qemu_log_mask(LOG_UNIMP,
-                          "DEBUG_TRACE: Unknown write at 0x" HWADDR_FMT_plx
-                          " of value 0x" HWADDR_FMT_plx
-                          " size=%u offset==0x%08x\n",
-                          addr, data, size, offset);
-        }
-        // Might not include SEPOS output, as it's not initialized like e.g.
-        // SEPD.
-        if (addr_mod == 0x30) {
-            struct sep_message m = { 0 };
-            uint64_t trace_id = *(uint64_t *)&s->debug_trace_regs[addr - 0x30];
-            uint64_t arg2 = *(uint64_t *)&s->debug_trace_regs[addr - 0x28];
-            uint64_t arg3 = *(uint64_t *)&s->debug_trace_regs[addr - 0x20];
-            uint64_t arg4 = *(uint64_t *)&s->debug_trace_regs[addr - 0x18];
-            uint64_t arg5 = *(uint64_t *)&s->debug_trace_regs[addr - 0x10];
-            uint64_t tid = *(uint64_t *)&s->debug_trace_regs[addr - 0x08];
-            uint64_t time = *(uint64_t *)&s->debug_trace_regs[addr - 0x00];
-            qemu_log_mask(LOG_UNIMP,
-                          "\nDEBUG_TRACE: Debug:"
-                          " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx
-                          " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx
-                          " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx
-                          " 0x" HWADDR_FMT_plx "\n",
-                          trace_id, arg2, arg3, arg4, arg5, tid, time);
-            const char *tid_str =
-                sepos_return_module_thread_string(s->chip_id, tid);
-            switch (trace_id) {
-            case 0x82010004: // panic
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP "
-                              "module panicked\n",
-                              tid, tid_str);
-                break;
-            case 0x82030004: // 0x82030004==initialize_ool_page
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "initialize_ool_page:"
-                              " obj_id: 0x%02llx address: 0x%02llx\n",
-                              tid, tid_str, arg2, arg3);
-                break;
-            case 0x82040005: // 0x82040005==before SEP_IO__Control
-                QEMU_FALLTHROUGH;
-            case 0x82040006: // 0x82040006==after SEP_IO__Control
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: %s "
-                    "SEP_IO__Control Sending message to other module:"
-                    " fromto: 0x%02llx method: 0x%02llx data0: 0x%02llx "
-                    "data1: 0x%02llx\n",
-                    tid, tid_str, (trace_id == 0x82040005) ? "Before" : "After",
-                    arg2, arg3, arg4, arg5);
-                break;
-            case 0x82050005: // 0x82050005==SEP_SERVICE__Call: request
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEP_SERVICE__Call: request:"
-                              " fromto: 0x%02llx interface_msgid: 0x%02llx "
-                              "method: 0x%02llx data0: 0x%02llx\n",
-                              tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82050006: // 0x82050006==SEP_SERVICE__Call: response
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEP_SERVICE__Call: response:"
-                              " fromto: 0x%02llx interface_msgid: 0x%02llx "
-                              "method: 0x%02llx status/data0: 0x%02llx\n",
-                              tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82060004: // entered workloop function
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP "
-                              "module entered workloop function:"
-                              " handlers0: 0x%02llx handlers1: 0x%02llx arg5: "
-                              "0x%02llx arg6: 0x%02llx\n",
-                              tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82060010: // workloop function: interface_msgid==0xfffe after
-                             // receiving
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP "
-                              "module workloop function:"
-                              " interface_msgid==0xfffe after receiving: "
-                              "data0: 0x%02llx\n",
-                              tid, tid_str, arg2);
-                break;
-            case 0x82060014: // workloop function: before handlers0 handler
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP module "
-                    "workloop function: before handlers0 handler:"
-                    " handler_index: 0x%02llx data0: 0x%02llx data1: 0x%02llx "
-                    "data2: 0x%02llx\n",
-                    tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82060018: // workloop function: handlers0: handler not found,
-                             // panic
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP module "
-                    "workloop function: handlers0: handler not found, panic:"
-                    " interface_msgid: 0x%02llx method: 0x%02llx data0: "
-                    "0x%02llx "
-                    "data1: 0x%02llx\n",
-                    tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x8206001c: // workloop function: interface_msgid==0xfffe
-                             // before handler
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP "
-                              "module workloop function:"
-                              " interface_msgid==0xfffe before handler: data0: "
-                              "0x%02llx handler: 0x%02llx\n",
-                              tid, tid_str, arg2, arg3);
-                break;
-            case 0x82080005: // 0x82080005==before Rpc_Call
-                QEMU_FALLTHROUGH;
-            case 0x82080006: // 0x82080006==after Rpc_Call
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: %s "
-                    "Rpc_Call Sending message to other module:"
-                    " fromto: 0x%02llx interface_msgid: 0x%02llx ool: "
-                    "0x%02llx method: 0x%02llx\n",
-                    tid, tid_str, (trace_id == 0x82080005) ? "Before" : "After",
-                    arg2, arg3, arg4, arg5);
-                break;
-            case 0x8208000d: // 0x8208000d==before Rpc_Wait
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: Before "
-                    "Rpc_Wait Receiving message from other module\n",
-                    tid, tid_str);
-                break;
-            case 0x8208000e: // 0x8208000e==after Rpc_Wait
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: After "
-                    "Rpc_Wait "
-                    "Receiving message from other module:"
-                    " fromto: 0x%02llx interface_msgid: 0x%02llx ool: 0x%02llx "
-                    "method: 0x%02llx\n",
-                    tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82080019: // 0x82080019==before Rpc_WaitFrom
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: Before "
-                    "Rpc_WaitFrom Receiving message from other module:"
-                    " arg2: 0x%02llx\n",
-                    tid, tid_str, arg2);
-                break;
-            case 0x8208001a: // 0x8208001a==after Rpc_WaitFrom
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: After "
-                    "Rpc_WaitFrom Receiving message from other module:"
-                    " fromto: 0x%02llx interface_msgid: 0x%02llx ool: 0x%02llx "
-                    "method: 0x%02llx\n",
-                    tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82080011: // 0x82080011==before Rpc_ReturnWait
-                QEMU_FALLTHROUGH;
-            case 0x82080012: // 0x82080012==after Rpc_ReturnWait
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: %s "
-                    "Rpc_ReturnWait Receiving message from other module:"
-                    " fromto: 0x%02llx interface_msgid: 0x%02llx ool: 0x%02llx "
-                    "method: 0x%02llx\n",
-                    tid, tid_str, (trace_id == 0x82080011) ? "Before" : "After",
-                    arg2, arg3, arg4, arg5);
-                break;
-            case 0x82080014: // 0x82080014==before Rpc_Return return response
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                    "Before Rpc_Return return response:"
-                    " fromto: 0x%02llx interface_msgid: 0x%02llx ool: "
-                    "0x%02llx method: 0x%02llx\n",
-                    tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x8208001d: // 0x8208001d==before Rpc_WaitNotify
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: Before "
-                    "Rpc_WaitNotify:"
-                    " Rpc_WaitNotify_arg2 != 0: Rpc_WaitNotify_arg1: "
-                    "0x%02llx\n",
-                    tid, tid_str, arg2);
-                break;
-            case 0x8208001e: // 0x8208001e==after Rpc_WaitNotify
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "After Rpc_WaitNotify:"
-                              " svc_0x5_0_func_arg2 != 0: svc_0x5_0_func_arg1: "
-                              "0x%02llx L4_MR0: 0x%02llx\n",
-                              tid, tid_str, arg2, arg3);
-                break;
-            case 0x82140004: // _dispatch_thread_main__intr/SEPD interrupt
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "_dispatch_thread_main__intr/SEPD interrupt "
-                              "trace_id 0x%02llx:"
-                              " arg2: 0x%02llx arg3: 0x%02llx arg4: 0x%02llx "
-                              "arg5: 0x%02llx\n",
-                              tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82140014: // SEP_Driver__Close
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEP_Driver__Close:"
-                              " module_name_int: 0x%02llx fromto: 0x%02llx "
-                              "response_data0: 0x%02llx\n",
-                              tid, tid_str, arg2, arg3, arg5);
-                break;
-            case 0x82140024: // *_enable_powersave_arg2/SEP_Driver__SetPowerState
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                    "SEP_Driver__SetPowerState:"
-                    " function called: enable_powersave?: 0x%02llx "
-                    "is_powersave_enabled: 0x%02llx field_cc3: 0x%02llx\n",
-                    tid, tid_str, arg2, arg3, arg4);
-                break;
-            case 0x82140031: // 0x82140031==SEPD_thread_handler:
-                             // SEP_Driver__before_InterruptAsync
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEPD_thread_handler: before_InterruptAsync:"
-                              " arg2: 0x%02llx\n",
-                              tid, tid_str, arg2);
-                break;
-            case 0x82140032: // 0x82140032==SEPD_thread_handler:
-                             // SEP_Driver__after_InterruptAsync
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEPD_thread_handler: after_InterruptAsync\n",
-                              tid, tid_str);
-                break;
-            case 0x82140195: // 0x82140195==AESS_message_received: before
-                             // AESS_keywrap_cmd_0x02
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                    "AESS_message_received: before AESS_keywrap_cmd_0x02:"
-                    " data0_low: 0x%02llx data0_high: 0x%02llx data1_low: "
-                    "0x%02llx data1_high: 0x%02llx\n",
-                    tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82140196: // 0x82140196==AESS_message_received: after
-                             // AESS_keywrap_cmd_0x02
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                    "AESS_message_received: after AESS_keywrap_cmd_0x02:"
-                    " status: 0x%02llx\n",
-                    tid, tid_str, arg2);
-                break;
-            case 0x82140324: // SEP_Driver__Mailbox_Rx
-                memcpy((void *)&m + 0x00, &s->debug_trace_regs[offset + 0x88],
-                       sizeof(uint32_t));
-                memcpy((void *)&m + 0x04, &s->debug_trace_regs[offset + 0x90],
-                       sizeof(uint32_t));
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: (tid: 0x%05llx/%s): "
-                              "SEP_Driver__Mailbox_Rx:"
-                              " endpoint: 0x%02x tag: 0x%02x opcode: "
-                              "0x%02x(%u) param: 0x%02x data: 0x%02x\n",
-                              tid, tid_str, m.endpoint, m.tag, m.opcode,
-                              m.opcode, m.param, m.data);
-                break;
-            case 0x82140328: // SEP_Driver__Mailbox_RxMessageQueue
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEP_Driver__Mailbox_RxMessageQueue:"
-                              " endpoint: 0x%02llx opcode: 0x%02llx arg4: "
-                              "0x%02llx arg5: 0x%02llx\n",
-                              tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82140334: // SEP_Driver__Mailbox_ReadMsgFetch
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                    "SEP_Driver__Mailbox_ReadMsgFetch:"
-                    " endpoint: 0x%02llx data: 0x%02llx data2: 0x%02llx "
-                    "read_msg.data[0]: 0x%02llx\n",
-                    tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82140338: // SEP_Driver__Mailbox_ReadBlocked
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEP_Driver__Mailbox_ReadBlocked:"
-                              " for_TRNG_ASC0_ASC1_read_0 returned False: "
-                              "data0: 0x%02llx\n",
-                              tid, tid_str, arg2);
-                break;
-            case 0x8214033c: // SEP_Driver__Mailbox_ReadComplete
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEP_Driver__Mailbox_ReadComplete:"
-                              " for_TRNG_ASC0_ASC1_read_0 returned True: "
-                              "data0: 0x%02llx\n",
-                              tid, tid_str, arg2);
-                break;
-            case 0x82140340: // SEP_Driver__Mailbox_Tx
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEP_Driver__Mailbox_Tx:"
-                              " function_13 returned True:  arg2: 0x%02llx "
-                              "arg3: 0x%02llx arg4: 0x%02llx arg5: 0x%02llx\n",
-                              tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82140344: // SEP_Driver__Mailbox_TxStall
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEP_Driver__Mailbox_TxStall:"
-                              " function_13 returned False: arg2: 0x%02llx "
-                              "arg3: 0x%02llx arg4: 0x%02llx arg5: 0x%02llx\n",
-                              tid, tid_str, arg2, arg3, arg4, arg5);
-                break;
-            case 0x82140348: // mod_ASC0_ASC1_function_message_received:
-                             // 0x82140348 == method_0x4131/Mailbox_OOL_In
-                QEMU_FALLTHROUGH;
-            case 0x8214034c: // mod_ASC0_ASC1_function_message_received:
-                             // 0x8214034c == Mailbox_OOL_Out
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP "
-                              "mod_ASC0_ASC1_function_message_received "
-                              "SEP_Driver: Mailbox_OOL_%s:"
-                              " arg2: 0x%02llx arg3: 0x%02llx arg4: 0x%02llx\n",
-                              tid, tid_str,
-                              (trace_id == 0x82140348) ? "In" : "Out", arg2,
-                              arg3, arg4);
-                break;
-            case 0x82140360: // SEP_Driver__Mailbox_Wake
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEP_Driver__Mailbox_Wake:"
-                              " current value: registers[0x4108]: 0x%08llx "
-                              "SEP_message_incoming: %llu\n",
-                              tid, tid_str, arg2, arg3);
-                break;
-            case 0x82140364: // SEP_Driver__Mailbox_NoData
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "SEP_Driver__Mailbox_NoData:"
-                              " current value: registers[0x4108]: 0x%08llx\n",
-                              tid, tid_str, arg2);
-                break;
-            case 0x82140964: // PMGR_message_received
-                qemu_log_mask(
-                    LOG_UNIMP,
-                    "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                    "PMGR_message_received:"
-                    " fromto: 0x%02llx data0: 0x%02llx data1: 0x%02llx\n",
-                    tid, tid_str, arg2, arg3, arg4);
-                break;
-            case 0x82140968: // PMGR_enable_clock
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "PMGR_enable_clock:"
-                              " enable_clock: 0x%02llx\n",
-                              tid, tid_str, arg2);
-                break;
-            default: // Unknown trace value
-                qemu_log_mask(LOG_UNIMP,
-                              "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
-                              "Unknown trace_id 0x%02llx:"
-                              " arg2: 0x%02llx arg3: 0x%02llx arg4: 0x%02llx "
-                              "arg5: 0x%02llx\n",
-                              tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
-                break;
-            }
-        }
+    memcpy(&s->debug_trace_regs[addr], &data, size);
+
+    uint32_t addr_mod = addr % 0x40;
+    if (addr != 0x40 && // offset register
+        addr_mod != 0x20 && addr_mod != 0x28 && addr_mod != 0x00 &&
+        addr_mod != 0x08 && addr_mod != 0x10 && addr_mod != 0x18 &&
+        addr_mod != 0x30) {
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Unknown write at 0x" HWADDR_FMT_plx
+                      " of value 0x" HWADDR_FMT_plx " size=%u offset==0x%08x\n",
+                      addr, data, size, offset);
+    }
+
+    // Might not include SEPOS output, as it's not initialized like e.g.
+    // SEPD.
+    if (addr_mod != 0x30) {
+        return;
+    }
+
+    struct sep_message m = { 0 };
+    uint64_t trace_id = *(uint64_t *)&s->debug_trace_regs[addr - 0x30];
+    uint64_t arg2 = *(uint64_t *)&s->debug_trace_regs[addr - 0x28];
+    uint64_t arg3 = *(uint64_t *)&s->debug_trace_regs[addr - 0x20];
+    uint64_t arg4 = *(uint64_t *)&s->debug_trace_regs[addr - 0x18];
+    uint64_t arg5 = *(uint64_t *)&s->debug_trace_regs[addr - 0x10];
+    uint64_t tid = *(uint64_t *)&s->debug_trace_regs[addr - 0x08];
+    uint64_t time = *(uint64_t *)&s->debug_trace_regs[addr - 0x00];
+    qemu_log_mask(LOG_UNIMP,
+                  "\nDEBUG_TRACE: Debug:"
+                  " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx
+                  " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx
+                  " 0x" HWADDR_FMT_plx "\n",
+                  trace_id, arg2, arg3, arg4, arg5, tid, time);
+    const char *tid_str = sepos_return_module_thread_string(s->chip_id, tid);
+    switch (trace_id) {
+    case 0x82010004: // panic
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP "
+                      "module panicked\n",
+                      tid, tid_str);
+        break;
+    case 0x82030004: // initialize_ool_page
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "initialize_ool_page:"
+                      " obj_id: 0x%02llx address: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3);
+        break;
+    case 0x82040005: // before SEP_IO__Control
+    case 0x82040006: // after SEP_IO__Control
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: %s "
+                      "SEP_IO__Control Sending message to other module:"
+                      " fromto: 0x%02llx method: 0x%02llx data0: 0x%02llx "
+                      "data1: 0x%02llx\n",
+                      tid, tid_str,
+                      (trace_id == 0x82040005) ? "Before" : "After", arg2, arg3,
+                      arg4, arg5);
+        break;
+    case 0x82050005: // SEP_SERVICE__Call: request
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_SERVICE__Call: request:"
+                      " fromto: 0x%02llx interface_msgid: 0x%02llx "
+                      "method: 0x%02llx data0: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82050006: // SEP_SERVICE__Call: response
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_SERVICE__Call: response:"
+                      " fromto: 0x%02llx interface_msgid: 0x%02llx "
+                      "method: 0x%02llx status/data0: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82060004: // entered workloop function
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP "
+                      "module entered workloop function:"
+                      " handlers0: 0x%02llx handlers1: 0x%02llx arg5: "
+                      "0x%02llx arg6: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82060010: // workloop function: interface_msgid==0xfffe after
+                     // receiving
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP "
+                      "module workloop function:"
+                      " interface_msgid==0xfffe after receiving: "
+                      "data0: 0x%02llx\n",
+                      tid, tid_str, arg2);
+        break;
+    case 0x82060014: // workloop function: before handlers0 handler
+        qemu_log_mask(
+            LOG_UNIMP,
+            "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP module "
+            "workloop function: before handlers0 handler:"
+            " handler_index: 0x%02llx data0: 0x%02llx data1: 0x%02llx "
+            "data2: 0x%02llx\n",
+            tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82060018: // workloop function: handlers0: handler not found,
+                     // panic
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP module "
+                      "workloop function: handlers0: handler not found, panic:"
+                      " interface_msgid: 0x%02llx method: 0x%02llx data0: "
+                      "0x%02llx "
+                      "data1: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x8206001C: // workloop function: interface_msgid==0xFFFE
+                     // before handler
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP "
+                      "module workloop function:"
+                      " interface_msgid==0xfffe before handler: data0: "
+                      "0x%02llx handler: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3);
+        break;
+    case 0x82080005: // 0x82080005==before Rpc_Call
+    case 0x82080006: // 0x82080006==after Rpc_Call
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: %s "
+                      "Rpc_Call Sending message to other module:"
+                      " fromto: 0x%02llx interface_msgid: 0x%02llx ool: "
+                      "0x%02llx method: 0x%02llx\n",
+                      tid, tid_str,
+                      (trace_id == 0x82080005) ? "Before" : "After", arg2, arg3,
+                      arg4, arg5);
+        break;
+    case 0x8208000D: // before Rpc_Wait
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: Before "
+                      "Rpc_Wait Receiving message from other module\n",
+                      tid, tid_str);
+        break;
+    case 0x8208000E: // after Rpc_Wait
+        qemu_log_mask(
+            LOG_UNIMP,
+            "DEBUG_TRACE: Description: tid: 0x%05llx/%s: After "
+            "Rpc_Wait "
+            "Receiving message from other module:"
+            " fromto: 0x%02llx interface_msgid: 0x%02llx ool: 0x%02llx "
+            "method: 0x%02llx\n",
+            tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82080019: // before Rpc_WaitFrom
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: Before "
+                      "Rpc_WaitFrom Receiving message from other module:"
+                      " arg2: 0x%02llx\n",
+                      tid, tid_str, arg2);
+        break;
+    case 0x8208001A: // after Rpc_WaitFrom
+        qemu_log_mask(
+            LOG_UNIMP,
+            "DEBUG_TRACE: Description: tid: 0x%05llx/%s: After "
+            "Rpc_WaitFrom Receiving message from other module:"
+            " fromto: 0x%02llx interface_msgid: 0x%02llx ool: 0x%02llx "
+            "method: 0x%02llx\n",
+            tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82080011: // before Rpc_ReturnWait
+    case 0x82080012: // after Rpc_ReturnWait
+        qemu_log_mask(
+            LOG_UNIMP,
+            "DEBUG_TRACE: Description: tid: 0x%05llx/%s: %s "
+            "Rpc_ReturnWait Receiving message from other module:"
+            " fromto: 0x%02llx interface_msgid: 0x%02llx ool: 0x%02llx "
+            "method: 0x%02llx\n",
+            tid, tid_str, (trace_id == 0x82080011) ? "Before" : "After", arg2,
+            arg3, arg4, arg5);
+        break;
+    case 0x82080014: // before Rpc_Return return response
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "Before Rpc_Return return response:"
+                      " fromto: 0x%02llx interface_msgid: 0x%02llx ool: "
+                      "0x%02llx method: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x8208001D: // before Rpc_WaitNotify
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: Before "
+                      "Rpc_WaitNotify:"
+                      " Rpc_WaitNotify_arg2 != 0: Rpc_WaitNotify_arg1: "
+                      "0x%02llx\n",
+                      tid, tid_str, arg2);
+        break;
+    case 0x8208001e: // after Rpc_WaitNotify
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "After Rpc_WaitNotify:"
+                      " svc_0x5_0_func_arg2 != 0: svc_0x5_0_func_arg1: "
+                      "0x%02llx L4_MR0: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3);
+        break;
+    case 0x82140004: // _dispatch_thread_main__intr/SEPD interrupt
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "_dispatch_thread_main__intr/SEPD interrupt "
+                      "trace_id 0x%02llx:"
+                      " arg2: 0x%02llx arg3: 0x%02llx arg4: 0x%02llx "
+                      "arg5: 0x%02llx\n",
+                      tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82140014: // SEP_Driver__Close
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_Driver__Close:"
+                      " module_name_int: 0x%02llx fromto: 0x%02llx "
+                      "response_data0: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg5);
+        break;
+    case 0x82140024: // *_enable_powersave_arg2/SEP_Driver__SetPowerState
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_Driver__SetPowerState:"
+                      " function called: enable_powersave?: 0x%02llx "
+                      "is_powersave_enabled: 0x%02llx field_cc3: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4);
+        break;
+    case 0x82140031: // SEPD_thread_handler:
+                     // SEP_Driver__before_InterruptAsync
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEPD_thread_handler: before_InterruptAsync:"
+                      " arg2: 0x%02llx\n",
+                      tid, tid_str, arg2);
+        break;
+    case 0x82140032: // SEPD_thread_handler:
+                     // SEP_Driver__after_InterruptAsync
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEPD_thread_handler: after_InterruptAsync\n",
+                      tid, tid_str);
+        break;
+    case 0x82140195: // AESS_message_received: before
+                     // AESS_keywrap_cmd_0x02
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "AESS_message_received: before AESS_keywrap_cmd_0x02:"
+                      " data0_low: 0x%02llx data0_high: 0x%02llx data1_low: "
+                      "0x%02llx data1_high: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82140196: // AESS_message_received: after
+                     // AESS_keywrap_cmd_0x02
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "AESS_message_received: after AESS_keywrap_cmd_0x02:"
+                      " status: 0x%02llx\n",
+                      tid, tid_str, arg2);
+        break;
+    case 0x82140324: // SEP_Driver__Mailbox_Rx
+        memcpy((void *)&m + 0x00, &s->debug_trace_regs[offset + 0x88],
+               sizeof(uint32_t));
+        memcpy((void *)&m + 0x04, &s->debug_trace_regs[offset + 0x90],
+               sizeof(uint32_t));
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: (tid: 0x%05llx/%s): "
+                      "SEP_Driver__Mailbox_Rx:"
+                      " endpoint: 0x%02x tag: 0x%02x opcode: "
+                      "0x%02x(%u) param: 0x%02x data: 0x%02x\n",
+                      tid, tid_str, m.endpoint, m.tag, m.opcode, m.opcode,
+                      m.param, m.data);
+        break;
+    case 0x82140328: // SEP_Driver__Mailbox_RxMessageQueue
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_Driver__Mailbox_RxMessageQueue:"
+                      " endpoint: 0x%02llx opcode: 0x%02llx arg4: "
+                      "0x%02llx arg5: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82140334: // SEP_Driver__Mailbox_ReadMsgFetch
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_Driver__Mailbox_ReadMsgFetch:"
+                      " endpoint: 0x%02llx data: 0x%02llx data2: 0x%02llx "
+                      "read_msg.data[0]: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82140338: // SEP_Driver__Mailbox_ReadBlocked
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_Driver__Mailbox_ReadBlocked:"
+                      " for_TRNG_ASC0_ASC1_read_0 returned False: "
+                      "data0: 0x%02llx\n",
+                      tid, tid_str, arg2);
+        break;
+    case 0x8214033C: // SEP_Driver__Mailbox_ReadComplete
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_Driver__Mailbox_ReadComplete:"
+                      " for_TRNG_ASC0_ASC1_read_0 returned True: "
+                      "data0: 0x%02llx\n",
+                      tid, tid_str, arg2);
+        break;
+    case 0x82140340: // SEP_Driver__Mailbox_Tx
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_Driver__Mailbox_Tx:"
+                      " function_13 returned True:  arg2: 0x%02llx "
+                      "arg3: 0x%02llx arg4: 0x%02llx arg5: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82140344: // SEP_Driver__Mailbox_TxStall
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_Driver__Mailbox_TxStall:"
+                      " function_13 returned False: arg2: 0x%02llx "
+                      "arg3: 0x%02llx arg4: 0x%02llx arg5: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
+        break;
+    case 0x82140348: // mod_ASC0_ASC1_function_message_received:
+                     // method_0x4131/Mailbox_OOL_In
+    case 0x8214034C: // mod_ASC0_ASC1_function_message_received:
+                     // Mailbox_OOL_Out
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: SEP "
+                      "mod_ASC0_ASC1_function_message_received "
+                      "SEP_Driver: Mailbox_OOL_%s:"
+                      " arg2: 0x%02llx arg3: 0x%02llx arg4: 0x%02llx\n",
+                      tid, tid_str, (trace_id == 0x82140348) ? "In" : "Out",
+                      arg2, arg3, arg4);
+        break;
+    case 0x82140360: // SEP_Driver__Mailbox_Wake
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_Driver__Mailbox_Wake:"
+                      " current value: registers[0x4108]: 0x%08llx "
+                      "SEP_message_incoming: %llu\n",
+                      tid, tid_str, arg2, arg3);
+        break;
+    case 0x82140364: // SEP_Driver__Mailbox_NoData
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "SEP_Driver__Mailbox_NoData:"
+                      " current value: registers[0x4108]: 0x%08llx\n",
+                      tid, tid_str, arg2);
+        break;
+    case 0x82140964: // PMGR_message_received
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "PMGR_message_received:"
+                      " fromto: 0x%02llx data0: 0x%02llx data1: 0x%02llx\n",
+                      tid, tid_str, arg2, arg3, arg4);
+        break;
+    case 0x82140968: // PMGR_enable_clock
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "PMGR_enable_clock:"
+                      " enable_clock: 0x%02llx\n",
+                      tid, tid_str, arg2);
+        break;
+    default: // Unknown trace value
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05llx/%s: "
+                      "Unknown trace_id 0x%02llx:"
+                      " arg2: 0x%02llx arg3: 0x%02llx arg4: 0x%02llx "
+                      "arg5: 0x%02llx\n",
+                      tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
         break;
     }
 }
@@ -1932,7 +1901,7 @@ static void aess_keywrap_uid(AppleAESSState *s, uint8_t *in, uint8_t *out,
         memcpy(used_key, (uint8_t *)AESS_UID_SEED_NOT_ENABLED,
                sizeof(used_key));
     } else {
-        g_assert_true(false);
+        g_assert_not_reached();
     }
     // TODO: Dirty hack, so iteration_register being set/unset shouldn't result
     // in the same output keys.
@@ -1969,34 +1938,23 @@ static int aess_get_custom_keywrap_index(uint32_t cmd)
 {
     switch (cmd) {
     case 0x01:
-        QEMU_FALLTHROUGH;
     case 0x06:
         return 0;
-    //
     case 0x41:
-        QEMU_FALLTHROUGH;
     case 0x46:
         return 1;
-    //
     case 0x81:
-        QEMU_FALLTHROUGH;
     case 0x08:
-        QEMU_FALLTHROUGH;
     case 0x88:
         return 2;
-    //
     case 0xc1:
-        QEMU_FALLTHROUGH;
     case 0x48:
-        QEMU_FALLTHROUGH;
     case 0xc8:
         return 3;
-    //
     default:
-        break;
+        g_assert_not_reached();
+        // return -1;
     }
-    g_assert_true(false);
-    return -1;
 }
 
 static bool check_register_0x18_keydisable_bit_invalid(AppleAESSState *s)
@@ -2011,34 +1969,29 @@ static bool check_register_0x18_keydisable_bit_invalid(AppleAESSState *s)
     ////switch (normalized_cmd)
     switch (cmd) {
     // case 0x: // driver_op == 0x09 (cmd 0x00, invalid)
-    case 0x0c:
-        QEMU_FALLTHROUGH;
-    case 0x4c:
-        // cmd 0x0c or 0x4c might be driver_op 0x09, if it would exist.
+    case 0x0C:
+    case 0x4C:
+        // cmd 0x0C or 0x4C might be driver_op 0x09, if it would exist.
         return reg_0x18_keydisable_bit4;
-    // driver_op == 0x0a/0x0d (cmds 0x00/0x00, both are invalid)
-    case 0x09: // driver_op 0x0a would be most likely cmd 0x09, if using it in
+    // driver_op == 0x0A/0x0d (cmds 0x00/0x00, both are invalid)
+    case 0x09: // driver_op 0x0A would be most likely cmd 0x09, if using it in
                // the _operate function would be allowed
-        QEMU_FALLTHROUGH;
-    case 0x0a: // driver_op 0x0d would be most likely cmd 0x0a, if using it in
+    case 0x0A: // driver_op 0x0D would be most likely cmd 0x0A, if using it in
                // the _operate function would be allowed
         return reg_0x18_keydisable_bit0;
-    // driver_op == 0x0b/0x0e (cmds 0x49/0x00, 0x0e is invalid)
+    // driver_op == 0x0B/0x0e (cmds 0x49/0x00, 0x0E is invalid)
     case 0x49:
-        QEMU_FALLTHROUGH;
-    case 0x4a: // driver_op 0x0e would be most likely cmd 0x4a, if using it in
+    case 0x4A: // driver_op 0x0E would be most likely cmd 0x4A, if using it in
                // the _operate function would be allowed
         return reg_0x18_keydisable_bit1;
-    // driver_op == 0x13/0x14 (cmds 0x0d/0x00, 0x14 is invalid)
-    case 0x0d: // 0x0d and 0x4d, are those actually implemented in real
+    // driver_op == 0x13/0x14 (cmds 0x0D/0x00, 0x14 is invalid)
+    case 0x0D: // 0x0D and 0x4D, are those actually implemented in real
                // hardware?
-        QEMU_FALLTHROUGH;
-    case 0x4d: // driver_op 0x14 would be most likely cmd 0x4d, if using it in
+    case 0x4D: // driver_op 0x14 would be most likely cmd 0x4D, if using it in
                // the _operate function would be allowed
         return reg_0x18_keydisable_bit3;
     // driver_op == 0x23/0x24 (cmds 0x50/0x90)
     case 0x50:
-        QEMU_FALLTHROUGH;
     case 0x90:
         // driver_ops 0x23/0x24 are not available on iOS 12, but they're on iOS
         // 14
@@ -3195,6 +3148,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     SysBusDevice *sbd;
     DTBProp *prop;
     uint64_t *reg;
+    uint32_t i;
 
     dev = qdev_new(TYPE_APPLE_SEP);
     a7iop = APPLE_A7IOP(dev);
@@ -3214,13 +3168,13 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     s->debug_trace_mmio_index = -1;
 
     if (s->chip_id >= 0x8020) {
-        s->shmbuf_base = 0x80c000;
+        s->shmbuf_base = 0x80C000;
         s->trace_buffer_base_offset = 0x10000;
-        s->debug_trace_size = 0xc000;
+        s->debug_trace_size = 0xC000;
     } else if (s->chip_id == 0x8015) {
         s->shmbuf_base = 0; // is dynamic
         s->trace_buffer_base_offset = 0x10000;
-        s->debug_trace_size = 0xc000;
+        s->debug_trace_size = 0xC000;
     } else {
         s->shmbuf_base = 0;
         s->trace_buffer_base_offset = 0;
@@ -3307,13 +3261,12 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
                                     sep_gpio_int_groups, 0xdeadbeef);
     g_assert_nonnull(gpio);
     if (s->chip_id == 0x8015) {
-        sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x240f00000ull);
+        sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x240F00000ull);
     } else {
         sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x241480000ull);
     }
     s->aess_state.chip_id = s->chip_id;
 
-    uint32_t i = 0;
     for (i = 0; i < sep_gpio_int_groups; i++) {
         // sysbus_connect_irq(SYS_BUS_DEVICE(gpio), i,
         // qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_IRQ));
@@ -3336,7 +3289,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     sysbus_realize_and_unref(i2c, &error_fatal);
     uint64_t eeprom0_size = 64 * KiB;
     if (s->chip_id >= 0x8020) {
-        // eeprom0_size = 2 * KiB; // 0x800 bytes
+        eeprom0_size = 2 * KiB; // 0x800 bytes
     }
     uint8_t *eeprom0_init = g_malloc0(eeprom0_size);
     memset(eeprom0_init, 0x00, eeprom0_size);
@@ -3378,11 +3331,13 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     create_eeprom_entry(0x2, 0x0, 0x2, 0x03, 0x18, data2_in,
                         eeprom0_init); // put data into wrapper2
     DriveInfo *dinfo_eeprom = drive_get_by_index(IF_PFLASH, 0);
-    BlockBackend *blk_eeprom =
-        dinfo_eeprom ? blk_by_legacy_dinfo(dinfo_eeprom) : NULL;
+    g_assert_nonnull(dinfo_eeprom);
+    BlockBackend *blk_eeprom = blk_by_legacy_dinfo(dinfo_eeprom);
+    g_assert_nonnull(blk_eeprom);
     EEPROMState *eeprom0 = AT24C_EE(
         at24c_eeprom_init_rom_blk(APPLE_I2C(i2c)->bus, 0x51, eeprom0_size,
                                   eeprom0_init, eeprom0_size, 2, blk_eeprom));
+    g_assert_nonnull(eeprom0);
 #if 0
     if (buffer_is_zero(&eeprom0->mem[0 << 8], 0x100)) {
         // not needed when memcmp_validstrs14 is patched
@@ -3399,12 +3354,13 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     s->eeprom0 = eeprom0;
     if (s->chip_id >= 0x8020) {
         DriveInfo *dinfo_ssc = drive_get_by_index(IF_PFLASH, 1);
-        BlockBackend *blk_ssc =
-            dinfo_ssc ? blk_by_legacy_dinfo(dinfo_ssc) : NULL;
+        g_assert_nonnull(dinfo_ssc);
+        BlockBackend *blk_ssc = blk_by_legacy_dinfo(dinfo_ssc);
+        g_assert_nonnull(blk_ssc);
         AppleSSCState *ssc = apple_ssc_create(machine, 0x71);
+        g_assert_nonnull(ssc);
         s->ssc_state = ssc;
         s->ssc_state->aess_state = &s->aess_state;
-        ////s->ssc_state->blk = blk_ssc;
         qdev_prop_set_drive_err(DEVICE(s->ssc_state), "drive", blk_ssc,
                                 &error_fatal);
         blk_set_perm(blk_ssc, BLK_PERM_CONSISTENT_READ | BLK_PERM_WRITE,
@@ -3421,11 +3377,6 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     address_space_init(s->ool_as, s->ool_mr, "sep.ool");
 #endif
 
-    // sysbus_pass_irq(sbd, SYS_BUS_DEVICE(a7iop->iop_mailbox));
-
-    // SEPFW needs to be loaded by restore, supposedly
-    // uint32_t data = 1;
-    // set_dtb_prop(child, "sepfw-loaded", sizeof(data), &data);
     return s;
 }
 
