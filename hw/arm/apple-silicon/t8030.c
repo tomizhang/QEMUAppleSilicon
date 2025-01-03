@@ -841,8 +841,9 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     T8030MachineState *tms = T8030_MACHINE(machine);
     AppleSEPState *sep;
     hwaddr base = (hwaddr)opaque;
-    sep = APPLE_SEP(
-        object_property_get_link(OBJECT(machine), "sep", &error_fatal));
+    sep = (AppleSEPState *)object_dynamic_cast(
+        object_property_get_link(OBJECT(machine), "sep", &error_fatal),
+        TYPE_APPLE_SEP);
 
 #if 1
     if ((((base + addr) & 0xfffffffb) != 0x10E20020) &&
@@ -910,7 +911,9 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO?
                      // AppleSEPROM-A12-D331pAP
         return (board_id & 0x7) | ((security_epoch & 0x7f) << 5) |
-               (((sep->pmgr_base_regs[0x8000] & 0x1) != 0) << 30) |
+               ((sep == NULL) ?
+                    0 :
+                    (((sep->pmgr_base_regs[0x8000] & 0x1) != 0) << 30)) |
                (1 << 31); // (security epoch & 0x7F) << 5 ;; (sep_bit30 << 30)
                           // for SEP | (1 << 31) for SEP and AP
     case 0x3D2BC020: // T8030 iBSS: FUN_19c07feac_return_value_causes_crash;
@@ -1023,16 +1026,20 @@ static void pmgr_reg_write(void *opaque, hwaddr addr, uint64_t data,
         return;
     case 0x80C00:
         // case 0x80400: // T8015
-        sep = APPLE_SEP(
-            object_property_get_link(OBJECT(machine), "sep", &error_fatal));
-        if (((data >> 31) & 1) == 1) {
-            apple_a13_cpu_reset(APPLE_A13(sep->cpu));
-        } else if (((data >> 10) & 1) == 0) {
-            if (apple_a13_cpu_is_powered_off(APPLE_A13(sep->cpu))) {
-                apple_a13_cpu_start(APPLE_A13(sep->cpu));
+        sep = (AppleSEPState *)object_dynamic_cast(
+            object_property_get_link(OBJECT(machine), "sep", &error_fatal),
+            TYPE_APPLE_SEP);
+
+        if (sep != NULL) {
+            if (data & (1 << 31)) {
+                apple_a13_cpu_reset(APPLE_A13(sep->cpu));
+            } else if (data & (1 << 10)) {
+                apple_a13_cpu_off(APPLE_A13(sep->cpu));
+            } else {
+                if (apple_a13_cpu_is_powered_off(APPLE_A13(sep->cpu))) {
+                    apple_a13_cpu_start(APPLE_A13(sep->cpu));
+                }
             }
-        } else if (((data >> 10) & 1) == 1) {
-            apple_a13_cpu_off(APPLE_A13(sep->cpu));
         }
         break;
     }
