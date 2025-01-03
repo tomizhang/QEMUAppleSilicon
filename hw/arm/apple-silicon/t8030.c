@@ -828,7 +828,7 @@ static void pmgr_unk_reg_write(void *opaque, hwaddr addr, uint64_t data,
     default:
         break;
     }
-#if 1
+#if 0
     qemu_log_mask(LOG_UNIMP,
                   "PMGR reg WRITE unk @ 0x" TARGET_FMT_lx
                   " base: 0x" TARGET_FMT_lx " value: 0x" TARGET_FMT_lx "\n",
@@ -845,7 +845,7 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         object_property_get_link(OBJECT(t8030_machine), "sep", &error_fatal),
         TYPE_APPLE_SEP);
 
-#if 1
+#if 0
     if ((((base + addr) & 0xfffffffb) != 0x10E20020) &&
         (((base + addr) & 0xfffffffb) != 0x11E20020)) {
         qemu_log_mask(LOG_UNIMP,
@@ -2051,7 +2051,7 @@ static void t8030_create_sio(T8030MachineState *t8030_machine)
     sysbus_realize_and_unref(sio, &error_fatal);
 }
 
-static void t8030_roswell_create(T8030MachineState *t8030_machine)
+static void t8030_create_roswell(T8030MachineState *t8030_machine)
 {
     DTBNode *child;
     DTBProp *prop;
@@ -2089,7 +2089,7 @@ static void t8030_create_misc(T8030MachineState *t8030_machine)
     dtb_set_prop_u32(child, "transport-encoding", 0);
 }
 
-static void t8030_display_create(T8030MachineState *t8030_machine)
+static void t8030_create_display(T8030MachineState *t8030_machine)
 {
     MachineState *machine;
     AppleDisplayPipeV2State *s;
@@ -2341,7 +2341,7 @@ static void t8030_cpu_reset(void *opaque)
 static void t8030_machine_reset(MachineState *machine, ShutdownCause reason)
 {
     T8030MachineState *t8030_machine = T8030_MACHINE(machine);
-    DeviceState *gpio = NULL;
+    DeviceState *gpio;
 
     qemu_devices_reset(reason);
     memset(&t8030_machine->pmgr_reg, 0, sizeof(t8030_machine->pmgr_reg));
@@ -2361,8 +2361,8 @@ static void t8030_machine_reset(MachineState *machine, ShutdownCause reason)
 
     pmgr_unk_e4800 = 0;
     // maybe also reset pmgr_unk_e4000 array
-    memset(pmgr_unk_e4000, 0,
-           sizeof(pmgr_unk_e4000)); // Ah, what the heck. Let's do it.
+    // Ah, what the heck. Let's do it.
+    memset(pmgr_unk_e4000, 0, sizeof(pmgr_unk_e4000));
 }
 
 static void t8030_machine_init_done(Notifier *notifier, void *data)
@@ -2579,12 +2579,12 @@ static void t8030_machine_init(MachineState *machine)
     }
 
 #if ENABLE_ROSWELL == 1
-    t8030_roswell_create(machine);
+    t8030_create_roswell(machine);
 #endif
 
     t8030_create_misc(t8030_machine);
 
-    t8030_display_create(t8030_machine);
+    t8030_create_display(t8030_machine);
 
     t8030_machine->init_done_notifier.notify = t8030_machine_init_done;
     qemu_add_machine_init_done_notifier(&t8030_machine->init_done_notifier);

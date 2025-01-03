@@ -31,7 +31,7 @@
 #include "ui/pixel_ops.h"
 #include "framebuffer.h"
 
-#define DEBUG_DISP
+// #define DEBUG_DISP
 
 #ifdef DEBUG_DISP
 #define DISP_DBGLOG(fmt, ...) \
