@@ -51,19 +51,18 @@
 #include "nettle/hkdf.h"
 #include "nettle/hmac.h"
 #include "nettle/knuth-lfib.h"
+#include <nettle/macros.h>
+#include <nettle/memxor.h>
 
-#define INSIDE_QEMU_SEP 1
-
-// #define DO_SECUREROM 1
 #define ENABLE_CPU_DUMP_STATE 1
 
-#define SEP_ENABLE_HARDCODED_FIRMWARE                                        \
-    1 /* currently only for T8015, it's hardcoded elsewhere for T8020/T8030, \
-         now here even for T8020/T8030 */
+// currently only for T8015, it's hardcoded elsewhere for T8020/T8030, now
+// here even for T8020/T8030
+#define SEP_ENABLE_HARDCODED_FIRMWARE 1
 #define SEP_ENABLE_DEBUG_TRACE_MAPPING 1
 #define SEP_ENABLE_TRACE_BUFFER 1
-#define SEP_ENABLE_OVERWRITE_SHMBUF_OBJECTS \
-    1 /* can cause conflicts with kernel and userspace, not anymore? */
+// can cause conflicts with kernel and userspace, not anymore?
+#define SEP_ENABLE_OVERWRITE_SHMBUF_OBJECTS 1
 
 #define SEP_AESS_CMD_FLAG_KEYSIZE_AES128 0x0
 #define SEP_AESS_CMD_FLAG_KEYSIZE_AES192 0x100
@@ -74,11 +73,11 @@
 #define SEP_AESS_CMD_FLAG_KEYSELECT_CUSTOM_T8010 0x20 // ???
 #define SEP_AESS_CMD_FLAG_UNKNOWN0_T8010 0x00 // ???
 
-#define SEP_AESS_CMD_FLAG_KEYSELECT_GID0_T8020 0x00 /* also for T8015 */
-#define SEP_AESS_CMD_FLAG_KEYSELECT_GID1_T8020 0x40 /* also for T8015 */
-#define SEP_AESS_CMD_FLAG_KEYSELECT_CUSTOM_T8020 \
-    0x80 /* also for T8015 */ // this (custom) takes precedence over the other
-                              // keyselect flags
+#define SEP_AESS_CMD_FLAG_KEYSELECT_GID0_T8020 0x00 // also for T8015
+#define SEP_AESS_CMD_FLAG_KEYSELECT_GID1_T8020 0x40 // also for T8015
+// Also for T8015, this (custom) takes precedence over the other
+// keyselect flags
+#define SEP_AESS_CMD_FLAG_KEYSELECT_CUSTOM_T8020 0x80
 #define SEP_AESS_CMD_FLAG_UNKNOWN0_T8020 0x10
 #define SEP_AESS_CMD_FLAG_UNKNOWN1_T8020 0x20
 
@@ -125,8 +124,7 @@
 #define SEP_AESS_REGISTER_CONTROL 0x8
 #define SEP_AESS_REGISTER_STATE 0xc
 #define SEP_AESS_REGISTER_0x10 0x10
-#define SEP_AESS_REGISTER_0x14_KEYWRAP_ITERATIONS_COUNTER \
-    0x14 // keywrap iterations counter
+#define SEP_AESS_REGISTER_0x14_KEYWRAP_ITERATIONS_COUNTER 0x14
 #define SEP_AESS_REGISTER_0x18_KEYDISABLE 0x18
 #define SEP_AESS_REGISTER_SEED_BITS 0x1c
 #define SEP_AESS_REGISTER_SEED_BITS_LOCK 0x20
@@ -173,10 +171,6 @@ static uint32_t AESS_UID_SEED_INVALID[0x20 / 4] = { 0x1ff11ff1, 0x1ff11ff1,
                                                     0x1ff11ff1, 0x1ff11ff1 };
 
 
-#if 1
-#include <nettle/memxor.h>
-// #include <nettle/block-internal.h>
-#include <nettle/macros.h>
 static inline void block16_set(union nettle_block16 *r,
                                const union nettle_block16 *x)
 {
@@ -212,10 +206,6 @@ static void drbg_ctr_aes256_update(struct aes256_ctx *key,
     aes256_set_encrypt_key(key, tmp[0].b);
     block16_set(V, &tmp[2]);
 }
-#else
-void drbg_ctr_aes256_update(struct aes256_ctx *key, union nettle_block16 *V,
-                            const uint8_t *provided_data);
-#endif
 
 static const char *
 sepos_return_module_thread_string_t8015(uint64_t module_thread_id)
@@ -3132,15 +3122,9 @@ void create_eeprom_entry(uint32_t eeprom_index, uint32_t unkn0,
                          uint32_t counter, uint8_t type, uint8_t length,
                          uint8_t *data_in, uint8_t *eeprom_out);
 
-#if 1
 AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
                                 uint32_t cpu_id, uint32_t build_version,
                                 bool modern, uint32_t chip_id)
-#else
-AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
-                                uint32_t build_version, bool modern,
-                                uint32_t chip_id)
-#endif
 {
     DeviceState *dev;
     AppleA7IOP *a7iop;
@@ -4065,13 +4049,10 @@ int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
     hexout("cmd_0x03_req: req_dec_out", req_dec_out,
            CMD_METADATA_PAYLOAD_LENGTH);
 
-#if 1
     memcpy(ssc_state->slot_hmac_key[kbkdf_index_dataslot], req_dec_out,
            sizeof(req_dec_out)); // 0x20 bytes ; necessary here because there
                                  // are no metadata reads (cmd 0x6) after that.
-#endif
 
-#if INSIDE_QEMU_SEP
     // blk_pwrite(ssc_state->blk, blk_offset, CMD_METADATA_PAYLOAD_LENGTH,
     // req_dec_out, 0); // Is it really necessary to write the mac_key or any
     // metadata to blk_offset?
@@ -4081,7 +4062,6 @@ int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
                                 // blk_offset. is this correct?
     blk_pwrite(ssc_state->blk, key_offset, CMD_METADATA_PAYLOAD_LENGTH,
                req_dec_out, 0);
-#endif
 
     uint8_t resp_nop_out[1] = { 0x00 };
     hexout("cmd_0x03_resp: resp_nop_out", resp_nop_out, 1);
@@ -4121,10 +4101,8 @@ int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state,
     hexout("cmd_0x04_req: req_nop_out", req_nop_out, 1);
 
     uint8_t resp_dec_out[CMD_METADATA_DATA_PAYLOAD_LENGTH] = { 0 };
-#if INSIDE_QEMU_SEP
     blk_pread(ssc_state->blk, blk_offset, CMD_METADATA_DATA_PAYLOAD_LENGTH,
               resp_dec_out, 0);
-#endif
 
     hexout("cmd_0x04_resp: resp_dec_out", resp_dec_out,
            CMD_METADATA_DATA_PAYLOAD_LENGTH);
@@ -4165,10 +4143,8 @@ int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
     hexout("cmd_0x05_req: req_dec_out", req_dec_out,
            CMD_METADATA_DATA_PAYLOAD_LENGTH);
 
-#if INSIDE_QEMU_SEP
     blk_pwrite(ssc_state->blk, blk_offset, CMD_METADATA_DATA_PAYLOAD_LENGTH,
                req_dec_out, 0);
-#endif
 
     uint8_t resp_nop_out[1] = { 0x00 };
     hexout("cmd_0x05_resp: resp_nop_out", resp_nop_out, 1);
@@ -4215,12 +4191,10 @@ int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
     hexout("cmd_0x06_req: req_nop_out", req_nop_out, 1);
 
     uint8_t resp_dec_out[CMD_METADATA_PAYLOAD_LENGTH] = { 0 };
-#if INSIDE_QEMU_SEP
     blk_pread(ssc_state->blk, blk_offset, CMD_METADATA_PAYLOAD_LENGTH,
               resp_dec_out, 0);
     blk_pread(ssc_state->blk, key_offset, CMD_METADATA_PAYLOAD_LENGTH,
               ssc_state->slot_hmac_key[kbkdf_index_dataslot], 0);
-#endif
 
     hexout("cmd_0x06_resp: resp_dec_out", resp_dec_out,
            CMD_METADATA_PAYLOAD_LENGTH);

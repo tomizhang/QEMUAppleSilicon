@@ -276,20 +276,13 @@ struct AppleSEPState {
     hwaddr trace_buffer_base_offset;
     hwaddr debug_trace_size;
     gchar *sepfw_data;
-    // uint8_t *sepfw_data;
     MemoryRegion *sepfw_mr;
     int debug_trace_mmio_index;
 };
 
-#if 1
 AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
                                 uint32_t cpu_id, uint32_t build_version,
                                 bool modern, uint32_t chip_id);
-#else
-AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
-                                uint32_t build_version, bool modern,
-                                uint32_t chip_id);
-#endif
 
 AppleSSCState *apple_ssc_create(MachineState *machine, uint8_t addr);
 
