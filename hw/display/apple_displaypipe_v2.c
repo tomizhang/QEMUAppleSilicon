@@ -382,8 +382,7 @@ static const MemoryRegionOps apple_disp_v2_reg_ops = {
     .valid.unaligned = false,
 };
 
-AppleDisplayPipeV2State *apple_displaypipe_v2_create(MachineState *machine,
-                                                     DTBNode *node)
+AppleDisplayPipeV2State *apple_displaypipe_v2_create(DTBNode *node)
 {
     DeviceState *dev;
     SysBusDevice *sbd;

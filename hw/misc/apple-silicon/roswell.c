@@ -18,20 +18,11 @@
  */
 
 #include "qemu/osdep.h"
-#include "hw/i2c/apple_i2c.h"
 #include "hw/misc/apple-silicon/roswell.h"
-#include "qapi/error.h"
 
 static uint8_t apple_roswell_rx(I2CSlave *i2c)
 {
     return 0x00;
-}
-
-void apple_roswell_create(MachineState *machine, uint8_t addr)
-{
-    AppleI2CState *i2c = APPLE_I2C(
-        object_property_get_link(OBJECT(machine), "i2c3", &error_fatal));
-    i2c_slave_create_simple(i2c->bus, TYPE_APPLE_ROSWELL, addr);
 }
 
 static void apple_roswell_class_init(ObjectClass *klass, void *data)

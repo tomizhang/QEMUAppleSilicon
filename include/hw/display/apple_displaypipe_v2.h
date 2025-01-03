@@ -66,7 +66,6 @@ struct AppleDisplayPipeV2State {
     bool invalidated;
 };
 
-AppleDisplayPipeV2State *apple_displaypipe_v2_create(MachineState *machine,
-                                                     DTBNode *node);
+AppleDisplayPipeV2State *apple_displaypipe_v2_create(DTBNode *node);
 
 #endif /* APPLE_DISPLAYPIPE_V2_H */
