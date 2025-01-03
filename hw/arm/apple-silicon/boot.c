@@ -498,7 +498,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     dtb_set_prop_u32(child, "security-domain", 1);
     dtb_set_prop_u32(child, "chip-epoch", 1);
     dtb_set_prop_u32(child, "amfi-allows-trust-cache-load", 1);
-    dtb_set_prop_u32(child, "debug-enabled", 0);
+    // dtb_set_prop_u32(child, "debug-enabled", 1);
 
     child = dtb_get_node(root, "defaults");
     g_assert_nonnull(child);
