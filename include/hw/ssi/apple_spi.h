@@ -11,4 +11,5 @@
 OBJECT_DECLARE_SIMPLE_TYPE(AppleSPIState, APPLE_SPI)
 
 SysBusDevice *apple_spi_create(DTBNode *node);
+SSIBus *apple_spi_get_bus(AppleSPIState *s);
 #endif /* HW_SSI_APPLE_SPI_H */

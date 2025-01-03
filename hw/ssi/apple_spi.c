@@ -424,6 +424,11 @@ static void apple_spi_reset(DeviceState *dev)
     fifo32_reset(&s->rx_fifo);
 }
 
+SSIBus *apple_spi_get_bus(AppleSPIState *s)
+{
+    return s->spi;
+}
+
 static void apple_spi_realize(DeviceState *dev, struct Error **errp)
 {
     AppleSPIState *s = APPLE_SPI(dev);
