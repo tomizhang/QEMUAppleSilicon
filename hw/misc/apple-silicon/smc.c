@@ -490,17 +490,16 @@ SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
     DTBNode *child;
     DTBProp *prop;
     uint64_t *reg;
-    uint32_t data;
 
     dev = qdev_new(TYPE_APPLE_SMC_IOP);
     s = APPLE_SMC_IOP(dev);
     rtb = APPLE_RTBUDDY(dev);
     sbd = SYS_BUS_DEVICE(dev);
 
-    child = find_dtb_node(node, "iop-smc-nub");
+    child = dtb_find_node(node, "iop-smc-nub");
     g_assert_nonnull(child);
 
-    prop = find_dtb_prop(node, "reg");
+    prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
 
     reg = (uint64_t *)prop->value;
@@ -515,7 +514,7 @@ SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
                           TYPE_APPLE_SMC_IOP ".ascv2-core-reg", reg[3]);
     sysbus_init_mmio(sbd, s->iomems[1]);
 
-    prop = find_dtb_prop(child, "sram-addr");
+    prop = dtb_find_prop(child, "sram-addr");
     g_assert_nonnull(prop);
     g_assert_cmpuint(prop->length, ==, 8);
 
@@ -526,9 +525,8 @@ SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
                                       sizeof(s->sram), s->sram);
     sysbus_init_mmio(sbd, s->iomems[2]);
 
-    data = 1;
-    set_dtb_prop(child, "pre-loaded", 4, (uint8_t *)&data);
-    set_dtb_prop(child, "running", 4, (uint8_t *)&data);
+    dtb_set_prop_u32(child, "pre-loaded", 1);
+    dtb_set_prop_u32(child, "running", 1);
 
     QTAILQ_INIT(&s->keys);
 

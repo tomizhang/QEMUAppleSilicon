@@ -534,11 +534,11 @@ AppleDARTState *apple_dart_create(DTBNode *node)
     s = APPLE_DART(dev);
     sbd = SYS_BUS_DEVICE(dev);
 
-    prop = find_dtb_prop(node, "name");
+    prop = dtb_find_prop(node, "name");
     g_strlcpy(s->name, (char *)prop->value, sizeof(s->name));
     dev->id = g_strdup((char *)prop->value);
 
-    prop = find_dtb_prop(node, "page-size");
+    prop = dtb_find_prop(node, "page-size");
     if (!prop || prop->length < 4) {
         s->page_shift = 12;
     } else {
@@ -561,27 +561,27 @@ AppleDARTState *apple_dart_create(DTBNode *node)
         g_assert_not_reached();
     }
 
-    prop = find_dtb_prop(node, "sids");
+    prop = dtb_find_prop(node, "sids");
     if (prop && prop->length >= 4) {
         s->sids = *(uint32_t *)prop->value;
     }
 
-    prop = find_dtb_prop(node, "bypass");
+    prop = dtb_find_prop(node, "bypass");
     if (prop && prop->length >= 4) {
         s->bypass = *(uint32_t *)prop->value;
     }
 
-    prop = find_dtb_prop(node, "bypass-address");
+    prop = dtb_find_prop(node, "bypass-address");
     if (prop && prop->length >= 8) {
         s->bypass_address = *(uint64_t *)prop->value;
     }
 
-    prop = find_dtb_prop(node, "instance");
+    prop = dtb_find_prop(node, "instance");
     g_assert_nonnull(prop);
     g_assert_cmpuint((prop->length / 12) * 12, ==, prop->length);
     instance = (uint32_t *)prop->value;
 
-    prop = find_dtb_prop(node, "reg");
+    prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
 
     reg = (uint64_t *)prop->value;

@@ -655,7 +655,6 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
     ARMCPU *cpu;
     Object *obj;
     DTBProp *prop;
-    uint64_t freq;
     uint64_t *reg;
 
     obj = object_new(TYPE_APPLE_A13);
@@ -664,18 +663,18 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
     cpu = ARM_CPU(tcpu);
 
     if (node) {
-        prop = find_dtb_prop(node, "name");
+        prop = dtb_find_prop(node, "name");
         dev->id = g_strdup((char *)prop->value);
 
-        prop = find_dtb_prop(node, "cpu-id");
+        prop = dtb_find_prop(node, "cpu-id");
         g_assert_cmpuint(prop->length, ==, 4);
         tcpu->cpu_id = *(unsigned int *)prop->value;
 
-        prop = find_dtb_prop(node, "reg");
+        prop = dtb_find_prop(node, "reg");
         g_assert_cmpuint(prop->length, ==, 4);
         tcpu->phys_id = *(unsigned int *)prop->value;
 
-        prop = find_dtb_prop(node, "cluster-id");
+        prop = dtb_find_prop(node, "cluster-id");
         g_assert_cmpuint(prop->length, ==, 4);
         tcpu->cluster_id = *(unsigned int *)prop->value;
     } else {
@@ -693,7 +692,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
     cpu->midr = FIELD_DP64(cpu->midr, MIDR_EL1, REVISION, 0x1);
 
     if (node) {
-        prop = find_dtb_prop(node, "cluster-type");
+        prop = dtb_find_prop(node, "cluster-type");
         cluster_type = *prop->value;
     }
     switch (cluster_type) {
@@ -712,20 +711,20 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     if (node) {
         /* remove debug regs from device tree */
-        prop = find_dtb_prop(node, "reg-private");
+        prop = dtb_find_prop(node, "reg-private");
         if (prop) {
-            remove_dtb_prop(node, prop);
+            dtb_unset_prop(node, prop);
         }
 
-        prop = find_dtb_prop(node, "cpu-uttdbg-reg");
+        prop = dtb_find_prop(node, "cpu-uttdbg-reg");
         if (prop) {
-            remove_dtb_prop(node, prop);
+            dtb_unset_prop(node, prop);
         }
     }
 
     if (tcpu->cpu_id == 0 || node == NULL) {
         if (node) {
-            set_dtb_prop(node, "state", 8, "running");
+            dtb_set_prop(node, "state", 8, "running");
         }
         object_property_set_bool(obj, "start-powered-off", false, NULL);
     } else {
@@ -737,14 +736,12 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     // Need to set the CPU frequencies instead of iBoot
     if (node) {
-        freq = 24000000;
-
-        set_dtb_prop(node, "timebase-frequency", sizeof(freq), &freq);
-        set_dtb_prop(node, "fixed-frequency", sizeof(freq), &freq);
-        set_dtb_prop(node, "peripheral-frequency", sizeof(freq), &freq);
-        set_dtb_prop(node, "memory-frequency", sizeof(freq), &freq);
-        set_dtb_prop(node, "bus-frequency", sizeof(freq), &freq);
-        set_dtb_prop(node, "clock-frequency", sizeof(freq), &freq);
+        dtb_set_prop_u64(node, "timebase-frequency", 24000000);
+        dtb_set_prop_u64(node, "fixed-frequency", 24000000);
+        dtb_set_prop_u64(node, "peripheral-frequency", 24000000);
+        dtb_set_prop_u64(node, "memory-frequency", 24000000);
+        dtb_set_prop_u64(node, "bus-frequency", 24000000);
+        dtb_set_prop_u64(node, "clock-frequency", 24000000);
     }
 
     object_property_set_bool(obj, "has_el3", false, NULL);
@@ -756,7 +753,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
     memory_region_add_subregion_overlap(&tcpu->memory, 0, &tcpu->sysmem, -2);
 
     if (node) {
-        prop = find_dtb_prop(node, "cpu-impl-reg");
+        prop = dtb_find_prop(node, "cpu-impl-reg");
         if (prop) {
             g_assert_cmpuint(prop->length, ==, 16);
 
@@ -769,7 +766,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
                                         &tcpu->impl_reg);
         }
 
-        prop = find_dtb_prop(node, "coresight-reg");
+        prop = dtb_find_prop(node, "coresight-reg");
         if (prop) {
             g_assert_cmpuint(prop->length, ==, 16);
 
@@ -782,7 +779,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
                                         &tcpu->coresight_reg);
         }
 
-        prop = find_dtb_prop(node, "cpm-impl-reg");
+        prop = dtb_find_prop(node, "cpm-impl-reg");
         if (prop) {
             g_assert_cmpuint(prop->length, ==, 16);
             memcpy(tcpu->cluster_reg, prop->value, prop->length);

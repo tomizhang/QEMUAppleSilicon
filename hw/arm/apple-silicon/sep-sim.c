@@ -980,7 +980,7 @@ AppleSEPSimState *apple_sep_sim_create(DTBNode *node, bool modern)
     a7iop = APPLE_A7IOP(dev);
     s = APPLE_SEP_SIM(dev);
 
-    prop = find_dtb_prop(node, "reg");
+    prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
     reg = (uint64_t *)prop->value;
 
@@ -990,9 +990,9 @@ AppleSEPSimState *apple_sep_sim_create(DTBNode *node, bool modern)
 
     qemu_mutex_init(&s->lock);
 
-    child = find_dtb_node(node, "iop-sep-nub");
+    child = dtb_find_node(node, "iop-sep-nub");
     g_assert_nonnull(child);
-    remove_dtb_node_by_name(child, "Lynx");
+    dtb_remove_node_named(child, "Lynx");
     return s;
 }
 

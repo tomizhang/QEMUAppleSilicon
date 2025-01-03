@@ -196,16 +196,16 @@ SysBusDevice *apple_sart_create(DTBNode *node)
     s = APPLE_SART(dev);
     sbd = SYS_BUS_DEVICE(dev);
 
-    prop = find_dtb_prop(node, "name");
+    prop = dtb_find_prop(node, "name");
     dev->id = g_strdup((const char *)prop->value);
 
-    prop = find_dtb_prop(node, "sart-version");
+    prop = dtb_find_prop(node, "sart-version");
     g_assert_nonnull(prop);
     s->version = *(uint32_t *)prop->value;
     g_assert_cmpuint(s->version, >=, 1);
     g_assert_cmpuint(s->version, <=, 3);
 
-    prop = find_dtb_prop(node, "reg");
+    prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
 
     reg = (uint64_t *)prop->value;

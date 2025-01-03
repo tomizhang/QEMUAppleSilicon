@@ -561,10 +561,10 @@ SysBusDevice *apple_spmi_create(DTBNode *node)
     s = APPLE_SPMI(dev);
     sbd = SYS_BUS_DEVICE(dev);
 
-    prop = find_dtb_prop(node, "name");
+    prop = dtb_find_prop(node, "name");
     dev->id = g_strdup((const char *)prop->value);
 
-    prop = find_dtb_prop(node, "reg-vers");
+    prop = dtb_find_prop(node, "reg-vers");
     if (prop) {
         s->reg_vers = *(uint32_t *)prop->value;
     }
@@ -572,15 +572,15 @@ SysBusDevice *apple_spmi_create(DTBNode *node)
     /* XXX: There is a register overlapping issue (STS and ENAB) with reg v0 */
     assert(s->reg_vers != 0);
 
-    prop = find_dtb_prop(node, "AAPL,phandle");
+    prop = dtb_find_prop(node, "AAPL,phandle");
 
     phandle = *(uint32_t *)prop->value;
 
-    prop = find_dtb_prop(node, "interrupts");
+    prop = dtb_find_prop(node, "interrupts");
 
     s->resp_intr_index = *(uint32_t *)prop->value;
 
-    prop = find_dtb_prop(node, "interrupt-parent");
+    prop = dtb_find_prop(node, "interrupt-parent");
     /* The first interrupt in list (response) should be self-wired */
     assert(*(uint32_t *)prop->value == phandle);
 

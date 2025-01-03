@@ -2955,7 +2955,7 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
             apple_sep_send_message(s, 0xff, 0x0, 17, 0x00, 0x8000);
             qemu_log_mask(LOG_UNIMP, "SEP MISC4: Sent fake SEPROM_Opcode17\n");
         }
-        if (data == 0xfc4a2cac && (s->chip_id >= 0x8020)) // Enable Trace Buffer
+        if (data == 0xFC4A2CAC && (s->chip_id >= 0x8020)) // Enable Trace Buffer
         {
             // Only works for T8020, because the T8015 SEPOS is compressed.
 #if SEP_ENABLE_TRACE_BUFFER
@@ -2964,14 +2964,14 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
         }
         break;
     case 0x8:
-        if (data == 0x23bfdfe7) {
+        if (data == 0x23BFDFE7) {
             hwaddr phys_addr = 0x0;
             if (s->chip_id == 0x8015) {
-                phys_addr = 0x34015fd40ULL; // T8015
+                phys_addr = 0x34015FD40ull; // T8015
             } else if (s->chip_id >= 0x8020) {
-                phys_addr = 0x340736380ULL; // T8020
+                phys_addr = 0x340736380ull; // T8020
             } else {
-                // g_assert_true(false);
+                // g_assert_not_reached();
             }
             if (phys_addr) {
                 AddressSpace *nsas = &address_space_memory;
@@ -2981,7 +2981,7 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
                 // ASLR for SEPOS apps
                 address_space_set(nsas, phys_addr, 0, 0x16,
                                   MEMTXATTRS_UNSPECIFIED); // phys_SEPB + 0x80;
-                                                           // pc==0x240005bac
+                                                           // pc==0x240005BAC
             }
         }
         if (data == 0x41a7 && (s->chip_id >= 0x8015)) {
@@ -2996,8 +2996,8 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
             // g_free(sep_fw);
         }
 #if 1
-        // if (data == 0x6a5d128d && (s->chip_id == 0x8015))
-        if (data == 0x6a5d128d) {
+        // if (data == 0x6A5D128D && (s->chip_id == 0x8015))
+        if (data == 0x6A5D128D) {
             AppleA7IOPMessage *msg = NULL;
             msg = apple_a7iop_inbox_peek(APPLE_A7IOP(s)->iop_mailbox);
             if (msg) {
@@ -3038,7 +3038,7 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
             }
         }
 #endif
-        if (data == 0x23bfdfe7 && (s->chip_id == 0x8015)) {
+        if (data == 0x23BFDFE7 && (s->chip_id == 0x8015)) {
 #define LVL3_BASE_COPYFROM 0x24090c000ull
             AddressSpace *nsas = &address_space_memory;
             uint64_t pagetable_val = 0;
@@ -3047,7 +3047,7 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
                 pagetable_val = page_addr | 0x603;
                 address_space_write(nsas,
                                     LVL3_BASE_COPYFROM +
-                                        (((page_addr >> 14) & 0x7ff) * 8),
+                                        (((page_addr >> 14) & 0x7FF) * 8),
                                     MEMTXATTRS_UNSPECIFIED, &pagetable_val,
                                     sizeof(pagetable_val));
             }
@@ -3059,57 +3059,51 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
                       "SEP MISC4: MISC4_0 write at 0x" HWADDR_FMT_plx
                       " with value 0x" HWADDR_FMT_plx "\n",
                       addr, data);
-        if (data == 0xdeadbee0) {
+        if (data == 0xDEADBEE0) {
             qemu_irq_lower(qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_IRQ));
         }
-        if (data == 0xdeadbee1) {
+        if (data == 0xDEADBEE1) {
             qemu_irq_lower(qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_FIQ));
         }
-        if (data == 0xdeadbee2) {
+        if (data == 0xDEADBEE2) {
             qemu_irq_lower(qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_VIRQ));
         }
-        if (data == 0xdeadbee3) {
+        if (data == 0xDEADBEE3) {
             qemu_irq_lower(qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_VFIQ));
         }
 
-        if (data == 0xdeadbee4) {
+        if (data == 0xDEADBEE4) {
             qemu_irq_raise(qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_IRQ));
         }
-        if (data == 0xdeadbee5) {
+        if (data == 0xDEADBEE5) {
             qemu_irq_raise(qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_FIQ));
         }
-        if (data == 0xdeadbee6) {
+        if (data == 0xDEADBEE6) {
             qemu_irq_raise(qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_VIRQ));
         }
-        if (data == 0xdeadbee7) {
+        if (data == 0xDEADBEE7) {
             qemu_irq_raise(qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_VFIQ));
         }
-        if (data == 0xcafe1337) {
+        if (data == 0xCAFE1337) {
             uint32_t i = 0;
-#if 1
             for (i = 0x10000; i < 0x10200; i++) {
                 if (i == 0x10008 || i == 0x1002c)
                     continue;
                 apple_a7iop_interrupt_status_push(APPLE_A7IOP(s)->iop_mailbox,
                                                   i);
             }
-#endif
-#if 1
             for (i = 0x40000; i < 0x40100; i++) {
                 if (i == 0x40000)
                     continue;
                 apple_a7iop_interrupt_status_push(APPLE_A7IOP(s)->iop_mailbox,
                                                   i);
             }
-#endif
-#if 1
             for (i = 0x70000; i < 0x70400; i++) {
                 // if (i == 0x70001)
                 //     continue;
                 apple_a7iop_interrupt_status_push(APPLE_A7IOP(s)->iop_mailbox,
                                                   i);
             }
-#endif
         }
         break;
     case 0x3370:
@@ -3207,7 +3201,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
     s = APPLE_SEP(dev);
     sbd = SYS_BUS_DEVICE(dev);
 
-    prop = find_dtb_prop(node, "reg");
+    prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
     reg = (uint64_t *)prop->value;
 
@@ -3302,7 +3296,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, vaddr base, uint32_t cpu_id,
                           s, "sep.debug_trace",
                           s->debug_trace_size); // Debug trace printing
     sysbus_init_mmio(sbd, &s->debug_trace_mr);
-    DTBNode *child = find_dtb_node(node, "iop-sep-nub");
+    DTBNode *child = dtb_find_node(node, "iop-sep-nub");
     g_assert_nonnull(child);
 
     MachineState *machine = MACHINE(qdev_get_machine());

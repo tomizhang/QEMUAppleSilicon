@@ -577,36 +577,36 @@ SysBusDevice *apple_aic_create(uint32_t numCPU, DTBNode *node,
     AppleAICState *s;
     DTBProp *prop;
     hwaddr *reg;
-    uint64_t base = 0;
-    uint64_t timebase = 0;
+    uint64_t base;
+    uint64_t timebase;
 
     dev = qdev_new(TYPE_APPLE_AIC);
     s = APPLE_AIC(dev);
-    prop = find_dtb_prop(node, "AAPL,phandle");
-    assert(prop);
+
+    prop = dtb_find_prop(node, "AAPL,phandle");
+    g_assert_nonnull(prop);
     s->phandle = *(uint32_t *)prop->value;
-    prop = find_dtb_prop(node, "reg");
-    assert(prop != NULL);
+
+    prop = dtb_find_prop(node, "reg");
+    g_assert_nonnull(prop);
     reg = (hwaddr *)prop->value;
     s->base_size = reg[1];
-    prop = find_dtb_prop(node, "ipid-mask");
+
+    prop = dtb_find_prop(node, "ipid-mask");
     s->numEIR = prop->length / 4;
     s->numIRQ = s->numEIR * 32;
 
     s->numCPU = numCPU;
-    set_dtb_prop(node, "#main-cpus", 4, (uint8_t *)&s->numCPU);
+    dtb_set_prop_u32(node, "#main-cpus", s->numCPU);
 
-    prop = find_dtb_prop(node, "#shared-timestamps");
-    assert(prop);
-    assert(prop->length == 4);
-    *(uint32_t *)prop->value = 0;
+    dtb_set_prop_u32(node, "#shared-timestamps", 0);
 
-    prop = find_dtb_prop(node, "reg");
-    assert(prop);
+    prop = dtb_find_prop(node, "reg");
+    g_assert_nonnull(prop);
     base = *(uint64_t *)prop->value;
 
-    prop = find_dtb_prop(timebase_node, "reg");
-    assert(prop);
+    prop = dtb_find_prop(timebase_node, "reg");
+    g_assert_nonnull(prop);
     timebase = *(uint64_t *)prop->value;
     s->time_base = timebase - base;
 

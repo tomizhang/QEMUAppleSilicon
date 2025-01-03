@@ -368,7 +368,10 @@ static const MemoryRegionOps gpio_reg_ops = {
     .valid.unaligned = false,
 };
 
-DeviceState *apple_custom_gpio_create(char *name, uint64_t mmio_size, uint32_t gpio_pins, uint32_t gpio_int_groups, uint32_t phandle)
+DeviceState *apple_custom_gpio_create(char *name, uint64_t mmio_size,
+                                      uint32_t gpio_pins,
+                                      uint32_t gpio_int_groups,
+                                      uint32_t phandle)
 {
     int i;
     DeviceState *dev;
@@ -417,15 +420,15 @@ DeviceState *apple_gpio_create(DTBNode *node)
     s = APPLE_GPIO(dev);
 
     s->iomem = g_new(MemoryRegion, 1);
-    DTBProp *prop = find_dtb_prop(node, "reg");
+    DTBProp *prop = dtb_find_prop(node, "reg");
     mmio_size = ((hwaddr *)prop->value)[1];
-    prop = find_dtb_prop(node, "name");
+    prop = dtb_find_prop(node, "name");
     dev->id = g_strdup((const char *)prop->value);
     memory_region_init_io(s->iomem, OBJECT(dev), &gpio_reg_ops, s,
                           (const char *)prop->value, mmio_size);
     sysbus_init_mmio(sbd, s->iomem);
 
-    prop = find_dtb_prop(node, "#gpio-pins");
+    prop = dtb_find_prop(node, "#gpio-pins");
     s->npins = *(uint32_t *)prop->value;
     assert(s->npins < GPIO_MAX_PIN_NR);
     qdev_init_gpio_in(dev, apple_gpio_set, s->npins);
@@ -433,7 +436,7 @@ DeviceState *apple_gpio_create(DTBNode *node)
     s->out = g_new(qemu_irq, s->npins);
     qdev_init_gpio_out(dev, s->out, s->npins);
 
-    prop = find_dtb_prop(node, "#gpio-int-groups");
+    prop = dtb_find_prop(node, "#gpio-int-groups");
     s->nirqgrps = *(uint32_t *)prop->value;
     s->irqs = g_new(qemu_irq, s->nirqgrps);
 
@@ -441,7 +444,7 @@ DeviceState *apple_gpio_create(DTBNode *node)
         sysbus_init_irq(sbd, &s->irqs[i]);
     }
 
-    prop = find_dtb_prop(node, "AAPL,phandle");
+    prop = dtb_find_prop(node, "AAPL,phandle");
     assert(prop);
 
     s->phandle = *(uint32_t *)prop->value;

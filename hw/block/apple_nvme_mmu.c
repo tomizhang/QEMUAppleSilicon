@@ -58,7 +58,7 @@ SysBusDevice *apple_nvme_mmu_create(DTBNode *node)
 
     pcie_host_mmcfg_init(pex, PCIE_MMCFG_SIZE_MAX);
 
-    prop = find_dtb_prop(node, "reg");
+    prop = dtb_find_prop(node, "reg");
     assert(prop);
 
     reg = (uint64_t *)prop->value;

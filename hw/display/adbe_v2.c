@@ -20,8 +20,6 @@
 #include "qemu/osdep.h"
 #include "hw/display/adbe_v2.h"
 #include "hw/qdev-properties.h"
-#include "qapi/error.h"
-#include "qemu/error-report.h"
 #include "qemu/log.h"
 #include "qom/object.h"
 #include "ui/console.h"
@@ -205,7 +203,6 @@ ADBEV2 *adbe_v2_create(MachineState *machine, DTBNode *node)
     DeviceState *dev;
     SysBusDevice *sbd;
     ADBEV2 *s;
-    uint32_t value;
     DTBProp *prop;
     uint64_t *reg;
     MemoryRegion *mr;
@@ -214,11 +211,10 @@ ADBEV2 *adbe_v2_create(MachineState *machine, DTBNode *node)
     sbd = SYS_BUS_DEVICE(dev);
     s = ADBE_V2(sbd);
 
-    value = 326;
-    assert(set_dtb_prop(node, "dot-pitch", sizeof(value), &value));
+    dtb_set_prop_u32(node, "dot-pitch", 326);
 
-    prop = find_dtb_prop(node, "reg");
-    assert(prop);
+    prop = dtb_find_prop(node, "reg");
+    g_assert_nonnull(prop);
     reg = (uint64_t *)prop->value;
     mr = g_new0(MemoryRegion, 5);
     memory_region_init_io(mr, OBJECT(sbd), &frontend_reg_ops, sbd,
@@ -305,7 +301,7 @@ static Property adbe_v2_props[] = {
     // iPhone 4/4S
     DEFINE_PROP_UINT32("width", ADBEV2, width, 640),
     DEFINE_PROP_UINT32("height", ADBEV2, height, 960),
-    DEFINE_PROP_END_OF_LIST()
+    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void adbe_v2_class_init(ObjectClass *klass, void *data)

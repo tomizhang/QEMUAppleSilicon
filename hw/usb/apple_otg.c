@@ -195,9 +195,9 @@ DeviceState *apple_otg_create(DTBNode *node)
                           TYPE_APPLE_OTG ".usbctl", sizeof(s->usbctl_reg));
     sysbus_init_mmio(sbd, &s->usbctl);
 
-    child = get_dtb_node(node, "usb-device");
+    child = dtb_get_node(node, "usb-device");
     assert(child);
-    prop = find_dtb_prop(child, "reg");
+    prop = dtb_find_prop(child, "reg");
     assert(prop);
 
     object_initialize_child(OBJECT(dev), "dwc2", &s->dwc2, TYPE_DWC2_USB);

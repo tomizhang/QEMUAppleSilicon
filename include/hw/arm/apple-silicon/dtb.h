@@ -25,6 +25,7 @@
 #define HW_ARM_APPLE_SILICON_DTB_H
 
 #include "qemu/osdep.h"
+#include "exec/hwaddr.h"
 
 #define DT_PROP_FLAG_PLACEHOLDER (1 << 31)
 #define DT_PROP_FLAGS_MASK (0xF0000000)
@@ -46,16 +47,20 @@ typedef struct {
     GList *child_nodes;
 } DTBNode;
 
-DTBNode *load_dtb(uint8_t *dtb_blob);
-void save_dtb(uint8_t *buf, DTBNode *root);
-bool remove_dtb_node_by_name(DTBNode *parent, const char *name);
-void remove_dtb_node(DTBNode *node, DTBNode *child);
-void remove_dtb_prop(DTBNode *node, DTBProp *prop);
-DTBProp *set_dtb_prop(DTBNode *n, const char *name, uint32_t size,
+DTBNode *dtb_unserialise(uint8_t *dtb_blob);
+void dtb_serialise(uint8_t *buf, DTBNode *root);
+bool dtb_remove_node_named(DTBNode *parent, const char *name);
+void dtb_remove_node(DTBNode *node, DTBNode *child);
+void dtb_unset_prop(DTBNode *node, DTBProp *prop);
+DTBProp *dtb_set_prop(DTBNode *n, const char *name, uint32_t size,
                       const void *val);
-DTBNode *find_dtb_node(DTBNode *n, const char *path);
-DTBNode *get_dtb_node(DTBNode *n, const char *path);
-uint64_t get_dtb_node_buffer_size(DTBNode *node);
-DTBProp *find_dtb_prop(DTBNode *node, const char *name);
+DTBProp *dtb_set_prop_null(DTBNode *node, const char *name);
+DTBProp *dtb_set_prop_u32(DTBNode *node, const char *name, const uint32_t val);
+DTBProp *dtb_set_prop_u64(DTBNode *node, const char *name, const uint64_t val);
+DTBProp *dtb_set_prop_hwaddr(DTBNode *node, const char *name, const hwaddr val);
+DTBNode *dtb_find_node(DTBNode *n, const char *path);
+DTBNode *dtb_get_node(DTBNode *n, const char *path);
+uint64_t dtb_get_serialised_node_size(DTBNode *node);
+DTBProp *dtb_find_prop(DTBNode *node, const char *name);
 
 #endif /* HW_ARM_APPLE_SILICON_DTB_H */

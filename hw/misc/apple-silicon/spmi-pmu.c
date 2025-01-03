@@ -191,26 +191,26 @@ DeviceState *apple_spmi_pmu_create(DTBNode *node)
     AppleSPMIPMUState *p = APPLE_SPMI_PMU(dev);
     DTBProp *prop;
 
-    prop = find_dtb_prop(node, "reg");
+    prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
     spmi_set_slave_sid(SPMI_SLAVE(dev), *(uint32_t *)prop->value);
 
-    prop = find_dtb_prop(node, "info-rtc");
+    prop = dtb_find_prop(node, "info-rtc");
     p->reg_rtc = *(uint32_t *)prop->value;
 
-    prop = find_dtb_prop(node, "info-rtc_alarm_offset");
+    prop = dtb_find_prop(node, "info-rtc_alarm_offset");
     p->reg_alarm = *(uint32_t *)prop->value;
 
-    prop = find_dtb_prop(node, "info-rtc_alarm_ctrl");
+    prop = dtb_find_prop(node, "info-rtc_alarm_ctrl");
     p->reg_alarm_ctrl = *(uint32_t *)prop->value;
 
-    prop = find_dtb_prop(node, "info-rtc_alarm_event");
+    prop = dtb_find_prop(node, "info-rtc_alarm_event");
     p->reg_alarm_event = *(uint32_t *)prop->value;
 
-    prop = find_dtb_prop(node, "info-rtc_irq_mask_offset");
+    prop = dtb_find_prop(node, "info-rtc_irq_mask_offset");
     p->reg_rtc_irq_mask = *(uint32_t *)prop->value;
 
-    prop = find_dtb_prop(node, "info-leg_scrpad");
+    prop = dtb_find_prop(node, "info-leg_scrpad");
     p->reg_leg_scrpad = *(uint32_t *)prop->value;
 
     p->tick_period = frq_to_period_ns(RTC_TICK_FREQ);

@@ -90,21 +90,17 @@ static const char *KEEP_COMP[] = {
     "spmi,gen0\0$",
     "spmi,t8015\0$",
     "uart-1,samsung\0$",
-#if 1
     "usb-complex,s8000\0usb-complex,s5l8960x\0$",
     "usb-device,s5l8900x\0$",
     "usb-device,s8000\0usb-device,t7000\0usb-device,s5l8900x\0$",
     "usb-device,t7000\0usb-device,s5l8900x\0$",
     "usb-drd,t8030\0usb-drd,t8027\0$",
-#endif
     "wdt,s8000\0wdt,s5l8960x\0$",
     "wdt,t8030\0wdt,s5l8960x\0$",
 #if 0
     "wlan-pcie,bcm4378\0wlan-pcie,bcm\0$",
 #endif
-#if 1
     "bluetooth,n88\0$",
-#endif
 };
 
 static const char *REM_NAMES[] = {
@@ -207,7 +203,7 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
     bool found;
     int cnt;
 
-    prop = find_dtb_prop(node, "compatible");
+    prop = dtb_find_prop(node, "compatible");
     if (prop != NULL) {
         g_assert_nonnull(prop->value);
         found = false;
@@ -221,12 +217,12 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
         }
         if (!found) {
             g_assert_nonnull(parent);
-            remove_dtb_node(parent, node);
+            dtb_remove_node(parent, node);
             return;
         }
     }
 
-    prop = find_dtb_prop(node, "name");
+    prop = dtb_find_prop(node, "name");
     if (prop != NULL) {
         g_assert_nonnull(prop->value);
         for (count = sizeof(REM_NAMES) / sizeof(REM_NAMES[0]), i = 0; i < count;
@@ -234,13 +230,13 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
             uint64_t size = MIN(prop->length, sstrlen(REM_NAMES[i]));
             if (memcmp(prop->value, REM_NAMES[i], size) == 0) {
                 g_assert_nonnull(parent);
-                remove_dtb_node(parent, node);
+                dtb_remove_node(parent, node);
                 return;
             }
         }
     }
 
-    prop = find_dtb_prop(node, "device_type");
+    prop = dtb_find_prop(node, "device_type");
     if (prop != NULL) {
         g_assert_nonnull(prop->value);
         for (count = sizeof(REM_DEV_TYPES) / sizeof(REM_DEV_TYPES[0]), i = 0;
@@ -248,7 +244,7 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
             uint64_t size = MIN(prop->length, sstrlen(REM_DEV_TYPES[i]));
             if (memcmp(prop->value, REM_DEV_TYPES[i], size) == 0) {
                 g_assert_nonnull(parent);
-                remove_dtb_node(parent, node);
+                dtb_remove_node(parent, node);
                 return;
             }
         }
@@ -256,9 +252,9 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
 
     for (count = sizeof(REM_PROPS) / sizeof(REM_PROPS[0]), i = 0; i < count;
          i++) {
-        prop = find_dtb_prop(node, REM_PROPS[i]);
+        prop = dtb_find_prop(node, REM_PROPS[i]);
         if (prop != NULL) {
-            remove_dtb_prop(node, prop);
+            dtb_unset_prop(node, prop);
         }
     }
 
@@ -448,7 +444,7 @@ DTBNode *load_dtb_from_file(char *filename)
         exit(EXIT_FAILURE);
     }
 
-    root = load_dtb(file_data);
+    root = dtb_unserialise(file_data);
     g_free(file_data);
     return root;
 }
@@ -457,81 +453,65 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
 {
     DTBNode *child;
     DTBProp *prop;
-    uint32_t data;
     uint64_t memmap[2] = { 0 };
 
-    child = get_dtb_node(root, "chosen");
+    child = dtb_get_node(root, "chosen");
     g_assert_nonnull(child);
-    prop = find_dtb_prop(child, "random-seed");
+    prop = dtb_find_prop(child, "random-seed");
     g_assert_nonnull(prop);
     qemu_guest_getrandom_nofail(prop->value, prop->length);
 
-    set_dtb_prop(child, "dram-base", 8, &info->dram_base);
-    set_dtb_prop(child, "dram-size", 8, &info->dram_size);
-    set_dtb_prop(child, "firmware-version", 28, "ChefKiss QEMU Apple Silicon");
+    dtb_set_prop_hwaddr(child, "dram-base", info->dram_base);
+    dtb_set_prop_hwaddr(child, "dram-size", info->dram_size);
+    dtb_set_prop(child, "firmware-version", 28, "ChefKiss QEMU Apple Silicon");
 
     if (info->nvram_size > XNU_MAX_NVRAM_SIZE) {
-        warn_report("NVRAM size is larger than expected. (0x%" PRIx64 " vs %X)",
+        warn_report("NVRAM size is larger than expected. (0x%" PRIx32 " vs %X)",
                     info->nvram_size, XNU_MAX_NVRAM_SIZE);
         info->nvram_size = XNU_MAX_NVRAM_SIZE;
     }
-    set_dtb_prop(child, "nvram-total-size", 4, &info->nvram_size);
-    set_dtb_prop(child, "nvram-bank-size", 4, &info->nvram_size);
-    set_dtb_prop(child, "nvram-proxy-data", info->nvram_size, info->nvram_data);
+    dtb_set_prop_u32(child, "nvram-total-size", info->nvram_size);
+    dtb_set_prop_u32(child, "nvram-bank-size", info->nvram_size);
+    dtb_set_prop(child, "nvram-proxy-data", info->nvram_size, info->nvram_data);
 
-    data = 1;
-    set_dtb_prop(child, "research-enabled", sizeof(data), &data);
-    data = 1;
-    set_dtb_prop(child, "effective-production-status-ap", sizeof(data), &data);
-    set_dtb_prop(child, "effective-security-mode-ap", sizeof(data), &data);
+    dtb_set_prop_u32(child, "research-enabled", 1);
+    dtb_set_prop_u32(child, "effective-production-status-ap", 1);
+    dtb_set_prop_u32(child, "effective-security-mode-ap", 1);
+    dtb_set_prop_u32(child, "security-domain", 1);
+    dtb_set_prop_u32(child, "chip-epoch", 1);
+    dtb_set_prop_u32(child, "amfi-allows-trust-cache-load", 1);
+    dtb_set_prop_u32(child, "debug-enabled", 0);
 
-    data = 1;
-    // These are needed by the image4 parser
-    set_dtb_prop(child, "security-domain", sizeof(data), &data);
-    set_dtb_prop(child, "chip-epoch", sizeof(data), &data);
-    data = 1;
-    set_dtb_prop(child, "amfi-allows-trust-cache-load", sizeof(data), &data);
-    data = 0;
-    set_dtb_prop(child, "debug-enabled", sizeof(data), &data);
-#if ENABLE_SEP_SECURITY == 1
-    data = 1;
-#else
-    data = 0;
+    child = dtb_get_node(root, "defaults");
+    g_assert_nonnull(child);
+    dtb_set_prop_u32(child, "content-protect", ENABLE_SEP_SECURITY);
+    dtb_set_prop_u32(child, "encryptable", ENABLE_SEP_SECURITY);
+#if ENABLE_SEP_SECURITY == 0
+    dtb_set_prop_null(child, "no-effaceable-storage");
 #endif
 
-    child = get_dtb_node(root, "defaults");
-    g_assert_nonnull(child);
-    set_dtb_prop(child, "content-protect", sizeof(data), &data);
-    set_dtb_prop(child, "encryptable", sizeof(data), &data);
-    if (data == 0) {
-        set_dtb_prop(child, "no-effaceable-storage", 0,
-                     &data); // activated via presence of prop
-    }
-
-    child = get_dtb_node(root, "chosen/manifest-properties");
-    set_dtb_prop(child, "BNCH", sizeof(info->boot_nonce_hash),
+    child = dtb_get_node(root, "chosen/manifest-properties");
+    dtb_set_prop(child, "BNCH", sizeof(info->boot_nonce_hash),
                  info->boot_nonce_hash);
 
-    child = get_dtb_node(root, "product");
+    child = dtb_get_node(root, "product");
     g_assert_nonnull(child);
-    // setting boot-ios-diagnostics to 1 causes keystore issues.
 #if 0
-    data = 1;
-    set_dtb_prop(child, "allow-hactivation", sizeof(data), &data); // Needs *DEV instead of *AP to be set
+    set_dtb_prop_u32(child, "allow-hactivation", 1); // Needs *DEV instead of *AP to be set
 #endif
 
     macho_dtb_node_process(root, NULL);
 
-    child = get_dtb_node(root, "chosen/memory-map");
+    child = dtb_get_node(root, "chosen/memory-map");
     g_assert_nonnull(child);
 
-    set_dtb_prop(child, "RAMDisk", sizeof(memmap), memmap);
-    set_dtb_prop(child, "TrustCache", sizeof(memmap), memmap);
-    set_dtb_prop(child, "SEPFW", sizeof(memmap), memmap);
-    set_dtb_prop(child, "BootArgs", sizeof(memmap), &memmap);
-    set_dtb_prop(child, "DeviceTree", sizeof(memmap), &memmap);
+    dtb_set_prop(child, "RAMDisk", sizeof(memmap), memmap);
+    dtb_set_prop(child, "TrustCache", sizeof(memmap), memmap);
+    dtb_set_prop(child, "SEPFW", sizeof(memmap), memmap);
+    dtb_set_prop(child, "BootArgs", sizeof(memmap), &memmap);
+    dtb_set_prop(child, "DeviceTree", sizeof(memmap), &memmap);
 
-    info->device_tree_size = align_16k_high(get_dtb_node_buffer_size(root));
+    info->device_tree_size = align_16k_high(dtb_get_serialised_node_size(root));
 }
 
 static void set_memory_range(DTBNode *root, const char *name, uint64_t addr,
@@ -543,10 +523,10 @@ static void set_memory_range(DTBNode *root, const char *name, uint64_t addr,
     g_assert_cmphex(addr, !=, 0);
     g_assert_cmpuint(size, !=, 0);
 
-    child = get_dtb_node(root, "chosen/memory-map");
+    child = dtb_get_node(root, "chosen/memory-map");
     g_assert_nonnull(child);
 
-    prop = find_dtb_prop(child, name);
+    prop = dtb_find_prop(child, name);
     g_assert_nonnull(prop);
 
     ((uint64_t *)prop->value)[0] = addr;
@@ -558,12 +538,12 @@ static void remove_memory_range(DTBNode *root, const char *name)
     DTBNode *child;
     DTBProp *prop;
 
-    child = get_dtb_node(root, "chosen/memory-map");
+    child = dtb_get_node(root, "chosen/memory-map");
     g_assert_nonnull(child);
 
-    prop = find_dtb_prop(child, "DeviceTree");
+    prop = dtb_find_prop(child, "DeviceTree");
     if (prop != NULL) {
-        remove_dtb_prop(child, prop);
+        dtb_unset_prop(child, prop);
     }
 }
 
@@ -597,10 +577,10 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
         QCryptoHashAlgorithm alg = QCRYPTO_HASH_ALG_SHA1;
         g_autofree uint8_t *hash = NULL;
         size_t hash_len = 0;
-        DTBNode *child = find_dtb_node(root, "chosen");
+        DTBNode *child = dtb_find_node(root, "chosen");
         DTBProp *prop = NULL;
         g_autofree Error *err = NULL;
-        prop = find_dtb_prop(child, "crypto-hash-method");
+        prop = dtb_find_prop(child, "crypto-hash-method");
 
         if (prop) {
             if (strcmp((char *)prop->value, "sha2-384") == 0) {
@@ -608,7 +588,7 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
             }
         }
 
-        prop = find_dtb_prop(child, "boot-manifest-hash");
+        prop = dtb_find_prop(child, "boot-manifest-hash");
         g_assert_nonnull(prop);
 
         if (qcrypto_hash_bytes(alg, info->ticket_data, info->ticket_length,
@@ -621,9 +601,9 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
     }
 
     g_assert_cmpuint(info->device_tree_size, >=,
-                     get_dtb_node_buffer_size(root));
+                     dtb_get_serialised_node_size(root));
     buf = g_malloc0(info->device_tree_size);
-    save_dtb(buf, root);
+    dtb_serialise(buf, root);
     allocate_and_copy(mem, as, name, info->device_tree_addr,
                       info->device_tree_size, buf);
 }
@@ -1182,7 +1162,7 @@ void macho_allocate_segment_records(DTBNode *memory_map, MachoHeader64 *mh)
                 uint64_t paddr;
                 uint64_t length;
             } file_info = { 0 };
-            set_dtb_prop(memory_map, region_name, sizeof(file_info),
+            dtb_set_prop(memory_map, region_name, sizeof(file_info),
                          &file_info);
             break;
         }
@@ -1230,7 +1210,7 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
                     uint64_t paddr;
                     uint64_t length;
                 } file_info = { load_to, segCmd->vmsize };
-                set_dtb_prop(memory_map, region_name, sizeof(file_info),
+                dtb_set_prop(memory_map, region_name, sizeof(file_info),
                              &file_info);
             } else {
                 snprintf(region_name, sizeof(region_name), "TZ1-%s",
