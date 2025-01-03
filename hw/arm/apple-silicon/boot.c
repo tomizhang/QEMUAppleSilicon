@@ -103,21 +103,40 @@ static const char *KEEP_COMP[] = {
 };
 
 static const char *REM_NAMES[] = {
-    "aop-gpio\0$",   "backlight\0$",     "dart-ane\0$",
-    "dart-aop\0$",   "dart-apcie2\0$",   "dart-apcie3\0$",
-    "dart-avd\0$",   "dart-ave\0$",      "dart-isp\0$",
-    "dart-jpeg0\0$", "dart-jpeg1\0$",    "dart-pmp\0$",
-    "dart-rsm\0$",   "dart-scaler\0$",   "dockchannel-uart\0$",
-    "dotara\0$",     "pmp\0$",           "stockholm-spmi\0$",
+    "backlight\0$",
+    "dart-ane\0$",
+    "dart-aop\0$",
+    "dart-apcie2\0$",
+    "dart-apcie3\0$",
+    "dart-avd\0$",
+    "dart-ave\0$",
+    "dart-isp\0$",
+    "dart-jpeg0\0$",
+    "dart-jpeg1\0$",
+    "dart-pmp\0$",
+    "dart-rsm\0$",
+    "dart-scaler\0$",
+    "dockchannel-uart\0$",
+    "dotara\0$",
+    "pmp\0$",
+    "stockholm-spmi\0$",
 #if ENABLE_BASEBAND == 0
-    "baseband\0$",   "baseband-spmi\0$", "baseband-vol\0$",
+    "baseband\0$",
+    "baseband-spmi\0$",
+    "baseband-vol\0$",
 #endif
 #if ENABLE_SEP == 0
-    "sep\0$",        "dart-sep\0$",      "xart-vol\0$",
-    "pearl-sep\0$",  "isp\0$",           "xART\0$",
+    "sep\0$",
+    "dart-sep\0$",
+    "xart-vol\0$",
+    "pearl-sep\0$",
+    "isp\0$",
+    "xART\0$",
 #endif
 #if ENABLE_SEP_SECURITY == 0 // necessary?
-    "pearl-sep\0$",  "isp\0$",           "Lynx\0$",
+    "pearl-sep\0$",
+    "isp\0$",
+    "Lynx\0$",
 #endif
 };
 

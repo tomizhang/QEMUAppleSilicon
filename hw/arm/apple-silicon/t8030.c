@@ -2542,6 +2542,7 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_gpio(t8030_machine, "gpio");
     t8030_create_gpio(t8030_machine, "smc-gpio");
     t8030_create_gpio(t8030_machine, "nub-gpio");
+    t8030_create_gpio(t8030_machine, "aop-gpio");
 
     t8030_create_i2c(t8030_machine, "i2c0");
     t8030_create_i2c(t8030_machine, "i2c1");
