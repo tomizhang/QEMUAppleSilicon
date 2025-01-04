@@ -369,9 +369,15 @@ static void aes_security_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
 static uint64_t aes_security_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
-    AppleAESState *s = APPLE_AES(opaque);
+    AppleAESState *s;
+
+    s = APPLE_AES(opaque);
+
+#if 0
     qemu_log_mask(LOG_GUEST_ERROR, "%s: Read 0x" HWADDR_FMT_plx "\n", __func__,
                   addr);
+#endif
+
     switch (addr) {
     case 0x00: // unknown0
         // return 0x00; // panic panic(cpu 0 caller 0xfffffff0090dcdb8):
