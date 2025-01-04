@@ -492,7 +492,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     dtb_set_prop_u32(child, "nvram-bank-size", info->nvram_size);
     dtb_set_prop(child, "nvram-proxy-data", info->nvram_size, info->nvram_data);
 
-    dtb_set_prop_u32(child, "research-enabled", 1);
+    // dtb_set_prop_u32(child, "research-enabled", 1);
     dtb_set_prop_u32(child, "effective-production-status-ap", 1);
     dtb_set_prop_u32(child, "effective-security-mode-ap", 1);
     dtb_set_prop_u32(child, "security-domain", 1);
