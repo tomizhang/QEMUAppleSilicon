@@ -41,23 +41,28 @@ static void apple_a7iop_reg_write(void *opaque, hwaddr addr,
     case REG_SEP_AKF_DISABLE_INTERRUPT_BASE + 0x04: // group 1
     case REG_SEP_AKF_DISABLE_INTERRUPT_BASE + 0x08: // group 2
     case REG_SEP_AKF_DISABLE_INTERRUPT_BASE + 0x0c: // group 3
+#if 0
         qemu_log_mask(
             LOG_UNIMP,
             "%s AKF: SEP AKF DISABLE INTERRUPT write to 0x" HWADDR_FMT_plx
             " of value 0x" HWADDR_FMT_plx " lowest_bit_position: %u \n",
             s->role, addr, data, __builtin_ctzl(data));
+#endif
         interrupt_index = (addr - REG_SEP_AKF_DISABLE_INTERRUPT_BASE) >> 2;
         s->iop_mailbox->interrupts_enabled[interrupt_index] &= ~data;
+
         break;
     case REG_SEP_AKF_ENABLE_INTERRUPT_BASE + 0x00: // group 0
     case REG_SEP_AKF_ENABLE_INTERRUPT_BASE + 0x04: // group 1
     case REG_SEP_AKF_ENABLE_INTERRUPT_BASE + 0x08: // group 2
     case REG_SEP_AKF_ENABLE_INTERRUPT_BASE + 0x0c: // group 3
+#if 0
         qemu_log_mask(
             LOG_UNIMP,
             "%s AKF: SEP AKF ENABLE INTERRUPT write to 0x" HWADDR_FMT_plx
             " of value 0x" HWADDR_FMT_plx " lowest_bit_position: %u \n",
             s->role, addr, data, __builtin_ctzl(data));
+#endif
         interrupt_index = (addr - REG_SEP_AKF_ENABLE_INTERRUPT_BASE) >> 2;
         s->iop_mailbox->interrupts_enabled[interrupt_index] |= data;
 #if 0

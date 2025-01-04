@@ -890,10 +890,13 @@ static void trng_regs_reg_write(void *opaque, hwaddr addr, uint64_t data,
 #endif
 
     s = (AppleTRNGState *)opaque;
+
+#if 0
     qemu_log_mask(LOG_UNIMP,
                   "TRNG_REGS: Write at 0x" HWADDR_FMT_plx
                   " of value 0x" HWADDR_FMT_plx "\n",
                   addr, data);
+#endif
 
     switch (addr) {
     case REG_TRNG_FIFO_OUTPUT_BASE ... REG_TRNG_FIFO_OUTPUT_END:
@@ -1001,10 +1004,12 @@ static void trng_regs_reg_write(void *opaque, hwaddr addr, uint64_t data,
         // don't do the encryption here
         break;
     default:
+#if 0
         qemu_log_mask(LOG_UNIMP,
                       "TRNG_REGS: Unknown write at 0x" HWADDR_FMT_plx
                       " of value 0x" HWADDR_FMT_plx "\n",
                       addr, data);
+#endif
         break;
     }
 }
@@ -1068,15 +1073,19 @@ static uint64_t trng_regs_reg_read(void *opaque, hwaddr addr, unsigned size)
         ret = s->offset_0x70;
         break;
     default:
+#if 0
         qemu_log_mask(LOG_UNIMP,
                       "TRNG_REGS: Unknown read at 0x" HWADDR_FMT_plx "\n",
                       addr);
+#endif
         break;
     }
+#if 0
     qemu_log_mask(LOG_UNIMP,
                   "TRNG_REGS: Read at 0x" HWADDR_FMT_plx
                   " ret: 0x" HWADDR_FMT_plx "\n",
                   addr, ret);
+#endif
     return ret;
 }
 
@@ -2471,10 +2480,12 @@ static void pka_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     default:
         memcpy(&sep->pka_base_regs[addr], &data, size);
     jump_default:
+#if 0
         qemu_log_mask(LOG_UNIMP,
                       "SEP PKA_BASE: Unknown write at 0x" HWADDR_FMT_plx
                       " with value 0x" HWADDR_FMT_plx "\n",
                       addr, data);
+#endif
         break;
     }
 }
@@ -2517,10 +2528,12 @@ static uint64_t pka_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     default:
         memcpy(&ret, &sep->pka_base_regs[addr], size);
     jump_default:
+#if 0
         qemu_log_mask(LOG_UNIMP,
                       "SEP PKA_BASE: Unknown read at 0x" HWADDR_FMT_plx
                       " with value 0x" HWADDR_FMT_plx "\n",
                       addr, ret);
+#endif
         break;
     }
 
@@ -2998,10 +3011,12 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
         break;
     case 0x0:
         memcpy(&s->misc4_regs[addr], &data, size);
+#if 0
         qemu_log_mask(LOG_UNIMP,
                       "SEP MISC4: MISC4_0 write at 0x" HWADDR_FMT_plx
                       " with value 0x" HWADDR_FMT_plx "\n",
                       addr, data);
+#endif
         if (data == 0xDEADBEE0) {
             qemu_irq_lower(qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_IRQ));
         }
@@ -3079,10 +3094,12 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
     default:
         // jump_default:
         memcpy(&s->misc4_regs[addr], &data, size);
+#if 0
         qemu_log_mask(LOG_UNIMP,
                       "SEP MISC4: Unknown write at 0x" HWADDR_FMT_plx
                       " with value 0x" HWADDR_FMT_plx "\n",
                       addr, data);
+#endif
         break;
     }
 }
@@ -3098,9 +3115,11 @@ static uint64_t misc4_reg_read(void *opaque, hwaddr addr, unsigned size)
     switch (addr) {
     default:
         memcpy(&ret, &s->misc4_regs[addr], size);
+#if 0
         qemu_log_mask(LOG_UNIMP,
                       "SEP MISC4: Unknown read at 0x" HWADDR_FMT_plx "\n",
                       addr);
+#endif
         break;
     }
 
@@ -3434,11 +3453,11 @@ static void pka_reset(ApplePKAState *s)
 }
 
 
-#if 1
 static void map_sepfw(AppleSEPState *s)
 {
+#if 0
     qemu_log_mask(LOG_UNIMP, "%s: entered function\n", __func__);
-#if 1
+#endif
     if (s->sepfw_mr == NULL) {
         //__asm__("int3");
         s->sepfw_mr = allocate_ram(get_system_memory(), "SEPFW_",
@@ -3450,9 +3469,7 @@ static void map_sepfw(AppleSEPState *s)
                       MEMTXATTRS_UNSPECIFIED);
     address_space_rw(nsas, 0x4000ULL, MEMTXATTRS_UNSPECIFIED,
                      (uint8_t *)s->sepfw_data, s->sep_fw_size, true);
-#endif
 }
-#endif
 
 
 static void apple_sep_reset(DeviceState *dev)

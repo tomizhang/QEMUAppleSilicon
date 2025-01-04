@@ -6,7 +6,7 @@
 #include "qemu/log.h"
 #include "qemu/module.h"
 
-#define DEBUG_APPLE_I2C
+// #define DEBUG_APPLE_I2C
 
 #define MMIO_SIZE (0x10000)
 

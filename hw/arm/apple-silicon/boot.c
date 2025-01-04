@@ -600,7 +600,7 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
         g_autofree Error *err = NULL;
         prop = dtb_find_prop(child, "crypto-hash-method");
 
-        if (prop) {
+        if (prop != NULL) {
             if (strcmp((char *)prop->value, "sha2-384") == 0) {
                 alg = QCRYPTO_HASH_ALG_SHA384;
             }
