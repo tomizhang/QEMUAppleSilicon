@@ -2125,7 +2125,6 @@ static void t8030_create_display(T8030MachineState *t8030_machine)
     uint32_t *ints = (uint32_t *)prop->value;
 
     for (size_t i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_init_irq(sbd, &s->irqs[i]);
         sysbus_connect_irq(
             sbd, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }

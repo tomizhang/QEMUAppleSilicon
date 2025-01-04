@@ -382,6 +382,9 @@ static const MemoryRegionOps apple_disp_v2_reg_ops = {
     .valid.unaligned = false,
 };
 
+static uint32_t disp_timing_info[] = { 0x33C, 0x90, 0x1, 0x1,
+                                       0x700, 0x1,  0x1, 0x1 };
+
 AppleDisplayPipeV2State *apple_displaypipe_v2_create(DTBNode *node)
 {
     DeviceState *dev;
@@ -389,9 +392,7 @@ AppleDisplayPipeV2State *apple_displaypipe_v2_create(DTBNode *node)
     AppleDisplayPipeV2State *s;
     DTBProp *prop;
     uint64_t *reg;
-    uint32_t disp_timing_info[] = {
-        0x33C, 0x90, 0x1, 0x1, 0x700, 0x1, 0x1, 0x1
-    };
+    int i;
 
     dev = qdev_new(TYPE_APPLE_DISPLAYPIPE_V2);
     sbd = SYS_BUS_DEVICE(dev);
@@ -413,6 +414,10 @@ AppleDisplayPipeV2State *apple_displaypipe_v2_create(DTBNode *node)
     object_property_add_const_link(OBJECT(sbd), "up.regs", OBJECT(&s->up_regs));
 
     s->invalidated = true;
+
+    for (i = 0; i < 9; i++) {
+        sysbus_init_irq(sbd, &s->irqs[i]);
+    }
 
     return s;
 }
