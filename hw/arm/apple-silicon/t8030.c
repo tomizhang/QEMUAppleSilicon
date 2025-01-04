@@ -324,8 +324,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     g_virt_base += g_virt_slide - g_phys_slide;
 
     // TrustCache
-    info->trustcache_addr =
-        vtop_static(text_base + g_virt_slide) - info->trustcache_size;
+    info->trustcache_addr = vtop_slid(text_base) - info->trustcache_size;
 
     macho_load_trustcache(t8030_machine->trustcache, info->trustcache_size,
                           nsas, sysmem, info->trustcache_addr);
@@ -342,7 +341,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     phys_ptr = vtop_static(align_16k_high(virt_end));
 
     amcc_lower = info->trustcache_addr;
-    amcc_upper = vtop_static(last_base + g_virt_slide) + last_seg->vmsize - 1;
+    amcc_upper = vtop_slid(last_base) + last_seg->vmsize - 1;
     for (int i = 0; i < 4; i++) {
         AMCC_REG(t8030_machine, AMCC_LOWER(i)) =
             (amcc_lower - T8030_DRAM_BASE) >> 14;
@@ -478,8 +477,8 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     phys_ptr = vtop_static(align_16k_high(virt_end));
 
     amcc_lower = info->device_tree_addr;
-    amcc_upper = vtop_static(prelink_info_seg->vmaddr + g_virt_slide) +
-                 prelink_info_seg->vmsize - 1;
+    amcc_upper =
+        vtop_slid(prelink_info_seg->vmaddr) + prelink_info_seg->vmsize - 1;
     for (int i = 0; i < 4; i++) {
         AMCC_REG(t8030_machine, AMCC_LOWER(i)) =
             (amcc_lower - T8030_DRAM_BASE) >> 14;
@@ -620,41 +619,50 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
             sizeof(
                 value32_mov_x0_1)); // load_sepos: jump over
                                     // img4_compare_verified_values_true_on_success
-        address_space_write(
-            nsas, T8030_SEPROM_BASE + 0x123bc, MEMTXATTRS_UNSPECIFIED,
-            &value32_mov_x0_0,
-            sizeof(value32_mov_x0_0)); // maybe_verify_rsa_signature: return
-                                       // fake return value
-        //*(uint32_t *)vtop_static(0xfffffff008b4e018 + g_virt_slide) =
-        // value32_mov_w0_0x10000000; // AppleSEPBooter::getBootTimeout:
+        // maybe_verify_rsa_signature: return
+        // fake return value
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x123bc,
+                            MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
+                            sizeof(value32_mov_x0_0));
+        // `AppleSEPBooter::getBootTimeout`:
         // increase timeout for debugging (GDB tracing). The
-        // _initTimeoutMultiplier change is preferred compared to this.
-        //*(uint32_t *)vtop_static(0xfffffff008b576b4 + g_virt_slide) =
-        // value32_nop; // AppleSEPManager::_tracingEnabled: Don't require
-        //_PE_i_can_has_debugger.
-        //*(uint32_t *)vtop_static(0xfffffff008b57ad4 + g_virt_slide) =
-        // value32_mov_x0_1; // AppleSEPManager::_bootSEP:: Don't require
-        //_PE_i_can_has_debugger.
-        //*(uint32_t *)vtop_static(0xfffffff008b56b18 + g_virt_slide) =
-        // value32_nop; // AppleSEPManager::_initPMControl: Don't require
-        //_PE_i_can_has_debugger. // _PE_parse_boot_argn "sep_pm"
-        //*(uint32_t *)vtop_static(0xfffffff007a231d8 + g_virt_slide) =
-        // value32_mov_x0_1; // _kern_config_is_development
-        //*(uint32_t *)vtop_static(0xfffffff008b56aa4 + g_virt_slide) =
-        // value32_mov_w8_0x1000; // AppleSEPManager::_initTimeoutMultiplier:
+        // `_initTimeoutMultiplier` change is preferred compared to this.
+        // *(uint32_t *)vtop_slid(0xFFFFFFF008B4E018) =
+        // value32_mov_w0_0x10000000;
+        // `AppleSEPManager::_tracingEnabled`: Don't require
+        // `PE_i_can_has_debugger`.
+        //*(uint32_t *)vtop_slid(0xFFFFFFF008B576B4) =
+        // value32_nop;
+        // `AppleSEPManager::_bootSEP`: Don't require
+        // `PE_i_can_has_debugger`.
+        //*(uint32_t *)vtop_slid(0xFFFFFFF008B57AD4) =
+        // value32_mov_x0_1;
+        // `AppleSEPManager::_initPMControl`: Don't require
+        // `PE_i_can_has_debugger`.
+        // _PE_parse_boot_argn "sep_pm"
+        //*(uint32_t *)vtop_slid(0xFFFFFFF008B56B18) =
+        // value32_nop;
+        // _kern_config_is_development
+        //*(uint32_t *)vtop_slid(0xFFFFFFF007A231D8) =
+        // value32_mov_x0_1;
+        // `AppleSEPManager::_initTimeoutMultiplier`:
         // Increasing the FastSIM timeout. Conflicts with getBootTimeout.
-        //*(uint32_t *)vtop_static(0xfffffff0079f95a8 + g_virt_slide) =
-        // value32_mov_w0_0; // SEP::_kern_register_coredump_helper: Needed for
+        //*(uint32_t *)vtop_slid(0xFFFFFFF008B56AA4) =
+        // value32_mov_w8_0x1000;
+        // SEP::_kern_register_coredump_helper: Needed for
         // the bootSEP patch.
-        //*(uint32_t *)vtop_static(0xfffffff008794f24 + g_virt_slide) =
-        // value32_mov_x0_0; // ApplePMGR::_cpuIdle: skip time check
-        ////////
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x0d2c8,
-        // MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); //
+        //*(uint32_t *)vtop_slid(0xfffffff0079f95a8) =
+        // value32_mov_w0_0;
+        // ApplePMGR::_cpuIdle: skip time check
+        //*(uint32_t *)vtop_slid(0xfffffff008794f24) =
+        // value32_mov_x0_0;
+
         // image4_validate_property_callback: skip AMNM
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x12144,
-        // MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); //
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x0d2c8,
+        // MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop));
         // maybe_Img4DecodeEvaluateTrust: Skip RSA verification result.
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x12144,
+        // MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop));
 #if 1
         address_space_write(
             nsas, T8030_SEPROM_BASE + 0x0CA84, MEMTXATTRS_UNSPECIFIED,
