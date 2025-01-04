@@ -54,7 +54,7 @@
 #include <nettle/macros.h>
 #include <nettle/memxor.h>
 
-#define ENABLE_CPU_DUMP_STATE 1
+#define ENABLE_CPU_DUMP_STATE 0
 
 // currently only for T8015, it's hardcoded elsewhere for T8020/T8030, now
 // here even for T8020/T8030
