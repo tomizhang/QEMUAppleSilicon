@@ -575,94 +575,108 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         // uint32_t value32_mov_w0_0 = 0x52800000; // mov w0, #0x0
         // uint32_t value32_mov_w8_0x1000 = 0x52820008;
 #if 1 // for T8020 SEPROM
-        address_space_write(
-            nsas, t8030_machine->soc_base_pa + 0x42140108,
-            MEMTXATTRS_UNSPECIFIED, &value,
-            sizeof(value)); // _entry: prevent busy-loop (data section):
-                            // 240000024: data_242140108 = 0x4 should set
-                            // (data_242140108 & 0x8000000000000000) != 0
-        ////address_space_write(nsas, T8030_SEPROM_BASE + 0x0d2c8,
-        /// MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); //
-        /// image4_validate_property_callback: skip AMNM
-        ////address_space_write(nsas, T8030_SEPROM_BASE + 0x12144,
-        /// MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop)); //
-        /// maybe_Img4DecodeEvaluateTrust: Skip RSA verification result.
+      // _entry: prevent busy-loop (data section):
+      // 240000024: data_242140108 = 0x4 should set
+      // (data_242140108 & 0x8000000000000000) != 0
+        address_space_write(nsas, t8030_machine->soc_base_pa + 0x42140108,
+                            MEMTXATTRS_UNSPECIFIED, &value, sizeof(value));
+
+        // image4_validate_property_callback: skip AMNM
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x0D2C8,
+        //                     MEMTXATTRS_UNSPECIFIED, &value32_nop,
+        //                     sizeof(value32_nop));
+
+        // maybe_Img4DecodeEvaluateTrust: Skip RSA verification result.
         // not actually stuck, it just takes a while to complete while GDB is in
         // use.
-        address_space_write(
-            nsas, T8030_SEPROM_BASE + 0x121d8, MEMTXATTRS_UNSPECIFIED,
-            &value32_nop,
-            sizeof(value32_nop)); // maybe_Img4DecodeEvaluateTrust: payload_raw
-                                  // hashing stuck, nop'ing
-        address_space_write(
-            nsas, T8030_SEPROM_BASE + 0x121dc, MEMTXATTRS_UNSPECIFIED,
-            &value32_nop,
-            sizeof(value32_nop)); // maybe_Img4DecodeEvaluateTrust: nop'ing
-                                  // result of payload_raw hashing
-        address_space_write(
-            nsas, T8030_SEPROM_BASE + 0x0abd8, MEMTXATTRS_UNSPECIFIED,
-            &value32_mov_x0_0,
-            sizeof(value32_mov_x0_0)); // memcmp_validstrs30: fake success
-        ////address_space_write(nsas, T8030_SEPROM_BASE + 0x0ca84,
-        /// MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
-        /// sizeof(value32_mov_x0_0));
-        ///// memcmp_validstrs14: fake success
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x091b4,
-        // MEMTXATTRS_UNSPECIFIED, &value32_mov_w0_8030,
-        // sizeof(value32_mov_w0_8030)); // get_chipid: patch get_chipid to
-        // return 0x8030 instead of 0x8020 address_space_write(nsas,
-        // T8030_SEPROM_BASE + 0x09178, MEMTXATTRS_UNSPECIFIED,
-        // &value32_mov_w8_8030, sizeof(value32_mov_w8_8030)); // another chipid
-        address_space_write(
-            nsas, T8030_SEPROM_BASE + 0x077ac, MEMTXATTRS_UNSPECIFIED,
-            &value32_mov_x0_1,
-            sizeof(
-                value32_mov_x0_1)); // load_sepos: jump over
-                                    // img4_compare_verified_values_true_on_success
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x12144,
+        //                     MEMTXATTRS_UNSPECIFIED, &value32_nop,
+        //                     sizeof(value32_nop));
+
+        // maybe_Img4DecodeEvaluateTrust: payload_raw
+        // hashing stuck, nop'ing
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x121D8,
+                            MEMTXATTRS_UNSPECIFIED, &value32_nop,
+                            sizeof(value32_nop));
+
+        // maybe_Img4DecodeEvaluateTrust: nop'ing
+        // result of payload_raw hashing
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x121DC,
+                            MEMTXATTRS_UNSPECIFIED, &value32_nop,
+                            sizeof(value32_nop));
+
+        // memcmp_validstrs30: fake success
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x0ABD8,
+                            MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
+                            sizeof(value32_mov_x0_0));
+
+        // memcmp_validstrs14: fake success
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x0CA84,
+        //                     MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
+        //                     sizeof(value32_mov_x0_0));
+
+        // get_chipid: patch get_chipid to return 0x8030 instead of 0x8020
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x091B4,
+        //                     MEMTXATTRS_UNSPECIFIED, &value32_mov_w0_8030,
+        //                     sizeof(value32_mov_w0_8030));
+
+        // another chipid
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x09178,
+        //                     MEMTXATTRS_UNSPECIFIED, &value32_mov_w8_8030,
+        //                     sizeof(value32_mov_w8_8030));
+
+        // load_sepos: jump over
+        // img4_compare_verified_values_true_on_success
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x077AC,
+                            MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_1,
+                            sizeof(value32_mov_x0_1));
+
         // maybe_verify_rsa_signature: return
         // fake return value
         address_space_write(nsas, T8030_SEPROM_BASE + 0x123bc,
                             MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
                             sizeof(value32_mov_x0_0));
+
         // `AppleSEPBooter::getBootTimeout`:
         // increase timeout for debugging (GDB tracing). The
         // `_initTimeoutMultiplier` change is preferred compared to this.
         // *(uint32_t *)vtop_slid(0xFFFFFFF008B4E018) =
         // value32_mov_w0_0x10000000;
+
         // `AppleSEPManager::_tracingEnabled`: Don't require
         // `PE_i_can_has_debugger`.
-        //*(uint32_t *)vtop_slid(0xFFFFFFF008B576B4) =
-        // value32_nop;
-        // `AppleSEPManager::_bootSEP`: Don't require
-        // `PE_i_can_has_debugger`.
-        //*(uint32_t *)vtop_slid(0xFFFFFFF008B57AD4) =
-        // value32_mov_x0_1;
+        //*(uint32_t *)vtop_slid(0xFFFFFFF008B576B4) = value32_nop;
+
+        // `AppleSEPManager::_bootSEP`: Don't require `PE_i_can_has_debugger`.
+        // *(uint32_t *)vtop_slid(0xFFFFFFF008B57AD4) = value32_mov_x0_1;
+
         // `AppleSEPManager::_initPMControl`: Don't require
         // `PE_i_can_has_debugger`.
-        // _PE_parse_boot_argn "sep_pm"
-        //*(uint32_t *)vtop_slid(0xFFFFFFF008B56B18) =
-        // value32_nop;
+        // *(uint32_t *)vtop_slid(0xFFFFFFF008B56B18) = value32_nop;
+
         // _kern_config_is_development
-        //*(uint32_t *)vtop_slid(0xFFFFFFF007A231D8) =
-        // value32_mov_x0_1;
+        // *(uint32_t *)vtop_slid(0xFFFFFFF007A231D8) = value32_mov_x0_1;
+
         // `AppleSEPManager::_initTimeoutMultiplier`:
         // Increasing the FastSIM timeout. Conflicts with getBootTimeout.
-        //*(uint32_t *)vtop_slid(0xFFFFFFF008B56AA4) =
-        // value32_mov_w8_0x1000;
-        // SEP::_kern_register_coredump_helper: Needed for
-        // the bootSEP patch.
-        //*(uint32_t *)vtop_slid(0xfffffff0079f95a8) =
-        // value32_mov_w0_0;
-        // ApplePMGR::_cpuIdle: skip time check
-        //*(uint32_t *)vtop_slid(0xfffffff008794f24) =
-        // value32_mov_x0_0;
+        // *(uint32_t *)vtop_slid(0xFFFFFFF008B56AA4) = value32_mov_w8_0x1000;
 
-        // image4_validate_property_callback: skip AMNM
+        // `SEP::_kern_register_coredump_helper`: Needed for
+        // the bootSEP patch.
+        // *(uint32_t *)vtop_slid(0xfffffff0079f95a8) = value32_mov_w0_0;
+
+        // `ApplePMGR::_cpuIdle`: skip time check
+        // *(uint32_t *)vtop_slid(0xfffffff008794f24) = value32_mov_x0_0;
+
+        // `image4_validate_property_callback`: skip AMNM
         // address_space_write(nsas, T8030_SEPROM_BASE + 0x0d2c8,
-        // MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop));
+        //                     MEMTXATTRS_UNSPECIFIED, &value32_nop,
+        //                     sizeof(value32_nop));
+
         // maybe_Img4DecodeEvaluateTrust: Skip RSA verification result.
         // address_space_write(nsas, T8030_SEPROM_BASE + 0x12144,
-        // MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop));
+        //                     MEMTXATTRS_UNSPECIFIED, &value32_nop,
+        //                     sizeof(value32_nop));
 #if 1
         address_space_write(
             nsas, T8030_SEPROM_BASE + 0x0CA84, MEMTXATTRS_UNSPECIFIED,
