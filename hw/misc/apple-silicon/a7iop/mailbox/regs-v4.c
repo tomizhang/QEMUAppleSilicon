@@ -384,12 +384,14 @@ static uint64_t apple_a7iop_mailbox_reg_read_v4(void *opaque, hwaddr addr,
                 IOP_LOG_MSG(s, "IOP received", msg);
                 if (!strncmp(s->role, "SEP", 3)) {
                     memcpy(&sep_msg.raw, msg->data, 8);
+                    #if 0
                     qemu_log_mask(
                         LOG_UNIMP,
                         "%s: REG_IOP_RECV0: ep=0x%02x, tag=0x%02x, "
                         "opcode=0x%02x(%u), param=0x%02x, data=0x%08x\n",
                         s->role, sep_msg.endpoint, sep_msg.tag, sep_msg.opcode,
                         sep_msg.opcode, sep_msg.param, sep_msg.data);
+                    #endif
                 }
                 g_free(msg);
             } else {

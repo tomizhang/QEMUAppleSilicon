@@ -464,12 +464,14 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
     uint64_t arg5 = *(uint64_t *)&s->debug_trace_regs[addr - 0x10];
     uint64_t tid = *(uint64_t *)&s->debug_trace_regs[addr - 0x08];
     uint64_t time = *(uint64_t *)&s->debug_trace_regs[addr - 0x00];
+#if 0
     qemu_log_mask(LOG_UNIMP,
                   "\nDEBUG_TRACE: Debug:"
                   " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx
                   " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx " 0x" HWADDR_FMT_plx
                   " 0x" HWADDR_FMT_plx "\n",
                   trace_id, arg2, arg3, arg4, arg5, tid, time);
+#endif
     const char *tid_str = sepos_return_module_thread_string(s->chip_id, tid);
     switch (trace_id) {
     case 0x82010004: // panic
@@ -2337,10 +2339,12 @@ static void aess_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     default:
         memcpy(&sep->aess_base_regs[addr], &data, size);
     jump_default:
+#if 0
         qemu_log_mask(LOG_UNIMP,
                       "SEP AESS_BASE: Unknown write at 0x" HWADDR_FMT_plx
                       " with value 0x%" PRIx64 "\n",
                       addr, data);
+#endif
         break;
     }
 }
@@ -2409,10 +2413,12 @@ static uint64_t aess_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     default:
         memcpy(&ret, &sep->aess_base_regs[addr], size);
     jump_default:
+#if 0
         qemu_log_mask(LOG_UNIMP,
                       "SEP AESS_BASE: Unknown read at 0x" HWADDR_FMT_plx
                       " with value 0x%" PRIx64 "\n",
                       addr, ret);
+#endif
         break;
     }
 
