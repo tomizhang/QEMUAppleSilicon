@@ -30,10 +30,10 @@ static void apple_roswell_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
     I2CSlaveClass *c = I2C_SLAVE_CLASS(klass);
 
-    dc->desc = "Apple Roswell";
-    set_bit(DEVICE_CATEGORY_MISC, dc->categories);
-
     c->recv = apple_roswell_rx;
+    dc->desc = "Apple Roswell";
+    dc->user_creatable = false;
+    set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }
 
 static const TypeInfo apple_roswell_type_info = {
