@@ -366,7 +366,7 @@ static void kpf_mac_mount_patch(ApplePfPatchset *xnu_text_exec_patchset)
                      (void *)kpf_mac_mount_callback);
 }
 
-void kpf(void)
+void xnu_kpf(void)
 {
     MachoHeader64 *hdr = xnu_header;
     ApplePfPatchset *xnu_text_exec_patchset =

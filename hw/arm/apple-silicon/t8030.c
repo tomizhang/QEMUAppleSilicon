@@ -181,49 +181,53 @@ static void t8030_create_s3c_uart(const T8030MachineState *t8030_machine,
 static void t8030_patch_kernel(MachoHeader64 *hdr)
 {
     const uint32_t nop = cpu_to_le32(0xD503201F);
+
     //! disable_kprintf_output = 0;
-    *(uint32_t *)vtop_static(0xFFFFFFF0077142C8 + g_virt_slide) = 0;
+    *(uint32_t *)vtop_slid(0xFFFFFFF0077142C8) = 0;
+
     //! AppleSEPManager::_initTimeoutMultiplier 'sim' -> '  m'
-    *(uint32_t *)vtop_static(0xFFFFFFF008B569E0 + g_virt_slide) =
-        cpu_to_le32(0x52840408);
+    *(uint32_t *)vtop_slid(0xFFFFFFF008B569E0) = cpu_to_le32(0x52840408);
+
     // gAppleSMCDebugLevel = 0xFFFFFFFF;
-    //*(uint32_t *)vtop_static(0xFFFFFFF0099EAA18) = 0xFFFFFFFF;
+    //*(uint32_t *)vtop_slid(0xFFFFFFF0099EAA18) = 0xFFFFFFFF;
     // gAppleSMCDebugPath = 0x2;
-    //*(uint32_t *)vtop_static(0xFFFFFFF0099EAA1C) = 0x2;
+    //*(uint32_t *)vtop_slid(0xFFFFFFF0099EAA1C) = 0x2;
+
     // Disable AMX
-    *(uint32_t *)vtop_static(0xFFFFFFF007B64494 + g_virt_slide) =
-        cpu_to_le32(0x5280000A); // _gAMXVersion = 0
-    *(uint32_t *)vtop_static(0xFFFFFFF007B644A4 + g_virt_slide) =
-        cpu_to_le32(0x52810009); // __cpu_capabilities | 0x800 (ucnormal)
+    // _gAMXVersion = 0
+    // __cpu_capabilities | 0x800 (ucnormal)
+    *(uint32_t *)vtop_slid(0xFFFFFFF007B64494) = cpu_to_le32(0x5280000A);
+    *(uint32_t *)vtop_slid(0xFFFFFFF007B644A4) = cpu_to_le32(0x52810009);
+
 #if ENABLE_SEP == 0
     // Make all AppleSEPKeyStoreUserClient requests do nothing but return
     // success
-    *(uint32_t *)vtop_static(0xFFFFFFF008F6F774 + g_virt_slide) =
-        cpu_to_le32(0x52800000);
-    *(uint32_t *)vtop_static(0xFFFFFFF008F6F778 + g_virt_slide) =
-        cpu_to_le32(0xD65F0FFF);
+    *(uint32_t *)vtop_slid(0xFFFFFFF008F6F774) = cpu_to_le32(0x52800000);
+    *(uint32_t *)vtop_slid(0xFFFFFFF008F6F778) = cpu_to_le32(0xD65F0FFF);
 #else
     // re-enable it in case that the kernel is already patched
-    *(uint32_t *)vtop_static(0xFFFFFFF008F6F774 + g_virt_slide) =
-        cpu_to_le32(0xd10783ff);
-    *(uint32_t *)vtop_static(0xFFFFFFF008F6F778 + g_virt_slide) =
-        cpu_to_le32(0xa9186ffc);
+    *(uint32_t *)vtop_slid(0xFFFFFFF008F6F774) = cpu_to_le32(0xd10783ff);
+    *(uint32_t *)vtop_slid(0xFFFFFFF008F6F778) = cpu_to_le32(0xa9186ffc);
 
-    *(uint32_t *)vtop_static(0xFFFFFFF008B576B4 + g_virt_slide) =
-        nop; // AppleSEPManager::_tracingEnabled: disable _PE_i_can_has_debugger
-             // check, only rely on sep_tracing
-    *(uint32_t *)vtop_static(0xFFFFFFF008B57B28 + g_virt_slide) =
-        nop; // AppleSEPManager::_bootSEP: disable _PE_i_can_has_debugger check,
-             // so it won't skip reading bootarg sep-trace-size
-    *(uint32_t *)vtop_static(0xFFFFFFF008B58030 + g_virt_slide) =
-        cpu_to_le32(0x52A00028); // AppleSEPManager::_loadChannelObjectEntries:
-                                 // use SCOT as TRAC, thus making it bigger.
+    // `AppleSEPManager::_tracingEnabled`: disable
+    // `PE_i_can_has_debugger` check, only rely on sep_tracing
+    *(uint32_t *)vtop_slid(0xFFFFFFF008B576B4) = nop;
+
+    // `AppleSEPManager::_bootSEP`: disable `PE_i_can_has_debugger`
+    // check, so it won't skip reading bootarg sep-trace-size
+    *(uint32_t *)vtop_slid(0xFFFFFFF008B57B28) = nop;
+    // `AppleSEPManager::_loadChannelObjectEntries`:
+    // use SCOT as TRAC, thus making it bigger.
+    *(uint32_t *)vtop_slid(0xFFFFFFF008B58030) = cpu_to_le32(0x52A00028);
 #endif
-    *(char *)vtop_static(0xFFFFFFF0075085FC + g_virt_slide) =
-        'x'; // com.apple.os.update- -> xom.apple.os.update-
-    *(uint32_t *)vtop_static(0xfffffff00984ab1c + g_virt_slide) =
-        cpu_to_le32(0xffffffff); // _gAPCIEdebugFlags: orig == 0x80000001
-    kpf();
+
+    // com.apple.os.update- -> xom.apple.os.update-
+    *(char *)vtop_slid(0xFFFFFFF0075085FC) = 'x';
+
+    // _gAPCIEdebugFlags: orig == 0x80000001
+    *(uint32_t *)vtop_slid(0xFFFFFFF00984AB1C) = cpu_to_le32(0xffffffff);
+
+    xnu_kpf();
 }
 
 static bool t8030_check_panic(T8030MachineState *t8030_machine)

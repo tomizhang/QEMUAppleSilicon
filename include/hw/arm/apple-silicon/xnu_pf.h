@@ -74,5 +74,5 @@ MachoHeader64 *xnu_pf_get_kext_header(MachoHeader64 *kheader,
 
 void xnu_pf_apply_each_kext(MachoHeader64 *kheader, ApplePfPatchset *patchset);
 
-void kpf(void);
+void xnu_kpf(void);
 #endif

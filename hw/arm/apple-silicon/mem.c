@@ -51,6 +51,11 @@ hwaddr ptov_static(hwaddr pa)
     return ptov_bases(pa, g_phys_base, g_virt_base);
 }
 
+hwaddr vtop_slid(hwaddr va)
+{
+    return vtop_static(va + g_virt_slide);
+}
+
 uint8_t get_highest_different_bit_index(hwaddr addr1, hwaddr addr2)
 {
     g_assert_cmphex(addr1, !=, 0);
