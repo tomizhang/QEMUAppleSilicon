@@ -1,18 +1,18 @@
 arm_ss = ss.source_set()
 arm_ss.add(files('boot.c'), fdt)
 arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
-    'apple-silicon/s8000.c',
-    'apple-silicon/t8030.c',
     'apple-silicon/a13.c',
     'apple-silicon/a13_gxf.c',
     'apple-silicon/a9.c',
-    'apple-silicon/sep.c',
-    'apple-silicon/sep-sim.c',
+    'apple-silicon/boot.c',
     'apple-silicon/dtb.c',
     'apple-silicon/mem.c',
-    'apple-silicon/boot.c',
-    'apple-silicon/xnu_pf.c',
+    'apple-silicon/s8000.c',
+    'apple-silicon/sep-sim.c',
+    'apple-silicon/sep.c',
+    'apple-silicon/t8030.c',
     'apple-silicon/xnu_kpf.c',
+    'apple-silicon/xnu_pf.c',
 ))
 arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: tasn1)
 arm_ss.add(when: 'CONFIG_APPLE_DART', if_true: files('apple-silicon/dart.c'),
