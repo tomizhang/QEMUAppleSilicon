@@ -565,13 +565,15 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         g_free(seprom);
 
         uint64_t value = 0x8000000000000000;
-        uint32_t value32_mov_x0_1 = 0xd2800020; // mov x0, #0x1
+        uint32_t value32_mov_x0_1 = 0xD2800020; // mov x0, #0x1
         uint32_t value32_mov_x0_0 = 0xd2800000; // mov x0, #0x0
         uint32_t value32_nop = 0xd503201f; // nop
-        // uint32_t value32_mov_w0_0x10000000 = 0x52a20000; // mov w0,
-        // #0x10000000
-        uint32_t value32_mov_w0_8030 = 0x52900600; // mov w0, #0x8030
-        uint32_t value32_mov_w8_8030 = 0x52900608; // mov w8, #0x8030
+        // mov w0, #0x10000000
+        // uint32_t value32_mov_w0_0x10000000 = 0x52a20000;
+        // mov w0, #0x8030
+        // uint32_t value32_mov_w0_8030 = 0x52900600;
+        // mov w8, #0x8030
+        // uint32_t value32_mov_w8_8030 = 0x52900608;
         // uint32_t value32_mov_w0_0 = 0x52800000; // mov w0, #0x0
         // uint32_t value32_mov_w8_0x1000 = 0x52820008;
 #if 1 // for T8020 SEPROM
@@ -633,7 +635,7 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
 
         // maybe_verify_rsa_signature: return
         // fake return value
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x123bc,
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x123BC,
                             MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
                             sizeof(value32_mov_x0_0));
 
@@ -663,13 +665,13 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
 
         // `SEP::_kern_register_coredump_helper`: Needed for
         // the bootSEP patch.
-        // *(uint32_t *)vtop_slid(0xfffffff0079f95a8) = value32_mov_w0_0;
+        // *(uint32_t *)vtop_slid(0xFFFFFFF0079F95A8) = value32_mov_w0_0;
 
         // `ApplePMGR::_cpuIdle`: skip time check
-        // *(uint32_t *)vtop_slid(0xfffffff008794f24) = value32_mov_x0_0;
+        // *(uint32_t *)vtop_slid(0xFFFFFFF008794F24) = value32_mov_x0_0;
 
         // `image4_validate_property_callback`: skip AMNM
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x0d2c8,
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x0D2C8,
         //                     MEMTXATTRS_UNSPECIFIED, &value32_nop,
         //                     sizeof(value32_nop));
 
@@ -677,16 +679,16 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         // address_space_write(nsas, T8030_SEPROM_BASE + 0x12144,
         //                     MEMTXATTRS_UNSPECIFIED, &value32_nop,
         //                     sizeof(value32_nop));
-#if 1
-        address_space_write(
-            nsas, T8030_SEPROM_BASE + 0x0CA84, MEMTXATTRS_UNSPECIFIED,
-            &value32_mov_x0_0,
-            sizeof(value32_mov_x0_0)); // memcmp_validstrs14: fake success; for
-                                       // nvram bypass?
-#endif
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x02ab0,
+
+        // memcmp_validstrs14: fake success; for
+        // nvram bypass?
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x0CA84,
+                            MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
+                            sizeof(value32_mov_x0_0));
+
+        // memcmp_validstrs20: fake success
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x02AB0,
         // MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0, sizeof(value32_mov_x0_0));
-        // // memcmp_validstrs20: fake success
 #endif // for T8020 SEPROM
     }
 
@@ -744,7 +746,7 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     }
 
     DTBNode *chosen = dtb_find_node(t8030_machine->device_tree, "chosen");
-    DTBNode *product = dtb_find_node(t8030_machine->device_tree, "product");
+    // DTBNode *product = dtb_find_node(t8030_machine->device_tree, "product");
     DTBNode *data_vol =
         dtb_find_node(t8030_machine->device_tree, "filesystems/fstab/data-vol");
     if (xnu_contains_boot_arg(cmdline, "-restore", false)) {
