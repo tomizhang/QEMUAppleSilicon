@@ -3269,7 +3269,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     uint32_t sep_gpio_pins = 0x4;
     uint32_t sep_gpio_int_groups = 0x1;
     gpio = apple_custom_gpio_create((char *)"sep_gpio", 0x10000, sep_gpio_pins,
-                                    sep_gpio_int_groups, 0xdeadbeef);
+                                    sep_gpio_int_groups);
     g_assert_nonnull(gpio);
     if (s->chip_id == 0x8015) {
         sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x240F00000ull);
