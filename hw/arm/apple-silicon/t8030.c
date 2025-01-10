@@ -765,8 +765,6 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     } else {
         dtb_set_prop(t8030_machine->device_tree, "compatible", 28,
                      "N104AP\0iPhone12,1\0AppleARM\0$");
-        DTBNode *data_vol = dtb_find_node(t8030_machine->device_tree,
-                                          "filesystems/fstab/data-vol");
         dtb_set_prop(data_vol, "vol.fs_mntopts", 14, "nosuid,nodev\0$");
         uint32_t mount_order = 3;
         dtb_set_prop(data_vol, "vol.fs_mntorder", sizeof(mount_order),

@@ -545,8 +545,6 @@ static void dwc3_td_fetch(DWC3State *s, DWC3Transfer *xfer, dma_addr_t tdaddr)
         desc->length = 0;
         qemu_iovec_init(&desc->iov, 1);
         qemu_sglist_init(&desc->sgl, DEVICE(s), 1, &s->dma_as);
-        QTAILQ_INSERT_TAIL(&xfer->buffers, desc, queue);
-        xfer->count++;
 
         do {
             dma_memory_read(&s->dma_as, tdaddr, &trb, sizeof(trb),
@@ -603,6 +601,8 @@ static void dwc3_td_fetch(DWC3State *s, DWC3Transfer *xfer, dma_addr_t tdaddr)
                 break;
             }
         } while (!ended);
+        QTAILQ_INSERT_TAIL(&xfer->buffers, desc, queue);
+        xfer->count++;
     } while (!ended && xfer->count < 256);
     xfer->tdaddr = tdaddr;
 #ifdef DEBUG_DWC3
