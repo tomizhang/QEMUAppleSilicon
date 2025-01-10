@@ -399,6 +399,7 @@ static void s8000_memory_setup(MachineState *machine)
         }
     }
 
+    DTBNode *chosen = dtb_find_node(s8000_machine->device_tree, "chosen");
     if (xnu_contains_boot_arg(cmdline, "-restore", false)) {
         // HACK: Use DEV Hardware model to restore without FDR errors
         dtb_set_prop(s8000_machine->device_tree, "compatible", 27,
@@ -409,7 +410,6 @@ static void s8000_memory_setup(MachineState *machine)
     }
 
     if (!xnu_contains_boot_arg(cmdline, "rd=", true)) {
-        DTBNode *chosen = dtb_find_node(s8000_machine->device_tree, "chosen");
         DTBProp *prop = dtb_find_prop(chosen, "root-matching");
 
         if (prop) {
@@ -430,8 +430,7 @@ static void s8000_memory_setup(MachineState *machine)
         panic_reg[1] = panic_size;
 
         dtb_set_prop(pram, "reg", sizeof(panic_reg), &panic_reg);
-        DTBNode *chosen = dtb_find_node(s8000_machine->device_tree, "chosen");
-        dtb_set_prop(chosen, "embedded-panic-log-size", 8, &panic_size);
+        dtb_set_prop_u64(chosen, "embedded-panic-log-size", panic_size);
         s8000_machine->panic_base = panic_base;
         s8000_machine->panic_size = panic_size;
     }

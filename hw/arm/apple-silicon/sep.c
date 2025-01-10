@@ -122,8 +122,8 @@
 
 #define SEP_AESS_REGISTER_CLOCK 0x4
 #define SEP_AESS_REGISTER_CONTROL 0x8
-#define SEP_AESS_REGISTER_STATE 0xc
-#define SEP_AESS_REGISTER_0x10 0x10
+#define SEP_AESS_REGISTER_INTERRUPT_STATUS 0xc
+#define SEP_AESS_REGISTER_INTERRUPT_ENABLED 0x10
 #define SEP_AESS_REGISTER_0x14_KEYWRAP_ITERATIONS_COUNTER 0x14
 #define SEP_AESS_REGISTER_0x18_KEYDISABLE 0x18
 #define SEP_AESS_REGISTER_SEED_BITS 0x1c
@@ -133,7 +133,8 @@
 #define SEP_AESS_REGISTER_TAG_OUT 0x60
 #define SEP_AESS_REGISTER_OUT 0x70
 
-#define AESS_REGISTER_CLOCK_RUN_COMMAND 0x1
+#define SEP_AESS_REGISTER_CLOCK_RUN_COMMAND 0x1
+#define SEP_AESS_REGISTER_INTERRUPT_STATUS_UNRECOVERABLE_ERROR_INTERRUPT 0x2
 
 #define SEP_AESS_SEED_BITS_BIT0 (1 << 0)
 #define SEP_AESS_SEED_BITS_BIT27 (1 << 27) // cmds 0x50 and 0x90
@@ -2018,7 +2019,7 @@ static void aess_handle_cmd(AppleAESSState *s)
         check_register_0x18_keydisable_bit_invalid(s);
     bool valid_command = true;
     bool invalid_parameters = register_0x18_keydisable_bit_invalid;
-    s->state = 0;
+    s->interrupt_status = 0;
 #if 1
     memset(s->out_full, 0,
            sizeof(s->out_full)); // not correct behavior, but SEPFW likes to
@@ -2028,7 +2029,7 @@ static void aess_handle_cmd(AppleAESSState *s)
 #if 1
     if (!keyselect_non_gid0 &&
         normalized_cmd ==
-            0xb) /* not GID1 && not Custom */ // ignore the keysize flags here
+            SEP_AESS_COMMAND_0xb) /* not GID1 && not Custom */ // ignore the keysize flags here
     {
         {
             memset(s->key_256_in, 0, sizeof(s->key_256_in));
@@ -2264,12 +2265,12 @@ static void aess_handle_cmd(AppleAESSState *s)
 ////s->clock |= (1 << 1); // TODO: only on success^H^H^Hfailure
 jump_return:
     invalid_parameters |= !valid_command;
-    s->state = ((invalid_parameters << 1) | (s->state & 0x2)) |
+    s->interrupt_status = ((invalid_parameters << 1) | (s->interrupt_status & 0x2)) |
                (valid_command << 0); // ???? bit1 clear, bit0 set
-    ////s->state = (invalid_parameters << 1) | (valid_command << 0); // ????
+    ////s->interrupt_status = (invalid_parameters << 1) | (valid_command << 0); // ????
     /// bit1 clear, bit0 set
-    // s->state = (0 << 1) | (1 << 0); // ???? bit1 clear, bit0 set
-    ////s->state = (1 << 1) | (1 << 0); // set from 3 to 1 after the next read
+    // s->interrupt_status = (0 << 1) | (1 << 0); // ???? bit1 clear, bit0 set
+    ////s->interrupt_status = (1 << 1) | (1 << 0); // set from 3 to 1 after the next read
 }
 
 static void aess_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
@@ -2288,7 +2289,7 @@ static void aess_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     switch (addr) {
     case SEP_AESS_REGISTER_CLOCK: // Clock
         s->clock = data;
-        if ((s->clock & AESS_REGISTER_CLOCK_RUN_COMMAND) != 0) {
+        if ((s->clock & SEP_AESS_REGISTER_CLOCK_RUN_COMMAND) != 0) {
             aess_handle_cmd(s);
         }
         goto jump_default;
@@ -2296,14 +2297,14 @@ static void aess_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
         data &= 0x3ff; // for T8020
         s->ctl = data;
         goto jump_default;
-    case SEP_AESS_REGISTER_STATE: // State
+    case SEP_AESS_REGISTER_INTERRUPT_STATUS: // State
         if ((data & 0x1) != 0) {
-            s->state &= ~0x1;
+            s->interrupt_status &= ~0x1;
         }
         goto jump_default;
-    case SEP_AESS_REGISTER_0x10: // has no affect on keywrap?
+    case SEP_AESS_REGISTER_INTERRUPT_ENABLED: // has no affect on keywrap?
         data &= 0x3;
-        s->reg_0x10 = data;
+        s->interrupt_enabled = data;
         goto jump_default;
     case SEP_AESS_REGISTER_0x14_KEYWRAP_ITERATIONS_COUNTER: // has affect on
                                                             // keywrap
@@ -2373,11 +2374,11 @@ static uint64_t aess_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     case SEP_AESS_REGISTER_CONTROL: // CTL
         ret = s->ctl;
         goto jump_default;
-    case SEP_AESS_REGISTER_STATE: // State
-        ret = s->state;
+    case SEP_AESS_REGISTER_INTERRUPT_STATUS: // State
+        ret = s->interrupt_status;
         goto jump_default;
-    case SEP_AESS_REGISTER_0x10:
-        ret = s->reg_0x10;
+    case SEP_AESS_REGISTER_INTERRUPT_ENABLED:
+        ret = s->interrupt_enabled;
         goto jump_default;
     case SEP_AESS_REGISTER_0x14_KEYWRAP_ITERATIONS_COUNTER:
         ret = s->reg_0x14_keywrap_iterations_counter;
@@ -3436,12 +3437,12 @@ static void aess_reset(AppleAESSState *s)
 {
     s->clock = 0;
     s->ctl = 0;
-    s->state = 0;
-    s->seed_bits = 0;
-    s->seed_bits_lock = 0;
-    s->reg_0x10 = 0;
+    s->interrupt_status = 0;
+    s->interrupt_enabled = 0;
     s->reg_0x14_keywrap_iterations_counter = 0;
     s->reg_0x18_keydisable = 0;
+    s->seed_bits = 0;
+    s->seed_bits_lock = 0;
     //
     s->keywrap_uid0_enabled = false;
     s->keywrap_uid1_enabled = false;

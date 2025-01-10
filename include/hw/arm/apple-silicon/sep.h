@@ -63,8 +63,8 @@ typedef struct {
     uint32_t chip_id;
     uint32_t clock; // 0x4
     uint32_t ctl; // 0x8
-    uint32_t state; // 0xc
-    uint32_t reg_0x10; // 0x10
+    uint32_t interrupt_status; // 0xc
+    uint32_t interrupt_enabled; // 0x10
     uint32_t reg_0x14_keywrap_iterations_counter; // 0x14
     uint32_t reg_0x18_keydisable; // 0x18
     uint32_t seed_bits; // 0x1c
