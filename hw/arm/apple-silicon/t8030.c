@@ -189,8 +189,8 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     *(uint32_t *)vtop_slid(0xFFFFFFF008B569E0) = cpu_to_le32(0x52840408);
 
     // gAppleSMCDebugLevel = 0xFFFFFFFF;
-    //*(uint32_t *)vtop_slid(0xFFFFFFF0099EAA18) = 0xFFFFFFFF;
     // gAppleSMCDebugPath = 0x2;
+    //*(uint32_t *)vtop_slid(0xFFFFFFF0099EAA18) = 0xFFFFFFFF;
     //*(uint32_t *)vtop_slid(0xFFFFFFF0099EAA1C) = 0x2;
 
     // Disable AMX
@@ -206,8 +206,8 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     *(uint32_t *)vtop_slid(0xFFFFFFF008F6F778) = cpu_to_le32(0xD65F0FFF);
 #else
     // re-enable it in case that the kernel is already patched
-    *(uint32_t *)vtop_slid(0xFFFFFFF008F6F774) = cpu_to_le32(0xd10783ff);
-    *(uint32_t *)vtop_slid(0xFFFFFFF008F6F778) = cpu_to_le32(0xa9186ffc);
+    *(uint32_t *)vtop_slid(0xFFFFFFF008F6F774) = cpu_to_le32(0xD10783FF);
+    *(uint32_t *)vtop_slid(0xFFFFFFF008F6F778) = cpu_to_le32(0xA9186FFC);
 
     // `AppleSEPManager::_tracingEnabled`: disable
     // `PE_i_can_has_debugger` check, only rely on sep_tracing
@@ -216,6 +216,7 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     // `AppleSEPManager::_bootSEP`: disable `PE_i_can_has_debugger`
     // check, so it won't skip reading bootarg sep-trace-size
     *(uint32_t *)vtop_slid(0xFFFFFFF008B57B28) = nop;
+
     // `AppleSEPManager::_loadChannelObjectEntries`:
     // use SCOT as TRAC, thus making it bigger.
     *(uint32_t *)vtop_slid(0xFFFFFFF008B58030) = cpu_to_le32(0x52A00028);
@@ -225,7 +226,7 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     *(char *)vtop_slid(0xFFFFFFF0075085FC) = 'x';
 
     // _gAPCIEdebugFlags: orig == 0x80000001
-    *(uint32_t *)vtop_slid(0xFFFFFFF00984AB1C) = cpu_to_le32(0xffffffff);
+    // *(uint32_t *)vtop_slid(0xFFFFFFF00984AB1C) = cpu_to_le32(0xFFFFFFFF);
 
     xnu_kpf();
 }
@@ -395,7 +396,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
                    info);
 
-    top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3fffull;
+    top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3FFFull;
 
     info_report("Boot args: [%s]", cmdline);
     macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,
