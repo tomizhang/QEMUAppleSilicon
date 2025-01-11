@@ -2098,11 +2098,13 @@ static void t8030_create_roswell(T8030MachineState *t8030_machine)
 static void t8030_create_misc(T8030MachineState *t8030_machine)
 {
     DTBNode *child;
+    DTBNode *armio;
+    uint8_t zeroes_0xce[0xCE] = { 0 };
 
-    child = dtb_find_node(t8030_machine->device_tree, "arm-io");
-    g_assert_nonnull(child);
+    armio = dtb_find_node(t8030_machine->device_tree, "arm-io");
+    g_assert_nonnull(armio);
 
-    child = dtb_find_node(child, "bluetooth");
+    child = dtb_find_node(armio, "bluetooth");
     g_assert_nonnull(child);
 
     // 0x0 = USB
@@ -2114,12 +2116,15 @@ static void t8030_create_misc(T8030MachineState *t8030_machine)
     // 0x6 = APPLEBT
     // 0x7 = PCIE, the original value
     dtb_set_prop_u32(child, "transport-encoding", 0);
-    dtb_set_prop_u32(child, "transport-speed", 2400000); // setting 0 results in defaulting to 2400000
-    //dtb_set_prop(child, "local-mac-address", 6, "\xBC\xDE\x48\x00\x11\x30");
-    dtb_set_prop(child, "local-mac-address", 6, "\x00\x00\x00\x00\x00\x00"); // all zeroes mac address should cause bluetoothd exitcode 0x0 "No bluetooth on this device."
+    // setting 0 results in defaulting to 2400000
+    dtb_set_prop_u32(child, "transport-speed", 2400000);
+    // all zeroes mac address should cause bluetoothd exitcode 0x0
+    // "No bluetooth on this device."
+    dtb_set_prop(child, "local-mac-address", 6, "\x00\x00\x00\x00\x00\x00");
+    // dtb_set_prop(child, "local-mac-address", 6, "\xBC\xDE\x48\x00\x11\x30");
 
-    uint8_t zeroes_0xce[0xce] = {0};
-    dtb_set_prop(child, "bluetooth-rx-calibration", sizeof(zeroes_0xce), zeroes_0xce);
+    dtb_set_prop(child, "bluetooth-rx-calibration", sizeof(zeroes_0xce),
+                 zeroes_0xce);
 
     child = dtb_find_node(armio, "wlan");
     g_assert_nonnull(child);
@@ -2562,12 +2567,20 @@ static void t8030_machine_init(MachineState *machine)
     dtb_set_prop(t8030_machine->device_tree, "target-type", 4, "sim");
     dtb_set_prop_u32(child, "device-color-policy", 0);
 
-    // BlueTool skips wifivendor check if the product/product-id (not bluetooth/product-id) is one of these two values
-    //uint8_t product_id[] = {0x86, 0xcc, 0x1f, 0xc0, 0xf2, 0x77, 0x03, 0xc5, 0x97, 0x60, 0x0a, 0x11, 0x8f, 0x77, 0xd3, 0x81, 0xe0, 0x4a, 0x14, 0x98}; // bluetoothd says 0x7d1
-    //uint8_t product_id[] = {0x63, 0xa6, 0x2c, 0x65, 0xc4, 0x2a, 0x4b, 0x57, 0x5b, 0x6f, 0x86, 0xf9, 0x13, 0xdf, 0xdb, 0x7d, 0x2b, 0xcd, 0x8a, 0x67}; // bluetoothd says 0x7d1
-    // set unknown platform (product/product-id) for bluetoothd ; this crashes bluetoothd
-    //uint8_t product_id[0x14] = {0x0};
-    //dtb_set_prop(child, "product-id", sizeof(product_id), product_id);
+    /// BlueTool skips wifivendor check if the product/product-id (not
+    /// bluetooth/product-id) is one of these two values
+    /// bluetoothd says 0x7D1
+    // uint8_t product_id[] = {0x86, 0xCC, 0x1F, 0xC0, 0xF2, 0x77, 0x03, 0xC5,
+    // 0x97, 0x60, 0x0A, 0x11, 0x8F, 0x77, 0xD3, 0x81, 0xE0, 0x4A, 0x14, 0x98};
+
+    // bluetoothd says 0x7D1
+    // uint8_t product_id[] = {0x63, 0xA6, 0x2C, 0x65, 0xC4, 0x2A, 0x4B, 0x57,
+    // 0x5B, 0x6F, 0x86, 0xF9, 0x13, 0xDF, 0xDB, 0x7D, 0x2B, 0xCD, 0x8A, 0x67};
+
+    /// set unknown platform (product/product-id) for bluetoothd; this crashes
+    /// bluetoothd
+    // uint8_t product_id[0x14] = {0x0};
+    // dtb_set_prop(child, "product-id", sizeof(product_id), product_id);
 
     t8030_cpu_setup(t8030_machine);
 
