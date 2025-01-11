@@ -2113,6 +2113,16 @@ static void t8030_create_misc(T8030MachineState *t8030_machine)
     // 0x6 = APPLEBT
     // 0x7 = PCIE, the original value
     dtb_set_prop_u32(child, "transport-encoding", 0);
+    dtb_set_prop_u32(child, "transport-speed", 2400000); // setting 0 results in defaulting to 2400000
+    //dtb_set_prop(child, "local-mac-address", 6, "\xBC\xDE\x48\x00\x11\x30");
+    dtb_set_prop(child, "local-mac-address", 6, "\x00\x00\x00\x00\x00\x00"); // all zeroes mac address should cause bluetoothd exitcode 0x0 "No bluetooth on this device."
+
+    uint8_t zeroes_0xce[0xce] = {0};
+    dtb_set_prop(child, "bluetooth-rx-calibration", sizeof(zeroes_0xce), zeroes_0xce);
+
+    child = dtb_find_node(armio, "wlan");
+    g_assert_nonnull(child);
+    dtb_set_prop(child, "local-mac-address", 6, "\xBC\xDE\x48\x00\x11\x31");
 }
 
 static void t8030_create_display(T8030MachineState *t8030_machine)
@@ -2550,6 +2560,13 @@ static void t8030_machine_init(MachineState *machine)
     // TODO: PMP
     dtb_set_prop(t8030_machine->device_tree, "target-type", 4, "sim");
     dtb_set_prop_u32(child, "device-color-policy", 0);
+
+    // BlueTool skips wifivendor check if the product/product-id (not bluetooth/product-id) is one of these two values
+    //uint8_t product_id[] = {0x86, 0xcc, 0x1f, 0xc0, 0xf2, 0x77, 0x03, 0xc5, 0x97, 0x60, 0x0a, 0x11, 0x8f, 0x77, 0xd3, 0x81, 0xe0, 0x4a, 0x14, 0x98}; // bluetoothd says 0x7d1
+    //uint8_t product_id[] = {0x63, 0xa6, 0x2c, 0x65, 0xc4, 0x2a, 0x4b, 0x57, 0x5b, 0x6f, 0x86, 0xf9, 0x13, 0xdf, 0xdb, 0x7d, 0x2b, 0xcd, 0x8a, 0x67}; // bluetoothd says 0x7d1
+    // set unknown platform (product/product-id) for bluetoothd ; this crashes bluetoothd
+    //uint8_t product_id[0x14] = {0x0};
+    //dtb_set_prop(child, "product-id", sizeof(product_id), product_id);
 
     t8030_cpu_setup(t8030_machine);
 
