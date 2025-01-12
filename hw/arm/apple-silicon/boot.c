@@ -519,7 +519,6 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     //software_behavior[0] |= 0x200; // NOPASSCODETILES/NoPasscodeLocationTiles
     //software_behavior[0] |= 0x400; // EUVOLUME/EUVolumeLimit
     dtb_set_prop(child, "software-behavior", sizeof(software_behavior), software_behavior);
-    uint8_t zeroes_0x10[0x10] = {0};
     dtb_set_prop(child, "software-bundle-version", sizeof(zeroes_0x10), zeroes_0x10);
 
     child = dtb_get_node(root, "defaults");
