@@ -2636,7 +2636,7 @@ static void t8030_machine_init(MachineState *machine)
     }
 
 #if ENABLE_ROSWELL == 1
-    t8030_create_roswell(machine);
+    t8030_create_roswell(t8030_machine);
 #endif
 
     t8030_create_misc(t8030_machine);
