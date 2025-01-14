@@ -747,7 +747,6 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     }
 
     DTBNode *chosen = dtb_find_node(t8030_machine->device_tree, "chosen");
-    // DTBNode *product = dtb_find_node(t8030_machine->device_tree, "product");
     DTBNode *data_vol =
         dtb_find_node(t8030_machine->device_tree, "filesystems/fstab/data-vol");
     if (xnu_contains_boot_arg(cmdline, "-restore", false)) {
