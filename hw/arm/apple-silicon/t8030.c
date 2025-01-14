@@ -752,10 +752,10 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         dtb_find_node(t8030_machine->device_tree, "filesystems/fstab/data-vol");
     if (xnu_contains_boot_arg(cmdline, "-restore", false)) {
         // HACK: Use DEV model to restore without FDR errors
-        dtb_set_prop(t8030_machine->device_tree, "compatible", 29,
-                     "N104DEV\0iPhone12,1\0AppleARM\0$");
-        dtb_set_prop(data_vol, "vol.fs_mntopts", 49,
-                     "nosuid,nodev,size=262144,template=/private/var/\0$");
+        dtb_set_prop(t8030_machine->device_tree, "compatible", 28,
+                     "N104DEV\0iPhone12,1\0AppleARM");
+        dtb_set_prop(data_vol, "vol.fs_mntopts", 48,
+                     "nosuid,nodev,size=262144,template=/private/var/");
         dtb_set_prop_u32(data_vol, "vol.fs_mntorder", 0);
         dtb_set_prop_u32(chosen, "ephemeral-storage", 1);
         dtb_set_prop_u32(chosen, "sepfw-load-at-boot", 0);
@@ -764,9 +764,9 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         dtb_set_prop_u32(chosen, "use-recovery-securityd", 1);
         dtb_set_prop_u32(chosen, "disable-accessory-firmware", 1);
     } else {
-        dtb_set_prop(t8030_machine->device_tree, "compatible", 28,
-                     "N104AP\0iPhone12,1\0AppleARM\0$");
-        dtb_set_prop(data_vol, "vol.fs_mntopts", 14, "nosuid,nodev\0$");
+        dtb_set_prop(t8030_machine->device_tree, "compatible", 27,
+                     "N104AP\0iPhone12,1\0AppleARM");
+        dtb_set_prop(data_vol, "vol.fs_mntopts", 13, "nosuid,nodev");
         uint32_t mount_order = 3;
         dtb_set_prop(data_vol, "vol.fs_mntorder", sizeof(mount_order),
                      &mount_order);
