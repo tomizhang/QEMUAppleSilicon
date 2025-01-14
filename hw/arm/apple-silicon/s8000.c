@@ -402,11 +402,11 @@ static void s8000_memory_setup(MachineState *machine)
     DTBNode *chosen = dtb_find_node(s8000_machine->device_tree, "chosen");
     if (xnu_contains_boot_arg(cmdline, "-restore", false)) {
         // HACK: Use DEV Hardware model to restore without FDR errors
-        dtb_set_prop(s8000_machine->device_tree, "compatible", 27,
-                     "N66DEV\0iPhone8,2\0AppleARM\0$");
-    } else {
         dtb_set_prop(s8000_machine->device_tree, "compatible", 26,
-                     "N66AP\0iPhone8,2\0AppleARM\0$");
+                     "N66DEV\0iPhone8,2\0AppleARM");
+    } else {
+        dtb_set_prop(s8000_machine->device_tree, "compatible", 25,
+                     "N66AP\0iPhone8,2\0AppleARM");
     }
 
     if (!xnu_contains_boot_arg(cmdline, "rd=", true)) {
