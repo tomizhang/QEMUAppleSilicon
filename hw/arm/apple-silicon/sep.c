@@ -37,6 +37,7 @@
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
 #include "qapi/error.h"
+#include "qemu/cutils.h"
 #include "qemu/crc-ccitt.h"
 #include "qemu/log.h"
 #include "qemu/units.h"
@@ -3493,6 +3494,7 @@ static void apple_sep_reset(DeviceState *dev)
     }
     aess_reset(&s->aess_state);
     pka_reset(&s->pka_state);
+    ////ssc_reset(&s->ssc_state); // apple_ssc_reset called via apple_ssc_class_init ... dc->reset
     run_on_cpu(CPU(s->cpu), apple_sep_cpu_reset_work, RUN_ON_CPU_HOST_PTR(s));
     map_sepfw(s);
     if (s->debug_trace_mmio_index != -1)
@@ -3615,6 +3617,52 @@ static int apple_ssc_event(I2CSlave *s, enum i2c_event event)
 
 #if 1
 
+#if 1
+
+// gcc silently ignores the definitions in the header file for whatever reason
+
+#define SSC_REQUEST_MAX_COPIES 4 // 0 .. 3
+
+#define SSC_RESPONSE_FLAG_COMMAND_SIZE_MISMATCH 0x02
+#define SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID 0x04
+#define SSC_RESPONSE_FLAG_KEYSLOT_INVALID 0x08
+#define SSC_RESPONSE_FLAG_CMAC_INVALID 0x10
+#define SSC_RESPONSE_FLAG_CURVE_INVALID 0x20
+#define SSC_RESPONSE_FLAG_OK 0x80
+
+#define SSC_REQUEST_SIZE_CMD_0x0 0x84
+#define SSC_REQUEST_SIZE_CMD_0x1 0x74
+#define SSC_REQUEST_SIZE_CMD_0x2 0x4
+#define SSC_REQUEST_SIZE_CMD_0x3 0x34
+#define SSC_REQUEST_SIZE_CMD_0x4 0x14
+#define SSC_REQUEST_SIZE_CMD_0x5 0x54
+#define SSC_REQUEST_SIZE_CMD_0x6 0x14
+#define SSC_REQUEST_SIZE_CMD_0x7 0x4
+#define SSC_REQUEST_SIZE_CMD_0x8 0x4
+#define SSC_REQUEST_SIZE_CMD_0x9 0x4
+
+#define SSC_RESPONSE_SIZE_CMD_0x0 0xc4
+#define SSC_RESPONSE_SIZE_CMD_0x1 0x74
+#define SSC_RESPONSE_SIZE_CMD_0x2 0x4
+#define SSC_RESPONSE_SIZE_CMD_0x3 0x14
+#define SSC_RESPONSE_SIZE_CMD_0x4 0x54
+#define SSC_RESPONSE_SIZE_CMD_0x5 0x14
+#define SSC_RESPONSE_SIZE_CMD_0x6 0x34
+#define SSC_RESPONSE_SIZE_CMD_0x7 0x78
+#define SSC_RESPONSE_SIZE_CMD_0x8 0x4
+#define SSC_RESPONSE_SIZE_CMD_0x9 0x2f
+
+#endif
+
+
+static uint8_t ssc_request_sizes[] = {
+    SSC_REQUEST_SIZE_CMD_0x0, SSC_REQUEST_SIZE_CMD_0x1,
+    SSC_REQUEST_SIZE_CMD_0x2, SSC_REQUEST_SIZE_CMD_0x3,
+    SSC_REQUEST_SIZE_CMD_0x4, SSC_REQUEST_SIZE_CMD_0x5,
+    SSC_REQUEST_SIZE_CMD_0x6, SSC_REQUEST_SIZE_CMD_0x7,
+    SSC_REQUEST_SIZE_CMD_0x8, SSC_REQUEST_SIZE_CMD_0x9
+};
+
 // + 1 byte in case that someone wants to use printf
 uint8_t INFOSTR_AKE_SESSIONSEED[0x10 + 1] = "AKE_SessionSeed\n";
 uint8_t INFOSTR_AKE_MACKEY[0x10 + 1] = "AKE_MACKey\n\n\n\n\n\n";
@@ -3630,6 +3678,14 @@ void hexout(const char *desc, const uint8_t *in, int in_len)
         fprintf(stderr, "%02x", in[i]);
     }
     fprintf(stderr, "\n");
+}
+
+static bool is_keyslot_valid(struct AppleSSCState *ssc_state, uint8_t kbkdf_index) {
+    bool ret = 0;
+    ret |= buffer_is_zero(&ssc_state->ecc_keys[kbkdf_index], sizeof(ssc_state->ecc_keys[kbkdf_index]));
+    ret |= buffer_is_zero(&ssc_state->kbkdf_keys[kbkdf_index], sizeof(ssc_state->kbkdf_keys[kbkdf_index]));
+    // fprintf(stderr, "%s: kbkdf_index: %d ; ecc_keys_item_size: 0x%x ; kbkdf_keys_item_size: 0x%x\n", __func__, kbkdf_index, sizeof(ssc_state->ecc_keys[kbkdf_index]), sizeof(ssc_state->kbkdf_keys[kbkdf_index]));
+    return !ret;
 }
 
 int aes_ccm_crypt(struct AppleSSCState *ssc_state, uint8_t kbkdf_index,
@@ -3685,8 +3741,9 @@ int aes_ccm_crypt(struct AppleSSCState *ssc_state, uint8_t kbkdf_index,
         memcpy(tmp_in, &data[AES_CCM_TAG_LENGTH], payload_len);
         memcpy(&tmp_in[payload_len], data, AES_CCM_TAG_LENGTH);
         // hexout("tmp_in__tag_plus_encdata", data, AES_CCM_TAG_LENGTH +
-        // payload_len); hexout("tmp_in__encdata_plus_tag", tmp_in,
-        // AES_CCM_TAG_LENGTH + payload_len);
+        // payload_len);
+        // hexout("tmp_in__encdata_plus_tag", tmp_in, AES_CCM_TAG_LENGTH +
+        // payload_len);
         status = ccm_aes256_decrypt_message(
             &aes, AES_CCM_NONCE_LENGTH, nonce, AES_CCM_AUTH_LENGTH, auth,
             AES_CCM_TAG_LENGTH, payload_len, tmp_out, tmp_in);
@@ -3798,6 +3855,7 @@ int input_ec_pub(struct ecc_point *ecc_pub, uint8_t *pub_xy)
 {
     const struct ecc_curve *ecc = nettle_get_secp_384r1();
     mpz_t temp1, temp2;
+    int ret = 0;
 
     hexout("input_ec_pub: pub_x", &pub_xy[0x00], BYTELEN_384);
     hexout("input_ec_pub: pub_y", &pub_xy[0x00 + BYTELEN_384], BYTELEN_384);
@@ -3805,12 +3863,12 @@ int input_ec_pub(struct ecc_point *ecc_pub, uint8_t *pub_xy)
     mpz_import(temp2, SECP384_PUBLIC_SIZE, 1, 1, 1, 0,
                &pub_xy[0x00 + BYTELEN_384]);
     ecc_point_init(ecc_pub, ecc);
-    ecc_point_set(ecc_pub, temp1, temp2);
+    ret = ecc_point_set(ecc_pub, temp1, temp2);
 
     mpz_clear(temp1);
     mpz_clear(temp2);
 
-    return 0;
+    return ret;
 }
 
 int generate_kbkdf_keys(struct AppleSSCState *ssc_state,
@@ -3917,29 +3975,36 @@ int answer_cmd_0x0_init1(struct AppleSSCState *ssc_state, uint8_t *request,
     struct knuth_lfib_ctx rctx;
     struct dsa_signature signature;
     uint8_t digest[BYTELEN_384] = { 0 };
+    uint8_t kbkdf_index = 0; // hardcoded
 
     knuth_lfib_init(&rctx, 4711);
     dsa_signature_init(&signature);
 
-    do_response_prefix(request, response, 0x80);
-
+    if (is_keyslot_valid(ssc_state, kbkdf_index)) { // shouldn't already exist
+        fprintf(stderr, "%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
+        return 0;
+    }
+    if (input_ec_pub(&cmd0_ecpub, &request[MSG_PREFIX_LENGTH + SHA256_DIGEST_SIZE]) == 0) { // curve is invalid
+        fprintf(stderr, "%s: invalid curve\n", __func__);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_CURVE_INVALID);
+        goto jump_ret;
+    }
+    do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
     int err =
         generate_ec_priv("ddddddddddddddddddddddddddddddddddddddddddddddddddddd"
                          "ddddddddddddddddddddddddddddddddddddddddddd",
-                         &ssc_state->ecc_keys[0], &ecc_pub);
-
-    input_ec_pub(&cmd0_ecpub, &request[MSG_PREFIX_LENGTH + SHA256_DIGEST_SIZE]);
+                         &ssc_state->ecc_keys[kbkdf_index], &ecc_pub);
     output_ec_pub(&ecc_pub,
                   &response[MSG_PREFIX_LENGTH + SECP384_PUBLIC_XY_SIZE]);
+    ecc_point_clear(&ecc_pub);
     memcpy(ssc_state->random_hmac_key, &request[MSG_PREFIX_LENGTH],
            SHA256_DIGEST_SIZE);
     // fprintf(stderr, "INFOSTR_AKE_SESSIONSEED: %s\n",
     // INFOSTR_AKE_SESSIONSEED);
-    generate_kbkdf_keys(ssc_state, &ssc_state->ecc_keys[0], &cmd0_ecpub,
+    generate_kbkdf_keys(ssc_state, &ssc_state->ecc_keys[kbkdf_index], &cmd0_ecpub,
                         ssc_state->random_hmac_key, INFOSTR_AKE_SESSIONSEED,
-                        request, 0x00);
-    ecc_point_clear(&cmd0_ecpub);
-    ecc_point_clear(&ecc_pub);
+                        request, kbkdf_index);
 
     struct sha384_ctx ctx;
     sha384_init(&ctx);
@@ -3964,6 +4029,8 @@ int answer_cmd_0x0_init1(struct AppleSSCState *ssc_state, uint8_t *request,
     mpz_export(&response[MSG_PREFIX_LENGTH + 0x00 + SECP384_PUBLIC_SIZE], NULL,
                1, 1, 1, 0, signature.s);
     dsa_signature_clear(&signature);
+    jump_ret:
+    ecc_point_clear(&cmd0_ecpub);
     return 0;
 }
 
@@ -3971,12 +4038,32 @@ int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state, uint8_t *request,
                               uint8_t *response)
 {
     // fprintf(stderr, "%s: entered function\n", __func__);
-    // hexout("cmd_0x01_req", request, 0x74);
+    // hexout("cmd_0x01_req", request, SSC_REQUEST_SIZE_CMD_0x1);
     struct ecc_point cmd1_ecpub, ecc_pub;
-    uint8_t response_flag = 0x80;
     uint8_t kbkdf_index = request[1];
     //&request[MSG_PREFIX_LENGTH + 0x10] == public_xy
     char priv_str[0x60 + 1] = { 0 };
+
+    uint8_t *cmac_req_should = &request[MSG_PREFIX_LENGTH];
+    uint8_t *sw_public_xy2 = &request[MSG_PREFIX_LENGTH + AES_BLOCK_SIZE];
+    // fprintf(stderr, "answer_cmd_0x1_connect_sp: kbkdf_index: %u\n",
+    //         kbkdf_index);
+    // hexout("answer_cmd_0x1_connect_sp: req_prefix", request,
+    // MSG_PREFIX_LENGTH);
+    // hexout("answer_cmd_0x1_connect_sp: sw_public_xy2", sw_public_xy2,
+    //        SECP384_PUBLIC_XY_SIZE);
+    // hexout("answer_cmd_0x1_connect_sp: cmac_req_should", cmac_req_should,
+    //        AES_BLOCK_SIZE);
+    if (is_keyslot_valid(ssc_state, kbkdf_index)) { // shouldn't already exist
+        fprintf(stderr, "%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
+        return 0;
+    }
+    if (input_ec_pub(&cmd1_ecpub, sw_public_xy2) == 0) { // curve is invalid
+        fprintf(stderr, "%s: invalid curve\n", __func__);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_CURVE_INVALID);
+        goto jump_ret1;
+    }
     // strcpy(priv_str,
     // "999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999");
     sprintf(priv_str,
@@ -3985,9 +4072,6 @@ int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state, uint8_t *request,
             kbkdf_index);
     int err =
         generate_ec_priv(priv_str, &ssc_state->ecc_keys[kbkdf_index], &ecc_pub);
-
-    uint8_t *cmac_req_should = &request[MSG_PREFIX_LENGTH];
-    uint8_t *sw_public_xy2 = &request[MSG_PREFIX_LENGTH + AES_BLOCK_SIZE];
     uint8_t aes_key_mackey_req[0x20] = { 0 };
     uint8_t aes_key_extractorkey_req[0x20] = { 0 };
     aes_keys_from_sp_key(ssc_state, kbkdf_index, request, aes_key_mackey_req,
@@ -3995,42 +4079,35 @@ int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state, uint8_t *request,
     uint8_t cmac_req_is[AES_BLOCK_SIZE] = { 0 };
     aes_cmac_prefix_public(aes_key_mackey_req, request, sw_public_xy2,
                            cmac_req_is);
-    // fprintf(stderr, "answer_cmd_0x1_connect_sp: kbkdf_index: %u\n",
-    //         kbkdf_index);
     // hexout("answer_cmd_0x1_connect_sp: aes_key_mackey_req",
     // aes_key_mackey_req,
     //        sizeof(aes_key_mackey_req));
     // hexout("answer_cmd_0x1_connect_sp: aes_key_extractorkey_req",
     //        aes_key_extractorkey_req, sizeof(aes_key_extractorkey_req));
-    // hexout("answer_cmd_0x1_connect_sp: req_prefix", request,
-    // MSG_PREFIX_LENGTH); hexout("answer_cmd_0x1_connect_sp: sw_public_xy2",
-    // sw_public_xy2,
-    //        SECP384_PUBLIC_XY_SIZE);
-    // hexout("answer_cmd_0x1_connect_sp: cmac_req_should", cmac_req_should,
-    //        AES_BLOCK_SIZE);
     // hexout("answer_cmd_0x1_connect_sp: cmac_req_is", cmac_req_is,
     //        sizeof(cmac_req_is));
-
     if (memcmp(cmac_req_should, cmac_req_is, sizeof(cmac_req_is)) != 0) {
         fprintf(stderr, "%s: invalid CMAC\n", __func__);
-        response_flag = 0x10; // if CMAC is invalid
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_CMAC_INVALID);
+        goto jump_ret0;
     }
-    do_response_prefix(request, response, response_flag);
-
+    do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
     input_ec_pub(&cmd1_ecpub, sw_public_xy2);
     output_ec_pub(&ecc_pub, &response[MSG_PREFIX_LENGTH + AES_BLOCK_SIZE]);
     generate_kbkdf_keys(ssc_state, &ssc_state->ecc_keys[kbkdf_index],
                         &cmd1_ecpub, aes_key_extractorkey_req,
                         INFOSTR_AKE_SESSIONSEED, request, kbkdf_index);
-    ecc_point_clear(&cmd1_ecpub);
-    ecc_point_clear(&ecc_pub);
 
     uint8_t *cmac_resp = &response[MSG_PREFIX_LENGTH];
     uint8_t *public_xy2 = &response[MSG_PREFIX_LENGTH + AES_BLOCK_SIZE];
     aes_cmac_prefix_public_public(aes_key_mackey_req, response, sw_public_xy2,
                                   public_xy2, cmac_resp);
 
-    // hexout("cmd_0x01_resp", response, 0x74);
+    // hexout("cmd_0x01_resp", response, SSC_RESPONSE_SIZE_CMD_0x1);
+    jump_ret0:
+    ecc_point_clear (&ecc_pub);
+    jump_ret1:
+    ecc_point_clear (&cmd1_ecpub);
     return 0;
 }
 
@@ -4038,11 +4115,16 @@ int answer_cmd_0x2_disconnect_sp(struct AppleSSCState *ssc_state,
                                  uint8_t *request, uint8_t *response)
 {
     // fprintf(stderr, "%s: entered function\n", __func__);
-    // hexout("cmd_0x02_req", request, 0x4);
-    do_response_prefix(request, response, 0x80);
-    // uint8_t kbkdf_index = request[1];
-    // fprintf(stderr, "answer_cmd_0x2_disconnect_sp: kbkdf_index: %u\n",
-    //         kbkdf_index);
+    // hexout("cmd_0x02_req", request, SSC_REQUEST_SIZE_CMD_0x2);
+    uint8_t kbkdf_index = request[1];
+    if (!is_keyslot_valid(ssc_state, kbkdf_index)) { // should already exist
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
+        return 0;
+    }
+    do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
+    memset(&ssc_state->ecc_keys[kbkdf_index], 0, sizeof(ssc_state->ecc_keys[kbkdf_index]));
+    memset(&ssc_state->kbkdf_keys[kbkdf_index], 0, sizeof(ssc_state->kbkdf_keys[kbkdf_index]));
+    // fprintf(stderr, "answer_cmd_0x2_disconnect_sp: kbkdf_index: %u\n", kbkdf_index);
     return 0;
 }
 
@@ -4050,21 +4132,37 @@ int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
                                   uint8_t *request, uint8_t *response)
 {
     fprintf(stderr, "%s: entered function\n", __func__);
-    hexout("cmd_0x03_req", request, 0x34);
-    uint8_t response_flag = 0x80;
+    hexout("cmd_0x03_req", request, SSC_REQUEST_SIZE_CMD_0x3);
     uint8_t kbkdf_index_key = request[1];
     uint8_t kbkdf_index_dataslot = request[2];
-    uint8_t copy = request[3]; // TODO: handle copy >= 4
+    uint8_t copy = request[3];
+    fprintf(stderr, "cmd_0x03_req: kbkdf_index_key: %u\n", kbkdf_index_key);
+    fprintf(stderr, "cmd_0x03_req: kbkdf_index_dataslot: %u\n",
+            kbkdf_index_dataslot);
+    fprintf(stderr, "cmd_0x03_req: copy: %u\n", copy);
+    ////if (copy >= SSC_REQUEST_MAX_COPIES)
+    if (copy > 0)
+    {
+        fprintf(stderr, "%s: invalid copy: %u\n", __func__, copy);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID);
+        return 0;
+    }
+    if (kbkdf_index_key >= KBKDF_KEY_MAX_SLOTS || !is_keyslot_valid(ssc_state, kbkdf_index_key)) {
+        fprintf(stderr, "%s: invalid kbkdf_index_key: %u\n", __func__, kbkdf_index_key);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
+        return 0;
+    }
+    if (kbkdf_index_dataslot == 0 || kbkdf_index_dataslot >= KBKDF_KEY_MAX_SLOTS) {
+        fprintf(stderr, "%s: invalid kbkdf_index_dataslot: %u\n", __func__, kbkdf_index_dataslot);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
+        return 0;
+    }
     int blk_offset =
         (kbkdf_index_dataslot * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
         (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
     int key_offset =
         (KBKDF_KEY_MAX_SLOTS * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
         (kbkdf_index_dataslot * CMD_METADATA_PAYLOAD_LENGTH);
-    fprintf(stderr, "cmd_0x03_req: kbkdf_index_key: %u\n", kbkdf_index_key);
-    fprintf(stderr, "cmd_0x03_req: kbkdf_index_dataslot: %u\n",
-            kbkdf_index_dataslot);
-    fprintf(stderr, "cmd_0x03_req: copy: %u\n", copy);
     fprintf(stderr, "cmd_0x03_req: blk_offset: 0x%x\n", blk_offset);
     hexout("cmd_0x03_req: ssc_state->kbkdf_keys[kbkdf_index_key]",
            ssc_state->kbkdf_keys[kbkdf_index_key], KBKDF_CMAC_OUTPUT_LEN);
@@ -4075,9 +4173,10 @@ int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
         &request[MSG_PREFIX_LENGTH], req_dec_out, false, false);
     if (err0 == 0) {
         fprintf(stderr, "%s: invalid CMAC\n", __func__);
-        response_flag = 0x10; // if CMAC is invalid
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_CMAC_INVALID);
+        return 0;
     }
-    do_response_prefix(request, response, response_flag);
+    do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
     hexout("cmd_0x03_req: req_dec_out", req_dec_out,
            CMD_METADATA_PAYLOAD_LENGTH);
 
@@ -4100,7 +4199,7 @@ int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
     int err1 =
         aes_ccm_crypt(ssc_state, kbkdf_index_key, &response[0x00], 0x0,
                       resp_nop_out, &response[MSG_PREFIX_LENGTH], true, true);
-    hexout("cmd_0x03_resp", response, 0x14);
+    hexout("cmd_0x03_resp", response, SSC_RESPONSE_SIZE_CMD_0x3);
 
     return 0;
 }
@@ -4109,14 +4208,23 @@ int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state,
                                       uint8_t *request, uint8_t *response)
 {
     // fprintf(stderr, "%s: entered function\n", __func__);
-    // hexout("cmd_0x04_req", request, 0x14);
-    uint8_t response_flag = 0x80;
+    // hexout("cmd_0x04_req", request, SSC_REQUEST_SIZE_CMD_0x4);
     uint8_t kbkdf_index = request[1];
-    uint8_t copy = request[3]; // TODO: handle copy >= 4
-    int blk_offset = (kbkdf_index * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
-                     (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
+    uint8_t copy = request[3];
     // fprintf(stderr, "cmd_0x04_req: kbkdf_index: %u\n", kbkdf_index);
     // fprintf(stderr, "cmd_0x04_req: copy: %u\n", copy);
+    if (copy >= SSC_REQUEST_MAX_COPIES) {
+        fprintf(stderr, "%s: invalid copy: %u\n", __func__, copy);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID);
+        return 0;
+    }
+    if (kbkdf_index == 0 || kbkdf_index >= KBKDF_KEY_MAX_SLOTS || !is_keyslot_valid(ssc_state, kbkdf_index)) {
+        fprintf(stderr, "%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
+        return 0;
+    }
+    int blk_offset = (kbkdf_index * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
+                     (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
     // fprintf(stderr, "cmd_0x04_req: blk_offset: 0x%x\n", blk_offset);
     // hexout("cmd_0x04_req: ssc_state->kbkdf_keys[kbkdf_index]",
     //        ssc_state->kbkdf_keys[kbkdf_index], KBKDF_CMAC_OUTPUT_LEN);
@@ -4127,9 +4235,10 @@ int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state,
                       &request[MSG_PREFIX_LENGTH], req_nop_out, false, false);
     if (err0 == 0) {
         fprintf(stderr, "%s: invalid CMAC\n", __func__);
-        response_flag = 0x10; // if CMAC is invalid
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_CMAC_INVALID);
+        return 0;
     }
-    do_response_prefix(request, response, response_flag);
+    do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
     hexout("cmd_0x04_req: req_nop_out", req_nop_out, 1);
 
     uint8_t resp_dec_out[CMD_METADATA_DATA_PAYLOAD_LENGTH] = { 0 };
@@ -4141,7 +4250,7 @@ int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state,
     int err1 = aes_ccm_crypt(ssc_state, kbkdf_index, &response[0x00],
                              CMD_METADATA_DATA_PAYLOAD_LENGTH, resp_dec_out,
                              &response[MSG_PREFIX_LENGTH], true, true);
-    hexout("cmd_0x04_resp", response, 0x54);
+    hexout("cmd_0x04_resp", response, SSC_RESPONSE_SIZE_CMD_0x4);
 
     return 0;
 }
@@ -4150,14 +4259,23 @@ int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
                                        uint8_t *request, uint8_t *response)
 {
     // fprintf(stderr, "%s: entered function\n", __func__);
-    // hexout("cmd_0x05_req", request, 0x54);
-    uint8_t response_flag = 0x80;
+    // hexout("cmd_0x05_req", request, SSC_REQUEST_SIZE_CMD_0x5);
     uint8_t kbkdf_index = request[1];
-    uint8_t copy = request[3]; // TODO: handle copy >= 4
-    int blk_offset = (kbkdf_index * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
-                     (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
+    uint8_t copy = request[3];
     // fprintf(stderr, "cmd_0x05_req: kbkdf_index: %u\n", kbkdf_index);
     // fprintf(stderr, "cmd_0x05_req: copy: %u\n", copy);
+    if (copy >= SSC_REQUEST_MAX_COPIES) {
+        fprintf(stderr, "%s: invalid copy: %u\n", __func__, copy);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID);
+        return 0;
+    }
+    if (kbkdf_index == 0 || kbkdf_index >= KBKDF_KEY_MAX_SLOTS || !is_keyslot_valid(ssc_state, kbkdf_index)) {
+        fprintf(stderr, "%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
+        return 0;
+    }
+    int blk_offset = (kbkdf_index * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
+                     (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
     // fprintf(stderr, "cmd_0x05_req: blk_offset: 0x%x\n", blk_offset);
     // hexout("cmd_0x05_req: ssc_state->kbkdf_keys[kbkdf_index]",
     //        ssc_state->kbkdf_keys[kbkdf_index], KBKDF_CMAC_OUTPUT_LEN);
@@ -4169,9 +4287,10 @@ int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
                       &request[MSG_PREFIX_LENGTH], req_dec_out, false, false);
     if (err0 == 0) {
         fprintf(stderr, "%s: invalid CMAC\n", __func__);
-        response_flag = 0x10; // if CMAC is invalid
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_CMAC_INVALID);
+        return 0;
     }
-    do_response_prefix(request, response, response_flag);
+    do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
     // hexout("cmd_0x05_req: req_dec_out", req_dec_out,
     //        CMD_METADATA_DATA_PAYLOAD_LENGTH);
 
@@ -4183,7 +4302,7 @@ int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
     int err1 =
         aes_ccm_crypt(ssc_state, kbkdf_index, &response[0x00], 0x0,
                       resp_nop_out, &response[MSG_PREFIX_LENGTH], true, true);
-    // hexout("cmd_0x05_resp", response, 0x14);
+    // hexout("cmd_0x05_resp", response, SSC_RESPONSE_SIZE_CMD_0x5);
 
     return 0;
 }
@@ -4192,11 +4311,31 @@ int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
                                  uint8_t *request, uint8_t *response)
 {
     // fprintf(stderr, "%s: entered function\n", __func__);
-    hexout("cmd_0x06_req", request, 0x14);
-    uint8_t response_flag = 0x80;
+    hexout("cmd_0x06_req", request, SSC_REQUEST_SIZE_CMD_0x6);
     uint8_t kbkdf_index_key = request[1];
     uint8_t kbkdf_index_dataslot = request[2];
-    uint8_t copy = request[3]; // TODO: handle copy >= 4
+    uint8_t copy = request[3];
+#if 0
+    fprintf(stderr, "cmd_0x06_req: kbkdf_index_key: %u\n", kbkdf_index_key);
+    fprintf(stderr, "cmd_0x06_req: kbkdf_index_dataslot: %u\n",
+            kbkdf_index_dataslot);
+    fprintf(stderr, "cmd_0x06_req: copy: %u\n", copy);
+#endif
+    if (copy >= SSC_REQUEST_MAX_COPIES) {
+        fprintf(stderr, "%s: invalid copy: %u\n", __func__, copy);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID);
+        return 0;
+    }
+    if (kbkdf_index_key >= KBKDF_KEY_MAX_SLOTS || !is_keyslot_valid(ssc_state, kbkdf_index_key)) {
+        fprintf(stderr, "%s: invalid kbkdf_index_key: %u\n", __func__, kbkdf_index_key);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
+        return 0;
+    }
+    if (kbkdf_index_dataslot == 0 || kbkdf_index_dataslot >= KBKDF_KEY_MAX_SLOTS) {
+        fprintf(stderr, "%s: invalid kbkdf_index_dataslot: %u\n", __func__, kbkdf_index_dataslot);
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
+        return 0;
+    }
     int blk_offset =
         (kbkdf_index_dataslot * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
         (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
@@ -4204,10 +4343,6 @@ int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
         (KBKDF_KEY_MAX_SLOTS * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
         (kbkdf_index_dataslot * CMD_METADATA_PAYLOAD_LENGTH);
 #if 0
-    fprintf(stderr, "cmd_0x06_req: kbkdf_index_key: %u\n", kbkdf_index_key);
-    fprintf(stderr, "cmd_0x06_req: kbkdf_index_dataslot: %u\n",
-            kbkdf_index_dataslot);
-    fprintf(stderr, "cmd_0x06_req: copy: %u\n", copy);
     fprintf(stderr, "cmd_0x06_req: blk_offset: 0x%x\n", blk_offset);
 #endif
     hexout("cmd_0x06_req: ssc_state->kbkdf_keys[kbkdf_index_key]",
@@ -4219,9 +4354,10 @@ int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
                       &request[MSG_PREFIX_LENGTH], req_nop_out, false, false);
     if (err0 == 0) {
         fprintf(stderr, "%s: invalid CMAC\n", __func__);
-        response_flag = 0x10; // if CMAC is invalid
+        do_response_prefix(request, response, SSC_RESPONSE_FLAG_CMAC_INVALID);
+        return 0;
     }
-    do_response_prefix(request, response, response_flag);
+    do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
     hexout("cmd_0x06_req: req_nop_out", req_nop_out, 1);
 
     uint8_t resp_dec_out[CMD_METADATA_PAYLOAD_LENGTH] = { 0 };
@@ -4235,7 +4371,7 @@ int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
     int err1 = aes_ccm_crypt(ssc_state, kbkdf_index_key, &response[0x00],
                              CMD_METADATA_PAYLOAD_LENGTH, resp_dec_out,
                              &response[MSG_PREFIX_LENGTH], true, true);
-    hexout("cmd_0x06_resp", response, 0x34);
+    hexout("cmd_0x06_resp", response, SSC_RESPONSE_SIZE_CMD_0x6);
 
     return 0;
 }
@@ -4250,7 +4386,7 @@ int answer_cmd_0x7_init0(struct AppleSSCState *ssc_state, uint8_t *request,
         generate_ec_priv("ccccccccccccccccccccccccccccccccccccccccccccccccccccc"
                          "ccccccccccccccccccccccccccccccccccccccccccc",
                          &ssc_state->ecc_key_main, &ecc_pub);
-    do_response_prefix(request, response, 0x80);
+    do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
     uint8_t unknown0[0x06] = { 0x12, 0x34, 0x56, 0x78, 0x90, 0xab };
     uint8_t cpsn[0x07] = { 0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0xcc };
     uint8_t unknown1[0x07] = { 0xcd, 0xef, 0x01, 0x02, 0x03, 0x04, 0x05 };
@@ -4265,18 +4401,23 @@ int answer_cmd_0x7_init0(struct AppleSSCState *ssc_state, uint8_t *request,
                   &response[MSG_PREFIX_LENGTH + sizeof(unknown0) +
                             sizeof(ssc_state->cpsn) + sizeof(unknown1)]);
     ecc_point_clear(&ecc_pub);
-    hexout("cmd_0x07_resp", response, 0x78);
+    hexout("cmd_0x07_resp", response, SSC_RESPONSE_SIZE_CMD_0x7);
     return 0;
 }
 
-int answer_cmd_0x8_save(struct AppleSSCState *ssc_state, uint8_t *request,
+#if 1
+// gcc silently ignores the prototype in the header file for whatever reason
+static
+#endif
+
+int answer_cmd_0x8_sleep(struct AppleSSCState *ssc_state, uint8_t *request,
                         uint8_t *response)
 {
 #if 0
     fprintf(stderr, "%s: entered function\n", __func__);
 #endif
-    do_response_prefix(request, response, 0x80);
-    hexout("cmd_0x08_resp", response, 0x8);
+    do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
+    hexout("cmd_0x08_resp", response, SSC_RESPONSE_SIZE_CMD_0x8);
     return 0;
 }
 
@@ -4284,12 +4425,13 @@ int answer_cmd_0x9_panic(struct AppleSSCState *ssc_state, uint8_t *request,
                          uint8_t *response)
 {
     fprintf(stderr, "%s: entered function\n", __func__);
-    do_response_prefix(request, response, 0x80);
+    ////apple_ssc_reset(DEVICE(ssc_state));
+    do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
     // uint8_t panic_data[0x24] = {...};
     // memcpy(&response[MSG_PREFIX_LENGTH], panic_data, 0x24);
     memset(&response[MSG_PREFIX_LENGTH], 0xcc, 0x24);
-    memcpy(&response[MSG_PREFIX_LENGTH + 0x24], ssc_state->cpsn, 0x07);
-    hexout("cmd_0x09_resp", response, 0x2f);
+    memcpy(&response[MSG_PREFIX_LENGTH + 0x24], ssc_state->cpsn, sizeof(ssc_state->cpsn));
+    hexout("cmd_0x09_resp", response, SSC_RESPONSE_SIZE_CMD_0x9);
     return 0;
 }
 
@@ -4304,24 +4446,33 @@ static uint8_t apple_ssc_rx(I2CSlave *i2c)
 
     if (ssc->resp_cur >= sizeof(ssc->resp_cmd)) {
         qemu_log_mask(LOG_UNIMP,
-                      "apple_ssc_rx: ssc->resp_cur too high 0x%02x\n",
+                      "%s: ssc->resp_cur too high 0x%02x\n", __func__,
                       ssc->resp_cur);
         return 0;
     }
 
     if (ssc->resp_cur == 0) {
-        ssc->req_cur = 0;
+        //ssc->req_cur = 0;
         memset(ssc->resp_cmd, 0, sizeof(ssc->resp_cmd));
         ssc->resp_cmd[0] = ssc->req_cmd[0];
     }
     // This tries to prevent a spurious call during a dummy read.
     if (ssc->resp_cur == 1) {
         uint8_t cmd = ssc->req_cmd[0];
-        if (cmd == 0x00) { // req 0x84 bytes, resp 0xc4 bytes
+        if (cmd > 0x09) {
+            do_response_prefix(ssc->req_cmd, ssc->resp_cmd,
+                               SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID);
+        } else if (ssc->req_cur != ssc_request_sizes[cmd]) {
+            qemu_log_mask(LOG_UNIMP,
+              "%s: cmd %u: cmdsize mismatch req_cur 0x%02x != should 0x%02x\n",
+              __func__, cmd, ssc->req_cur, ssc_request_sizes[cmd]);
+            do_response_prefix(ssc->req_cmd, ssc->resp_cmd,
+                               SSC_RESPONSE_FLAG_COMMAND_SIZE_MISMATCH);
+        } else if (cmd == 0x00) { // req 0x84 bytes, resp 0xc4 bytes
             answer_cmd_0x0_init1(ssc, ssc->req_cmd, ssc->resp_cmd);
         } else if (cmd == 0x01) { // req 0x74 bytes, resp 0x74 bytes
             answer_cmd_0x1_connect_sp(ssc, ssc->req_cmd, ssc->resp_cmd);
-        } else if (cmd == 0x02) { // ???
+        } else if (cmd == 0x02) { // req 0x04 bytes, resp 0x04 bytes
             answer_cmd_0x2_disconnect_sp(ssc, ssc->req_cmd, ssc->resp_cmd);
         } else if (cmd == 0x03) { // req 0x34 bytes, resp 0x14 bytes
             answer_cmd_0x3_metadata_write(ssc, ssc->req_cmd, ssc->resp_cmd);
@@ -4335,14 +4486,15 @@ static uint8_t apple_ssc_rx(I2CSlave *i2c)
         } else if (cmd == 0x07) { // req 0x04 bytes, resp 0x78 bytes
             answer_cmd_0x7_init0(ssc, ssc->req_cmd, ssc->resp_cmd);
         } else if (cmd == 0x08) { // req 0x04 bytes, resp 0x04 bytes
-            answer_cmd_0x8_save(ssc, ssc->req_cmd, ssc->resp_cmd);
-        } else if (cmd ==
-                   0x09) { // req 0x04 bytes, resp 0x2f bytes ; for panic?
+            answer_cmd_0x8_sleep(ssc, ssc->req_cmd, ssc->resp_cmd);
+        } else if (cmd == 0x09) { // req 0x04 bytes, resp 0x2f bytes
             answer_cmd_0x9_panic(ssc, ssc->req_cmd, ssc->resp_cmd);
         }
+        ssc->req_cur = 0;
         memset(ssc->req_cmd, 0, sizeof(ssc->req_cmd));
-        if (ssc->resp_cmd[3] != 0x80) {
-            memset(&ssc->resp_cmd[4], 0xff, sizeof(ssc->resp_cmd) - 4);
+        if (ssc->resp_cmd[3] != SSC_RESPONSE_FLAG_OK) {
+            memset(&ssc->resp_cmd[MSG_PREFIX_LENGTH], 0xff, 
+                   sizeof(ssc->resp_cmd) - MSG_PREFIX_LENGTH);
         }
     }
 
@@ -4382,13 +4534,17 @@ static int apple_ssc_tx(I2CSlave *i2c, uint8_t data)
 static void apple_ssc_reset(DeviceState *state)
 {
     AppleSSCState *ssc = APPLE_SSC(state);
+    qemu_log_mask(LOG_UNIMP, "%s: called\n", __func__);
 
     ssc->req_cur = 0;
-    memset(ssc->req_cmd, 0, sizeof(ssc->req_cmd));
     ssc->resp_cur = 0;
+    memset(ssc->req_cmd, 0, sizeof(ssc->req_cmd));
     memset(ssc->resp_cmd, 0, sizeof(ssc->resp_cmd));
-    memset(ssc->slot_hmac_key, 0, sizeof(ssc->slot_hmac_key));
 
+    memset(&ssc->ecc_key_main, 0, sizeof(ssc->ecc_key_main));
+    memset(ssc->ecc_keys, 0, sizeof(ssc->ecc_keys));
+    memset(ssc->random_hmac_key, 0, sizeof(ssc->random_hmac_key));
+    memset(ssc->slot_hmac_key, 0, sizeof(ssc->slot_hmac_key));
     memset(ssc->kbkdf_keys, 0, sizeof(ssc->kbkdf_keys));
     memset(ssc->kbkdf_counter, 0, sizeof(ssc->kbkdf_counter));
     uint8_t cpsn[0x07] = { 0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0xfe };

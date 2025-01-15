@@ -478,9 +478,9 @@ static int dwc3_bd_copy(DWC3State *s, DWC3BufferDesc *desc, USBPacket *p)
             qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x if_1: USB_RET_SUCCESS; actual_xfer < xfer_size %u ; actual_xfer %u ; xfer_size %u\n", __func__, xfer_size, actual_xfer < xfer_size, actual_xfer, xfer_size);
         }
     } else {
-        struct dwc3_event_depevt event = { .endpoint_number = desc->epid,
-                                           .endpoint_event =
-                                               DEPEVT_XFERNOTREADY };
+        //struct dwc3_event_depevt event = { .endpoint_number = desc->epid,
+        //                                   .endpoint_event =
+        //                                       DEPEVT_XFERNOTREADY };
         p->status = USB_RET_SUCCESS; // fixes hangs for idevicesyslog and error disconnects when running "launchctl list" or "htop"/"top" using ssh, because iOS likes to send empty packets on high load (when transporting a lot of data out of iOS).
         //event.status |= DEPEVT_STATUS_TRANSFER_ACTIVE;
         //p->status = USB_RET_ASYNC;
@@ -1601,6 +1601,9 @@ static void dwc3_usb_device_handle_packet(USBDevice *dev, USBPacket *p)
     }
 
     ep = &s->eps[epid];
+    if (!ep->uep) {
+        return;
+    }
 
     if (p->pid == USB_TOKEN_SETUP && ep->uep->nr == 0) {
         s->eps[0].stalled = false;

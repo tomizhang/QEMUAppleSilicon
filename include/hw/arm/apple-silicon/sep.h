@@ -125,7 +125,7 @@ typedef struct {
 #define KBKDF_KEY_RESPONSE_KEY_OFFSET 0x28
 #define KBKDF_KEY_SEED_LENGTH 8
 #define KBKDF_KEY_KEY_LENGTH 0x20
-#define KBKDF_KEY_MAX_SLOTS 0x49 // store mac_keys after that
+#define KBKDF_KEY_MAX_SLOTS 0x4a // store mac_keys after that
 
 #define KBKDF_CMAC_LENGTH_SIZE 2
 #define KBKDF_CMAC_LABEL_SIZE 0x10
@@ -143,6 +143,38 @@ typedef struct {
 #define SECP384_PUBLIC_SIZE 0x30
 #define SECP384_PUBLIC_XY_SIZE (SECP384_PUBLIC_SIZE * 2)
 
+#define SSC_REQUEST_MAX_COPIES 4 // 0 .. 3
+
+#define SSC_RESPONSE_FLAG_COMMAND_SIZE_MISMATCH 0x02
+#define SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID 0x04
+#define SSC_RESPONSE_FLAG_KEYSLOT_INVALID 0x08
+#define SSC_RESPONSE_FLAG_CMAC_INVALID 0x10
+#define SSC_RESPONSE_FLAG_CURVE_INVALID 0x20
+#define SSC_RESPONSE_FLAG_OK 0x80
+
+#define SSC_REQUEST_SIZE_CMD_0x0 0x84
+#define SSC_REQUEST_SIZE_CMD_0x1 0x74
+#define SSC_REQUEST_SIZE_CMD_0x2 0x4
+#define SSC_REQUEST_SIZE_CMD_0x3 0x34
+#define SSC_REQUEST_SIZE_CMD_0x4 0x14
+#define SSC_REQUEST_SIZE_CMD_0x5 0x54
+#define SSC_REQUEST_SIZE_CMD_0x6 0x14
+#define SSC_REQUEST_SIZE_CMD_0x7 0x4
+#define SSC_REQUEST_SIZE_CMD_0x8 0x4
+#define SSC_REQUEST_SIZE_CMD_0x9 0x4
+
+#define SSC_RESPONSE_SIZE_CMD_0x0 0xc4
+#define SSC_RESPONSE_SIZE_CMD_0x1 0x74
+#define SSC_RESPONSE_SIZE_CMD_0x2 0x4
+#define SSC_RESPONSE_SIZE_CMD_0x3 0x14
+#define SSC_RESPONSE_SIZE_CMD_0x4 0x54
+#define SSC_RESPONSE_SIZE_CMD_0x5 0x14
+#define SSC_RESPONSE_SIZE_CMD_0x6 0x34
+#define SSC_RESPONSE_SIZE_CMD_0x7 0x78
+#define SSC_RESPONSE_SIZE_CMD_0x8 0x4
+#define SSC_RESPONSE_SIZE_CMD_0x9 0x2f
+
+
 struct AppleSSCState {
     /*< private >*/
     I2CSlave i2c;
@@ -150,8 +182,8 @@ struct AppleSSCState {
 
     /*< public >*/
     uint32_t req_cur;
-    uint8_t req_cmd[1024];
     uint32_t resp_cur;
+    uint8_t req_cmd[1024];
     uint8_t resp_cmd[1024];
 
     AppleAESSState *aess_state;
@@ -206,7 +238,7 @@ int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
                                  uint8_t *request, uint8_t *response);
 int answer_cmd_0x7_init0(struct AppleSSCState *ssc_state, uint8_t *request,
                          uint8_t *response);
-int answer_cmd_0x8_save(struct AppleSSCState *ssc_state, uint8_t *request,
+int answer_cmd_0x8_sleep(struct AppleSSCState *ssc_state, uint8_t *request,
                         uint8_t *response);
 int answer_cmd_0x9_panic(struct AppleSSCState *ssc_state, uint8_t *request,
                          uint8_t *response);
