@@ -152,29 +152,6 @@ typedef struct {
 #define SSC_RESPONSE_FLAG_CURVE_INVALID 0x20
 #define SSC_RESPONSE_FLAG_OK 0x80
 
-#define SSC_REQUEST_SIZE_CMD_0x0 0x84
-#define SSC_REQUEST_SIZE_CMD_0x1 0x74
-#define SSC_REQUEST_SIZE_CMD_0x2 0x4
-#define SSC_REQUEST_SIZE_CMD_0x3 0x34
-#define SSC_REQUEST_SIZE_CMD_0x4 0x14
-#define SSC_REQUEST_SIZE_CMD_0x5 0x54
-#define SSC_REQUEST_SIZE_CMD_0x6 0x14
-#define SSC_REQUEST_SIZE_CMD_0x7 0x4
-#define SSC_REQUEST_SIZE_CMD_0x8 0x4
-#define SSC_REQUEST_SIZE_CMD_0x9 0x4
-
-#define SSC_RESPONSE_SIZE_CMD_0x0 0xc4
-#define SSC_RESPONSE_SIZE_CMD_0x1 0x74
-#define SSC_RESPONSE_SIZE_CMD_0x2 0x4
-#define SSC_RESPONSE_SIZE_CMD_0x3 0x14
-#define SSC_RESPONSE_SIZE_CMD_0x4 0x54
-#define SSC_RESPONSE_SIZE_CMD_0x5 0x14
-#define SSC_RESPONSE_SIZE_CMD_0x6 0x34
-#define SSC_RESPONSE_SIZE_CMD_0x7 0x78
-#define SSC_RESPONSE_SIZE_CMD_0x8 0x4
-#define SSC_RESPONSE_SIZE_CMD_0x9 0x2f
-
-
 struct AppleSSCState {
     /*< private >*/
     I2CSlave i2c;
@@ -188,60 +165,14 @@ struct AppleSSCState {
 
     AppleAESSState *aess_state;
     struct ecc_scalar ecc_key_main, ecc_keys[KBKDF_KEY_MAX_SLOTS];
-    ////struct ecc_point  ecc_pub0, ecc_pub1, cmd0_ecpub;
+    //struct ecc_point  ecc_pub0, ecc_pub1, cmd0_ecpub;
     uint8_t random_hmac_key[SHA256_DIGEST_SIZE];
     uint8_t slot_hmac_key[KBKDF_KEY_MAX_SLOTS][SHA256_DIGEST_SIZE];
     uint8_t kbkdf_keys[KBKDF_KEY_MAX_SLOTS][KBKDF_CMAC_OUTPUT_LEN];
     uint32_t kbkdf_counter[KBKDF_KEY_MAX_SLOTS];
     uint8_t cpsn[0x07];
-    ////bool cmd_0x7_called;
+    //bool cmd_0x7_called;
 };
-
-int aes_ccm_crypt(struct AppleSSCState *ssc_state, uint8_t kbkdf_index,
-                  uint8_t *prefix, int payload_len, uint8_t *data, uint8_t *out,
-                  int encrypt, int response_key);
-int aes_cmac_prefix_public(uint8_t *key, uint8_t *prefix, uint8_t *public0,
-                           uint8_t *digest);
-int aes_cmac_prefix_public_public(uint8_t *key, uint8_t *prefix,
-                                  uint8_t *public0, uint8_t *public1,
-                                  uint8_t *digest);
-int kbkdf_generate_key(uint8_t *cmac_key, uint8_t *label, uint8_t *context,
-                       uint8_t *derived, int length);
-void hexout(const char *desc, const uint8_t *in, int in_len);
-int generate_ec_priv(const char *priv, struct ecc_scalar *ecc_key,
-                     struct ecc_point *ecc_pub);
-int output_ec_pub(struct ecc_point *ecc_pub, uint8_t *pub_xy);
-int input_ec_pub(struct ecc_point *ecc_pub, uint8_t *pub_xy);
-int generate_kbkdf_keys(struct AppleSSCState *ssc_state,
-                        struct ecc_scalar *ecc_key,
-                        struct ecc_point *ecc_pub_peer, uint8_t *hmac_key,
-                        uint8_t *label, uint8_t *context, uint8_t kbkdf_index);
-void hkdf_sha256(int salt_len, uint8_t *salt, int info_len, uint8_t *info,
-                 int key_len, uint8_t *key, uint8_t *out);
-void aes_keys_from_sp_key(struct AppleSSCState *ssc_state, uint8_t kbkdf_index,
-                          uint8_t *prefix, uint8_t *aes_key_mackey,
-                          uint8_t *aes_key_extractorkey);
-void do_response_prefix(uint8_t *request, uint8_t *response, uint8_t flags);
-int answer_cmd_0x0_init1(struct AppleSSCState *ssc_state, uint8_t *request,
-                         uint8_t *response);
-int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state, uint8_t *request,
-                              uint8_t *response);
-int answer_cmd_0x2_disconnect_sp(struct AppleSSCState *ssc_state,
-                                 uint8_t *request, uint8_t *response);
-int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
-                                  uint8_t *request, uint8_t *response);
-int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state,
-                                      uint8_t *request, uint8_t *response);
-int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
-                                       uint8_t *request, uint8_t *response);
-int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
-                                 uint8_t *request, uint8_t *response);
-int answer_cmd_0x7_init0(struct AppleSSCState *ssc_state, uint8_t *request,
-                         uint8_t *response);
-int answer_cmd_0x8_sleep(struct AppleSSCState *ssc_state, uint8_t *request,
-                        uint8_t *response);
-int answer_cmd_0x9_panic(struct AppleSSCState *ssc_state, uint8_t *request,
-                         uint8_t *response);
 
 #define REG_SIZE (0x10000)
 
