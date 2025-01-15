@@ -3617,44 +3617,6 @@ static int apple_ssc_event(I2CSlave *s, enum i2c_event event)
 
 #if 1
 
-#if 1
-
-// gcc silently ignores the definitions in the header file for whatever reason
-
-#define SSC_REQUEST_MAX_COPIES 4 // 0 .. 3
-
-#define SSC_RESPONSE_FLAG_COMMAND_SIZE_MISMATCH 0x02
-#define SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID 0x04
-#define SSC_RESPONSE_FLAG_KEYSLOT_INVALID 0x08
-#define SSC_RESPONSE_FLAG_CMAC_INVALID 0x10
-#define SSC_RESPONSE_FLAG_CURVE_INVALID 0x20
-#define SSC_RESPONSE_FLAG_OK 0x80
-
-#define SSC_REQUEST_SIZE_CMD_0x0 0x84
-#define SSC_REQUEST_SIZE_CMD_0x1 0x74
-#define SSC_REQUEST_SIZE_CMD_0x2 0x4
-#define SSC_REQUEST_SIZE_CMD_0x3 0x34
-#define SSC_REQUEST_SIZE_CMD_0x4 0x14
-#define SSC_REQUEST_SIZE_CMD_0x5 0x54
-#define SSC_REQUEST_SIZE_CMD_0x6 0x14
-#define SSC_REQUEST_SIZE_CMD_0x7 0x4
-#define SSC_REQUEST_SIZE_CMD_0x8 0x4
-#define SSC_REQUEST_SIZE_CMD_0x9 0x4
-
-#define SSC_RESPONSE_SIZE_CMD_0x0 0xc4
-#define SSC_RESPONSE_SIZE_CMD_0x1 0x74
-#define SSC_RESPONSE_SIZE_CMD_0x2 0x4
-#define SSC_RESPONSE_SIZE_CMD_0x3 0x14
-#define SSC_RESPONSE_SIZE_CMD_0x4 0x54
-#define SSC_RESPONSE_SIZE_CMD_0x5 0x14
-#define SSC_RESPONSE_SIZE_CMD_0x6 0x34
-#define SSC_RESPONSE_SIZE_CMD_0x7 0x78
-#define SSC_RESPONSE_SIZE_CMD_0x8 0x4
-#define SSC_RESPONSE_SIZE_CMD_0x9 0x2f
-
-#endif
-
-
 static uint8_t ssc_request_sizes[] = {
     SSC_REQUEST_SIZE_CMD_0x0, SSC_REQUEST_SIZE_CMD_0x1,
     SSC_REQUEST_SIZE_CMD_0x2, SSC_REQUEST_SIZE_CMD_0x3,
@@ -4404,11 +4366,6 @@ int answer_cmd_0x7_init0(struct AppleSSCState *ssc_state, uint8_t *request,
     hexout("cmd_0x07_resp", response, SSC_RESPONSE_SIZE_CMD_0x7);
     return 0;
 }
-
-#if 1
-// gcc silently ignores the prototype in the header file for whatever reason
-static
-#endif
 
 int answer_cmd_0x8_sleep(struct AppleSSCState *ssc_state, uint8_t *request,
                         uint8_t *response)
