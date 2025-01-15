@@ -165,13 +165,13 @@ struct AppleSSCState {
 
     AppleAESSState *aess_state;
     struct ecc_scalar ecc_key_main, ecc_keys[KBKDF_KEY_MAX_SLOTS];
-    //struct ecc_point  ecc_pub0, ecc_pub1, cmd0_ecpub;
+    // struct ecc_point  ecc_pub0, ecc_pub1, cmd0_ecpub;
     uint8_t random_hmac_key[SHA256_DIGEST_SIZE];
     uint8_t slot_hmac_key[KBKDF_KEY_MAX_SLOTS][SHA256_DIGEST_SIZE];
     uint8_t kbkdf_keys[KBKDF_KEY_MAX_SLOTS][KBKDF_CMAC_OUTPUT_LEN];
     uint32_t kbkdf_counter[KBKDF_KEY_MAX_SLOTS];
     uint8_t cpsn[0x07];
-    //bool cmd_0x7_called;
+    // bool cmd_0x7_called;
 };
 
 #define REG_SIZE (0x10000)
