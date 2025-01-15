@@ -244,7 +244,7 @@ static void apple_otg_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     dc->realize = apple_otg_realize;
-    dc->reset = apple_otg_reset;
+    device_class_set_legacy_reset(dc, apple_otg_reset);
     dc->desc = "Apple Synopsys USB OTG Controller";
     dc->vmsd = &vmstate_apple_otg;
     device_class_set_props(dc, apple_otg_properties);

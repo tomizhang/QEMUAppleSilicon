@@ -309,7 +309,7 @@ static void apple_ans_class_init(ObjectClass *klass, void *data)
 
     dc->realize = apple_ans_realize;
     dc->unrealize = apple_ans_unrealize;
-    /* dc->reset = apple_ans_reset; */
+    /* device_class_set_legacy_reset(dc, apple_ans_reset); */
     dc->desc = "Apple ANS NVMe";
     dc->vmsd = &vmstate_apple_ans;
     set_bit(DEVICE_CATEGORY_BRIDGE, dc->categories);

@@ -24,6 +24,7 @@
 #include "hw/arm/apple-silicon/sep-sim.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/misc/apple-silicon/a7iop/mailbox/core.h"
+#include "hw/resettable.h"
 #include "qapi/error.h"
 #include "qemu/lockable.h"
 #include "qemu/log.h"
@@ -552,10 +553,10 @@ static uint8_t *apple_sep_sim_gen_sks_hash(uint8_t *buf,
             .iov_len = msg_size - KEYSTORE_IPC_HEADER_SIZE,
         },
     };
-    g_assert_true(qcrypto_hash_supports(QCRYPTO_HASH_ALG_SHA256));
+    g_assert_true(qcrypto_hash_supports(QCRYPTO_HASH_ALGO_SHA256));
     uint8_t *hash = NULL;
     size_t hash_len = 0;
-    g_assert_cmpuint(qcrypto_hash_bytesv(QCRYPTO_HASH_ALG_SHA256, iov,
+    g_assert_cmpuint(qcrypto_hash_bytesv(QCRYPTO_HASH_ALGO_SHA256, iov,
                                          sizeof(iov) / sizeof(*iov), &hash,
                                          &hash_len, &error_fatal),
                      ==, 0);
@@ -1008,7 +1009,7 @@ static void apple_sep_sim_realize(DeviceState *dev, Error **errp)
     }
 }
 
-static void apple_sep_sim_reset(DeviceState *dev)
+static void apple_sep_sim_reset_hold(Object *obj, ResetType type)
 {
     AppleSEPSimState *s;
     AppleSEPSimClass *sc;
@@ -1017,11 +1018,11 @@ static void apple_sep_sim_reset(DeviceState *dev)
     AppleA7IOPMessage *msg;
     SEPMessage *sep_msg;
 
-    s = APPLE_SEP_SIM(dev);
-    sc = APPLE_SEP_SIM_GET_CLASS(dev);
-    a7iop = APPLE_A7IOP(dev);
-    if (sc->parent_reset) {
-        sc->parent_reset(dev);
+    s = APPLE_SEP_SIM(obj);
+    sc = APPLE_SEP_SIM_GET_CLASS(obj);
+    a7iop = APPLE_A7IOP(obj);
+    if (sc->parent_phases.hold != NULL) {
+        sc->parent_phases.hold(obj, type);
     }
 
     QEMU_LOCK_GUARD(&s->lock);
@@ -1076,11 +1077,15 @@ static void apple_sep_sim_reset(DeviceState *dev)
 
 static void apple_sep_sim_class_init(ObjectClass *klass, void *data)
 {
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
     DeviceClass *dc = DEVICE_CLASS(klass);
     AppleSEPSimClass *sc = APPLE_SEP_SIM_CLASS(klass);
+
+    resettable_class_set_parent_phases(rc, NULL, apple_sep_sim_reset_hold, NULL,
+                                       &sc->parent_phases);
+
     device_class_set_parent_realize(dc, apple_sep_sim_realize,
                                     &sc->parent_realize);
-    device_class_set_parent_reset(dc, apple_sep_sim_reset, &sc->parent_reset);
     dc->desc = "Simulated Apple Secure Enclave";
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }

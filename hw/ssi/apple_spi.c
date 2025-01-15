@@ -517,7 +517,7 @@ static void apple_spi_class_init(ObjectClass *klass, void *data)
 
     dc->desc = "Apple Samsung SPI Controller";
 
-    dc->reset = apple_spi_reset;
+    device_class_set_legacy_reset(dc, apple_spi_reset);
     dc->realize = apple_spi_realize;
     dc->vmsd = &vmstate_apple_spi;
 }

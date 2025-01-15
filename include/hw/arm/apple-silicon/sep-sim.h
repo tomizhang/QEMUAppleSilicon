@@ -35,7 +35,7 @@ struct AppleSEPSimClass {
     SysBusDeviceClass base_class;
 
     DeviceRealize parent_realize;
-    DeviceReset parent_reset;
+    ResettablePhases parent_phases;
 };
 
 #define SEP_ENDPOINT_MAX 0x20

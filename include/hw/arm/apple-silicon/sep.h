@@ -182,7 +182,7 @@ struct AppleSEPClass {
 
     /*< public >*/
     DeviceRealize parent_realize;
-    DeviceReset parent_reset;
+    ResettablePhases parent_phases;
 };
 
 struct AppleSEPState {

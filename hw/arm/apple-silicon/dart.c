@@ -2,6 +2,7 @@
 #include "hw/arm/apple-silicon/dart.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/irq.h"
+#include "hw/qdev-core.h"
 #include "hw/sysbus.h"
 #include "migration/vmstate.h"
 #include "monitor/hmp-target.h"
@@ -775,7 +776,7 @@ static void apple_dart_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    dc->reset = apple_dart_reset;
+    device_class_set_legacy_reset(dc, apple_dart_reset);
     dc->desc = "Apple DART IOMMU";
     dc->vmsd = &vmstate_apple_dart;
 }

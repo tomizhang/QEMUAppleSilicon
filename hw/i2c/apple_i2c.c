@@ -258,25 +258,25 @@ static void apple_i2c_reset_enter(Object *obj, ResetType type)
     fifo8_reset(&s->rx_fifo);
 }
 
-static void apple_i2c_reset_hold(Object *obj)
+static void apple_i2c_reset_hold(Object *obj, ResetType type)
 {
     AppleHWI2CClass *c = APPLE_I2C_GET_CLASS(obj);
     AppleI2CState *s = APPLE_I2C(obj);
 
-    if (c->parent_phases.hold) {
-        c->parent_phases.hold(obj);
+    if (c->parent_phases.hold != NULL) {
+        c->parent_phases.hold(obj, type);
     }
     qemu_set_irq(s->irq, 0);
     s->last_irq = 0;
 }
 
-static void apple_i2c_reset_exit(Object *obj)
+static void apple_i2c_reset_exit(Object *obj, ResetType type)
 {
     AppleHWI2CClass *c = APPLE_I2C_GET_CLASS(obj);
     AppleI2CState *s = APPLE_I2C(obj);
 
-    if (c->parent_phases.exit) {
-        c->parent_phases.exit(obj);
+    if (c->parent_phases.exit != NULL) {
+        c->parent_phases.exit(obj, type);
     }
 
     qemu_set_irq(s->sda, 1);

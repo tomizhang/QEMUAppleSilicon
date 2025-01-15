@@ -26,6 +26,7 @@
 #include "hw/irq.h"
 #include "hw/or-irq.h"
 #include "hw/qdev-properties.h"
+#include "hw/resettable.h"
 #include "migration/vmstate.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
@@ -630,10 +631,12 @@ static void apple_a13_realize(DeviceState *dev, Error **errp)
     tcpu->fast_ipi = qdev_get_gpio_in(fiq_or, 1);
 }
 
-static void apple_a13_reset(DeviceState *dev)
+static void apple_a13_reset_hold(Object *obj, ResetType type)
 {
-    AppleA13Class *tclass = APPLE_A13_GET_CLASS(dev);
-    tclass->parent_reset(dev);
+    AppleA13Class *tclass = APPLE_A13_GET_CLASS(obj);
+    if (tclass->parent_phases.hold != NULL) {
+        tclass->parent_phases.hold(obj, type);
+    }
 }
 
 static void apple_a13_instance_init(Object *obj)
@@ -865,11 +868,13 @@ static const VMStateDescription vmstate_apple_a13_cluster = {
 
 static void apple_a13_class_init(ObjectClass *klass, void *data)
 {
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
     DeviceClass *dc = DEVICE_CLASS(klass);
     AppleA13Class *tc = APPLE_A13_CLASS(klass);
 
     device_class_set_parent_realize(dc, apple_a13_realize, &tc->parent_realize);
-    device_class_set_parent_reset(dc, apple_a13_reset, &tc->parent_reset);
+    resettable_class_set_parent_phases(rc, NULL, apple_a13_reset_hold, NULL,
+                                       &tc->parent_phases);
     dc->desc = "Apple A13 CPU";
     dc->vmsd = &vmstate_apple_a13;
     set_bit(DEVICE_CATEGORY_CPU, dc->categories);
@@ -881,7 +886,7 @@ static void apple_a13_cluster_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->realize = apple_a13_cluster_realize;
-    dc->reset = apple_a13_cluster_reset;
+    device_class_set_legacy_reset(dc, apple_a13_cluster_reset);
     dc->desc = "Apple A13 CPU Cluster";
     dc->user_creatable = false;
     dc->vmsd = &vmstate_apple_a13_cluster;

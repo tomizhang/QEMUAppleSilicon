@@ -625,7 +625,7 @@ static void apple_smc_class_init(ObjectClass *klass, void *data)
     sc = APPLE_SMC_IOP_CLASS(klass);
 
     device_class_set_parent_realize(dc, apple_smc_realize, &sc->parent_realize);
-    /* dc->reset = apple_smc_reset; */
+    /* device_class_set_legacy_reset(dc, apple_smc_reset); */
     dc->desc = "Apple SMC IOP";
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }

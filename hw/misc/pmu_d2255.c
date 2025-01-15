@@ -22,7 +22,6 @@
 #include "hw/i2c/i2c.h"
 #include "hw/irq.h"
 #include "hw/misc/pmu_d2255.h"
-#include "migration/vmstate.h"
 #include "qapi/error.h"
 #include "qemu/compiler.h"
 #include "qemu/error-report.h"
@@ -325,7 +324,7 @@ static void pmu_d2255_class_init(ObjectClass *klass, void *data)
 
     dc->desc = "Apple PMU D2255";
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
-    dc->reset = pmu_d2255_reset;
+    device_class_set_legacy_reset(dc, pmu_d2255_reset);
 
     c->event = pmu_d2255_event;
     c->recv = pmu_d2255_rx;

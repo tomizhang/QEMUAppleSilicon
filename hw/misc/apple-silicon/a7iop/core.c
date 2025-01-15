@@ -148,7 +148,7 @@ static void apple_a7iop_class_init(ObjectClass *oc, void *data)
     DeviceClass *dc;
 
     dc = DEVICE_CLASS(oc);
-    dc->reset = apple_a7iop_reset;
+    device_class_set_legacy_reset(dc, apple_a7iop_reset);
     dc->realize = apple_a7iop_realize;
     dc->unrealize = apple_a7iop_unrealize;
     dc->desc = "Apple A7IOP";

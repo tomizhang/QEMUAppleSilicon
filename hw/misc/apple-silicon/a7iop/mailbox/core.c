@@ -1,6 +1,5 @@
 #include "qemu/osdep.h"
 #include "block/aio.h"
-#include "exec/memory.h"
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/a7iop/base.h"
 #include "hw/misc/apple-silicon/a7iop/mailbox/core.h"
@@ -48,10 +47,12 @@ static gint g_uint_cmp(gconstpointer a, gconstpointer b)
 }
 #endif
 
-static bool is_interrupt_enabled(AppleA7IOPMailbox *s, uint32_t status) {
+static bool is_interrupt_enabled(AppleA7IOPMailbox *s, uint32_t status)
+{
     if ((status & 0xf0000) == 0x10000) {
         uint32_t interrupt = status & 0x7f;
-        uint32_t interrupt_enabled = s->interrupts_enabled[interrupt / 32] & (1 << (interrupt % 32));
+        uint32_t interrupt_enabled =
+            s->interrupts_enabled[interrupt / 32] & (1 << (interrupt % 32));
         if (interrupt_enabled) {
             return true;
         }
@@ -64,9 +65,9 @@ static bool is_interrupt_enabled(AppleA7IOPMailbox *s, uint32_t status) {
 
 static bool apple_mbox_interrupt_status_empty(AppleA7IOPMailbox *s)
 {
-    //return QTAILQ_EMPTY(&s->interrupt_status);
+    // return QTAILQ_EMPTY(&s->interrupt_status);
     AppleA7IOPInterruptStatusMessage *msg = NULL;
-    QTAILQ_FOREACH(msg, &s->interrupt_status, entry) {
+    QTAILQ_FOREACH (msg, &s->interrupt_status, entry) {
         if (is_interrupt_enabled(s, msg->status)) {
             return false;
         }
@@ -94,8 +95,9 @@ static inline bool ap_nonempty_is_unmasked(uint32_t int_mask)
     return (int_mask & AP_NONEMPTY) == 0;
 }
 
-//static
-void apple_a7iop_mailbox_update_irq_status(AppleA7IOPMailbox *s) {
+// static
+void apple_a7iop_mailbox_update_irq_status(AppleA7IOPMailbox *s)
+{
     bool iop_empty;
     bool ap_empty;
     bool iop_underflow;
@@ -148,12 +150,16 @@ void apple_a7iop_mailbox_update_irq(AppleA7IOPMailbox *s)
     iop_irq_raised |= !apple_mbox_interrupt_status_empty(s);
     if (!strncmp(s->role, "SEP", 3)) {
         if (iop_irq_raised) {
-            //fprintf(stderr, "apple_a7iop_mailbox_update_irq: role: %s: before qemu_set_irq: s->iop_irq=%p; set==%u; cond0==%u; cond1==%u; cond2==%u; cond3==%u; cond4==%u\n", s->role, s->iop_irq, iop_irq_raised, s->iop_nonempty, s->iop_empty, s->ap_nonempty, s->ap_empty, !apple_mbox_interrupt_status_empty(s));
+            // fprintf(stderr, "apple_a7iop_mailbox_update_irq: role: %s: before
+            // qemu_set_irq: s->iop_irq=%p; set==%u; cond0==%u; cond1==%u;
+            // cond2==%u; cond3==%u; cond4==%u\n", s->role, s->iop_irq,
+            // iop_irq_raised, s->iop_nonempty, s->iop_empty, s->ap_nonempty,
+            // s->ap_empty, !apple_mbox_interrupt_status_empty(s));
         }
         if (s->iop_irq) {
-            //if (!strncmp(s->role, "SEP", 3))
+            // if (!strncmp(s->role, "SEP", 3))
             if (!strcmp(s->role, "SEP-iop"))
-            //if (!strcmp(s->role, "SEP-ap"))
+            // if (!strcmp(s->role, "SEP-ap"))
             {
                 qemu_set_irq(s->iop_irq, iop_irq_raised);
             }
@@ -370,13 +376,15 @@ void apple_a7iop_mailbox_set_ap_ctrl(AppleA7IOPMailbox *s, uint32_t value)
 void apple_a7iop_interrupt_status_push(AppleA7IOPMailbox *s, uint32_t status)
 {
     QEMU_LOCK_GUARD(&s->lock);
-    AppleA7IOPInterruptStatusMessage *msg = g_new0(struct AppleA7IOPInterruptStatusMessage, 1);
+    AppleA7IOPInterruptStatusMessage *msg =
+        g_new0(struct AppleA7IOPInterruptStatusMessage, 1);
     msg->status = status;
     QTAILQ_INSERT_TAIL(&s->interrupt_status, msg, entry);
-    //apple_a7iop_mailbox_update_irq(s->ap_mailbox);
-    //apple_a7iop_mailbox_update_irq(s->iop_mailbox);
+    // apple_a7iop_mailbox_update_irq(s->ap_mailbox);
+    // apple_a7iop_mailbox_update_irq(s->iop_mailbox);
     apple_a7iop_mailbox_update_irq(s);
-    //qemu_log_mask(LOG_UNIMP, "%s: apple_mbox_interrupt_status_push: status=0x%05x\n", s->role, msg->status);
+    // qemu_log_mask(LOG_UNIMP, "%s: apple_mbox_interrupt_status_push:
+    // status=0x%05x\n", s->role, msg->status);
 }
 
 uint32_t apple_a7iop_interrupt_status_pop(AppleA7IOPMailbox *s)
@@ -384,7 +392,7 @@ uint32_t apple_a7iop_interrupt_status_pop(AppleA7IOPMailbox *s)
     uint32_t ret = 0;
     AppleA7IOPInterruptStatusMessage *msg = NULL;
     AppleA7IOPInterruptStatusMessage *lowest_msg = NULL;
-    QTAILQ_FOREACH(msg, &s->interrupt_status, entry) {
+    QTAILQ_FOREACH (msg, &s->interrupt_status, entry) {
         if (is_interrupt_enabled(s, msg->status)) {
             if (!lowest_msg || (msg->status < lowest_msg->status)) {
                 lowest_msg = msg;
@@ -395,12 +403,14 @@ uint32_t apple_a7iop_interrupt_status_pop(AppleA7IOPMailbox *s)
         QTAILQ_REMOVE(&s->interrupt_status, lowest_msg, entry);
         ret = lowest_msg->status;
     }
-    //ap_update_irq(s);
-    //iop_update_irq(s);
+    // ap_update_irq(s);
+    // iop_update_irq(s);
     apple_a7iop_mailbox_update_irq(s);
-    if (ret)
-    {
-        qemu_log_mask(LOG_UNIMP, "%s: apple_a7iop_interrupt_status_pop: msg==%s: status=0x%05x\n", s->role, (msg != NULL) ? "True" : "False", ret);
+    if (ret) {
+        qemu_log_mask(
+            LOG_UNIMP,
+            "%s: apple_a7iop_interrupt_status_pop: msg==%s: status=0x%05x\n",
+            s->role, (msg != NULL) ? "True" : "False", ret);
     }
     return ret;
 }
@@ -433,7 +443,7 @@ AppleA7IOPMailbox *apple_a7iop_mailbox_new(const char *role,
     }
     s->iop_irq = NULL;
     if (!strcmp(s->role, "SEP-iop"))
-    //if (!strncmp(s->role, "SEP", 3))
+    // if (!strncmp(s->role, "SEP", 3))
     {
         qdev_init_gpio_out_named(dev, &s->iop_irq, APPLE_A7IOP_IOP_IRQ, 1);
     }
@@ -475,7 +485,8 @@ static void apple_a7iop_mailbox_reset(DeviceState *dev)
         g_free(msg);
     }
     while (!QTAILQ_EMPTY(&s->interrupt_status)) {
-        AppleA7IOPInterruptStatusMessage *m = QTAILQ_FIRST(&s->interrupt_status);
+        AppleA7IOPInterruptStatusMessage *m =
+            QTAILQ_FIRST(&s->interrupt_status);
         QTAILQ_REMOVE(&s->interrupt_status, m, entry);
         g_free(m);
     }
@@ -499,7 +510,7 @@ static void apple_a7iop_mailbox_class_init(ObjectClass *klass, void *data)
 
     dc = DEVICE_CLASS(klass);
 
-    dc->reset = apple_a7iop_mailbox_reset;
+    device_class_set_legacy_reset(dc, apple_a7iop_mailbox_reset);
     dc->desc = "Apple A7IOP Mailbox";
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }

@@ -27,7 +27,7 @@ typedef struct AESCommand {
 typedef struct AESKey {
     QCryptoCipher *cipher;
     key_select_t select;
-    QCryptoCipherAlgorithm algo;
+    QCryptoCipherAlgo algo;
     uint8_t key[32];
     uint32_t len;
     key_func_t func;
@@ -75,17 +75,17 @@ static uint32_t key_size(uint8_t len)
     }
 }
 
-static QCryptoCipherAlgorithm key_algo(uint8_t mode)
+static QCryptoCipherAlgo key_algo(uint8_t mode)
 {
     switch (mode) {
     case KEY_LEN_128:
-        return QCRYPTO_CIPHER_ALG_AES_128;
+        return QCRYPTO_CIPHER_ALGO_AES_128;
     case KEY_LEN_192:
-        return QCRYPTO_CIPHER_ALG_AES_192;
+        return QCRYPTO_CIPHER_ALGO_AES_192;
     case KEY_LEN_256:
-        return QCRYPTO_CIPHER_ALG_AES_256;
+        return QCRYPTO_CIPHER_ALGO_AES_256;
     default:
-        return QCRYPTO_CIPHER_ALG__MAX;
+        return QCRYPTO_CIPHER_ALGO__MAX;
     }
 }
 
@@ -836,7 +836,7 @@ static void apple_aes_class_init(ObjectClass *klass, void *data)
 
     dc->realize = apple_aes_realize;
     dc->unrealize = apple_aes_unrealize;
-    dc->reset = apple_aes_reset;
+    device_class_set_legacy_reset(dc, apple_aes_reset);
     dc->desc = "Apple AES Accelerator";
     dc->vmsd = &vmstate_apple_aes;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);

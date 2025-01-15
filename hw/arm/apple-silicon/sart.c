@@ -225,7 +225,7 @@ static void apple_sart_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    dc->reset = apple_sart_reset;
+    device_class_set_legacy_reset(dc, apple_sart_reset);
     dc->desc = "Apple SART IOMMU";
 }
 

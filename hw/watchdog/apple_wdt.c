@@ -308,7 +308,7 @@ static void apple_wdt_class_init(ObjectClass *klass, void *data)
 
     dc->realize = apple_wdt_realize;
     dc->unrealize = apple_wdt_unrealize;
-    dc->reset = apple_wdt_reset;
+    device_class_set_legacy_reset(dc, apple_wdt_reset);
     dc->desc = "Apple Watch Dog Timer";
     dc->vmsd = &vmstate_apple_wdt;
     set_bit(DEVICE_CATEGORY_WATCHDOG, dc->categories);

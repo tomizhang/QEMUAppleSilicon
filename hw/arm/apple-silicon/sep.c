@@ -36,6 +36,7 @@
 #include "hw/or-irq.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
+#include "hw/resettable.h"
 #include "qapi/error.h"
 #include "qemu/crc-ccitt.h"
 #include "qemu/cutils.h"
@@ -918,7 +919,7 @@ static void trng_regs_reg_write(void *opaque, hwaddr addr, uint64_t data,
             ((s->offset_0x70 & 0x40) != 0)) {
             QCryptoCipher *cipher;
 
-            cipher = qcrypto_cipher_new(QCRYPTO_CIPHER_ALG_AES_256,
+            cipher = qcrypto_cipher_new(QCRYPTO_CIPHER_ALGO_AES_256,
                                         QCRYPTO_CIPHER_MODE_ECB, s->key,
                                         sizeof(s->key), &error_abort);
             g_assert_nonnull(cipher);
@@ -1851,24 +1852,21 @@ static int aess_decryption_dict(AppleAESSState *s, uint8_t *out, uint8_t *in,
     return false;
 }
 
-static QCryptoCipherAlgorithm get_aes_cipher_alg(int flags)
+static QCryptoCipherAlgo get_aes_cipher_alg(int flags)
 {
     switch (flags & (SEP_AESS_CMD_FLAG_KEYSIZE_AES128 |
                      SEP_AESS_CMD_FLAG_KEYSIZE_AES192 |
                      SEP_AESS_CMD_FLAG_KEYSIZE_AES256)) {
     case SEP_AESS_CMD_FLAG_KEYSIZE_AES128:
-        return QCRYPTO_CIPHER_ALG_AES_128;
-        // break;
+        return QCRYPTO_CIPHER_ALGO_AES_128;
     case SEP_AESS_CMD_FLAG_KEYSIZE_AES192:
-        return QCRYPTO_CIPHER_ALG_AES_192;
-        // break;
+        return QCRYPTO_CIPHER_ALGO_AES_192;
     case SEP_AESS_CMD_FLAG_KEYSIZE_AES256:
-        return QCRYPTO_CIPHER_ALG_AES_256;
-        // break;
+        return QCRYPTO_CIPHER_ALGO_AES_256;
     default:
         break;
     }
-    assert(false);
+    g_assert_not_reached();
     return 0;
 }
 
@@ -1888,10 +1886,10 @@ static void xor_32bit_value(uint8_t *dest, uint32_t val, int size)
 // ECDH command, reuse code from SSC.
 
 static void aess_keywrap_uid(AppleAESSState *s, uint8_t *in, uint8_t *out,
-                             QCryptoCipherAlgorithm cipher_alg)
+                             QCryptoCipherAlgo cipher_alg)
 { // for keywrap only
     // TODO: Second half of output might be CMAC!!!
-    g_assert_cmpuint(cipher_alg, ==, QCRYPTO_CIPHER_ALG_AES_256);
+    g_assert_cmpuint(cipher_alg, ==, QCRYPTO_CIPHER_ALGO_AES_256);
     QCryptoCipher *cipher;
     uint32_t normalized_cmd = SEP_AESS_CMD_WITHOUT_FLAGS(s->ctl);
     size_t key_len = qcrypto_cipher_get_key_len(cipher_alg);
@@ -2016,7 +2014,7 @@ static void aess_handle_cmd(AppleAESSState *s)
     bool keyselect_gid1 = (s->ctl & SEP_AESS_CMD_FLAG_KEYSELECT_GID1) != 0;
     bool keyselect_custom = (s->ctl & SEP_AESS_CMD_FLAG_KEYSELECT_CUSTOM) != 0;
     uint32_t normalized_cmd = SEP_AESS_CMD_WITHOUT_FLAGS(s->ctl);
-    QCryptoCipherAlgorithm cipher_alg = get_aes_cipher_alg(s->ctl);
+    QCryptoCipherAlgo cipher_alg = get_aes_cipher_alg(s->ctl);
     size_t key_len = qcrypto_cipher_get_key_len(cipher_alg);
     bool zero_iv_two_blocks_encryption = false;
     bool register_0x18_keydisable_bit_invalid =
@@ -2049,7 +2047,7 @@ static void aess_handle_cmd(AppleAESSState *s)
                   0x12)) /* Not GID1 && not Custom */ // Always AES256!!
     {
 #if 1
-        cipher_alg = QCRYPTO_CIPHER_ALG_AES_256;
+        cipher_alg = QCRYPTO_CIPHER_ALGO_AES_256;
         key_len = qcrypto_cipher_get_key_len(
             cipher_alg); // VERY important, otherwise key_len would be too short
                          // in case that flag 0x200 is missing.
@@ -2099,7 +2097,7 @@ static void aess_handle_cmd(AppleAESSState *s)
             keyselect_gid1 = false;
             keyselect_custom = true;
             normalized_cmd = SEP_AESS_COMMAND_ENCRYPT_CBC;
-            cipher_alg = QCRYPTO_CIPHER_ALG_AES_256;
+            cipher_alg = QCRYPTO_CIPHER_ALGO_AES_256;
             key_len = qcrypto_cipher_get_key_len(cipher_alg);
         }
         bool do_encryption = (normalized_cmd == SEP_AESS_COMMAND_ENCRYPT_CBC);
@@ -3466,13 +3464,10 @@ static void pka_reset(ApplePKAState *s)
 
 static void map_sepfw(AppleSEPState *s)
 {
-#if 0
-    qemu_log_mask(LOG_UNIMP, "%s: entered function\n", __func__);
-#endif
+    DBGLOG("%s: entered function\n", __func__);
     if (s->sepfw_mr == NULL) {
-        //__asm__("int3");
-        s->sepfw_mr = allocate_ram(get_system_memory(), "SEPFW_",
-                                   0x000000000ULL, 0x1000000ULL, 0);
+        s->sepfw_mr = allocate_ram(get_system_memory(), "SEPFW", 0x000000000ULL,
+                                   0x1000000ULL, 0);
     }
     AddressSpace *nsas = &address_space_memory;
     // Apparently needed because of a bug occurring on XNU
@@ -3482,34 +3477,37 @@ static void map_sepfw(AppleSEPState *s)
                      (uint8_t *)s->sepfw_data, s->sep_fw_size, true);
 }
 
-
-static void apple_sep_reset(DeviceState *dev)
+static void apple_sep_reset_hold(Object *obj, ResetType type)
 {
     AppleSEPState *s;
     AppleSEPClass *sc;
 
-    s = APPLE_SEP(dev);
-    sc = APPLE_SEP_GET_CLASS(dev);
-    if (sc->parent_reset) {
-        sc->parent_reset(dev);
+    s = APPLE_SEP(obj);
+    sc = APPLE_SEP_GET_CLASS(obj);
+
+    if (sc->parent_phases.hold != NULL) {
+        sc->parent_phases.hold(obj, type);
     }
+
     aess_reset(&s->aess_state);
     pka_reset(&s->pka_state);
-    ////ssc_reset(&s->ssc_state); // apple_ssc_reset called via
-    /// apple_ssc_class_init ... dc->reset
+    // ssc_reset(&s->ssc_state);
+
+    // apple_ssc_reset called via
+    // apple_ssc_class_init ... dc->reset
     run_on_cpu(CPU(s->cpu), apple_sep_cpu_reset_work, RUN_ON_CPU_HOST_PTR(s));
     map_sepfw(s);
-    if (s->debug_trace_mmio_index != -1)
-        sysbus_mmio_unmap(SYS_BUS_DEVICE(s), s->debug_trace_mmio_index);
-    s->debug_trace_mmio_index = -1;
+    // s->debug_trace_mmio_index = -1;
 }
 
 static void apple_sep_class_init(ObjectClass *klass, void *data)
 {
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
     DeviceClass *dc = DEVICE_CLASS(klass);
     AppleSEPClass *sc = APPLE_SEP_CLASS(klass);
     device_class_set_parent_realize(dc, apple_sep_realize, &sc->parent_realize);
-    device_class_set_parent_reset(dc, apple_sep_reset, &sc->parent_reset);
+    resettable_class_set_parent_phases(rc, NULL, apple_sep_reset_hold, NULL,
+                                       &sc->parent_phases);
     dc->desc = "Apple SEP";
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }
@@ -3534,7 +3532,7 @@ void create_eeprom_entry(uint32_t eeprom_index, uint32_t unkn0,
                          uint32_t counter, uint8_t type, uint8_t length,
                          uint8_t *data_in, uint8_t *eeprom_out)
 {
-    g_assert_true(qcrypto_hmac_supports(QCRYPTO_HASH_ALG_SHA256));
+    g_assert_true(qcrypto_hmac_supports(QCRYPTO_HASH_ALGO_SHA256));
 
     typedef struct QEMU_PACKED {
         uint32_t unkn0; // 0x00 ;; ignored? ;; maybe needs to be increasing.
@@ -3562,7 +3560,7 @@ void create_eeprom_entry(uint32_t eeprom_index, uint32_t unkn0,
     size_t resultlen = 0;
     int ret = 0;
 
-    hmac = qcrypto_hmac_new(QCRYPTO_HASH_ALG_SHA256,
+    hmac = qcrypto_hmac_new(QCRYPTO_HASH_ALGO_SHA256,
                             (const uint8_t *)aess_out_for_key,
                             sizeof(aess_out_for_key), &error_fatal);
     g_assert_nonnull(hmac);
@@ -3800,7 +3798,7 @@ static int generate_ec_priv(const char *priv, struct ecc_scalar *ecc_key,
     ecc_scalar_init(ecc_key, ecc);
     mpz_set_str(temp1, priv, 16);
     mpz_add_ui(temp1, temp1, 1);
-    assert(ecc_scalar_set(ecc_key, temp1) != 0);
+    g_assert_cmpuint(ecc_scalar_set(ecc_key, temp1), !=, 0);
 
     mpz_clear(temp1);
 
@@ -4567,7 +4565,7 @@ static void apple_ssc_class_init(ObjectClass *klass, void *data)
     c->event = apple_ssc_event;
     c->recv = apple_ssc_rx;
     c->send = apple_ssc_tx;
-    dc->reset = apple_ssc_reset;
+    device_class_set_legacy_reset(dc, apple_ssc_reset);
 
     device_class_set_props(dc, apple_ssc_props);
 }

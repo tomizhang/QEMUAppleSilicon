@@ -2,6 +2,7 @@
 #include "hw/misc/apple-silicon/a7iop/mailbox/core.h"
 #include "hw/misc/apple-silicon/a7iop/private.h"
 #include "hw/misc/apple-silicon/a7iop/rtbuddy.h"
+#include "hw/resettable.h"
 #include "qemu/lockable.h"
 #include "qemu/main-loop.h"
 #include "trace.h"
@@ -369,17 +370,17 @@ AppleRTBuddy *apple_rtbuddy_new(void *opaque, const char *role,
     return s;
 }
 
-static void apple_rtbuddy_reset(DeviceState *dev)
+static void apple_rtbuddy_reset(Object *obj, ResetType type)
 {
     AppleRTBuddy *s;
     AppleRTBuddyClass *rtbc;
     AppleA7IOPMessage *msg;
 
-    s = APPLE_RTBUDDY(dev);
-    rtbc = APPLE_RTBUDDY_GET_CLASS(dev);
+    s = APPLE_RTBUDDY(obj);
+    rtbc = APPLE_RTBUDDY_GET_CLASS(obj);
 
-    if (rtbc->parent_reset) {
-        rtbc->parent_reset(dev);
+    if (rtbc->parent_reset.hold != NULL) {
+        rtbc->parent_reset.hold(obj, type);
     }
 
     QEMU_LOCK_GUARD(&s->lock);
@@ -393,16 +394,19 @@ static void apple_rtbuddy_reset(DeviceState *dev)
     }
 }
 
-static void apple_rtbuddy_class_init(ObjectClass *oc, void *data)
+static void apple_rtbuddy_class_init(ObjectClass *klass, void *data)
 {
+    ResettableClass *rc;
     DeviceClass *dc;
     AppleRTBuddyClass *rtbc;
 
-    dc = DEVICE_CLASS(oc);
-    rtbc = APPLE_RTBUDDY_CLASS(oc);
+    rc = RESETTABLE_CLASS(klass);
+    dc = DEVICE_CLASS(klass);
+    rtbc = APPLE_RTBUDDY_CLASS(klass);
 
     dc->desc = "Apple RTBuddy IOP";
-    device_class_set_parent_reset(dc, apple_rtbuddy_reset, &rtbc->parent_reset);
+    resettable_class_set_parent_phases(rc, NULL, apple_rtbuddy_reset, NULL,
+                                       &rtbc->parent_reset);
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 }
 

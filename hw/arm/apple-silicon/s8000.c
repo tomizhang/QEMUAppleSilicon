@@ -1143,19 +1143,18 @@ static void apple_a9_reset(void *opaque)
     }
 }
 
-static void s8000_machine_reset(MachineState *machine, ShutdownCause reason)
+static void s8000_machine_reset(MachineState *machine, ResetType type)
 {
     S8000MachineState *s8000_machine = S8000_MACHINE(machine);
     DeviceState *gpio = NULL;
 
-    qemu_devices_reset(reason);
+    qemu_devices_reset(type);
+
     if (!runstate_check(RUN_STATE_RESTORE_VM) &&
         !runstate_check(RUN_STATE_PRELAUNCH)) {
-        if (!runstate_check(RUN_STATE_PAUSED) ||
-            reason != SHUTDOWN_CAUSE_NONE) {
-            s8000_memory_setup(MACHINE(s8000_machine));
-        }
+        s8000_memory_setup(MACHINE(s8000_machine));
     }
+
     apple_a9_reset(s8000_machine);
 
     gpio =

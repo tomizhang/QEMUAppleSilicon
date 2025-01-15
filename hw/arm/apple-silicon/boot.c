@@ -613,7 +613,7 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
                      info->kern_boot_args_size);
 
     if (info->ticket_data && info->ticket_length) {
-        QCryptoHashAlgorithm alg = QCRYPTO_HASH_ALG_SHA1;
+        QCryptoHashAlgo alg = QCRYPTO_HASH_ALGO_SHA1;
         g_autofree uint8_t *hash = NULL;
         size_t hash_len = 0;
         DTBNode *child = dtb_find_node(root, "chosen");
@@ -623,7 +623,7 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
 
         if (prop != NULL) {
             if (strcmp((char *)prop->value, "sha2-384") == 0) {
-                alg = QCRYPTO_HASH_ALG_SHA384;
+                alg = QCRYPTO_HASH_ALGO_SHA384;
             }
         }
 

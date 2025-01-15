@@ -136,11 +136,11 @@ static void apple_a9_realize(DeviceState *dev, Error **errp)
     qdev_connect_gpio_out(dev, GTIMER_VIRT, qdev_get_gpio_in(fiq_or, 0));
 }
 
-static void apple_a9_reset(DeviceState *dev)
-{
-    AppleA9Class *tclass = APPLE_A9_GET_CLASS(dev);
-    tclass->parent_reset(dev);
-}
+// static void apple_a9_reset(DeviceState *dev)
+// {
+//     AppleA9Class *tclass = APPLE_A9_GET_CLASS(dev);
+//     tclass->parent_reset(dev);
+// }
 
 static void apple_a9_instance_init(Object *obj)
 {
@@ -298,7 +298,7 @@ static void apple_a9_class_init(ObjectClass *klass, void *data)
     AppleA9Class *tc = APPLE_A9_CLASS(klass);
 
     device_class_set_parent_realize(dc, apple_a9_realize, &tc->parent_realize);
-    device_class_set_parent_reset(dc, apple_a9_reset, &tc->parent_reset);
+    // device_class_set_parent_reset(dc, apple_a9_reset, &tc->parent_reset);
     dc->desc = "Apple A9 CPU";
     dc->vmsd = &vmstate_apple_a9;
     set_bit(DEVICE_CATEGORY_CPU, dc->categories);

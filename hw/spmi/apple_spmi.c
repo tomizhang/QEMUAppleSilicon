@@ -480,13 +480,13 @@ static void apple_spmi_reset_enter(Object *obj, ResetType type)
     s->data_length = 0;
 }
 
-static void apple_spmi_reset_exit(Object *obj)
+static void apple_spmi_reset_exit(Object *obj, ResetType type)
 {
     AppleSPMIState *s = APPLE_SPMI(obj);
     AppleSPMIClass *c = APPLE_SPMI_GET_CLASS(obj);
 
-    if (c->parent_phases.exit) {
-        c->parent_phases.exit(obj);
+    if (c->parent_phases.exit != NULL) {
+        c->parent_phases.exit(obj, type);
     }
     apple_spmi_update_queues_status(s);
     apple_spmi_update_irq(s);

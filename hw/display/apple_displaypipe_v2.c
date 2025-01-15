@@ -500,7 +500,7 @@ static void apple_displaypipe_v2_class_init(ObjectClass *klass, void *data)
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
     device_class_set_props(dc, apple_displaypipe_v2_props);
     dc->realize = apple_displaypipe_v2_realize;
-    dc->reset = apple_displaypipe_v2_reset;
+    device_class_set_legacy_reset(dc, apple_displaypipe_v2_reset);
 }
 
 static const TypeInfo apple_displaypipe_v2_type_info = {

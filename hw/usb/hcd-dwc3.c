@@ -796,25 +796,25 @@ static void dwc3_reset_enter(Object *obj, ResetType type)
               DSTS_RXFIFOEMPTY | DSTS_HIGHSPEED;
 }
 
-static void dwc3_reset_hold(Object *obj)
+static void dwc3_reset_hold(Object *obj, ResetType type)
 {
     DWC3Class *c = DWC3_USB_GET_CLASS(obj);
     DWC3State *s = DWC3_USB(obj);
 
-    if (c->parent_phases.hold) {
-        c->parent_phases.hold(obj);
+    if (c->parent_phases.hold != NULL) {
+        c->parent_phases.hold(obj, type);
     }
 
     dwc3_update_irq(s);
 }
 
-static void dwc3_reset_exit(Object *obj)
+static void dwc3_reset_exit(Object *obj, ResetType type)
 {
     DWC3Class *c = DWC3_USB_GET_CLASS(obj);
     DWC3State *s = DWC3_USB(obj);
 
-    if (c->parent_phases.exit) {
-        c->parent_phases.exit(obj);
+    if (c->parent_phases.exit != NULL) {
+        c->parent_phases.exit(obj, type);
     }
 
     USB_DEVICE(&s->device)->addr = 0;

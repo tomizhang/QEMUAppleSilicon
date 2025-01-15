@@ -2348,9 +2348,8 @@ static void t8030_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
     cpu_set_pc(cpu, t8030_machine->bootinfo.kern_entry);
 }
 
-static void t8030_cpu_reset(void *opaque)
+static void t8030_cpu_reset(T8030MachineState *t8030_machine)
 {
-    T8030MachineState *t8030_machine = T8030_MACHINE(opaque);
     CPUState *cpu;
     AppleA13State *tcpu;
     uint64_t m_lo;
@@ -2372,25 +2371,23 @@ static void t8030_cpu_reset(void *opaque)
         if (tcpu->cpu_id == 0) {
             async_run_on_cpu(cpu, t8030_cpu_reset_work,
                              RUN_ON_CPU_HOST_PTR(t8030_machine));
-        } else if (ARM_CPU(cpu)->power_state != PSCI_OFF) {
-            arm_reset_cpu(tcpu->mpidr);
+        } else {
+            apple_a13_cpu_reset(tcpu);
         }
     }
 }
 
-static void t8030_machine_reset(MachineState *machine, ShutdownCause reason)
+static void t8030_machine_reset(MachineState *machine, ResetType type)
 {
     T8030MachineState *t8030_machine = T8030_MACHINE(machine);
     DeviceState *gpio;
 
-    qemu_devices_reset(reason);
+    qemu_devices_reset(type);
+
     memset(&t8030_machine->pmgr_reg, 0, sizeof(t8030_machine->pmgr_reg));
     if (!runstate_check(RUN_STATE_RESTORE_VM) &&
         !runstate_check(RUN_STATE_PRELAUNCH)) {
-        if (!runstate_check(RUN_STATE_PAUSED) ||
-            reason != SHUTDOWN_CAUSE_NONE) {
-            t8030_memory_setup(t8030_machine);
-        }
+        t8030_memory_setup(t8030_machine);
     }
     t8030_cpu_reset(t8030_machine);
     gpio =

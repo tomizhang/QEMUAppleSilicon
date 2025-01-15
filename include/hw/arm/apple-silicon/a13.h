@@ -49,7 +49,7 @@ typedef struct AppleA13Class {
     /*< public >*/
     DeviceRealize parent_realize;
     DeviceUnrealize parent_unrealize;
-    DeviceReset parent_reset;
+    ResettablePhases parent_phases;
 } AppleA13Class;
 
 typedef struct AppleA13State {

@@ -2,6 +2,7 @@
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/dma/apple_sio.h"
 #include "hw/misc/apple-silicon/a7iop/rtbuddy.h"
+#include "hw/resettable.h"
 #include "qapi/error.h"
 #include "qemu/iov.h"
 #include "qemu/log.h"
@@ -437,15 +438,15 @@ static void apple_sio_realize(DeviceState *dev, Error **errp)
     }
 }
 
-static void apple_sio_reset(DeviceState *dev)
+static void apple_sio_reset_hold(Object *obj, ResetType type)
 {
     AppleSIOState *s;
     AppleSIOClass *sioc;
 
-    s = APPLE_SIO(dev);
-    sioc = APPLE_SIO_GET_CLASS(dev);
-    if (sioc->parent_reset) {
-        sioc->parent_reset(dev);
+    s = APPLE_SIO(obj);
+    sioc = APPLE_SIO_GET_CLASS(obj);
+    if (sioc->parent_reset.hold != NULL) {
+        sioc->parent_reset.hold(obj, type);
     }
     s->params[PARAM_PROTOCOL] = 9;
     for (int i = 0; i < SIO_NUM_EPS; i++) {
@@ -458,15 +459,18 @@ static void apple_sio_reset(DeviceState *dev)
 
 static void apple_sio_class_init(ObjectClass *klass, void *data)
 {
+    ResettableClass *rc;
     DeviceClass *dc;
     AppleSIOClass *sioc;
 
+    rc = RESETTABLE_CLASS(klass);
     dc = DEVICE_CLASS(klass);
     sioc = APPLE_SIO_CLASS(klass);
 
     device_class_set_parent_realize(dc, apple_sio_realize,
                                     &sioc->parent_realize);
-    device_class_set_parent_reset(dc, apple_sio_reset, &sioc->parent_reset);
+    resettable_class_set_parent_phases(rc, NULL, apple_sio_reset_hold, NULL,
+                                       &sioc->parent_reset);
     dc->desc = "Apple Smart IO DMA Controller";
 }
 
