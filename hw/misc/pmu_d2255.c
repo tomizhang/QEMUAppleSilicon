@@ -18,11 +18,9 @@
  */
 
 #include "qemu/osdep.h"
-#include "hw/i2c/apple_i2c.h"
 #include "hw/i2c/i2c.h"
 #include "hw/irq.h"
 #include "hw/misc/pmu_d2255.h"
-#include "qapi/error.h"
 #include "qemu/compiler.h"
 #include "qemu/error-report.h"
 #include "qemu/log.h"
@@ -331,10 +329,25 @@ static void pmu_d2255_class_init(ObjectClass *klass, void *data)
     c->send = pmu_d2255_tx;
 }
 
+static void pmu_d2255_instance_init(Object *obj)
+{
+    PMUD2255State *s;
+
+    s = PMU_D2255(obj);
+
+    s->tick_period = frq_to_period_ns(RTC_TICK_FREQ);
+    pmu_d2255_set_tick_offset(s, rtc_get_tick(s, &s->rtc_offset));
+
+    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, pmu_d2255_alarm, s);
+
+    qdev_init_gpio_out(DEVICE(s), &s->irq, 1);
+}
+
 static const TypeInfo pmu_d2255_type_info = {
     .name = TYPE_PMU_D2255,
     .parent = TYPE_I2C_SLAVE,
     .instance_size = sizeof(PMUD2255State),
+    .instance_init = pmu_d2255_instance_init,
     .class_init = pmu_d2255_class_init,
 };
 
@@ -344,23 +357,3 @@ static void pmu_d2255_register_types(void)
 }
 
 type_init(pmu_d2255_register_types);
-
-PMUD2255State *pmu_d2255_create(MachineState *machine, uint8_t addr)
-{
-    AppleI2CState *i2c;
-    PMUD2255State *s;
-    DeviceState *dev;
-
-    i2c = APPLE_I2C(
-        object_property_get_link(OBJECT(machine), "i2c0", &error_fatal));
-    s = PMU_D2255(i2c_slave_create_simple(i2c->bus, TYPE_PMU_D2255, addr));
-    dev = DEVICE(s);
-    s->tick_period = frq_to_period_ns(RTC_TICK_FREQ);
-    pmu_d2255_set_tick_offset(s, rtc_get_tick(s, &s->rtc_offset));
-
-    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, pmu_d2255_alarm, s);
-
-    qdev_init_gpio_out(dev, &s->irq, 1);
-
-    return s;
-}

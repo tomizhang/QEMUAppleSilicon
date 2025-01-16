@@ -198,7 +198,7 @@ static const MemoryRegionOps dummy_reg_ops = {
     .valid.unaligned = false,
 };
 
-ADBEV2 *adbe_v2_create(MachineState *machine, DTBNode *node)
+ADBEV2 *adbe_v2_create(DTBNode *node)
 {
     DeviceState *dev;
     SysBusDevice *sbd;

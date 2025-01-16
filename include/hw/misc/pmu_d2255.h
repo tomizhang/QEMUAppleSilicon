@@ -53,6 +53,4 @@ struct PMUD2255State {
     enum PMUAddrState address_state;
 };
 
-PMUD2255State *pmu_d2255_create(MachineState *machine, uint8_t addr);
-
 #endif
