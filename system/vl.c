@@ -875,7 +875,7 @@ static void version(void)
 {
     printf("QEMU emulator version " QEMU_FULL_VERSION "\n"
            QEMU_COPYRIGHT "\n\n" "ChefKiss Apple Silicon fork\n"
-           "Copyright (c) 2023-2024 Visual Ehrmanntraut and contributors");
+           "Copyright (c) 2023-2025 Visual Ehrmanntraut and contributors");
 }
 
 static void help(int exitcode)

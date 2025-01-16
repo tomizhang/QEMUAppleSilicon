@@ -1,8 +1,8 @@
 /*
  * Apple SEP.
  *
- * Copyright (c) 2023-2024 Visual Ehrmanntraut.
- * Copyright (c) 2023-2024 Christian Inci.
+ * Copyright (c) 2023-2025 Visual Ehrmanntraut.
+ * Copyright (c) 2023-2025 Christian Inci.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public

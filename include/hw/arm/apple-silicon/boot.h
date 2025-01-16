@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Visual Ehrmanntraut.
+ * Copyright (c) 2023-2025 Visual Ehrmanntraut.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
