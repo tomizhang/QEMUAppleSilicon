@@ -27,6 +27,9 @@
 #include "qemu/bswap.h"
 #include "qemu/cutils.h"
 
+#define DT_PROP_NAME_LEN (32)
+#define DT_PROP_SIZE_MASK (0xFFFFFFF)
+
 static uint64_t align_4_high_num(uint64_t num)
 {
     return (num + (4 - 1)) & ~(4 - 1);
@@ -52,8 +55,6 @@ static DTBProp *dtb_read_prop(uint8_t **dtb_blob, char *name)
     *dtb_blob += DT_PROP_NAME_LEN;
 
     prop->length = ldl_le_p(*dtb_blob) & DT_PROP_SIZE_MASK;
-    prop->flags =
-        (ldl_le_p(*dtb_blob) >> DT_PROP_FLAGS_SHIFT) & DT_PROP_FLAGS_MASK;
     *dtb_blob += sizeof(uint32_t);
 
     if (prop->length != 0) {

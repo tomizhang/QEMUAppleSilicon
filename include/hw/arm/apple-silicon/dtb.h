@@ -27,16 +27,8 @@
 #include "qemu/osdep.h"
 #include "exec/hwaddr.h"
 
-#define DT_PROP_SIZE_MASK (0xFFFFFFF)
-#define DT_PROP_FLAGS_SHIFT (28)
-#define DT_PROP_FLAGS_MASK (0xF)
-#define DT_PROP_FLAG_PLACEHOLDER (1 << 3)
-
-#define DT_PROP_NAME_LEN (32)
-
 typedef struct {
     uint32_t length;
-    uint8_t flags;
     uint8_t *value;
 } DTBProp;
 
