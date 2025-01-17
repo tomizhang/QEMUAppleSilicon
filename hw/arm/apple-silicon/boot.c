@@ -47,7 +47,7 @@ static const char *KEEP_COMP[] = {
     "arm-io,s8000\0$",
     "arm-io,t8030\0$",
     "atc-phy,t8030\0atc-phy,t8027\0$",
-#if ENABLE_BASEBAND == 1
+#ifdef ENABLE_BASEBAND
     "baseband,i19\0$",
 #endif
     "buttons\0$",
@@ -75,7 +75,7 @@ static const char *KEEP_COMP[] = {
     "pmgr1,t8030\0$",
     "pmu,d2255\0$", // problematic on S8000 (if AIC configed for T8030?)
     "pmu,spmi\0pmu,avus\0$",
-#if ENABLE_ROSWELL == 1
+#ifdef ENABLE_ROSWELL
     "roswell\0$",
 #endif
     "sart,coastguard\0$",
@@ -120,12 +120,14 @@ static const char *REM_NAMES[] = {
     "dotara\0$",
     "pmp\0$",
     "stockholm-spmi\0$",
-#if ENABLE_BASEBAND == 0
+#ifndef ENABLE_BASEBAND
     "baseband\0$",
     "baseband-spmi\0$",
     "baseband-vol\0$",
+    "pci-bridge3\0$",
+    "dart-apcie3\0$",
 #endif
-#if ENABLE_SEP == 0
+#ifndef ENABLE_SEP
     "sep\0$",
     "dart-sep\0$",
     "xart-vol\0$",
@@ -133,7 +135,7 @@ static const char *REM_NAMES[] = {
     "isp\0$",
     "xART\0$",
 #endif
-#if ENABLE_SEP_SECURITY == 0 // necessary?
+#ifndef ENABLE_SEP_SECURITY // necessary?
     "pearl-sep\0$",
     "isp\0$",
     "Lynx\0$",
@@ -141,22 +143,18 @@ static const char *REM_NAMES[] = {
 };
 
 static const char *REM_DEV_TYPES[] = {
-#if 0
-    "bluetooth\0$", "wlan\0$",
-#endif
+    // "bluetooth\0$", "wlan\0$",
     "aop\0$",          "backlight\0$",     "pmp\0$",
-#if ENABLE_BASEBAND == 0
+#ifndef ENABLE_BASEBAND
     "baseband\0$",     "baseband-spmi\0$",
 #endif
-#if ENABLE_SEP_SECURITY == 0 // necessary?
+#ifndef ENABLE_SEP_SECURITY // necessary?
     "spherecontrol\0$"
 #endif
 };
 
 static const char *REM_PROPS[] = {
-#if ENABLE_SEP == 0
-    // Really DON'T make this depend on ENABLE_SEP_SECURITY. Make it depend on
-    // ENABLE_SEP!
+#ifndef ENABLE_SEP_SECURITY
     "content-protect",
     "encryptable",
 #endif
@@ -175,11 +173,19 @@ static const char *REM_PROPS[] = {
     "nvme-coastguard",
     "pmp",
     "soc-tuning",
-#if ENABLE_BASEBAND == 0
+#ifndef ENABLE_BASEBAND
     "baseband-chipset",
     "has-baseband",
+    "event_name-gpio9",
+    "gps-capable",
+    "location-reminders",
+    "personal-hotspot",
+    "bitrate-3g",
+    "bitrate-lte",
+    "bitrate-2g",
+    "navigation",
 #endif
-#if ENABLE_SEP_SECURITY == 0 // necessary?
+#ifndef ENABLE_SEP_SECURITY // necessary?
     "pearl-camera",
     "face-detection-support",
 #endif
@@ -520,9 +526,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
 
     child = dtb_get_node(root, "defaults");
     g_assert_nonnull(child);
-    dtb_set_prop_u32(child, "content-protect", ENABLE_SEP_SECURITY);
-    dtb_set_prop_u32(child, "encryptable", ENABLE_SEP_SECURITY);
-#if ENABLE_SEP_SECURITY == 0
+#ifndef ENABLE_SEP_SECURITY
     dtb_set_prop_null(child, "no-effaceable-storage");
 #endif
 
@@ -533,7 +537,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     child = dtb_get_node(root, "product");
     g_assert_nonnull(child);
 #if 0
-    dtb_set_prop_u32(child, "allow-hactivation", 1); // Needs *DEV instead of *AP to be set
+    dtb_set_prop_u32(child, "allow-hactivation", 1); // Needs *DEV instead of *AP
 #endif
 
     macho_dtb_node_process(root, NULL);

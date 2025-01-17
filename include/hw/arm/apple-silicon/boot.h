@@ -17,10 +17,10 @@
 #ifndef HW_ARM_APPLE_SILICON_BOOT_H
 #define HW_ARM_APPLE_SILICON_BOOT_H
 
-#define ENABLE_BASEBAND 0
-#define ENABLE_SEP 1
-#define ENABLE_SEP_SECURITY 1
-#define ENABLE_ROSWELL 0
+// #define ENABLE_BASEBAND
+#define ENABLE_SEP
+#define ENABLE_SEP_SECURITY
+// #define ENABLE_ROSWELL
 
 #include "qemu/osdep.h"
 #include "exec/hwaddr.h"

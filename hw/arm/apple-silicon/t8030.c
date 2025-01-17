@@ -198,7 +198,7 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     *(uint32_t *)vtop_slid(0xFFFFFFF007B64494) = cpu_to_le32(0x5280000A);
     *(uint32_t *)vtop_slid(0xFFFFFFF007B644A4) = cpu_to_le32(0x52810009);
 
-#if ENABLE_SEP == 0
+#ifndef ENABLE_SEP
     // Make all AppleSEPKeyStoreUserClient requests do nothing but return
     // success
     *(uint32_t *)vtop_slid(0xFFFFFFF008F6F774) = cpu_to_le32(0x52800000);
@@ -764,6 +764,12 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     } else {
         dtb_set_prop(t8030_machine->device_tree, "compatible", 27,
                      "N104AP\0iPhone12,1\0AppleARM");
+#ifndef ENABLE_BASEBAND
+        DTBNode *system_vol = dtb_get_node(t8030_machine->device_tree,
+                                           "filesystems/fstab/system-vol");
+        g_assert_nonnull(system_vol);
+        dtb_set_prop(system_vol, "vol.fs_type", 3, "rw");
+#endif
         dtb_set_prop(data_vol, "vol.fs_mntopts", 13, "nosuid,nodev");
         dtb_set_prop_u32(data_vol, "vol.fs_mntorder", 3);
         dtb_set_prop_u32(chosen, "ephemeral-storage", 0);
@@ -773,7 +779,9 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         dtb_set_prop_u32(chosen, "use-recovery-securityd", 0);
         dtb_set_prop_u32(chosen, "disable-accessory-firmware", 0);
     }
-    dtb_set_prop_u32(chosen, "protected-data-access", ENABLE_SEP);
+#ifdef ENABLE_SEP_SECURITY
+    dtb_set_prop_u32(chosen, "protected-data-access", 1);
+#endif
 
     if (!xnu_contains_boot_arg(cmdline, "rd=", true)) {
         DTBProp *prop = dtb_find_prop(chosen, "root-matching");
@@ -2621,7 +2629,7 @@ static void t8030_machine_init(MachineState *machine)
         t8030_create_sep_sim(t8030_machine);
     }
 
-#if ENABLE_ROSWELL == 1
+#ifdef ENABLE_ROSWELL
     t8030_create_roswell(t8030_machine);
 #endif
 
