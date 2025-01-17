@@ -27,23 +27,23 @@
 #include "qemu/osdep.h"
 #include "exec/hwaddr.h"
 
-#define DT_PROP_FLAG_PLACEHOLDER (1 << 31)
-#define DT_PROP_FLAGS_MASK (0xF0000000)
-#define DT_PROP_SIZE_MASK (~DT_PROP_FLAGS_MASK)
+#define DT_PROP_SIZE_MASK (0xFFFFFFF)
+#define DT_PROP_FLAGS_SHIFT (28)
+#define DT_PROP_FLAGS_MASK (0xF)
+#define DT_PROP_FLAG_PLACEHOLDER (1 << 3)
 
 #define DTB_PROP_NAME_LEN (32)
 
 typedef struct {
-    uint8_t name[DTB_PROP_NAME_LEN];
     uint32_t length;
-    uint32_t flags;
+    uint8_t flags;
     uint8_t *value;
 } DTBProp;
 
 typedef struct {
     uint32_t prop_count;
     uint32_t child_node_count;
-    GList *props;
+    GHashTable *props;
     GList *child_nodes;
 } DTBNode;
 
@@ -51,7 +51,7 @@ DTBNode *dtb_unserialise(uint8_t *dtb_blob);
 void dtb_serialise(uint8_t *buf, DTBNode *root);
 bool dtb_remove_node_named(DTBNode *parent, const char *name);
 void dtb_remove_node(DTBNode *node, DTBNode *child);
-void dtb_unset_prop(DTBNode *node, DTBProp *prop);
+bool dtb_remove_prop_named(DTBNode *node, const char *name);
 DTBProp *dtb_set_prop(DTBNode *n, const char *name, uint32_t size,
                       const void *val);
 DTBProp *dtb_set_prop_null(DTBNode *node, const char *name);

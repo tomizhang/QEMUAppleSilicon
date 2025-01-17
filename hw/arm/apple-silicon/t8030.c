@@ -59,7 +59,6 @@
 #include "sysemu/reset.h"
 #include "sysemu/runstate.h"
 #include "sysemu/sysemu.h"
-#include "target/arm/arm-powerctl.h"
 
 #define T8030_SROM_BASE 0x100000000ull
 #define T8030_SROM_SIZE 0x80000ull
@@ -1772,15 +1771,8 @@ static void t8030_create_wdt(T8030MachineState *t8030_machine)
     }
 
     // TODO: MCC
-    prop = dtb_find_prop(child, "function-panic_flush_helper");
-    if (prop) {
-        dtb_unset_prop(child, prop);
-    }
-
-    prop = dtb_find_prop(child, "function-panic_halt_helper");
-    if (prop) {
-        dtb_unset_prop(child, prop);
-    }
+    dtb_remove_prop_named(child, "function-panic_flush_helper");
+    dtb_remove_prop_named(child, "function-panic_halt_helper");
 
     dtb_set_prop_u32(child, "no-pmu", 1);
 

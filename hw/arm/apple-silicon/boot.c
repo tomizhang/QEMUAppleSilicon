@@ -270,10 +270,7 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
 
     for (count = sizeof(REM_PROPS) / sizeof(REM_PROPS[0]), i = 0; i < count;
          i++) {
-        prop = dtb_find_prop(node, REM_PROPS[i]);
-        if (prop != NULL) {
-            dtb_unset_prop(node, prop);
-        }
+        dtb_remove_prop_named(node, REM_PROPS[i]);
     }
 
     cnt = node->child_node_count;
@@ -575,15 +572,11 @@ static void set_memory_range(DTBNode *root, const char *name, uint64_t addr,
 static void remove_memory_range(DTBNode *root, const char *name)
 {
     DTBNode *child;
-    DTBProp *prop;
 
     child = dtb_get_node(root, "chosen/memory-map");
     g_assert_nonnull(child);
 
-    prop = dtb_find_prop(child, "DeviceTree");
-    if (prop != NULL) {
-        dtb_unset_prop(child, prop);
-    }
+    dtb_remove_prop_named(child, "DeviceTree");
 }
 
 static void set_or_remove_memory_range(DTBNode *root, const char *name,

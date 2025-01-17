@@ -900,15 +900,8 @@ static void s8000_create_wdt(S8000MachineState *s8000_machine)
     }
 
     // TODO: MCC
-    prop = dtb_find_prop(child, "function-panic_flush_helper");
-    if (prop) {
-        dtb_unset_prop(child, prop);
-    }
-
-    prop = dtb_find_prop(child, "function-panic_halt_helper");
-    if (prop) {
-        dtb_unset_prop(child, prop);
-    }
+    dtb_remove_prop_named(child, "function-panic_flush_helper");
+    dtb_remove_prop_named(child, "function-panic_halt_helper");
 
     dtb_set_prop_u32(child, "no-pmu", 1);
 
@@ -1038,10 +1031,7 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
     child = dtb_find_node(s8000_machine->device_tree, "arm-io/disp0");
     g_assert_nonnull(child);
 
-    prop = dtb_find_prop(child, "iommu-parent");
-    if (prop) {
-        dtb_unset_prop(child, prop);
-    }
+    dtb_remove_prop_named(child, "iommu-parent");
 
     s = adbe_v2_create(child);
     sbd = SYS_BUS_DEVICE(s);

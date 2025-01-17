@@ -192,21 +192,13 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     object_property_set_uint(obj, "mp-affinity", tcpu->mpidr, &error_fatal);
 
-    if (node) {
-        /* remove debug regs from device tree */
-        prop = dtb_find_prop(node, "reg-private");
-        if (prop) {
-            dtb_unset_prop(node, prop);
-        }
-
-        prop = dtb_find_prop(node, "cpu-uttdbg-reg");
-        if (prop) {
-            dtb_unset_prop(node, prop);
-        }
+    if (node != NULL) {
+        dtb_remove_prop_named(node, "reg-private");
+        dtb_remove_prop_named(node, "cpu-uttdbg-reg");
     }
 
     if (tcpu->cpu_id == 0 || node == NULL) {
-        if (node) {
+        if (node != NULL) {
             dtb_set_prop(node, "state", 8, "running");
         }
         object_property_set_bool(obj, "start-powered-off", false, NULL);
