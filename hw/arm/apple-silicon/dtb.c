@@ -30,16 +30,6 @@
 #define DT_PROP_NAME_LEN (32)
 #define DT_PROP_SIZE_MASK (0xFFFFFFF)
 
-static uint64_t align_4_high_num(uint64_t num)
-{
-    return (num + (4 - 1)) & ~(4 - 1);
-}
-
-static void *align_4_high_ptr(void *ptr)
-{
-    return (void *)align_4_high_num((uint64_t)ptr);
-}
-
 static DTBProp *dtb_read_prop(uint8_t **dtb_blob, char *name)
 {
     g_assert_nonnull(dtb_blob);
@@ -47,8 +37,6 @@ static DTBProp *dtb_read_prop(uint8_t **dtb_blob, char *name)
     g_assert_nonnull(name);
 
     DTBProp *prop;
-
-    *dtb_blob = align_4_high_ptr(*dtb_blob);
 
     prop = g_new0(DTBProp, 1);
     memcpy(name, *dtb_blob, DT_PROP_NAME_LEN);
@@ -61,7 +49,7 @@ static DTBProp *dtb_read_prop(uint8_t **dtb_blob, char *name)
         prop->data = g_malloc0(prop->length);
         g_assert_nonnull(prop->data);
         memcpy(prop->data, *dtb_blob, prop->length);
-        *dtb_blob += prop->length;
+        *dtb_blob += ROUND_UP(prop->length, 4);
     }
 
     return prop;
@@ -89,12 +77,11 @@ static DTBNode *dtb_read_node(uint8_t **dtb_blob)
     g_assert_nonnull(dtb_blob);
     g_assert_nonnull(*dtb_blob);
 
-    *dtb_blob = align_4_high_ptr(*dtb_blob);
     node = g_new0(DTBNode, 1);
     node->prop_count = ldl_le_p(*dtb_blob);
-    *dtb_blob += sizeof(uint32_t);
+    *dtb_blob += sizeof(node->prop_count);
     node->child_node_count = ldl_le_p(*dtb_blob);
-    *dtb_blob += sizeof(uint32_t);
+    *dtb_blob += sizeof(node->child_node_count);
 
     node->props = g_hash_table_new_full(g_str_hash, g_str_equal, g_free,
                                         dtb_prop_destroy);
@@ -143,8 +130,6 @@ static void dtb_serialise_node(DTBNode *node, uint8_t **buf)
     g_assert_nonnull(buf);
     g_assert_nonnull(*buf);
 
-    *buf = align_4_high_ptr(*buf);
-
     memcpy(*buf, &node->prop_count, sizeof(node->prop_count));
     *buf += sizeof(node->prop_count);
     memcpy(*buf, &node->child_node_count, sizeof(node->child_node_count));
@@ -154,8 +139,6 @@ static void dtb_serialise_node(DTBNode *node, uint8_t **buf)
     while (g_hash_table_iter_next(&ht_iter, &key, &value)) {
         prop = (DTBProp *)value;
         g_assert_nonnull(prop);
-
-        *buf = align_4_high_ptr(*buf);
 
         memcpy(*buf, key, DT_PROP_NAME_LEN);
         *buf += DT_PROP_NAME_LEN;
@@ -167,7 +150,7 @@ static void dtb_serialise_node(DTBNode *node, uint8_t **buf)
         } else {
             g_assert_nonnull(prop->data);
             memcpy(*buf, prop->data, prop->length);
-            *buf += prop->length;
+            *buf += ROUND_UP(prop->length, 4);
         }
     }
 
@@ -290,10 +273,6 @@ void dtb_serialise(uint8_t *buf, DTBNode *root)
     g_assert_nonnull(buf);
     g_assert_nonnull(root);
 
-    // TODO: handle cases where the buffer is not 4 bytes aligned though this is
-    // never expected to happen and the code is simpler this way
-    g_assert_true(align_4_high_ptr(buf) == buf);
-
     dtb_serialise_node(root, &buf);
 }
 
@@ -301,8 +280,7 @@ static uint64_t dtb_get_serialised_prop_size(DTBProp *prop)
 {
     g_assert_nonnull(prop);
 
-    return align_4_high_num(DT_PROP_NAME_LEN + sizeof(prop->length) +
-                            prop->length);
+    return DT_PROP_NAME_LEN + sizeof(prop->length) + ROUND_UP(prop->length, 4);
 }
 
 uint64_t dtb_get_serialised_node_size(DTBNode *node)
