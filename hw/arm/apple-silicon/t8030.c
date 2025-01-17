@@ -766,9 +766,7 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         dtb_set_prop(t8030_machine->device_tree, "compatible", 27,
                      "N104AP\0iPhone12,1\0AppleARM");
         dtb_set_prop(data_vol, "vol.fs_mntopts", 13, "nosuid,nodev");
-        uint32_t mount_order = 3;
-        dtb_set_prop(data_vol, "vol.fs_mntorder", sizeof(mount_order),
-                     &mount_order);
+        dtb_set_prop_u32(data_vol, "vol.fs_mntorder", 3);
         dtb_set_prop_u32(chosen, "ephemeral-storage", 0);
         dtb_set_prop_u32(chosen, "sepfw-load-at-boot", 1);
         dtb_set_prop_u32(chosen, "no-sepfw-load-at-boot", 0);
