@@ -24,6 +24,7 @@
 #include "hw/display/apple_displaypipe_v2.h"
 #include "hw/irq.h"
 #include "hw/qdev-properties.h"
+#include "hw/resettable.h"
 #include "qemu/log.h"
 #include "qom/object.h"
 #include "sysemu/dma.h"
@@ -467,16 +468,19 @@ static const GraphicHwOps apple_displaypipe_v2_ops = {
     .gfx_update = apple_displaypipe_v2_gfx_update,
 };
 
-static void apple_displaypipe_v2_reset(DeviceState *dev)
+static void apple_displaypipe_v2_reset_hold(Object *obj, ResetType type)
 {
-    AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(dev);
+    AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(obj);
 
     s->invalidated = true;
     s->int_filter = 0;
     qemu_irq_lower(s->irqs[0]);
     apple_genpipev2_init(&s->genpipes[0], 0, &s->vram, &s->dma_as, s);
     apple_genpipev2_init(&s->genpipes[1], 1, &s->vram, &s->dma_as, s);
-    // TODO: clear the framebuffer during system reset
+
+    memset(memory_region_get_ram_ptr(&s->vram), 0,
+           memory_region_size(&s->vram));
+    memory_region_set_dirty(&s->vram, 0, memory_region_size(&s->vram));
 }
 
 static void apple_displaypipe_v2_realize(DeviceState *dev, Error **errp)
@@ -495,12 +499,14 @@ static Property apple_displaypipe_v2_props[] = {
 
 static void apple_displaypipe_v2_class_init(ObjectClass *klass, void *data)
 {
+    ResettableClass *rc = RESETTABLE_CLASS(klass);
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
+    rc->phases.hold = apple_displaypipe_v2_reset_hold;
+
     device_class_set_props(dc, apple_displaypipe_v2_props);
     dc->realize = apple_displaypipe_v2_realize;
-    device_class_set_legacy_reset(dc, apple_displaypipe_v2_reset);
+    set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
 }
 
 static const TypeInfo apple_displaypipe_v2_type_info = {
