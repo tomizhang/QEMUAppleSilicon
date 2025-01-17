@@ -259,12 +259,12 @@ SysBusDevice *apple_wdt_create(DTBNode *node)
 
     prop = dtb_find_prop(node, "wdt-version");
     assert(prop);
-    *(uint32_t *)prop->value = 1;
+    *(uint32_t *)prop->data = 1;
 
     prop = dtb_find_prop(node, "reg");
     assert(prop);
 
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     /*
      * 0: reg

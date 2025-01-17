@@ -417,15 +417,15 @@ DeviceState *apple_gpio_create(DTBNode *node)
 
     s->iomem = g_new(MemoryRegion, 1);
     DTBProp *prop = dtb_find_prop(node, "reg");
-    mmio_size = ((hwaddr *)prop->value)[1];
+    mmio_size = ((hwaddr *)prop->data)[1];
     prop = dtb_find_prop(node, "name");
-    dev->id = g_strdup((const char *)prop->value);
+    dev->id = g_strdup((const char *)prop->data);
     memory_region_init_io(s->iomem, OBJECT(dev), &gpio_reg_ops, s,
-                          (const char *)prop->value, mmio_size);
+                          (const char *)prop->data, mmio_size);
     sysbus_init_mmio(sbd, s->iomem);
 
     prop = dtb_find_prop(node, "#gpio-pins");
-    s->pin_count = *(uint32_t *)prop->value;
+    s->pin_count = *(uint32_t *)prop->data;
     assert(s->pin_count < GPIO_MAX_PIN_NR);
     qdev_init_gpio_in(dev, apple_gpio_set, s->pin_count);
 
@@ -433,7 +433,7 @@ DeviceState *apple_gpio_create(DTBNode *node)
     qdev_init_gpio_out(dev, s->out, s->pin_count);
 
     prop = dtb_find_prop(node, "#gpio-int-groups");
-    s->irq_group_count = *(uint32_t *)prop->value;
+    s->irq_group_count = *(uint32_t *)prop->data;
     s->irqs = g_new(qemu_irq, s->irq_group_count);
 
     for (i = 0; i < s->irq_group_count; i++) {

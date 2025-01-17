@@ -48,15 +48,15 @@ DeviceState *apple_soft_i2c_create(DTBNode *node)
     SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
     AppleSoftI2CState *s = APPLE_SOFT_I2C(dev);
     DTBProp *prop = dtb_find_prop(node, "reg");
-    uint64_t mmio_size = ((hwaddr *)prop->value)[1];
+    uint64_t mmio_size = ((hwaddr *)prop->data)[1];
     char bus_name[32] = { 0 };
 
     prop = dtb_find_prop(node, "name");
-    dev->id = g_strdup((const char *)prop->value);
+    dev->id = g_strdup((const char *)prop->data);
     memory_region_init_io(&s->iomem, OBJECT(dev), &i2c_reg_ops, s,
-                          (const char *)prop->value, mmio_size);
+                          (const char *)prop->data, mmio_size);
 
-    snprintf(bus_name, sizeof(bus_name), "%s.bus", (const char *)prop->value);
+    snprintf(bus_name, sizeof(bus_name), "%s.bus", (const char *)prop->data);
     s->bus = i2c_init_bus(dev, (const char *)bus_name);
     sysbus_init_mmio(sbd, &s->iomem);
 

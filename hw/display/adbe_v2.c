@@ -215,7 +215,7 @@ ADBEV2 *adbe_v2_create(DTBNode *node)
 
     prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     mr = g_new0(MemoryRegion, 5);
     memory_region_init_io(mr, OBJECT(sbd), &frontend_reg_ops, sbd,
                           "adbe.frontend", reg[1]);

@@ -554,11 +554,11 @@ SysBusDevice *apple_aic_create(uint32_t numCPU, DTBNode *node,
 
     prop = dtb_find_prop(node, "AAPL,phandle");
     g_assert_nonnull(prop);
-    s->phandle = *(uint32_t *)prop->value;
+    s->phandle = *(uint32_t *)prop->data;
 
     prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
-    reg = (hwaddr *)prop->value;
+    reg = (hwaddr *)prop->data;
     s->base_size = reg[1];
 
     prop = dtb_find_prop(node, "ipid-mask");
@@ -572,11 +572,11 @@ SysBusDevice *apple_aic_create(uint32_t numCPU, DTBNode *node,
 
     prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
-    base = *(uint64_t *)prop->value;
+    base = *(uint64_t *)prop->data;
 
     prop = dtb_find_prop(timebase_node, "reg");
     g_assert_nonnull(prop);
-    timebase = *(uint64_t *)prop->value;
+    timebase = *(uint64_t *)prop->data;
     s->time_base = timebase - base;
 
     return SYS_BUS_DEVICE(dev);

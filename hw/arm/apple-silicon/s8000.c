@@ -126,13 +126,13 @@ static void s8000_create_s3c_uart(const S8000MachineState *s8000_machine,
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
 
-    uart_offset = (hwaddr *)prop->value;
+    uart_offset = (hwaddr *)prop->data;
     base = s8000_machine->soc_base_pa + uart_offset[0];
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
 
-    vector = *(uint32_t *)prop->value;
+    vector = *(uint32_t *)prop->data;
     dev = exynos4210_uart_create(
         base, 256, 0, chr,
         qdev_get_gpio_in(DEVICE(s8000_machine->aic), vector));
@@ -410,7 +410,7 @@ static void s8000_memory_setup(MachineState *machine)
         DTBProp *prop = dtb_find_prop(chosen, "root-matching");
 
         if (prop) {
-            snprintf((char *)prop->value, prop->length,
+            snprintf((char *)prop->data, prop->length,
                      "<dict><key>IOProviderClass</key><string>IOMedia</"
                      "string><key>IOPropertyMatch</key><dict><key>Partition "
                      "ID</key><integer>1</integer></dict></dict>");
@@ -613,7 +613,7 @@ static void s8000_create_aic(S8000MachineState *s8000_machine)
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
 
-    reg = (hwaddr *)prop->value;
+    reg = (hwaddr *)prop->data;
 
     for (i = 0; i < machine->smp.cpus; i++) {
         memory_region_add_subregion_overlap(
@@ -640,7 +640,7 @@ static void s8000_pmgr_setup(S8000MachineState *s8000_machine)
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
 
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     for (i = 0; i < prop->length / 8; i += 2) {
         MemoryRegion *mem = g_new(MemoryRegion, 1);
@@ -680,7 +680,7 @@ static void s8000_create_nvme(S8000MachineState *s8000_machine)
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     sysbus_mmio_map(nvme, 0, s8000_machine->soc_base_pa + reg[0]);
 
@@ -689,7 +689,7 @@ static void s8000_create_nvme(S8000MachineState *s8000_machine)
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
     g_assert_cmpuint(prop->length, ==, 4);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     sysbus_connect_irq(nvme, 0,
                        qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[0]));
@@ -715,13 +715,13 @@ static void s8000_create_gpio(S8000MachineState *s8000_machine,
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0,
                     s8000_machine->soc_base_pa + reg[0]);
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
 
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -749,12 +749,12 @@ static void s8000_create_i2c(S8000MachineState *s8000_machine, const char *name)
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     sysbus_mmio_map(i2c, 0, s8000_machine->soc_base_pa + reg[0]);
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
 
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -807,7 +807,7 @@ static void s8000_create_spi(S8000MachineState *s8000_machine, const char *name)
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     sysbus_mmio_map(SYS_BUS_DEVICE(spi), 0,
                     s8000_machine->soc_base_pa + reg[0]);
     prop = dtb_find_prop(child, "interrupts");
@@ -815,7 +815,7 @@ static void s8000_create_spi(S8000MachineState *s8000_machine, const char *name)
 
     // The second sysbus IRQ is the cs line
     // TODO: Connect this to gpio over spi_cs0?
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
     sysbus_connect_irq(SYS_BUS_DEVICE(spi), 0,
                        qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[0]));
 }
@@ -841,20 +841,20 @@ static void s8000_create_usb(S8000MachineState *s8000_machine)
     prop = dtb_find_prop(phy, "reg");
     g_assert_nonnull(prop);
     sysbus_mmio_map(SYS_BUS_DEVICE(otg), 0,
-                    s8000_machine->soc_base_pa + ((uint64_t *)prop->value)[0]);
+                    s8000_machine->soc_base_pa + ((uint64_t *)prop->data)[0]);
     sysbus_mmio_map(SYS_BUS_DEVICE(otg), 1,
-                    s8000_machine->soc_base_pa + ((uint64_t *)prop->value)[2]);
+                    s8000_machine->soc_base_pa + ((uint64_t *)prop->data)[2]);
     sysbus_mmio_map(
         SYS_BUS_DEVICE(otg), 2,
         s8000_machine->soc_base_pa +
-            ((uint64_t *)dtb_find_prop(complex, "ranges")->value)[1] +
-            ((uint64_t *)dtb_find_prop(device, "reg")->value)[0]);
+            ((uint64_t *)dtb_find_prop(complex, "ranges")->data)[1] +
+            ((uint64_t *)dtb_find_prop(device, "reg")->data)[0]);
 
     prop = dtb_find_prop(complex, "reg");
     if (prop) {
         sysbus_mmio_map(SYS_BUS_DEVICE(otg), 3,
                         s8000_machine->soc_base_pa +
-                            ((uint64_t *)prop->value)[0]);
+                            ((uint64_t *)prop->data)[0]);
     }
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(otg), &error_fatal);
@@ -863,7 +863,7 @@ static void s8000_create_usb(S8000MachineState *s8000_machine)
     g_assert_nonnull(prop);
     sysbus_connect_irq(SYS_BUS_DEVICE(otg), 0,
                        qdev_get_gpio_in(DEVICE(s8000_machine->aic),
-                                        ((uint32_t *)prop->value)[0]));
+                                        ((uint32_t *)prop->data)[0]));
 }
 
 static void s8000_create_wdt(S8000MachineState *s8000_machine)
@@ -885,14 +885,14 @@ static void s8000_create_wdt(S8000MachineState *s8000_machine)
     object_property_add_child(OBJECT(s8000_machine), "wdt", OBJECT(wdt));
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     sysbus_mmio_map(wdt, 0, s8000_machine->soc_base_pa + reg[0]);
     sysbus_mmio_map(wdt, 1, s8000_machine->soc_base_pa + reg[2]);
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -927,7 +927,7 @@ static void s8000_create_aes(S8000MachineState *s8000_machine)
     object_property_add_child(OBJECT(s8000_machine), "aes", OBJECT(aes));
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     sysbus_mmio_map(aes, 0, s8000_machine->soc_base_pa + reg[0]);
     sysbus_mmio_map(aes, 1, s8000_machine->soc_base_pa + reg[2]);
@@ -935,7 +935,7 @@ static void s8000_create_aes(S8000MachineState *s8000_machine)
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
     g_assert_cmpuint(prop->length, ==, 4);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     sysbus_connect_irq(aes, 0,
                        qdev_get_gpio_in(DEVICE(s8000_machine->aic), *ints));
@@ -966,14 +966,14 @@ static void s8000_create_sep(S8000MachineState *s8000_machine)
                               OBJECT(s8000_machine->sep));
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     sysbus_mmio_map_overlap(SYS_BUS_DEVICE(s8000_machine->sep), 0,
                             s8000_machine->soc_base_pa + reg[0], 2);
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -1006,11 +1006,11 @@ static void s8000_create_pmu(S8000MachineState *s8000_machine)
     g_assert_nonnull(prop);
 
     dev = DEVICE(i2c_slave_create_simple(i2c->bus, TYPE_PMU_D2255,
-                                         *(uint32_t *)prop->value));
+                                         *(uint32_t *)prop->data));
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     gpio = DEVICE(
         object_property_get_link(OBJECT(s8000_machine), "gpio", &error_fatal));
@@ -1048,7 +1048,7 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     sysbus_mmio_map(sbd, 0, s8000_machine->soc_base_pa + reg[0]);
     sysbus_mmio_map(sbd, 1, s8000_machine->soc_base_pa + reg[2]);
@@ -1059,7 +1059,7 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    uint32_t *ints = (uint32_t *)prop->value;
+    uint32_t *ints = (uint32_t *)prop->data;
 
     for (size_t i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_init_irq(sbd, &s->irqs[i]);
@@ -1209,7 +1209,7 @@ static void s8000_machine_init(MachineState *machine)
     prop = dtb_find_prop(child, "ranges");
     g_assert_nonnull(prop);
 
-    ranges = (hwaddr *)prop->value;
+    ranges = (hwaddr *)prop->data;
     s8000_machine->soc_base_pa = ranges[1];
     s8000_machine->soc_size = ranges[2];
 

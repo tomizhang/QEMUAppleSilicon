@@ -475,14 +475,14 @@ SysBusDevice *apple_spi_create(DTBNode *node)
     SysBusDevice *sbd = SYS_BUS_DEVICE(dev);
     AppleSPIState *s = APPLE_SPI(dev);
     DTBProp *prop = dtb_find_prop(node, "reg");
-    uint64_t mmio_size = ((hwaddr *)prop->value)[1];
+    uint64_t mmio_size = ((hwaddr *)prop->data)[1];
 
     prop = dtb_find_prop(node, "name");
-    dev->id = g_strdup((const char *)prop->value);
+    dev->id = g_strdup((const char *)prop->data);
     s->mmio_size = mmio_size;
 
     if ((prop = dtb_find_prop(node, "dma-channels")) != NULL) {
-        uint32_t *data = (uint32_t *)prop->value;
+        uint32_t *data = (uint32_t *)prop->data;
         s->dma_capable = true;
         s->tx_chan_id = data[0];
         s->rx_chan_id = data[8];

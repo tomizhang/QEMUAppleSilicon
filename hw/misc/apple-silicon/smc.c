@@ -502,7 +502,7 @@ SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
     prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
 
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     apple_rtbuddy_init(rtb, NULL, "SMC", reg[1], version, protocol_version,
                        NULL);
@@ -518,7 +518,7 @@ SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
     g_assert_nonnull(prop);
     g_assert_cmpuint(prop->length, ==, 8);
 
-    s->sram_addr = *(uint64_t *)prop->value;
+    s->sram_addr = *(uint64_t *)prop->data;
     s->iomems[2] = g_new(MemoryRegion, 1);
     memory_region_init_ram_device_ptr(s->iomems[2], OBJECT(dev),
                                       TYPE_APPLE_SMC_IOP ".sram",

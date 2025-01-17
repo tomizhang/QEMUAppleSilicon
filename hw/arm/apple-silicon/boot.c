@@ -223,11 +223,11 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
 
     prop = dtb_find_prop(node, "compatible");
     if (prop != NULL) {
-        g_assert_nonnull(prop->value);
+        g_assert_nonnull(prop->data);
         found = false;
         for (count = sizeof(KEEP_COMP) / sizeof(KEEP_COMP[0]), i = 0; i < count;
              i++) {
-            if (memcmp(prop->value, KEEP_COMP[i],
+            if (memcmp(prop->data, KEEP_COMP[i],
                        MIN(prop->length, sstrlen(KEEP_COMP[i]))) == 0) {
                 found = true;
                 break;
@@ -242,11 +242,11 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
 
     prop = dtb_find_prop(node, "name");
     if (prop != NULL) {
-        g_assert_nonnull(prop->value);
+        g_assert_nonnull(prop->data);
         for (count = sizeof(REM_NAMES) / sizeof(REM_NAMES[0]), i = 0; i < count;
              i++) {
             uint64_t size = MIN(prop->length, sstrlen(REM_NAMES[i]));
-            if (memcmp(prop->value, REM_NAMES[i], size) == 0) {
+            if (memcmp(prop->data, REM_NAMES[i], size) == 0) {
                 g_assert_nonnull(parent);
                 dtb_remove_node(parent, node);
                 return;
@@ -256,11 +256,11 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
 
     prop = dtb_find_prop(node, "device_type");
     if (prop != NULL) {
-        g_assert_nonnull(prop->value);
+        g_assert_nonnull(prop->data);
         for (count = sizeof(REM_DEV_TYPES) / sizeof(REM_DEV_TYPES[0]), i = 0;
              i < count; i++) {
             uint64_t size = MIN(prop->length, sstrlen(REM_DEV_TYPES[i]));
-            if (memcmp(prop->value, REM_DEV_TYPES[i], size) == 0) {
+            if (memcmp(prop->data, REM_DEV_TYPES[i], size) == 0) {
                 g_assert_nonnull(parent);
                 dtb_remove_node(parent, node);
                 return;
@@ -474,7 +474,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     g_assert_nonnull(child);
     prop = dtb_find_prop(child, "random-seed");
     g_assert_nonnull(prop);
-    qemu_guest_getrandom_nofail(prop->value, prop->length);
+    qemu_guest_getrandom_nofail(prop->data, prop->length);
 
     dtb_set_prop_hwaddr(child, "dram-base", info->dram_base);
     dtb_set_prop_hwaddr(child, "dram-size", info->dram_size);
@@ -565,8 +565,8 @@ static void set_memory_range(DTBNode *root, const char *name, uint64_t addr,
     prop = dtb_find_prop(child, name);
     g_assert_nonnull(prop);
 
-    ((uint64_t *)prop->value)[0] = addr;
-    ((uint64_t *)prop->value)[1] = size;
+    ((uint64_t *)prop->data)[0] = addr;
+    ((uint64_t *)prop->data)[1] = size;
 }
 
 static void remove_memory_range(DTBNode *root, const char *name)
@@ -615,7 +615,7 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
         prop = dtb_find_prop(child, "crypto-hash-method");
 
         if (prop != NULL) {
-            if (strcmp((char *)prop->value, "sha2-384") == 0) {
+            if (strcmp((char *)prop->data, "sha2-384") == 0) {
                 alg = QCRYPTO_HASH_ALGO_SHA384;
             }
         }
@@ -626,7 +626,7 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
         if (qcrypto_hash_bytes(alg, info->ticket_data, info->ticket_length,
                                &hash, &hash_len, &err) >= 0) {
             g_assert_cmpuint(hash_len, ==, prop->length);
-            memcpy(prop->value, hash, hash_len);
+            memcpy(prop->data, hash, hash_len);
         } else {
             error_report_err(err);
         }

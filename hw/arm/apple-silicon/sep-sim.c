@@ -983,7 +983,7 @@ AppleSEPSimState *apple_sep_sim_create(DTBNode *node, bool modern)
 
     prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     apple_a7iop_init(a7iop, "SEP", reg[1],
                      modern ? APPLE_A7IOP_V4 : APPLE_A7IOP_V2, NULL,

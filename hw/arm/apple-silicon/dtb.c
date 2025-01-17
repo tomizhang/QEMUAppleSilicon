@@ -58,9 +58,9 @@ static DTBProp *dtb_read_prop(uint8_t **dtb_blob, char *name)
     *dtb_blob += sizeof(uint32_t);
 
     if (prop->length != 0) {
-        prop->value = g_malloc0(prop->length);
-        g_assert_nonnull(prop->value);
-        memcpy(prop->value, *dtb_blob, prop->length);
+        prop->data = g_malloc0(prop->length);
+        g_assert_nonnull(prop->data);
+        memcpy(prop->data, *dtb_blob, prop->length);
         *dtb_blob += prop->length;
     }
 
@@ -74,7 +74,7 @@ static void dtb_prop_destroy(gpointer data)
     prop = data;
 
     g_assert_nonnull(prop);
-    g_free(prop->value);
+    g_free(prop->data);
     g_free(prop);
 }
 
@@ -163,10 +163,10 @@ static void dtb_serialise_node(DTBNode *node, uint8_t **buf)
         *buf += sizeof(uint32_t);
 
         if (prop->length == 0) {
-            g_assert_null(prop->value);
+            g_assert_null(prop->data);
         } else {
-            g_assert_nonnull(prop->value);
-            memcpy(*buf, prop->value, prop->length);
+            g_assert_nonnull(prop->data);
+            memcpy(*buf, prop->data, prop->length);
             *buf += prop->length;
         }
     }
@@ -251,15 +251,15 @@ DTBProp *dtb_set_prop(DTBNode *node, const char *name, const uint32_t size,
         g_hash_table_insert(node->props, g_strdup(name), prop);
         node->prop_count++;
     } else {
-        g_free(prop->value);
+        g_free(prop->data);
         memset(prop, 0, sizeof(DTBProp));
     }
 
     prop->length = size;
 
     if (val != NULL) {
-        prop->value = g_malloc0(size);
-        memcpy(prop->value, val, size);
+        prop->data = g_malloc0(size);
+        memcpy(prop->data, val, size);
     }
 
     return prop;
@@ -371,7 +371,7 @@ DTBNode *dtb_find_node(DTBNode *node, const char *path)
                 continue;
             }
 
-            if (strncmp((const char *)prop->value, next, prop->length) == 0) {
+            if (strncmp((const char *)prop->data, next, prop->length) == 0) {
                 node = child;
                 found = true;
             }
@@ -421,7 +421,7 @@ DTBNode *dtb_get_node(DTBNode *node, const char *path)
                 continue;
             }
 
-            if (strncmp((const char *)prop->value, name, prop->length) == 0) {
+            if (strncmp((const char *)prop->data, name, prop->length) == 0) {
                 node = child;
                 found = true;
             }

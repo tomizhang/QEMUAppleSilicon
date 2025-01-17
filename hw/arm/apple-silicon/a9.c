@@ -164,15 +164,15 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     if (node) {
         prop = dtb_find_prop(node, "name");
-        dev->id = g_strdup((char *)prop->value);
+        dev->id = g_strdup((char *)prop->data);
 
         prop = dtb_find_prop(node, "cpu-id");
         g_assert_cmpuint(prop->length, ==, 4);
-        tcpu->cpu_id = *(unsigned int *)prop->value;
+        tcpu->cpu_id = *(unsigned int *)prop->data;
 
         prop = dtb_find_prop(node, "reg");
         g_assert_cmpuint(prop->length, ==, 4);
-        tcpu->phys_id = *(unsigned int *)prop->value;
+        tcpu->phys_id = *(unsigned int *)prop->data;
     } else {
         dev->id = g_strdup(name);
         tcpu->cpu_id = cpu_id;
@@ -229,7 +229,7 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
         if (prop) {
             g_assert_cmpuint(prop->length, ==, 16);
 
-            reg = (uint64_t *)prop->value;
+            reg = (uint64_t *)prop->data;
 
             memory_region_init_ram_device_ptr(&tcpu->impl_reg, obj,
                                               TYPE_APPLE_A9 ".impl-reg", reg[1],
@@ -242,7 +242,7 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
         if (prop) {
             g_assert_cmpuint(prop->length, ==, 16);
 
-            reg = (uint64_t *)prop->value;
+            reg = (uint64_t *)prop->data;
 
             memory_region_init_ram_device_ptr(&tcpu->coresight_reg, obj,
                                               TYPE_APPLE_A9 ".coresight-reg",

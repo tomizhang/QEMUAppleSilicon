@@ -61,7 +61,7 @@ SysBusDevice *apple_nvme_mmu_create(DTBNode *node)
     prop = dtb_find_prop(node, "reg");
     assert(prop);
 
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     memory_region_init(&s->io_mmio, OBJECT(s), "nvme_mmu_pci_mmio", reg[1]);
     sysbus_init_mmio(sbd, &s->io_mmio);

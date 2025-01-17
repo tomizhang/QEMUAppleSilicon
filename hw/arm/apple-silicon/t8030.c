@@ -164,13 +164,13 @@ static void t8030_create_s3c_uart(const T8030MachineState *t8030_machine,
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
 
-    uart_offset = (hwaddr *)prop->value;
+    uart_offset = (hwaddr *)prop->data;
     base = t8030_machine->soc_base_pa + uart_offset[0] + uart_offset[1] * port;
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
 
-    vector = *(uint32_t *)prop->value + port;
+    vector = *(uint32_t *)prop->data + port;
     dev = apple_uart_create(
         base, 15, 0, chr, qdev_get_gpio_in(DEVICE(t8030_machine->aic), vector));
     g_assert_nonnull(dev);
@@ -779,7 +779,7 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         DTBProp *prop = dtb_find_prop(chosen, "root-matching");
 
         if (prop) {
-            snprintf((char *)prop->value, prop->length,
+            snprintf((char *)prop->data, prop->length,
                      "<dict><key>IOProviderClass</key><string>IOMedia</"
                      "string><key>IOPropertyMatch</key><dict><key>Partition "
                      "ID</key><integer>1</integer></dict></dict>");
@@ -1263,7 +1263,7 @@ static void t8030_create_aic(T8030MachineState *t8030_machine)
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
 
-    reg = (hwaddr *)prop->value;
+    reg = (hwaddr *)prop->data;
 
     for (i = 0; i < t8030_real_cpu_count(t8030_machine); i++) {
         memory_region_add_subregion_overlap(
@@ -1291,7 +1291,7 @@ static void t8030_pmgr_setup(T8030MachineState *t8030_machine)
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
 
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     for (i = 0; i < prop->length / 8; i += 2) {
         MemoryRegion *mem = g_new(MemoryRegion, 1);
@@ -1437,7 +1437,7 @@ static void t8030_create_dart(T8030MachineState *t8030_machine,
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
 
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     for (i = 0; i < prop->length / 16; i++) {
         sysbus_mmio_map(SYS_BUS_DEVICE(dart), i,
@@ -1446,7 +1446,7 @@ static void t8030_create_dart(T8030MachineState *t8030_machine,
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -1473,7 +1473,7 @@ static void t8030_create_sart(T8030MachineState *t8030_machine)
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     sysbus_mmio_map(sart, 0, t8030_machine->soc_base_pa + reg[0]);
     sysbus_realize_and_unref(sart, &error_fatal);
@@ -1498,11 +1498,11 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     g_assert_nonnull(iop_nub);
 
     prop = dtb_find_prop(iop_nub, "region-base");
-    *(uint64_t *)prop->value = T8030_ANS_DATA_BASE;
+    *(uint64_t *)prop->data = T8030_ANS_DATA_BASE;
     //*(uint64_t *)prop->value = T8030_ANS_REGION_BASE;
 
     prop = dtb_find_prop(iop_nub, "region-size");
-    *(uint64_t *)prop->value = T8030_ANS_DATA_SIZE;
+    *(uint64_t *)prop->data = T8030_ANS_DATA_SIZE;
     //*(uint64_t *)prop->value = T8030_ANS_REGION_SIZE;
 
     dtb_set_prop(iop_nub, "segment-names", 14, "__TEXT;__DATA");
@@ -1540,7 +1540,7 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     object_property_add_child(OBJECT(t8030_machine), "ans", OBJECT(ans));
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     for (i = 0; i < 4; i++) {
         sysbus_mmio_map(ans, i, t8030_machine->soc_base_pa + reg[i << 1]);
@@ -1549,7 +1549,7 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
     g_assert_cmpuint(prop->length, ==, 20);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -1577,13 +1577,13 @@ static void t8030_create_gpio(T8030MachineState *t8030_machine,
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0,
                     t8030_machine->soc_base_pa + reg[0]);
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
 
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -1610,14 +1610,14 @@ static void t8030_create_i2c(T8030MachineState *t8030_machine, const char *name)
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     sysbus_mmio_map(i2c, 0, t8030_machine->soc_base_pa + reg[0]);
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
 
     sysbus_connect_irq(
         i2c, 0,
-        qdev_get_gpio_in(DEVICE(t8030_machine->aic), *(uint32_t *)prop->value));
+        qdev_get_gpio_in(DEVICE(t8030_machine->aic), *(uint32_t *)prop->data));
 
     sysbus_realize_and_unref(i2c, &error_fatal);
 }
@@ -1650,13 +1650,13 @@ static void t8030_create_spi(T8030MachineState *t8030_machine, uint32_t port)
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     base = t8030_machine->soc_base_pa + reg[0];
     sysbus_mmio_map(spi, 0, base);
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
     irq = ints[0];
 
     // The second sysbus IRQ is the cs line
@@ -1665,7 +1665,7 @@ static void t8030_create_spi(T8030MachineState *t8030_machine, uint32_t port)
 
     prop = dtb_find_prop(child, "function-spi_cs0");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
     cs_pin = ints[2];
     gpio = DEVICE(
         object_property_get_link(OBJECT(t8030_machine), "gpio", &error_fatal));
@@ -1700,7 +1700,7 @@ static void t8030_create_usb(T8030MachineState *t8030_machine)
     prop = dtb_find_prop(dart_mapper, "reg");
     g_assert_nonnull(prop);
     g_assert_cmpuint(prop->length, ==, 4);
-    iommu = apple_dart_instance_iommu_mr(dart, 1, *(uint32_t *)prop->value);
+    iommu = apple_dart_instance_iommu_mr(dart, 1, *(uint32_t *)prop->data);
     g_assert_nonnull(iommu);
 
     g_assert_nonnull(
@@ -1711,7 +1711,7 @@ static void t8030_create_usb(T8030MachineState *t8030_machine)
     prop = dtb_find_prop(dart_dwc2_mapper, "reg");
     g_assert_nonnull(prop);
     g_assert_cmpuint(prop->length, ==, 4);
-    iommu = apple_dart_instance_iommu_mr(dart, 1, *(uint32_t *)prop->value);
+    iommu = apple_dart_instance_iommu_mr(dart, 1, *(uint32_t *)prop->data);
     g_assert_nonnull(iommu);
 
     g_assert_nonnull(
@@ -1720,13 +1720,13 @@ static void t8030_create_usb(T8030MachineState *t8030_machine)
     prop = dtb_find_prop(phy, "reg");
     g_assert_nonnull(prop);
     sysbus_mmio_map(SYS_BUS_DEVICE(atc), 0,
-                    t8030_machine->soc_base_pa + ((uint64_t *)prop->value)[0]);
+                    t8030_machine->soc_base_pa + ((uint64_t *)prop->data)[0]);
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(atc), &error_fatal);
 
     prop = dtb_find_prop(drd, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
     for (int i = 0; i < 4; i++) {
         sysbus_connect_irq(
             SYS_BUS_DEVICE(atc), i,
@@ -1756,14 +1756,14 @@ static void t8030_create_wdt(T8030MachineState *t8030_machine)
     object_property_add_child(OBJECT(t8030_machine), "wdt", OBJECT(wdt));
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     sysbus_mmio_map(wdt, 0, t8030_machine->soc_base_pa + reg[0]);
     sysbus_mmio_map(wdt, 1, t8030_machine->soc_base_pa + reg[2]);
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -1803,7 +1803,7 @@ static void t8030_create_aes(T8030MachineState *t8030_machine)
     object_property_add_child(OBJECT(t8030_machine), "aes", OBJECT(aes));
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     sysbus_mmio_map(aes, 0, t8030_machine->soc_base_pa + reg[0]);
     sysbus_mmio_map(aes, 1, t8030_machine->soc_base_pa + reg[2]);
@@ -1811,7 +1811,7 @@ static void t8030_create_aes(T8030MachineState *t8030_machine)
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
     g_assert_cmpuint(prop->length, ==, 4);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     sysbus_connect_irq(aes, 0,
                        qdev_get_gpio_in(DEVICE(t8030_machine->aic), *ints));
@@ -1822,7 +1822,7 @@ static void t8030_create_aes(T8030MachineState *t8030_machine)
 
     prop = dtb_find_prop(dart_aes_mapper, "reg");
 
-    dma_mr = apple_dart_iommu_mr(dart, *(uint32_t *)prop->value);
+    dma_mr = apple_dart_iommu_mr(dart, *(uint32_t *)prop->data);
     g_assert_nonnull(dma_mr);
     g_assert_nonnull(
         object_property_add_const_link(OBJECT(aes), "dma-mr", OBJECT(dma_mr)));
@@ -1851,7 +1851,7 @@ static void t8030_create_spmi(T8030MachineState *t8030_machine,
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
 
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     sysbus_mmio_map(SYS_BUS_DEVICE(spmi), 0,
                     (t8030_machine->soc_base_pa + reg[2]) &
@@ -1859,7 +1859,7 @@ static void t8030_create_spmi(T8030MachineState *t8030_machine,
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
     // XXX: Only the second interrupt's parent is AIC
     sysbus_connect_irq(SYS_BUS_DEVICE(spmi), 0,
                        qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[1]));
@@ -1895,7 +1895,7 @@ static void t8030_create_pmu(T8030MachineState *t8030_machine,
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     qdev_connect_gpio_out(pmu, 0, qdev_get_gpio_in(DEVICE(spmi), ints[0]));
     spmi_slave_realize_and_unref(SPMI_SLAVE(pmu), spmi->bus, &error_fatal);
@@ -1929,10 +1929,10 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
 
     prop = dtb_find_prop(iop_nub, "region-base");
     g_assert_nonnull(prop);
-    smc_region_base = *(uint64_t *)prop->value;
+    smc_region_base = *(uint64_t *)prop->data;
     prop = dtb_find_prop(iop_nub, "region-size");
     g_assert_nonnull(prop);
-    smc_region_size = *(uint64_t *)prop->value;
+    smc_region_size = *(uint64_t *)prop->data;
 
     smc_text_base = smc_region_base;
     smc_data_base = smc_text_base + T8030_SMC_TEXT_SIZE;
@@ -1965,7 +1965,7 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
     object_property_add_child(OBJECT(t8030_machine), "smc", OBJECT(smc));
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     for (i = 0; i < prop->length / 16; i++) {
         sysbus_mmio_map(smc, i, t8030_machine->soc_base_pa + reg[i * 2]);
@@ -1975,7 +1975,7 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -2038,7 +2038,7 @@ static void t8030_create_sio(T8030MachineState *t8030_machine)
     object_property_add_child(OBJECT(t8030_machine), "sio", OBJECT(sio));
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     for (i = 0; i < 2; i++) {
         sysbus_mmio_map(sio, i, t8030_machine->soc_base_pa + reg[i * 2]);
@@ -2046,7 +2046,7 @@ static void t8030_create_sio(T8030MachineState *t8030_machine)
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -2059,7 +2059,7 @@ static void t8030_create_sio(T8030MachineState *t8030_machine)
 
     prop = dtb_find_prop(dart_sio_mapper, "reg");
 
-    dma_mr = apple_dart_iommu_mr(dart, *(uint32_t *)prop->value);
+    dma_mr = apple_dart_iommu_mr(dart, *(uint32_t *)prop->data);
     g_assert_nonnull(dma_mr);
     g_assert_nonnull(
         object_property_add_const_link(OBJECT(sio), "dma-mr", OBJECT(dma_mr)));
@@ -2081,7 +2081,7 @@ static void t8030_create_roswell(T8030MachineState *t8030_machine)
     i2c = APPLE_I2C(
         object_property_get_link(OBJECT(t8030_machine), "i2c3", &error_fatal));
     i2c_slave_create_simple(i2c->bus, TYPE_APPLE_ROSWELL,
-                            *(uint32_t *)prop->value);
+                            *(uint32_t *)prop->data);
 }
 
 static void t8030_create_misc(T8030MachineState *t8030_machine)
@@ -2147,13 +2147,13 @@ static void t8030_create_display(T8030MachineState *t8030_machine)
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     sysbus_mmio_map(sbd, 0, t8030_machine->soc_base_pa + reg[0]);
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    uint32_t *ints = (uint32_t *)prop->value;
+    uint32_t *ints = (uint32_t *)prop->data;
 
     for (size_t i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -2169,7 +2169,7 @@ static void t8030_create_display(T8030MachineState *t8030_machine)
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
     s->dma_mr =
-        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->value));
+        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->data));
     g_assert_nonnull(s->dma_mr);
     g_assert_nonnull(object_property_add_const_link(OBJECT(sbd), "dma_mr",
                                                     OBJECT(s->dma_mr)));
@@ -2218,7 +2218,7 @@ static void t8030_create_sep(T8030MachineState *t8030_machine)
 
     sep = apple_sep_create(
         child,
-        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->value)),
+        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->data)),
         T8030_SEPROM_BASE, A13_MAX_CPU + 1, t8030_machine->build_version, true,
         chip_id);
     g_assert_nonnull(sep);
@@ -2227,7 +2227,7 @@ static void t8030_create_sep(T8030MachineState *t8030_machine)
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 0,
                     t8030_machine->soc_base_pa + reg[0]);
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 1,
@@ -2261,7 +2261,7 @@ static void t8030_create_sep(T8030MachineState *t8030_machine)
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (int i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -2294,13 +2294,13 @@ static void t8030_create_sep_sim(T8030MachineState *t8030_machine)
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 0,
                     t8030_machine->soc_base_pa + reg[0]);
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
-    ints = (uint32_t *)prop->value;
+    ints = (uint32_t *)prop->data;
 
     for (int i = 0; i < prop->length / sizeof(uint32_t); i++) {
         sysbus_connect_irq(
@@ -2318,7 +2318,7 @@ static void t8030_create_sep_sim(T8030MachineState *t8030_machine)
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
     sep->dma_mr =
-        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->value));
+        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->data));
     g_assert_nonnull(sep->dma_mr);
     g_assert_nonnull(object_property_add_const_link(OBJECT(sep), "dma-mr",
                                                     OBJECT(sep->dma_mr)));
@@ -2498,7 +2498,7 @@ static void t8030_machine_init(MachineState *machine)
     prop = dtb_find_prop(child, "ranges");
     g_assert_nonnull(prop);
 
-    ranges = (hwaddr *)prop->value;
+    ranges = (hwaddr *)prop->data;
     t8030_machine->soc_base_pa = ranges[1];
     t8030_machine->soc_size = ranges[2];
 

@@ -197,18 +197,18 @@ SysBusDevice *apple_sart_create(DTBNode *node)
     sbd = SYS_BUS_DEVICE(dev);
 
     prop = dtb_find_prop(node, "name");
-    dev->id = g_strdup((const char *)prop->value);
+    dev->id = g_strdup((const char *)prop->data);
 
     prop = dtb_find_prop(node, "sart-version");
     g_assert_nonnull(prop);
-    s->version = *(uint32_t *)prop->value;
+    s->version = *(uint32_t *)prop->data;
     g_assert_cmpuint(s->version, >=, 1);
     g_assert_cmpuint(s->version, <=, 3);
 
     prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
 
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     memory_region_init_io(&s->iomem, OBJECT(dev), &base_reg_ops, s,
                           TYPE_APPLE_SART ".reg", reg[1]);
     sysbus_init_mmio(sbd, &s->iomem);

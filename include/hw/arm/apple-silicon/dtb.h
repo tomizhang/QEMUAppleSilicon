@@ -29,7 +29,7 @@
 
 typedef struct {
     uint32_t length;
-    uint8_t *value;
+    uint8_t *data;
 } DTBProp;
 
 typedef struct {

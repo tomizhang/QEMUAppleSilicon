@@ -667,19 +667,19 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     if (node) {
         prop = dtb_find_prop(node, "name");
-        dev->id = g_strdup((char *)prop->value);
+        dev->id = g_strdup((char *)prop->data);
 
         prop = dtb_find_prop(node, "cpu-id");
         g_assert_cmpuint(prop->length, ==, 4);
-        tcpu->cpu_id = *(unsigned int *)prop->value;
+        tcpu->cpu_id = *(unsigned int *)prop->data;
 
         prop = dtb_find_prop(node, "reg");
         g_assert_cmpuint(prop->length, ==, 4);
-        tcpu->phys_id = *(unsigned int *)prop->value;
+        tcpu->phys_id = *(unsigned int *)prop->data;
 
         prop = dtb_find_prop(node, "cluster-id");
         g_assert_cmpuint(prop->length, ==, 4);
-        tcpu->cluster_id = *(unsigned int *)prop->value;
+        tcpu->cluster_id = *(unsigned int *)prop->data;
     } else {
         dev->id = g_strdup(name);
         tcpu->cpu_id = cpu_id;
@@ -696,7 +696,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     if (node) {
         prop = dtb_find_prop(node, "cluster-type");
-        cluster_type = *prop->value;
+        cluster_type = *prop->data;
     }
     switch (cluster_type) {
     case 'P': // Lightning
@@ -752,7 +752,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
         if (prop) {
             g_assert_cmpuint(prop->length, ==, 16);
 
-            reg = (uint64_t *)prop->value;
+            reg = (uint64_t *)prop->data;
 
             memory_region_init_ram_device_ptr(&tcpu->impl_reg, obj,
                                               TYPE_APPLE_A13 ".impl-reg",
@@ -765,7 +765,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
         if (prop) {
             g_assert_cmpuint(prop->length, ==, 16);
 
-            reg = (uint64_t *)prop->value;
+            reg = (uint64_t *)prop->data;
 
             memory_region_init_ram_device_ptr(&tcpu->coresight_reg, obj,
                                               TYPE_APPLE_A13 ".coresight-reg",
@@ -777,7 +777,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
         prop = dtb_find_prop(node, "cpm-impl-reg");
         if (prop) {
             g_assert_cmpuint(prop->length, ==, 16);
-            memcpy(tcpu->cluster_reg, prop->value, prop->length);
+            memcpy(tcpu->cluster_reg, prop->data, prop->length);
         }
     }
     return tcpu;

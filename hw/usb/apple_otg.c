@@ -204,7 +204,7 @@ DeviceState *apple_otg_create(DTBNode *node)
     memory_region_init_alias(
         &s->dwc2_mr, OBJECT(dev), TYPE_APPLE_OTG ".dwc2",
         sysbus_mmio_get_region(SYS_BUS_DEVICE(&s->dwc2), 0), 0,
-        ((uint64_t *)prop->value)[1]);
+        ((uint64_t *)prop->data)[1]);
     sysbus_init_mmio(sbd, &s->dwc2_mr);
 
     memory_region_init_io(&s->widget, OBJECT(dev), &widget_reg_ops, s,

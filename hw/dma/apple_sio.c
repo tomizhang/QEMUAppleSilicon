@@ -337,7 +337,7 @@ AppleSIODMAEndpoint *apple_sio_get_endpoint_from_node(AppleSIOState *s,
     if (idx >= count) {
         return NULL;
     }
-    data = (uint32_t *)prop->value;
+    data = (uint32_t *)prop->data;
     return apple_sio_get_endpoint(s, data[8 * idx]);
 }
 
@@ -396,7 +396,7 @@ SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
     prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
 
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     apple_rtbuddy_init(rtb, NULL, "SIO", reg[1], version, protocol_version,
                        NULL);

@@ -408,7 +408,7 @@ AppleDisplayPipeV2State *apple_displaypipe_v2_create(DTBNode *node)
 
     prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     memory_region_init_io(&s->up_regs, OBJECT(sbd), &apple_disp_v2_reg_ops, sbd,
                           "up.regs", reg[1]);
     sysbus_init_mmio(sbd, &s->up_regs);

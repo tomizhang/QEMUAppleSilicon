@@ -3171,7 +3171,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
 
     prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     apple_a7iop_init(a7iop, "SEP", reg[1],
                      modern ? APPLE_A7IOP_V4 : APPLE_A7IOP_V2, NULL, NULL);

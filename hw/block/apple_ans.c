@@ -209,7 +209,7 @@ SysBusDevice *apple_ans_create(DTBNode *node, AppleA7IOPVersion version,
     prop = dtb_find_prop(node, "reg");
     assert(prop);
 
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
 
     s->rtb = apple_rtbuddy_new(s, "ANS2", reg[1], version, protocol_version,
                                &ans_mailbox_ops);
