@@ -32,7 +32,7 @@
 #define DT_PROP_FLAGS_MASK (0xF)
 #define DT_PROP_FLAG_PLACEHOLDER (1 << 3)
 
-#define DTB_PROP_NAME_LEN (32)
+#define DT_PROP_NAME_LEN (32)
 
 typedef struct {
     uint32_t length;

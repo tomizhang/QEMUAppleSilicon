@@ -48,8 +48,8 @@ static DTBProp *dtb_read_prop(uint8_t **dtb_blob, char *name)
     *dtb_blob = align_4_high_ptr(*dtb_blob);
 
     prop = g_new0(DTBProp, 1);
-    memcpy(name, *dtb_blob, DTB_PROP_NAME_LEN);
-    *dtb_blob += DTB_PROP_NAME_LEN;
+    memcpy(name, *dtb_blob, DT_PROP_NAME_LEN);
+    *dtb_blob += DT_PROP_NAME_LEN;
 
     prop->length = ldl_le_p(*dtb_blob) & DT_PROP_SIZE_MASK;
     prop->flags =
@@ -99,7 +99,7 @@ static DTBNode *dtb_read_node(uint8_t **dtb_blob)
                                         dtb_prop_destroy);
 
     for (i = 0; i < node->prop_count; i++) {
-        key = g_new0(char, DTB_PROP_NAME_LEN);
+        key = g_new0(char, DT_PROP_NAME_LEN);
         prop = dtb_read_prop(dtb_blob, key);
         g_assert_nonnull(prop);
         g_assert_true(g_hash_table_insert(node->props, key, prop));
@@ -156,8 +156,8 @@ static void dtb_serialise_node(DTBNode *node, uint8_t **buf)
 
         *buf = align_4_high_ptr(*buf);
 
-        memcpy(*buf, key, DTB_PROP_NAME_LEN);
-        *buf += DTB_PROP_NAME_LEN;
+        memcpy(*buf, key, DT_PROP_NAME_LEN);
+        *buf += DT_PROP_NAME_LEN;
         stl_le_p(*buf, prop->length);
         *buf += sizeof(uint32_t);
 
@@ -241,7 +241,7 @@ DTBProp *dtb_set_prop(DTBNode *node, const char *name, const uint32_t size,
         g_assert_cmpuint(size, !=, 0);
     }
 
-    g_assert_cmpint(strnlen(name, DTB_PROP_NAME_LEN), <, DTB_PROP_NAME_LEN);
+    g_assert_cmpint(strnlen(name, DT_PROP_NAME_LEN), <, DT_PROP_NAME_LEN);
 
     prop = dtb_find_prop(node, name);
 
@@ -300,7 +300,7 @@ static uint64_t dtb_get_serialised_prop_size(DTBProp *prop)
 {
     g_assert_nonnull(prop);
 
-    return align_4_high_num(DTB_PROP_NAME_LEN + sizeof(prop->length) +
+    return align_4_high_num(DT_PROP_NAME_LEN + sizeof(prop->length) +
                             prop->length);
 }
 
