@@ -325,7 +325,7 @@ static void s8000_memory_setup(MachineState *machine)
     S8000MachineState *s8000_machine = S8000_MACHINE(machine);
     AppleBootInfo *info = &s8000_machine->bootinfo;
     AppleNvramState *nvram;
-    g_autofree char *cmdline;
+    char *cmdline;
     MachoHeader64 *hdr;
     DTBNode *memory_map;
 
@@ -363,16 +363,12 @@ static void s8000_memory_setup(MachineState *machine)
     info_report("auto-boot=%s",
                 env_get_bool(nvram, "auto-boot", false) ? "true" : "false");
 
-    switch (s8000_machine->boot_mode) {
-    case kBootModeAuto:
-        if (!env_get_bool(nvram, "auto-boot", false)) {
-            asprintf(&cmdline, "-restore rd=md0 nand-enable-reformat=1 %s",
-                     machine->kernel_cmdline);
-            break;
-        }
-        QEMU_FALLTHROUGH;
-    default:
-        asprintf(&cmdline, "%s", machine->kernel_cmdline);
+    if (s8000_machine->boot_mode == kBootModeAuto &&
+        !env_get_bool(nvram, "auto-boot", false)) {
+        cmdline = g_strconcat("-restore rd=md0 nand-enable-reformat=1 ",
+                              machine->kernel_cmdline, NULL);
+    } else {
+        cmdline = g_strdup(machine->kernel_cmdline);
     }
 
     apple_nvram_save(nvram);
@@ -458,6 +454,8 @@ static void s8000_memory_setup(MachineState *machine)
                    __func__, hdr->file_type);
         break;
     }
+
+    g_free(cmdline);
 }
 
 static void pmgr_unk_reg_write(void *opaque, hwaddr addr, uint64_t data,

@@ -718,8 +718,8 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
 
     if (t8030_machine->boot_mode == kBootModeAuto &&
         !env_get_bool(nvram, "auto-boot", false)) {
-        asprintf(&cmdline, "-restore rd=md0 nand-enable-reformat=1 %s",
-                 machine->kernel_cmdline);
+        cmdline = g_strconcat("-restore rd=md0 nand-enable-reformat=1 ",
+                              machine->kernel_cmdline, NULL);
     } else {
         cmdline = g_strdup(machine->kernel_cmdline);
     }
