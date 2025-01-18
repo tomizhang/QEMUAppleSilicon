@@ -56,29 +56,6 @@ hwaddr vtop_slid(hwaddr va)
     return vtop_static(va + g_virt_slide);
 }
 
-uint8_t get_highest_different_bit_index(hwaddr addr1, hwaddr addr2)
-{
-    g_assert_cmphex(addr1, !=, 0);
-    g_assert_cmphex(addr2, !=, 0);
-    g_assert_cmphex(addr1, !=, addr2);
-
-    return 64 - __builtin_clzll(addr1 ^ addr2);
-}
-
-uint8_t get_lowest_non_zero_bit_index(hwaddr addr)
-{
-    g_assert_cmphex(addr, !=, 0);
-
-    return __builtin_ctzll(addr);
-}
-
-hwaddr get_low_bits_mask_for_bit_index(uint8_t bit_index)
-{
-    g_assert_cmpuint(bit_index, <, 64);
-
-    return (1 << bit_index) - 1;
-}
-
 MemoryRegion *allocate_ram(MemoryRegion *top, const char *name, hwaddr addr,
                            hwaddr size, int priority)
 {
