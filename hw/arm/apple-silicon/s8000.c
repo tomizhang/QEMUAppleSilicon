@@ -341,7 +341,7 @@ static void s8000_memory_setup(MachineState *machine)
 
     nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
     if (!nvram) {
-        error_setg(&error_abort, "%s: Failed to find nvram device", __func__);
+        error_setg(&error_abort, "Failed to find NVRAM device");
         return;
     };
     apple_nvram_load(nvram);
@@ -380,14 +380,14 @@ static void s8000_memory_setup(MachineState *machine)
     }
     if (apple_nvram_serialize(nvram, info->nvram_data,
                               sizeof(info->nvram_data)) < 0) {
-        error_report("%s: Failed to read NVRAM", __func__);
+        error_report("Failed to read NVRAM");
     }
 
     if (s8000_machine->ticket_filename) {
         if (!g_file_get_contents(s8000_machine->ticket_filename,
                                  &info->ticket_data,
                                  (gsize *)&info->ticket_length, NULL)) {
-            error_report("%s: Failed to read ticket from file %s", __func__,
+            error_report("Failed to read ticket from file %s",
                          s8000_machine->ticket_filename);
         }
     }
@@ -450,8 +450,8 @@ static void s8000_memory_setup(MachineState *machine)
         s8000_load_classic_kc(s8000_machine, cmdline);
         break;
     default:
-        error_setg(&error_abort, "%s: Unsupported kernelcache type: 0x%x\n",
-                   __func__, hdr->file_type);
+        error_setg(&error_abort, "Unsupported kernelcache type: 0x%x\n",
+                   hdr->file_type);
         break;
     }
 

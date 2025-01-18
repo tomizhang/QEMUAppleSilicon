@@ -290,7 +290,6 @@ static void get_kaslr_slides(T8030MachineState *t8030_machine,
 static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
                                   const char *cmdline)
 {
-    info_report("%s: entered function", __func__);
     MachineState *machine = MACHINE(t8030_machine);
     MachoHeader64 *hdr = t8030_machine->kernel;
     MemoryRegion *sysmem = t8030_machine->sysmem;
@@ -408,7 +407,6 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
 static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
                                   const char *cmdline)
 {
-    info_report("%s: entered function", __func__);
     MachineState *machine = MACHINE(t8030_machine);
     MachoHeader64 *hdr = t8030_machine->kernel;
     MemoryRegion *sysmem = t8030_machine->sysmem;
@@ -693,8 +691,8 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     }
 
     nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
-    if (!nvram) {
-        error_setg(&error_abort, "%s: Failed to find nvram device", __func__);
+    if (nvram == NULL) {
+        error_setg(&error_abort, "Failed to find NVRAM device");
         return;
     };
     apple_nvram_load(nvram);
@@ -733,14 +731,14 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     }
     if (apple_nvram_serialize(nvram, info->nvram_data,
                               sizeof(info->nvram_data)) < 0) {
-        error_report("%s: Failed to read NVRAM", __func__);
+        error_report("Failed to read NVRAM");
     }
 
     if (t8030_machine->ticket_filename) {
         if (!g_file_get_contents(t8030_machine->ticket_filename,
                                  &info->ticket_data,
                                  (gsize *)&info->ticket_length, NULL)) {
-            error_report("%s: Failed to read ticket from file %s", __func__,
+            error_report("Failed to read ticket from file %s",
                          t8030_machine->ticket_filename);
         }
     }
@@ -832,8 +830,8 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         t8030_load_fileset_kc(t8030_machine, cmdline);
         break;
     default:
-        error_setg(&error_abort, "%s: Unsupported kernelcache type: 0x%x\n",
-                   __func__, hdr->file_type);
+        error_setg(&error_abort, "Unsupported kernelcache type: 0x%x\n",
+                   hdr->file_type);
         break;
     }
 
