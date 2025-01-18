@@ -551,7 +551,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     dtb_set_prop(child, "BootArgs", sizeof(memmap), &memmap);
     dtb_set_prop(child, "DeviceTree", sizeof(memmap), &memmap);
 
-    info->device_tree_size = ROUND_UP(dtb_get_serialised_node_size(root), 0x4000);
+    info->device_tree_size = ROUND_UP_16K(dtb_get_serialised_node_size(root));
 }
 
 static void set_memory_range(DTBNode *root, const char *name, uint64_t addr,
@@ -668,7 +668,7 @@ uint8_t *load_trustcache_from_file(const char *filename, uint64_t *size)
 
     file_size = (unsigned long)length;
 
-    trustcache_size = ROUND_UP(file_size + 8, 0x4000);
+    trustcache_size = ROUND_UP_16K(file_size + 8);
     trustcache_data = (uint32_t *)g_malloc(trustcache_size);
     trustcache_data[0] = 1; // #trustcaches
     trustcache_data[1] = 8; // offset

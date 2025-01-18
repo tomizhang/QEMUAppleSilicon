@@ -338,7 +338,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     info_report("Kernel entry point: 0x" TARGET_FMT_lx, info->kern_entry);
 
     virt_end += g_virt_slide;
-    phys_ptr = vtop_static(ROUND_UP(virt_end, 0x4000));
+    phys_ptr = vtop_static(ROUND_UP_16K(virt_end));
 
     amcc_lower = info->trustcache_addr;
     amcc_upper = vtop_slid(last_base) + last_seg->vmsize - 1;
@@ -354,7 +354,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
         info->ramdisk_addr = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
                            info->ramdisk_addr, &info->ramdisk_size);
-        info->ramdisk_size = ROUND_UP(info->ramdisk_size, 0x4000);
+        info->ramdisk_size = ROUND_UP_16K(info->ramdisk_size);
         phys_ptr += info->ramdisk_size;
     }
 
@@ -370,7 +370,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
         g_file_get_contents(t8030_machine->sep_fw_filename, &sep->sepfw_data,
                             NULL, NULL);
     }
-    info->sep_fw_size = ROUND_UP(8 * MiB, 0x4000);
+    info->sep_fw_size = ROUND_UP_16K(8 * MiB);
     phys_ptr += info->sep_fw_size;
 
     // Kernel boot args
@@ -395,8 +395,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
                    info);
 
-    top_of_kernel_data_pa =
-        (ROUND_UP(phys_ptr, 0x4000) + 0x3000ull) & ~0x3FFFull;
+    top_of_kernel_data_pa = (ROUND_UP_16K(phys_ptr) + 0x3000ull) & ~0x3FFFull;
 
     info_report("Boot args: [%s]", cmdline);
     macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,
@@ -436,7 +435,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     prelink_info_seg = macho_get_segment(hdr, "__PRELINK_INFO");
 
     extradata_size =
-        ROUND_UP(info->device_tree_size + info->trustcache_size, 0x4000);
+        ROUND_UP_16K(info->device_tree_size + info->trustcache_size);
     g_assert_cmpuint(extradata_size, <, L2_GRANULE);
 
     get_kaslr_slides(t8030_machine, &g_phys_slide, &g_virt_slide);
@@ -444,7 +443,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     l2_remaining = (virt_low + g_virt_slide) & L2_GRANULE_MASK;
 
     if (extradata_size >= l2_remaining) {
-        uint64_t grown_slide = ROUND_UP(extradata_size - l2_remaining, 0x4000);
+        uint64_t grown_slide = ROUND_UP_16K(extradata_size - l2_remaining);
         g_phys_slide += grown_slide;
         g_virt_slide += grown_slide;
     }
@@ -462,7 +461,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     info->trustcache_addr = phys_ptr;
     macho_load_trustcache(t8030_machine->trustcache, info->trustcache_size,
                           nsas, sysmem, info->trustcache_addr);
-    phys_ptr += ROUND_UP(info->trustcache_size, 0x4000);
+    phys_ptr += ROUND_UP_16K(info->trustcache_size);
 
     g_virt_base += g_virt_slide;
     g_virt_base -= phys_ptr - g_phys_base;
@@ -475,7 +474,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     info_report("Kernel entry point: 0x" TARGET_FMT_lx, info->kern_entry);
 
     virt_end += g_virt_slide;
-    phys_ptr = vtop_static(ROUND_UP(virt_end, 0x4000));
+    phys_ptr = vtop_static(ROUND_UP_16K(virt_end));
 
     amcc_lower = info->device_tree_addr;
     amcc_upper =
@@ -499,7 +498,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
 
     // SEPFW
     info->sep_fw_addr = phys_ptr;
-    info->sep_fw_size = ROUND_UP(8 * MiB, 0x4000);
+    info->sep_fw_size = ROUND_UP_16K(8 * MiB);
     phys_ptr += info->sep_fw_size;
 
     info->kern_boot_args_addr = phys_ptr;
@@ -513,8 +512,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
                    info);
 
-    top_of_kernel_data_pa =
-        (ROUND_UP(phys_ptr, 0x4000) + 0x3000ull) & ~0x3fffull;
+    top_of_kernel_data_pa = (ROUND_UP_16K(phys_ptr) + 0x3000ull) & ~0x3fffull;
 
     info_report("Boot args: [%s]", cmdline);
     macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,

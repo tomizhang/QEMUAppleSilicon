@@ -31,6 +31,8 @@ extern hwaddr g_phys_base;
 extern hwaddr g_virt_slide;
 extern hwaddr g_phys_slide;
 
+#define ROUND_UP_16K(v) ROUND_UP(v, 0x4000)
+
 hwaddr vtop_static(hwaddr va);
 hwaddr ptov_static(hwaddr pa);
 hwaddr vtop_slid(hwaddr va);
