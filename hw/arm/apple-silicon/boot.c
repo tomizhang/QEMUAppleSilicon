@@ -96,10 +96,6 @@ static const char *KEEP_COMP[] = {
     "usb-drd,t8030\0usb-drd,t8027\0$",
     "wdt,s8000\0wdt,s5l8960x\0$",
     "wdt,t8030\0wdt,s5l8960x\0$",
-#if 0
-    "wlan-pcie,bcm4378\0wlan-pcie,bcm\0$",
-#endif
-    "bluetooth,n88\0$",
 };
 
 static const char *REM_NAMES[] = {
@@ -143,8 +139,7 @@ static const char *REM_NAMES[] = {
 };
 
 static const char *REM_DEV_TYPES[] = {
-    // "bluetooth\0$", "wlan\0$",
-    "aop\0$",          "backlight\0$",     "pmp\0$",
+    "bluetooth\0$",    "wlan\0$",          "aop\0$", "backlight\0$", "pmp\0$",
 #ifndef ENABLE_BASEBAND
     "baseband\0$",     "baseband-spmi\0$",
 #endif
