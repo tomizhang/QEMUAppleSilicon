@@ -557,7 +557,7 @@ static void s8000_cpu_setup(S8000MachineState *s8000_machine)
 {
     unsigned int i;
     DTBNode *root;
-    MachineState *machine = MACHINE(machine);
+    MachineState *machine = MACHINE(s8000_machine);
     GList *iter;
     GList *next = NULL;
 
@@ -593,7 +593,7 @@ static void s8000_create_aic(S8000MachineState *s8000_machine)
     unsigned int i;
     hwaddr *reg;
     DTBProp *prop;
-    MachineState *machine = MACHINE(machine);
+    MachineState *machine = MACHINE(s8000_machine);
     DTBNode *soc = dtb_find_node(s8000_machine->device_tree, "arm-io");
     DTBNode *child;
     DTBNode *timebase;
