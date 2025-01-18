@@ -176,12 +176,12 @@ typedef struct {
 #define N_EXT (0x01)
 
 typedef struct {
-    unsigned long base_addr;
-    unsigned long display;
-    unsigned long row_bytes;
-    unsigned long width;
-    unsigned long height;
-    unsigned long depth;
+    uint64_t base_addr;
+    uint64_t display;
+    uint64_t row_bytes;
+    uint64_t width;
+    uint64_t height;
+    uint64_t depth;
 } AppleVideoArgs;
 
 typedef struct {

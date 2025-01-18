@@ -65,21 +65,6 @@ uint8_t get_highest_different_bit_index(hwaddr addr1, hwaddr addr2)
     return 64 - __builtin_clzll(addr1 ^ addr2);
 }
 
-hwaddr align_16k_low(hwaddr addr)
-{
-    return addr & ~0x3FFFull;
-}
-
-hwaddr align_16k_high(hwaddr addr)
-{
-    return align_up(addr, 0x4000);
-}
-
-hwaddr align_up(hwaddr addr, hwaddr alignment)
-{
-    return (addr + (alignment - 1)) & ~(alignment - 1);
-}
-
 uint8_t get_lowest_non_zero_bit_index(hwaddr addr)
 {
     g_assert_cmphex(addr, !=, 0);

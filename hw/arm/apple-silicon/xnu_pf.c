@@ -120,8 +120,8 @@ MachoHeader64 *xnu_pf_get_kext_header(MachoHeader64 *kheader,
                 end_dict = strstr(end_dict + 1, "</dict>");
             }
 
-            ident = memmem(last_dict, end_dict - last_dict,
-                           "CFBundleIdentifier", strlen("CFBundleIdentifier"));
+            ident = g_strstr_len(last_dict, end_dict - last_dict,
+                                 "CFBundleIdentifier");
             if (ident) {
                 const char *value = strstr(ident, "<string>");
                 if (value) {
@@ -134,9 +134,8 @@ MachoHeader64 *xnu_pf_get_kext_header(MachoHeader64 *kheader,
                         kname[value_end - value] = 0;
                         if (strcmp(kname, kext_bundle_id) == 0) {
                             const char *addr =
-                                memmem(last_dict, end_dict - last_dict,
-                                       "_PrelinkExecutableLoadAddr",
-                                       strlen("_PrelinkExecutableLoadAddr"));
+                                g_strstr_len(last_dict, end_dict - last_dict,
+                                             "_PrelinkExecutableLoadAddr");
                             if (addr) {
                                 const char *avalue = strstr(addr, "<integer");
                                 if (avalue) {

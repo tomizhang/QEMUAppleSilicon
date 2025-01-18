@@ -3471,7 +3471,7 @@ static void map_sepfw(AppleSEPState *s)
     }
     AddressSpace *nsas = &address_space_memory;
     // Apparently needed because of a bug occurring on XNU
-    address_space_set(nsas, 0x4000ULL, 0, align_16k_high(8 * MiB),
+    address_space_set(nsas, 0x4000ULL, 0, ROUND_UP(8 * MiB, 0x4000),
                       MEMTXATTRS_UNSPECIFIED);
     address_space_rw(nsas, 0x4000ULL, MEMTXATTRS_UNSPECIFIED,
                      (uint8_t *)s->sepfw_data, s->sep_fw_size, true);

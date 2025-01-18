@@ -252,19 +252,19 @@ static void s8000_load_classic_kc(S8000MachineState *s8000_machine,
     info_report("Kernel entry point: 0x" TARGET_FMT_lx, info->kern_entry);
 
     virt_end += g_virt_slide;
-    phys_ptr = vtop_static(align_16k_high(virt_end));
+    phys_ptr = vtop_static(ROUND_UP(virt_end, 0x4000));
 
     // Device tree
     info->device_tree_addr = phys_ptr;
     dtb_va = ptov_static(info->device_tree_addr);
-    phys_ptr += align_16k_high(info->device_tree_size);
+    phys_ptr += info->device_tree_size;
 
     // RAM disk
     if (machine->initrd_filename) {
         info->ramdisk_addr = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
                            info->ramdisk_addr, &info->ramdisk_size);
-        info->ramdisk_size = align_16k_high(info->ramdisk_size);
+        info->ramdisk_size = ROUND_UP(info->ramdisk_size, 0x4000);
         phys_ptr += info->ramdisk_size;
     }
 
@@ -273,18 +273,18 @@ static void s8000_load_classic_kc(S8000MachineState *s8000_machine,
         macho_load_raw_file(s8000_machine->sep_fw_filename, nsas, sysmem,
                             "sepfw", info->sep_fw_addr, &info->sep_fw_size);
     }
-    info->sep_fw_size = align_16k_high(8 * MiB);
+    info->sep_fw_size = ROUND_UP(8 * MiB, 0x4000);
     phys_ptr += info->sep_fw_size;
 
     // Kernel boot args
     info->kern_boot_args_addr = phys_ptr;
     info->kern_boot_args_size = 0x4000;
-    phys_ptr += align_16k_high(0x4000);
+    phys_ptr += info->kern_boot_args_size;
 
     macho_load_dtb(s8000_machine->device_tree, nsas, sysmem, "DeviceTree",
                    info);
 
-    top_of_kernel_data_pa = (align_16k_high(phys_ptr) + 0x3000ull) & ~0x3FFFull;
+    top_of_kernel_data_pa = (ROUND_UP(phys_ptr, 0x4000) + 0x3000ull) & ~0x3FFFull;
 
     info_report("Boot args: [%s]", cmdline);
     macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,

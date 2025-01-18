@@ -300,7 +300,7 @@ static void extract_im4p_payload(const char *filename, char *payload_type,
                                  uint8_t **secure_monitor)
 {
     uint8_t *file_data;
-    unsigned long fsize;
+    gsize fsize;
     char errorDescription[ASN1_MAX_ERROR_DESCRIPTION_SIZE];
     asn1_node img4_definitions = NULL;
     asn1_node img4;
@@ -551,7 +551,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     dtb_set_prop(child, "BootArgs", sizeof(memmap), &memmap);
     dtb_set_prop(child, "DeviceTree", sizeof(memmap), &memmap);
 
-    info->device_tree_size = align_16k_high(dtb_get_serialised_node_size(root));
+    info->device_tree_size = ROUND_UP(dtb_get_serialised_node_size(root), 0x4000);
 }
 
 static void set_memory_range(DTBNode *root, const char *name, uint64_t addr,
@@ -668,7 +668,7 @@ uint8_t *load_trustcache_from_file(const char *filename, uint64_t *size)
 
     file_size = (unsigned long)length;
 
-    trustcache_size = align_16k_high(file_size + 8);
+    trustcache_size = ROUND_UP(file_size + 8, 0x4000);
     trustcache_data = (uint32_t *)g_malloc(trustcache_size);
     trustcache_data[0] = 1; // #trustcaches
     trustcache_data[1] = 8; // offset
@@ -749,7 +749,7 @@ void macho_load_raw_file(const char *filename, AddressSpace *as,
                          uint64_t *size)
 {
     uint8_t *file_data = NULL;
-    unsigned long sizef;
+    gsize sizef;
 
     if (g_file_get_contents(filename, (char **)&file_data, &sizef, NULL)) {
         *size = sizef;
