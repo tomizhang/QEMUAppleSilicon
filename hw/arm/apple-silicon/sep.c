@@ -4044,10 +4044,11 @@ static int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state,
         do_response_prefix(request, response, SSC_RESPONSE_FLAG_CURVE_INVALID);
         goto jump_ret1;
     }
-    sprintf(priv_str,
-            "999999999999999999999999999999999999999999999999999999999999999999"
-            "9999999999999999999999999999%02x",
-            kbkdf_index);
+    snprintf(
+        priv_str, sizeof(priv_str),
+        "999999999999999999999999999999999999999999999999999999999999999999"
+        "9999999999999999999999999999%02x",
+        kbkdf_index);
     int err =
         generate_ec_priv(priv_str, &ssc_state->ecc_keys[kbkdf_index], &ecc_pub);
     uint8_t aes_key_mackey_req[0x20] = { 0 };
