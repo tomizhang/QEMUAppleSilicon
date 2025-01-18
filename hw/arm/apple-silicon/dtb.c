@@ -290,23 +290,19 @@ uint64_t dtb_get_serialised_node_size(DTBNode *node)
     GHashTableIter ht_iter;
     gpointer key, value;
     uint64_t size;
-    DTBProp *prop;
-    DTBNode *child;
     GList *iter;
 
     size = sizeof(node->prop_count) + sizeof(node->child_node_count);
 
     g_hash_table_iter_init(&ht_iter, node->props);
     while (g_hash_table_iter_next(&ht_iter, &key, &value)) {
-        prop = (DTBProp *)value;
-        g_assert_nonnull(prop);
-        size += dtb_get_serialised_prop_size(prop);
+        g_assert_nonnull(value);
+        size += dtb_get_serialised_prop_size(value);
     }
 
     for (iter = node->child_nodes; iter != NULL; iter = iter->next) {
-        child = (DTBNode *)iter->data;
-        g_assert_nonnull(child);
-        size += dtb_get_serialised_node_size(child);
+        g_assert_nonnull(iter->data);
+        size += dtb_get_serialised_node_size(iter->data);
     }
 
     return size;
