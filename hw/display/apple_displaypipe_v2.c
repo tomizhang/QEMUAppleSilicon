@@ -50,13 +50,13 @@
  * 0x50000  |  Generic Pipe 0
  * 0x58000  |  Generic Pipe 1
  * 0x70000  |  White Point Correction
- * 0x7C000  |  PRC
+ * 0x7C000  |  Panel Response Correction
  * 0x80000  |  Dither
  * 0x82000  |  Dither: Enchanced ST Dither 0
  * 0x83000  |  Dither: Enchanced ST Dither 1
- * 0x84000  |  CDFD
- * 0x88000  |  SPLR
- * 0x90000  |  BICS
+ * 0x84000  |  Content Dependent Frame Duration
+ * 0x88000  |  SPLR (Sub-Pixel Layout R?)
+ * 0x90000  |  Burn-In Compensation Sampler
  * 0xA0000  |  PDC
  * 0xB0000  |  PCC
  * 0xF0000  |  DBM
