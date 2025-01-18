@@ -139,12 +139,12 @@ static const char *REM_NAMES[] = {
 };
 
 static const char *REM_DEV_TYPES[] = {
-    "bluetooth\0$",    "wlan\0$",          "aop\0$", "backlight\0$", "pmp\0$",
+    "bluetooth\0$",     "wlan\0$",          "aop\0$", "backlight\0$", "pmp\0$",
 #ifndef ENABLE_BASEBAND
-    "baseband\0$",     "baseband-spmi\0$",
+    "baseband\0$",      "baseband-spmi\0$",
 #endif
 #ifndef ENABLE_SEP_SECURITY // necessary?
-    "spherecontrol\0$"
+    "spherecontrol\0$",
 #endif
 };
 
@@ -301,21 +301,19 @@ static void extract_im4p_payload(const char *filename, char *payload_type,
     uint8_t *payload_data;
 
     if (!g_file_get_contents(filename, (gchar **)&file_data, &fsize, NULL)) {
-        error_report("Could not load data from file '%s'", filename);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal, "file read for `%s` failed", filename);
     }
 
     if (asn1_array2tree(img4_definitions_array, &img4_definitions,
                         errorDescription) != ASN1_SUCCESS) {
-        error_report("Could not initialize the ASN.1 parser: %s.",
-                     errorDescription);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal, "ASN.1 parser initialisation failed: `%s`.",
+                   errorDescription);
     }
 
     ret = asn1_create_element(img4_definitions, "Img4.Img4Payload", &img4);
     if (ret != ASN1_SUCCESS) {
-        error_report("Could not create an Img4Payload element: %d", ret);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal, "Img4Payload element creation failed: %d",
+                   ret);
     }
 
     ret =
@@ -333,41 +331,35 @@ static void extract_im4p_payload(const char *filename, char *payload_type,
     len = 4;
     ret = asn1_read_value(img4, "magic", magic, &len);
     if (ret != ASN1_SUCCESS) {
-        error_report("Failed to read the im4p magic in file '%s': %d.",
-                     filename, ret);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal, "im4p magic read for `%s` failed: %d.",
+                   filename, ret);
     }
 
     if (strncmp(magic, "IM4P", 4) != 0) {
-        error_report("Couldn't parse ASN.1 data in file '%s' because it "
-                     "does not start with the IM4P header.",
-                     filename);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal, "`%s` is not an img4 payload.", filename);
     }
 
     len = 4;
     ret = asn1_read_value(img4, "type", payload_type, &len);
     if (ret != ASN1_SUCCESS) {
-        error_report("Failed to read the im4p type in file '%s': %d.", filename,
-                     ret);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal, "img4 payload type read for `%s` failed: %d.",
+                   filename, ret);
     }
 
     len = 128;
     ret = asn1_read_value(img4, "description", description, &len);
     if (ret != ASN1_SUCCESS) {
-        error_report("Failed to read the im4p description in file '%s': %d.",
-                     filename, ret);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal,
+                   "img4 payload description read for `%s` failed: %d.",
+                   filename, ret);
     }
 
     payload_data = NULL;
     len = 0;
     ret = asn1_read_value(img4, "data", payload_data, &len);
     if (ret != ASN1_MEM_ERROR) {
-        error_report("Failed to read the im4p payload in file '%s': %d.",
-                     filename, ret);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal, "img4 payload size read for `%s` failed: %d.",
+                   filename, ret);
     }
 
     payload_data = g_malloc0(len);
@@ -375,9 +367,8 @@ static void extract_im4p_payload(const char *filename, char *payload_type,
     g_free(file_data);
 
     if (ret != ASN1_SUCCESS) {
-        error_report("Failed to read the im4p payload in file '%s': %d.",
-                     filename, ret);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal, "img4 payload read for `%s` failed: %d.",
+                   filename, ret);
     }
 
     asn1_delete_structure(&img4);
@@ -392,11 +383,10 @@ static void extract_im4p_payload(const char *filename, char *payload_type,
         g_free(payload_data);
 
         if (decoded_length == 0 || decoded_length == decode_buffer_size) {
-            error_report(
-                "Could not decompress LZFSE-compressed data in file '%s' "
-                "because the decode buffer was too small.",
+            error_setg(
+                &error_fatal,
+                "LZFSE decompression for `%s` failed; insufficient buffer size",
                 filename);
-            exit(EXIT_FAILURE);
         }
 
         *data = decode_buffer;
@@ -412,10 +402,8 @@ static void extract_im4p_payload(const char *filename, char *payload_type,
         int decoded_length =
             decompress_lzss(decode_buffer, comp_hdr->data, compressed_size);
         if (decoded_length == 0 || decoded_length != uncompressed_size) {
-            error_report("Could not decompress LZSS-compressed data in "
-                         "file '%s' correctly.",
-                         filename);
-            exit(EXIT_FAILURE);
+            error_setg(&error_fatal, "LZSS decompression for `%s` failed.",
+                       filename);
         }
 
         size_t monitor_off = compressed_size + sizeof(LzssCompHeader);
@@ -449,10 +437,8 @@ DTBNode *load_dtb_from_file(char *filename)
 
     if (strncmp(payload_type, "dtre", 4) != 0 &&
         strncmp(payload_type, "raw", 4) != 0) {
-        error_report("Couldn't parse ASN.1 data in file '%s' because it is not "
-                     "a 'dtre' object, found '%.4s' object.",
-                     filename, payload_type);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal, "`%s` is a `%.4s` object (expected `dtre`)",
+                   filename, payload_type);
     }
 
     root = dtb_unserialise(file_data);
@@ -634,10 +620,9 @@ uint8_t *load_trustcache_from_file(const char *filename, uint64_t *size)
     if (strncmp(payload_type, "trst", 4) != 0 &&
         strncmp(payload_type, "rtsc", 4) != 0 &&
         strncmp(payload_type, "raw", 4) != 0) {
-        error_report("Couldn't parse ASN.1 data in file '%s' because it is not "
-                     "a 'trst' or 'rtsc' object, found '%.4s' object.",
-                     filename, payload_type);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal,
+                   "`%s` is a `%.4s` object (expected `trst`/`rtsc`).",
+                   filename, payload_type);
     }
 
     file_size = (unsigned long)length;
@@ -668,20 +653,17 @@ uint8_t *load_trustcache_from_file(const char *filename, uint64_t *size)
         trustcache_entry_size = 24;
         break;
     default:
-        error_report("The trust cache '%s' does not have a v1 or v2 header",
-                     filename);
-        exit(EXIT_FAILURE);
+        error_setg(
+            &error_fatal,
+            "invalid trustcache header in `%s` (expected v1 or v2, got %d)",
+            filename, trustcache_version);
+        break;
     }
 
-    expected_file_size =
-        24 /* header size */ + trustcache_entry_count * trustcache_entry_size;
+    // 24 is header size
+    expected_file_size = 24 + trustcache_entry_count * trustcache_entry_size;
 
-    if (file_size != expected_file_size) {
-        error_report("The expected size %d of trust cache '%s' does not match "
-                     "the actual size %ld",
-                     expected_file_size, filename, file_size);
-        exit(EXIT_FAILURE);
-    }
+    g_assert_cmpuint(file_size, ==, expected_file_size);
 
     *size = trustcache_size;
     return (uint8_t *)trustcache_data;
@@ -704,10 +686,8 @@ void macho_load_ramdisk(const char *filename, AddressSpace *as,
     extract_im4p_payload(filename, payload_type, &file_data, &length, NULL);
     if (strncmp(payload_type, "rdsk", 4) != 0 &&
         strncmp(payload_type, "raw", 4) != 0) {
-        error_report("Couldn't parse ASN.1 data in file '%s' because it is not "
-                     "a 'rdsk' object, found '%.4s' object.",
-                     filename, payload_type);
-        exit(EXIT_FAILURE);
+        error_setg(&error_fatal, "`%s` is a `%.4s` object (expected `rdsk`)",
+                   filename, payload_type);
     }
 
     file_size = length;
@@ -730,7 +710,7 @@ void macho_load_raw_file(const char *filename, AddressSpace *as,
         allocate_and_copy(mem, as, name, file_pa, *size, file_data);
         g_free(file_data);
     } else {
-        abort();
+        error_setg(&error_fatal, "file read for `%s` failed", filename);
     }
 }
 
@@ -882,11 +862,9 @@ MachoHeader64 *macho_load_file(const char *filename,
                          (uint8_t **)secure_monitor);
 
     if (strncmp(payload_type, "krnl", 4) != 0 &&
-        strncmp(payload_type, "raw", 4) != 0) {
-        error_report("Couldn't parse ASN.1 data in file '%s' because it is not "
-                     "a 'krnl' object, found '%.4s' object.",
-                     filename, payload_type);
-        exit(EXIT_FAILURE);
+        strncmp(payload_type, "raw", 3) != 0) {
+        error_setg(&error_fatal, "`%s` is a `%.4s` object (expected `krnl`)",
+                   filename, payload_type);
     }
 
     mh = macho_parse(data, len);
@@ -905,11 +883,7 @@ MachoHeader64 *macho_parse(uint8_t *data, uint32_t len)
     int index;
 
     mh = (MachoHeader64 *)data;
-    if (mh->magic != MACH_MAGIC_64) {
-        error_report("%s: Invalid Mach-O object: mh->magic != MACH_MAGIC_64",
-                     __func__);
-        exit(EXIT_FAILURE);
-    }
+    g_assert_cmphex(mh->magic, ==, MACH_MAGIC_64);
 
     macho_highest_lowest(mh, &lowaddr, &highaddr);
     g_assert_cmphex(lowaddr, <, highaddr);
@@ -936,7 +910,6 @@ MachoHeader64 *macho_parse(uint8_t *data, uint32_t len)
                    data + segCmd->fileoff, segCmd->filesize);
             break;
         }
-
         default:
             break;
         }
