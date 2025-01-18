@@ -72,30 +72,46 @@
 #define CFG_FUNC1 (INPUT_ENABLE | FUNC_ALT1 | INT_MASKED)
 #define CFG_FUNC2 (INPUT_ENABLE | FUNC_ALT2 | INT_MASKED)
 
+static inline unsigned long find_first_bit32(const uint32_t *addr,
+                                             unsigned long size)
+{
+    unsigned long result, tmp;
+
+    for (result = 0; result < size;
+         result += (BITS_PER_BYTE * sizeof(uint32_t))) {
+        tmp = *addr++;
+        if (tmp) {
+            result += ctz32(tmp);
+            return result < size ? result : size;
+        }
+    }
+    return size;
+}
+
 static void apple_gpio_update_pincfg(AppleGPIOState *s, int pin, uint32_t value)
 {
     if ((value & INT_MASKED) != INT_MASKED) {
         int irqgrp = (value & INT_MASKED) >> INTR_GRP_SHIFT;
 
-        clear_bit(pin, (unsigned long *)s->int_config[irqgrp]);
+        clear_bit32(pin, s->int_config[irqgrp]);
 
         switch (value & CFG_MASK) {
         case CFG_INT_LVL_HI:
-            if (test_bit(pin, (unsigned long *)s->in)) {
-                set_bit(pin, (unsigned long *)s->int_config[irqgrp]);
+            if (test_bit32(pin, s->in)) {
+                set_bit32_atomic(pin, s->int_config[irqgrp]);
             }
             break;
         case CFG_INT_LVL_LO:
-            if (!test_bit(pin, (unsigned long *)s->in)) {
-                set_bit(pin, (unsigned long *)s->int_config[irqgrp]);
+            if (!test_bit32(pin, s->in)) {
+                set_bit32_atomic(pin, s->int_config[irqgrp]);
             }
             break;
         default:
             break;
         }
         qemu_set_irq(s->irqs[irqgrp],
-                     find_first_bit((unsigned long *)s->int_config[irqgrp],
-                                    s->pin_count) != s->pin_count);
+                     find_first_bit32(s->int_config[irqgrp], s->pin_count) !=
+                         s->pin_count);
     }
 
     s->gpio_cfg[pin] = value;
@@ -140,9 +156,9 @@ static void apple_gpio_set(void *opaque, int pin, int level)
 
     level = level != 0;
     if (level) {
-        set_bit(pin, (unsigned long *)s->in);
+        set_bit32_atomic(pin, s->in);
     } else {
-        clear_bit(pin, (unsigned long *)s->in);
+        clear_bit32_atomic(pin, s->in);
     }
 
     grp = pin >> 5;
@@ -156,31 +172,31 @@ static void apple_gpio_set(void *opaque, int pin, int level)
 
         case CFG_INT_LVL_HI:
             if (level) {
-                set_bit(pin, (unsigned long *)s->int_config[irqgrp]);
+                set_bit32_atomic(pin, s->int_config[irqgrp]);
             }
             break;
 
         case CFG_INT_LVL_LO:
             if (!level) {
-                set_bit(pin, (unsigned long *)s->int_config[irqgrp]);
+                set_bit32_atomic(pin, s->int_config[irqgrp]);
             }
             break;
 
         case CFG_INT_EDG_RIS:
-            if (test_bit(pin, (unsigned long *)s->in_old) == 0 && level) {
-                set_bit(pin, (unsigned long *)s->int_config[irqgrp]);
+            if (test_bit32(pin, s->in_old) == 0 && level) {
+                set_bit32_atomic(pin, s->int_config[irqgrp]);
             }
             break;
 
         case CFG_INT_EDG_FAL:
-            if (test_bit(pin, (unsigned long *)s->in_old) && !level) {
-                set_bit(pin, (unsigned long *)s->int_config[irqgrp]);
+            if (test_bit32(pin, s->in_old) && !level) {
+                set_bit32_atomic(pin, s->int_config[irqgrp]);
             }
             break;
 
         case CFG_INT_EDG_ANY:
-            if (test_bit(pin, (unsigned long *)s->in_old) != level) {
-                set_bit(pin, (unsigned long *)s->int_config[irqgrp]);
+            if (test_bit32(pin, s->in_old) != level) {
+                set_bit32_atomic(pin, s->int_config[irqgrp]);
             }
             break;
 
@@ -193,8 +209,8 @@ static void apple_gpio_set(void *opaque, int pin, int level)
 
     if (irqgrp != -1) {
         qemu_set_irq(s->irqs[irqgrp],
-                     find_first_bit((unsigned long *)s->int_config[irqgrp],
-                                    s->pin_count) != s->pin_count);
+                     find_first_bit32(s->int_config[irqgrp], s->pin_count) !=
+                         s->pin_count);
     }
 }
 
@@ -258,7 +274,7 @@ static uint32_t apple_gpio_cfg_read(AppleGPIOState *s, unsigned int pin,
 
     if (((val & FUNC_MASK) == FUNC_GPIO) && ((val & CFG_MASK) == CFG_GP_IN)) {
         val &= ~DATA_1;
-        val |= test_bit(pin, (unsigned long *)s->in);
+        val |= test_bit32(pin, s->in);
     }
 
     return val;
@@ -278,8 +294,7 @@ static void apple_gpio_int_write(AppleGPIOState *s, unsigned int group,
     offset = addr - REG_GPIOINT(group, 0);
     s->int_config[group][offset >> 2] &= ~value;
 
-    if (find_first_bit((unsigned long *)s->int_config[group], s->pin_count) ==
-        s->pin_count) {
+    if (find_first_bit32(s->int_config[group], s->pin_count) == s->pin_count) {
         qemu_irq_lower(s->irqs[group]);
     }
 }
@@ -344,13 +359,10 @@ static uint64_t apple_gpio_reg_read(void *opaque, hwaddr addr, unsigned size)
     case REG_GPIOINT(0, 0)... REG_GPIOINT(GPIO_MAX_INT_GRP_NR,
                                           GPIO_MAX_PIN_NR - 1):
         return apple_gpio_int_read(s, (addr - REG_GPIOINT(0, 0)) >> 6, addr);
-
     case REG_GPIO_NPL_IN_EN:
         return s->npl;
-
     case 0xC4C:
         return 0xFF;
-
     default:
         qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
