@@ -746,42 +746,40 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     }
 
     DTBNode *chosen = dtb_find_node(t8030_machine->device_tree, "chosen");
-    DTBNode *data_vol =
-        dtb_find_node(t8030_machine->device_tree, "filesystems/fstab/data-vol");
     if (xnu_contains_boot_arg(cmdline, "-restore", false)) {
         // HACK: Use DEV model to restore without FDR errors
         dtb_set_prop(t8030_machine->device_tree, "compatible", 28,
                      "N104DEV\0iPhone12,1\0AppleARM");
-        dtb_set_prop(data_vol, "vol.fs_mntopts", 48,
+
+        DTBNode *filesystems =
+            dtb_find_node(t8030_machine->device_tree, "filesystems");
+        dtb_remove_node_named(filesystems, "fstab");
+        DTBNode *fstab = dtb_create_node(filesystems, "fstab");
+        dtb_set_prop_u32(fstab, "AAPL,phandle", 265);
+        dtb_set_prop_u32(fstab, "max_fs_retries", 1);
+        dtb_set_prop_u32(fstab, "os_env_type", 2);
+        DTBNode *recv_data_vol =
+            dtb_create_node(fstab, "ephemeral-recovery-data-vol");
+        dtb_set_prop_u32(recv_data_vol, "AAPL,phandle", 266);
+        dtb_set_prop(recv_data_vol, "vol.fs_mntopts", 48,
                      "nosuid,nodev,size=262144,template=/private/var/");
-        dtb_set_prop_u32(data_vol, "vol.fs_mntorder", 0);
+        dtb_set_prop(recv_data_vol, "vol.fs_type", 3, "rw");
+        dtb_set_prop(recv_data_vol, "vol.fs_name", 5, "Data");
+        dtb_set_prop_null(recv_data_vol, "vol.fs_ephemeral");
+        dtb_set_prop(recv_data_vol, "vol.fs_file", 13, "/private/var");
+        dtb_set_prop_u32(recv_data_vol, "vol.fs_mntorder", 0);
+        dtb_set_prop_u32(recv_data_vol, "vol.fs_passno", 2);
+
         dtb_set_prop_u32(chosen, "ephemeral-storage", 1);
         dtb_set_prop_u32(chosen, "sepfw-load-at-boot", 0);
-        dtb_set_prop_u32(chosen, "no-sepfw-load-at-boot", 1);
+        dtb_set_prop_u32(chosen, "protected-data-access", 0);
         dtb_set_prop_u32(chosen, "disable-av-content-protection", 1);
         dtb_set_prop_u32(chosen, "use-recovery-securityd", 1);
         dtb_set_prop_u32(chosen, "disable-accessory-firmware", 1);
     } else {
         dtb_set_prop(t8030_machine->device_tree, "compatible", 27,
                      "N104AP\0iPhone12,1\0AppleARM");
-#ifndef ENABLE_BASEBAND
-        DTBNode *system_vol = dtb_get_node(t8030_machine->device_tree,
-                                           "filesystems/fstab/system-vol");
-        g_assert_nonnull(system_vol);
-        dtb_set_prop(system_vol, "vol.fs_type", 3, "rw");
-#endif
-        dtb_set_prop(data_vol, "vol.fs_mntopts", 13, "nosuid,nodev");
-        dtb_set_prop_u32(data_vol, "vol.fs_mntorder", 3);
-        dtb_set_prop_u32(chosen, "ephemeral-storage", 0);
-        dtb_set_prop_u32(chosen, "sepfw-load-at-boot", 1);
-        dtb_set_prop_u32(chosen, "no-sepfw-load-at-boot", 0);
-        dtb_set_prop_u32(chosen, "disable-av-content-protection", 0);
-        dtb_set_prop_u32(chosen, "use-recovery-securityd", 0);
-        dtb_set_prop_u32(chosen, "disable-accessory-firmware", 0);
     }
-#ifdef ENABLE_SEP_SECURITY
-    dtb_set_prop_u32(chosen, "protected-data-access", 1);
-#endif
 
     if (!xnu_contains_boot_arg(cmdline, "rd=", true)) {
         DTBProp *prop = dtb_find_prop(chosen, "root-matching");
@@ -1528,12 +1526,6 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     segranges[1].flag = 0x0;
 
     dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
-
-#if 0
-    // TODO: maybe set pre-loaded and running properties ;; is being set inside apple_ans_create
-    dtb_set_prop_u32(iop_nub, "pre-loaded", 1);
-    dtb_set_prop_u32(iop_nub, "running", 1);
-#endif
 
     t8030_create_sart(t8030_machine);
     sart = SYS_BUS_DEVICE(object_property_get_link(OBJECT(t8030_machine),

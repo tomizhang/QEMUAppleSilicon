@@ -184,6 +184,28 @@ void dtb_remove_node(DTBNode *parent, DTBNode *node)
     g_assert_not_reached();
 }
 
+DTBNode *dtb_create_node(DTBNode *parent, const char *name)
+{
+    DTBNode *node;
+
+    g_assert_nonnull(name);
+
+    node = g_new0(DTBNode, 1);
+
+    node->props = g_hash_table_new_full(g_str_hash, g_str_equal, g_free,
+                                        dtb_prop_destroy);
+
+    dtb_set_prop(node, "name", strlen(name), name);
+
+    if (parent != NULL) {
+        g_assert_null(dtb_find_node(parent, name));
+        parent->child_nodes = g_list_append(parent->child_nodes, node);
+        parent->child_node_count += 1;
+    }
+
+    return node;
+}
+
 bool dtb_remove_node_named(DTBNode *parent, const char *name)
 {
     DTBNode *node;

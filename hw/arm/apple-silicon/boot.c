@@ -478,6 +478,11 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
 
     child = dtb_get_node(root, "chosen");
     g_assert_nonnull(child);
+
+#ifndef ENABLE_SEP_SECURITY
+    dtb_set_prop_u32(child, "protected-data-access", 0);
+#endif
+
     prop = dtb_find_prop(child, "random-seed");
     g_assert_nonnull(prop);
     qemu_guest_getrandom_nofail(prop->data, prop->length);
