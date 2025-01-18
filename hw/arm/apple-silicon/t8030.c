@@ -225,7 +225,7 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     *(char *)vtop_slid(0xFFFFFFF0075085FC) = 'x';
 
     // _gAPCIEdebugFlags: orig == 0x80000001
-    // *(uint32_t *)vtop_slid(0xFFFFFFF00984AB1C) = cpu_to_le32(0xFFFFFFFF);
+    *(uint32_t *)vtop_slid(0xFFFFFFF00984AB1C) = cpu_to_le32(0xFFFFFFFF);
 
     xnu_kpf();
 }
@@ -564,8 +564,8 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
 
         uint64_t value = 0x8000000000000000;
         uint32_t value32_mov_x0_1 = 0xD2800020; // mov x0, #0x1
-        uint32_t value32_mov_x0_0 = 0xd2800000; // mov x0, #0x0
-        uint32_t value32_nop = 0xd503201f; // nop
+        uint32_t value32_mov_x0_0 = 0xD2800000; // mov x0, #0x0
+        uint32_t value32_nop = 0xD503201F; // nop
         // mov w0, #0x10000000
         // uint32_t value32_mov_w0_0x10000000 = 0x52a20000;
         // mov w0, #0x8030
@@ -1220,7 +1220,7 @@ static void t8030_cpu_setup(T8030MachineState *t8030_machine)
     root = dtb_find_node(t8030_machine->device_tree, "cpus");
     g_assert_nonnull(root);
 
-    for (iter = root->child_nodes, i = 0; iter; iter = next, i++) {
+    for (iter = root->children, i = 0; iter; iter = next, i++) {
         uint32_t cluster_id;
         DTBNode *node;
 
@@ -1686,9 +1686,6 @@ static void t8030_create_usb(T8030MachineState *t8030_machine)
     IOMMUMemoryRegion *iommu = NULL;
     uint32_t *ints;
 
-    dtb_set_prop(drd, "device-mac-address", 6, "\xBC\xDE\x48\x33\x44\x55");
-    dtb_set_prop(drd, "host-mac-address", 6, "\xBC\xDE\x48\x00\x11\x22");
-
     dart = APPLE_DART(object_property_get_link(OBJECT(t8030_machine),
                                                "dart-usb", &error_fatal));
 
@@ -2086,7 +2083,6 @@ static void t8030_create_misc(T8030MachineState *t8030_machine)
 {
     DTBNode *child;
     DTBNode *armio;
-    uint8_t zeroes_0xce[0xCE] = { 0 };
 
     armio = dtb_find_node(t8030_machine->device_tree, "arm-io");
     g_assert_nonnull(armio);
@@ -2105,17 +2101,9 @@ static void t8030_create_misc(T8030MachineState *t8030_machine)
     dtb_set_prop_u32(child, "transport-encoding", 0);
     // setting 0 results in defaulting to 2400000
     dtb_set_prop_u32(child, "transport-speed", 2400000);
-    // all zeroes mac address should cause bluetoothd exitcode 0x0
-    // "No bluetooth on this device."
-    dtb_set_prop(child, "local-mac-address", 6, "\x00\x00\x00\x00\x00\x00");
-    // dtb_set_prop(child, "local-mac-address", 6, "\xBC\xDE\x48\x00\x11\x30");
-
-    dtb_set_prop(child, "bluetooth-rx-calibration", sizeof(zeroes_0xce),
-                 zeroes_0xce);
 
     child = dtb_find_node(armio, "wlan");
     g_assert_nonnull(child);
-    dtb_set_prop(child, "local-mac-address", 6, "\xBC\xDE\x48\x00\x11\x31");
 }
 
 static void t8030_create_display(T8030MachineState *t8030_machine)

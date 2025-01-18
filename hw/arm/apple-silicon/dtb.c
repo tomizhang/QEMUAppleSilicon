@@ -28,9 +28,50 @@
 #include "qemu/cutils.h"
 
 #define DT_PROP_NAME_LEN (32)
-#define DT_PROP_SIZE_MASK (0xFFFFFFF)
+#define DT_PROP_PLACEHOLDER (1 << 31)
 
-static DTBProp *dtb_read_prop(uint8_t **dtb_blob, char **name)
+static void dtb_prop_destroy(gpointer data)
+{
+    DTBProp *prop;
+
+    prop = data;
+
+    g_assert_nonnull(prop);
+    g_free(prop->data);
+    g_free(prop);
+}
+
+static DTBNode *dtb_new_node(void)
+{
+    DTBNode *node;
+
+    node = g_new0(DTBNode, 1);
+
+    node->props = g_hash_table_new_full(g_str_hash, g_str_equal, g_free,
+                                        dtb_prop_destroy);
+
+    return node;
+}
+
+DTBNode *dtb_create_node(DTBNode *parent, const char *name)
+{
+    DTBNode *node;
+
+    node = dtb_new_node();
+
+    if (name != NULL) {
+        dtb_set_prop(node, "name", strlen(name), name);
+    }
+
+    if (parent != NULL) {
+        g_assert_null(dtb_find_node(parent, name));
+        parent->children = g_list_append(parent->children, node);
+    }
+
+    return node;
+}
+
+static DTBProp *dtb_deserialise_prop(uint8_t **dtb_blob, char **name)
 {
     g_assert_nonnull(dtb_blob);
     g_assert_nonnull(*dtb_blob);
@@ -46,7 +87,11 @@ static DTBProp *dtb_read_prop(uint8_t **dtb_blob, char **name)
     (*name)[name_len] = '\0';
     *dtb_blob += DT_PROP_NAME_LEN;
 
-    prop->length = ldl_le_p(*dtb_blob) & DT_PROP_SIZE_MASK;
+    prop->length = ldl_le_p(*dtb_blob);
+    if (prop->length & DT_PROP_PLACEHOLDER) {
+        prop->placeholder = true;
+        prop->length &= ~DT_PROP_PLACEHOLDER;
+    }
     *dtb_blob += sizeof(uint32_t);
 
     if (prop->length != 0) {
@@ -59,21 +104,12 @@ static DTBProp *dtb_read_prop(uint8_t **dtb_blob, char **name)
     return prop;
 }
 
-static void dtb_prop_destroy(gpointer data)
-{
-    DTBProp *prop;
-
-    prop = data;
-
-    g_assert_nonnull(prop);
-    g_free(prop->data);
-    g_free(prop);
-}
-
-static DTBNode *dtb_read_node(uint8_t **dtb_blob)
+static DTBNode *dtb_deserialise_node(uint8_t **dtb_blob)
 {
     uint32_t i;
     DTBNode *node;
+    uint32_t prop_count;
+    uint32_t children_count;
     DTBNode *child;
     DTBProp *prop;
     char *key;
@@ -81,29 +117,31 @@ static DTBNode *dtb_read_node(uint8_t **dtb_blob)
     g_assert_nonnull(dtb_blob);
     g_assert_nonnull(*dtb_blob);
 
-    node = g_new0(DTBNode, 1);
-    node->prop_count = ldl_le_p(*dtb_blob);
-    *dtb_blob += sizeof(node->prop_count);
-    node->child_node_count = ldl_le_p(*dtb_blob);
-    *dtb_blob += sizeof(node->child_node_count);
+    node = dtb_new_node();
+    prop_count = ldl_le_p(*dtb_blob);
+    *dtb_blob += sizeof(prop_count);
+    children_count = ldl_le_p(*dtb_blob);
+    *dtb_blob += sizeof(children_count);
 
-    node->props = g_hash_table_new_full(g_str_hash, g_str_equal, g_free,
-                                        dtb_prop_destroy);
-
-    for (i = 0; i < node->prop_count; i++) {
-        prop = dtb_read_prop(dtb_blob, &key);
+    for (i = 0; i < prop_count; i++) {
+        prop = dtb_deserialise_prop(dtb_blob, &key);
         g_assert_nonnull(prop);
         g_assert_nonnull(key);
         g_assert_true(g_hash_table_insert(node->props, key, prop));
     }
 
-    for (i = 0; i < node->child_node_count; i++) {
-        child = dtb_read_node(dtb_blob);
+    for (i = 0; i < children_count; i++) {
+        child = dtb_deserialise_node(dtb_blob);
         g_assert_nonnull(child);
-        node->child_nodes = g_list_append(node->child_nodes, child);
+        node->children = g_list_append(node->children, child);
     }
 
     return node;
+}
+
+DTBNode *dtb_unserialise(uint8_t *dtb_blob)
+{
+    return dtb_deserialise_node(&dtb_blob);
 }
 
 static void dtb_destroy_node(DTBNode *node)
@@ -112,53 +150,11 @@ static void dtb_destroy_node(DTBNode *node)
 
     g_hash_table_unref(node->props);
 
-    if (node->child_nodes != NULL) {
-        g_list_free_full(node->child_nodes, (GDestroyNotify)dtb_destroy_node);
+    if (node->children != NULL) {
+        g_list_free_full(node->children, (GDestroyNotify)dtb_destroy_node);
     }
 
     g_free(node);
-}
-
-DTBNode *dtb_unserialise(uint8_t *dtb_blob)
-{
-    return dtb_read_node(&dtb_blob);
-}
-
-static void dtb_serialise_node(DTBNode *node, uint8_t **buf)
-{
-    GHashTableIter ht_iter;
-    gpointer key, value;
-    DTBProp *prop;
-
-    g_assert_nonnull(node);
-    g_assert_nonnull(buf);
-    g_assert_nonnull(*buf);
-
-    memcpy(*buf, &node->prop_count, sizeof(node->prop_count));
-    *buf += sizeof(node->prop_count);
-    memcpy(*buf, &node->child_node_count, sizeof(node->child_node_count));
-    *buf += sizeof(node->child_node_count);
-
-    g_hash_table_iter_init(&ht_iter, node->props);
-    while (g_hash_table_iter_next(&ht_iter, &key, &value)) {
-        prop = (DTBProp *)value;
-        g_assert_nonnull(prop);
-
-        strncpy((char *)*buf, key, DT_PROP_NAME_LEN);
-        *buf += DT_PROP_NAME_LEN;
-        stl_le_p(*buf, prop->length);
-        *buf += sizeof(uint32_t);
-
-        if (prop->length == 0) {
-            g_assert_null(prop->data);
-        } else {
-            g_assert_nonnull(prop->data);
-            memcpy(*buf, prop->data, prop->length);
-            *buf += ROUND_UP(prop->length, 4);
-        }
-    }
-
-    g_list_foreach(node->child_nodes, (GFunc)dtb_serialise_node, buf);
 }
 
 void dtb_remove_node(DTBNode *parent, DTBNode *node)
@@ -168,42 +164,15 @@ void dtb_remove_node(DTBNode *parent, DTBNode *node)
     g_assert_nonnull(parent);
     g_assert_nonnull(node);
 
-    for (iter = parent->child_nodes; iter != NULL; iter = iter->next) {
-        if (node != iter->data) {
-            continue;
+    for (iter = parent->children; iter != NULL; iter = iter->next) {
+        if (node == iter->data) {
+            dtb_destroy_node(node);
+            parent->children = g_list_delete_link(parent->children, iter);
+            return;
         }
-
-        dtb_destroy_node(node);
-        parent->child_nodes = g_list_delete_link(parent->child_nodes, iter);
-
-        g_assert_cmpuint(parent->child_node_count, >, 0);
-        parent->child_node_count--;
-        return;
     }
 
     g_assert_not_reached();
-}
-
-DTBNode *dtb_create_node(DTBNode *parent, const char *name)
-{
-    DTBNode *node;
-
-    g_assert_nonnull(name);
-
-    node = g_new0(DTBNode, 1);
-
-    node->props = g_hash_table_new_full(g_str_hash, g_str_equal, g_free,
-                                        dtb_prop_destroy);
-
-    dtb_set_prop(node, "name", strlen(name), name);
-
-    if (parent != NULL) {
-        g_assert_null(dtb_find_node(parent, name));
-        parent->child_nodes = g_list_append(parent->child_nodes, node);
-        parent->child_node_count += 1;
-    }
-
-    return node;
 }
 
 bool dtb_remove_node_named(DTBNode *parent, const char *name)
@@ -228,13 +197,7 @@ bool dtb_remove_prop_named(DTBNode *node, const char *name)
     g_assert_nonnull(node);
     g_assert_nonnull(name);
 
-    if (g_hash_table_remove(node->props, name)) {
-        g_assert_cmpuint(node->prop_count, >, 0);
-        node->prop_count--;
-        return true;
-    }
-
-    return false;
+    return g_hash_table_remove(node->props, name);
 }
 
 DTBProp *dtb_set_prop(DTBNode *node, const char *name, const uint32_t size,
@@ -258,7 +221,6 @@ DTBProp *dtb_set_prop(DTBNode *node, const char *name, const uint32_t size,
     if (prop == NULL) {
         prop = g_new0(DTBProp, 1);
         g_hash_table_insert(node->props, g_strdup(name), prop);
-        node->prop_count++;
     } else {
         g_free(prop->data);
         memset(prop, 0, sizeof(DTBProp));
@@ -294,6 +256,111 @@ DTBProp *dtb_set_prop_hwaddr(DTBNode *node, const char *name, const hwaddr val)
     return dtb_set_prop(node, name, sizeof(val), &val);
 }
 
+static uint32_t dtb_get_placeholder_size(DTBProp *prop, const char *name)
+{
+    char *token;
+    char *next;
+    char *string;
+    uint32_t len;
+
+    g_assert_nonnull(prop->data);
+    g_assert_cmphex(prop->length, >, 0);
+
+    string = g_new0(char, prop->length);
+    next = string;
+    memcpy(next, prop->data, prop->length);
+
+    while ((token = qemu_strsep(&next, ",")) != NULL) {
+        if (*token == '\0') {
+            continue;
+        }
+
+        if (strncmp(token, "macaddr/", 8) == 0) {
+            g_free(string);
+            return 6;
+        }
+
+        if (strncmp(token, "syscfg/", 7) == 0) {
+            len = g_ascii_strtoull(token + 8 + 4, NULL, 0);
+            if (len == 0) {
+                continue;
+            }
+            g_free(string);
+            return len;
+        }
+
+        if (strncmp(token, "zeroes/", 7) == 0) {
+            len = g_ascii_strtoull(token + 7, NULL, 0);
+            g_free(string);
+            return len;
+        }
+    }
+
+    g_free(string);
+    return 0;
+}
+
+static void dtb_serialise_node(DTBNode *node, uint8_t **buf)
+{
+    uint8_t *prop_count_ptr;
+    uint32_t prop_count;
+    GHashTableIter ht_iter;
+    gpointer key;
+    DTBProp *prop;
+    uint32_t placeholder_size;
+
+    g_assert_nonnull(node);
+    g_assert_nonnull(buf);
+    g_assert_nonnull(*buf);
+
+    prop_count = g_hash_table_size(node->props);
+    prop_count_ptr = *buf;
+    *buf += sizeof(uint32_t);
+
+    stl_le_p(*buf, g_list_length(node->children));
+    *buf += sizeof(uint32_t);
+
+    g_hash_table_iter_init(&ht_iter, node->props);
+    while (g_hash_table_iter_next(&ht_iter, &key, (gpointer *)&prop)) {
+        g_assert_nonnull(prop);
+
+        // TODO: put a system to register things like syscfg values.
+        // who's going to have to do it? spoiler: it will be me, Visual, once
+        // again.
+        if (prop->placeholder) {
+            placeholder_size = dtb_get_placeholder_size(prop, key);
+            if (placeholder_size == 0) {
+                fprintf(stderr, "warning: removing prop `%s`\n", (char *)key);
+                prop_count -= 1;
+                continue;
+            }
+            fprintf(stderr, "warning: expanding prop `%s` to default value\n",
+                    (char *)key);
+            strncpy((char *)*buf, key, DT_PROP_NAME_LEN);
+            *buf += DT_PROP_NAME_LEN;
+            stl_le_p(*buf, placeholder_size);
+            *buf += sizeof(uint32_t);
+            *buf += ROUND_UP(placeholder_size, 4);
+        } else {
+            strncpy((char *)*buf, key, DT_PROP_NAME_LEN);
+            *buf += DT_PROP_NAME_LEN;
+            stl_le_p(*buf, prop->length);
+            *buf += sizeof(uint32_t);
+
+            if (prop->length == 0) {
+                g_assert_null(prop->data);
+            } else {
+                g_assert_nonnull(prop->data);
+                memcpy(*buf, prop->data, prop->length);
+                *buf += ROUND_UP(prop->length, 4);
+            }
+        }
+    }
+    stl_le_p(prop_count_ptr, prop_count);
+
+    g_list_foreach(node->children, (GFunc)dtb_serialise_node, buf);
+}
+
 void dtb_serialise(uint8_t *buf, DTBNode *root)
 {
     g_assert_nonnull(buf);
@@ -302,10 +369,20 @@ void dtb_serialise(uint8_t *buf, DTBNode *root)
     dtb_serialise_node(root, &buf);
 }
 
-static uint64_t dtb_get_serialised_prop_size(DTBProp *prop)
+static uint64_t dtb_get_serialised_prop_size(DTBProp *prop, const char *name)
 {
+    uint32_t placeholder_size;
+
     g_assert_nonnull(prop);
 
+    if (prop->placeholder) {
+        placeholder_size = dtb_get_placeholder_size(prop, name);
+        if (placeholder_size == 0) {
+            return 0;
+        }
+        return DT_PROP_NAME_LEN + sizeof(prop->length) +
+               ROUND_UP(placeholder_size, 4);
+    }
     return DT_PROP_NAME_LEN + sizeof(prop->length) + ROUND_UP(prop->length, 4);
 }
 
@@ -314,19 +391,20 @@ uint64_t dtb_get_serialised_node_size(DTBNode *node)
     g_assert_nonnull(node);
 
     GHashTableIter ht_iter;
-    gpointer key, value;
+    gpointer key;
+    gpointer value;
     uint64_t size;
     GList *iter;
 
-    size = sizeof(node->prop_count) + sizeof(node->child_node_count);
+    size = sizeof(uint32_t) + sizeof(uint32_t);
 
     g_hash_table_iter_init(&ht_iter, node->props);
     while (g_hash_table_iter_next(&ht_iter, &key, &value)) {
         g_assert_nonnull(value);
-        size += dtb_get_serialised_prop_size(value);
+        size += dtb_get_serialised_prop_size(value, key);
     }
 
-    for (iter = node->child_nodes; iter != NULL; iter = iter->next) {
+    for (iter = node->children; iter != NULL; iter = iter->next) {
         g_assert_nonnull(iter->data);
         size += dtb_get_serialised_node_size(iter->data);
     }
@@ -341,15 +419,15 @@ DTBProp *dtb_find_prop(DTBNode *node, const char *name)
 
 DTBNode *dtb_find_node(DTBNode *node, const char *path)
 {
-    g_assert_nonnull(node);
-    g_assert_nonnull(path);
-
     GList *iter;
     DTBProp *prop;
     DTBNode *child;
     char *s;
     const char *next;
     bool found;
+
+    g_assert_nonnull(node);
+    g_assert_nonnull(path);
 
     s = g_strdup(path);
 
@@ -360,7 +438,7 @@ DTBNode *dtb_find_node(DTBNode *node, const char *path)
 
         found = false;
 
-        for (iter = node->child_nodes; iter; iter = iter->next) {
+        for (iter = node->children; iter; iter = iter->next) {
             child = (DTBNode *)iter->data;
 
             g_assert_nonnull(child);
@@ -410,7 +488,7 @@ DTBNode *dtb_get_node(DTBNode *node, const char *path)
 
         found = false;
 
-        for (iter = node->child_nodes; iter; iter = iter->next) {
+        for (iter = node->children; iter; iter = iter->next) {
             child = (DTBNode *)iter->data;
 
             g_assert_nonnull(child);
@@ -431,8 +509,7 @@ DTBNode *dtb_get_node(DTBNode *node, const char *path)
             child = g_new0(DTBNode, 1);
 
             dtb_set_prop(child, "name", name_len + 1, (uint8_t *)name);
-            node->child_nodes = g_list_append(node->child_nodes, child);
-            node->child_node_count++;
+            node->children = g_list_append(node->children, child);
             node = child;
         }
     }

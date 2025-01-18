@@ -225,7 +225,6 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
     uint64_t count;
     uint64_t i;
     bool found;
-    int cnt;
 
     prop = dtb_find_prop(node, "compatible");
     if (prop != NULL) {
@@ -279,17 +278,13 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
         dtb_remove_prop_named(node, REM_PROPS[i]);
     }
 
-    cnt = node->child_node_count;
-    for (iter = node->child_nodes; iter != NULL;) {
+    for (iter = node->children; iter != NULL;) {
         child = (DTBNode *)iter->data;
 
         // iter might be invalidated by macho_dtb_node_process
         iter = iter->next;
         macho_dtb_node_process(child, node);
-        cnt--;
     }
-
-    g_assert_cmpuint(cnt, ==, 0);
 }
 
 /*
@@ -507,27 +502,6 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     dtb_set_prop_u32(child, "chip-epoch", 1);
     dtb_set_prop_u32(child, "amfi-allows-trust-cache-load", 1);
     // dtb_set_prop_u32(child, "debug-enabled", 1);
-
-    dtb_set_prop(child, "mac-address-bluetooth0", 6, "\xBC\xDE\x48\x00\x11\x30"); // maybe sync with t8030_create_misc
-    dtb_set_prop(child, "mac-address-ethernet0", 6, "\xBC\xDE\x48\x33\x44\x55"); // sync with t8030_create_usb
-    dtb_set_prop(child, "mac-address-ethernet1", 6, "\xBC\xDE\x48\x33\x44\x56");
-    dtb_set_prop(child, "mac-address-wifi0", 6, "\xBC\xDE\x48\x00\x11\x31"); // maybe sync with t8030_create_misc
-    uint8_t zeroes_0x10[0x10] = {0};
-    uint32_t software_behavior[4] = {0}; // 0x10(16) bytes
-    // 0x11 is the default for LL
-    software_behavior[0] |= 0x1; // valid
-    //software_behavior[0] |= 0x2; // ?/GoogleMail
-    //software_behavior[0] |= 0x4; // VOLUME/VolumeLimit
-    //software_behavior[0] |= 0x8; // SHUTTER/ShutterClick
-    software_behavior[0] |= 0x10; // TVNTSC/NTSC
-    //software_behavior[0] |= 0x20; // ?/NoWiFi
-    //software_behavior[0] |= 0x40; // CNBRICK/ChinaBrick
-    //software_behavior[0] |= 0x80; // NOVOIP/NoVOIP
-    //software_behavior[0] |= 0x100; // GB18030/GB18030
-    //software_behavior[0] |= 0x200; // NOPASSCODETILES/NoPasscodeLocationTiles
-    //software_behavior[0] |= 0x400; // EUVOLUME/EUVolumeLimit
-    dtb_set_prop(child, "software-behavior", sizeof(software_behavior), software_behavior);
-    dtb_set_prop(child, "software-bundle-version", sizeof(zeroes_0x10), zeroes_0x10);
 
     child = dtb_get_node(root, "defaults");
     g_assert_nonnull(child);
@@ -880,8 +854,7 @@ void macho_highest_lowest(MachoHeader64 *mh, uint64_t *lowaddr,
 
 void macho_text_base(MachoHeader64 *mh, uint64_t *base)
 {
-    MachoLoadCommand *cmd =
-        (MachoLoadCommand *)((uint8_t *)mh + sizeof(MachoHeader64));
+    MachoLoadCommand *cmd = (MachoLoadCommand *)(mh + 1);
     unsigned int index;
     *base = 0;
     for (index = 0; index < mh->n_cmds; index++) {
@@ -895,7 +868,6 @@ void macho_text_base(MachoHeader64 *mh, uint64_t *base)
             }
             break;
         }
-
         default:
             break;
         }

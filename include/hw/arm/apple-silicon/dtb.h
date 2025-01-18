@@ -29,19 +29,18 @@
 
 typedef struct {
     uint32_t length;
+    bool placeholder;
     uint8_t *data;
 } DTBProp;
 
 typedef struct {
-    uint32_t prop_count;
-    uint32_t child_node_count;
     GHashTable *props;
-    GList *child_nodes;
+    GList *children;
 } DTBNode;
 
+DTBNode *dtb_create_node(DTBNode *parent, const char *name);
 DTBNode *dtb_unserialise(uint8_t *dtb_blob);
 void dtb_serialise(uint8_t *buf, DTBNode *root);
-DTBNode *dtb_create_node(DTBNode *parent, const char *name);
 bool dtb_remove_node_named(DTBNode *parent, const char *name);
 void dtb_remove_node(DTBNode *node, DTBNode *child);
 bool dtb_remove_prop_named(DTBNode *node, const char *name);

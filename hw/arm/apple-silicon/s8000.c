@@ -565,7 +565,7 @@ static void s8000_cpu_setup(S8000MachineState *s8000_machine)
                             &s8000_machine->cluster, TYPE_CPU_CLUSTER);
     qdev_prop_set_uint32(DEVICE(&s8000_machine->cluster), "cluster-id", 0);
 
-    for (iter = root->child_nodes, i = 0; iter; iter = next, i++) {
+    for (iter = root->children, i = 0; iter; iter = next, i++) {
         DTBNode *node;
 
         next = iter->next;
