@@ -432,7 +432,7 @@ DTBNode *dtb_get_node(DTBNode *node, const char *path)
     s = g_strdup(path);
 
     while (node != NULL && ((next = qemu_strsep(&s, "/")))) {
-        if (strlen(next) == 0) {
+        if (*next == '\0') {
             continue;
         }
 
@@ -452,6 +452,7 @@ DTBNode *dtb_get_node(DTBNode *node, const char *path)
             if (strncmp((const char *)prop->data, next, prop->length) == 0) {
                 node = child;
                 found = true;
+                break;
             }
         }
 
