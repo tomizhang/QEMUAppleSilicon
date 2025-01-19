@@ -2338,6 +2338,11 @@ static void t8030_machine_reset(MachineState *machine, ResetType type)
     if (!runstate_check(RUN_STATE_RESTORE_VM) &&
         !runstate_check(RUN_STATE_PRELAUNCH)) {
         t8030_memory_setup(t8030_machine);
+
+        pmgr_unk_e4800 = 0;
+        // maybe also reset pmgr_unk_e4000 array
+        // Ah, what the heck. Let's do it.
+        memset(pmgr_unk_e4000, 0, sizeof(pmgr_unk_e4000));
     }
     t8030_cpu_reset(t8030_machine);
     gpio =
@@ -2345,11 +2350,6 @@ static void t8030_machine_reset(MachineState *machine, ResetType type)
 
     qemu_set_irq(qdev_get_gpio_in(gpio, T8030_GPIO_FORCE_DFU),
                  t8030_machine->force_dfu);
-
-    pmgr_unk_e4800 = 0;
-    // maybe also reset pmgr_unk_e4000 array
-    // Ah, what the heck. Let's do it.
-    memset(pmgr_unk_e4000, 0, sizeof(pmgr_unk_e4000));
 }
 
 static void t8030_machine_init_done(Notifier *notifier, void *data)
