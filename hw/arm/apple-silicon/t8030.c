@@ -748,11 +748,11 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         // HACK: Use DEV model to restore without FDR errors
         dtb_set_prop(t8030_machine->device_tree, "compatible", 28,
                      "N104DEV\0iPhone12,1\0AppleARM");
-        DTBNode *fstab_rec = dtb_get_node(t8030_machine->device_tree,
+        DTBNode *fstab_rec = dtb_find_node(t8030_machine->device_tree,
                                           "filesystems/fstab-ephemeral-"
                                           "recovery-data");
         if (fstab_rec) {
-            DTBNode *fstab_orig = dtb_get_node(t8030_machine->device_tree,
+            DTBNode *fstab_orig = dtb_find_node(t8030_machine->device_tree,
                                                "filesystems/fstab");
             dtb_set_prop(fstab_rec, "name", 6, "fstab");
             dtb_set_prop(fstab_orig, "name", 7, "fstab_");
@@ -770,10 +770,10 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     } else {
         dtb_set_prop(t8030_machine->device_tree, "compatible", 27,
                      "N104AP\0iPhone12,1\0AppleARM");
-        DTBNode *fstab_orig = dtb_get_node(t8030_machine->device_tree,
+        DTBNode *fstab_orig = dtb_find_node(t8030_machine->device_tree,
                                            "filesystems/fstab_");
         if (fstab_orig) {
-            DTBNode *fstab_rec = dtb_get_node(t8030_machine->device_tree,
+            DTBNode *fstab_rec = dtb_find_node(t8030_machine->device_tree,
                                               "filesystems/fstab");
             dtb_set_prop(fstab_rec, "name", 30, "fstab-ephemeral-"
                                                 "recovery-data");
