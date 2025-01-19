@@ -2421,11 +2421,8 @@ static void t8030_machine_init(MachineState *machine)
         t8030_machine->rtbuddy_protocol_ver = 11;
         break;
     case 15:
-        QEMU_FALLTHROUGH;
     case 16:
-        QEMU_FALLTHROUGH;
     case 17:
-        QEMU_FALLTHROUGH;
     case 18:
         t8030_machine->rtbuddy_protocol_ver = 12;
         break;
