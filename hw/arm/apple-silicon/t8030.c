@@ -26,6 +26,7 @@
 #include "hw/arm/apple-silicon/dart.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/arm/apple-silicon/mem.h"
+#include "hw/arm/apple-silicon/mt-spi.h"
 #include "hw/arm/apple-silicon/sart.h"
 #include "hw/arm/apple-silicon/sep-sim.h"
 #include "hw/arm/apple-silicon/sep.h"
@@ -226,6 +227,19 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
 
     // _gAPCIEdebugFlags: orig == 0x80000001
     *(uint32_t *)vtop_slid(0xFFFFFFF00984AB1C) = cpu_to_le32(0xFFFFFFFF);
+
+    // Disable check for `PE_i_can_has_debugger` in MTSPI/MTDevice code
+    // so we can use the boot arguments `mt-strings=1 mt-bytes=1`.
+    *(uint32_t *)vtop_slid(0xFFFFFFF0085D70E4) = nop;
+    *(uint32_t *)vtop_slid(0xFFFFFFF0087A5854) = nop;
+
+    // Enable all AppleImage4 logs.
+    // *(uint32_t *)vtop_slid(0xFFFFFFF008387A28) = nop;
+
+    // Force call to `Img4DecodePerformTrustEvaluationWithCallbacks` return
+    // value check to pass.
+    *(uint32_t *)vtop_slid(0xFFFFFFF00838030C) = cpu_to_le32(0x52800000);
+    *(uint32_t *)vtop_slid(0xFFFFFFF008380310) = nop;
 
     xnu_kpf();
 }
@@ -2124,7 +2138,7 @@ static void t8030_create_display(T8030MachineState *t8030_machine)
         OBJECT(t8030_machine), "dart-disp0", &error_fatal));
     g_assert_nonnull(dart);
     child = dtb_get_node(t8030_machine->device_tree,
-                          "arm-io/dart-disp0/mapper-disp0");
+                         "arm-io/dart-disp0/mapper-disp0");
     g_assert_nonnull(child);
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
@@ -2286,6 +2300,38 @@ static void t8030_create_sep_sim(T8030MachineState *t8030_machine)
     address_space_init(sep->dma_as, sep->dma_mr, "sep.dma");
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(sep), &error_fatal);
+}
+
+static void t8030_create_mt_spi(T8030MachineState *t8030_machine)
+{
+    AppleSPIState *spi;
+    DeviceState *device;
+    DeviceState *aop_gpio;
+    DTBNode *child;
+    DTBProp *prop;
+    uint32_t *ints;
+
+    spi = APPLE_SPI(
+        object_property_get_link(OBJECT(t8030_machine), "spi1", &error_fatal));
+    device = ssi_create_peripheral(apple_spi_get_bus(spi), TYPE_APPLE_MT_SPI);
+
+    aop_gpio = DEVICE(object_property_get_link(OBJECT(t8030_machine),
+                                               "aop-gpio", &error_fatal));
+
+    child = dtb_get_node(t8030_machine->device_tree, "arm-io/spi1/multi-touch");
+    g_assert_nonnull(child);
+
+    dtb_set_prop(child, "multi-touch-calibration", sizeof(t8030_mt_cal_data),
+                 t8030_mt_cal_data);
+
+    dtb_set_prop_null(child, "function-power_ana");
+
+    prop = dtb_find_prop(child, "interrupts");
+    g_assert_nonnull(prop);
+    ints = (uint32_t *)prop->data;
+
+    qdev_connect_gpio_out_named(device, APPLE_MT_SPI_IRQ, 0,
+                                qdev_get_gpio_in(aop_gpio, ints[0]));
 }
 
 static void t8030_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
@@ -2585,6 +2631,8 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_misc(t8030_machine);
 
     t8030_create_display(t8030_machine);
+
+    t8030_create_mt_spi(t8030_machine);
 
     t8030_machine->init_done_notifier.notify = t8030_machine_init_done;
     qemu_add_machine_init_done_notifier(&t8030_machine->init_done_notifier);

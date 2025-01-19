@@ -7,6 +7,7 @@ arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
     'apple-silicon/boot.c',
     'apple-silicon/dtb.c',
     'apple-silicon/mem.c',
+    'apple-silicon/mt-spi.c',
     'apple-silicon/s8000.c',
     'apple-silicon/sep-sim.c',
     'apple-silicon/sep.c',

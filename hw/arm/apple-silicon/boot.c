@@ -54,6 +54,7 @@ static const char *KEEP_COMP[] = {
     // "dart,s8000\0dart,s5l8960x\0$",
     "dart,t8020\0$",
     "disp0,t8030\0$",
+    "gen-mt-decider\0$",
     "gpio,s8000\0gpio,s5l8960x\0$",
     "gpio,t8015\0gpio,s5l8960x\0$",
     "gpio,t8030\0gpio,s5l8960x\0$",
