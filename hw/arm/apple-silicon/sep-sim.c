@@ -991,7 +991,7 @@ AppleSEPSimState *apple_sep_sim_create(DTBNode *node, bool modern)
 
     qemu_mutex_init(&s->lock);
 
-    child = dtb_find_node(node, "iop-sep-nub");
+    child = dtb_get_node(node, "iop-sep-nub");
     g_assert_nonnull(child);
     dtb_remove_node_named(child, "Lynx");
     return s;

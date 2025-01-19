@@ -496,7 +496,7 @@ SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
     rtb = APPLE_RTBUDDY(dev);
     sbd = SYS_BUS_DEVICE(dev);
 
-    child = dtb_find_node(node, "iop-smc-nub");
+    child = dtb_get_node(node, "iop-smc-nub");
     g_assert_nonnull(child);
 
     prop = dtb_find_prop(node, "reg");

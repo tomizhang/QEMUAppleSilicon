@@ -390,7 +390,7 @@ SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
     rtb = APPLE_RTBUDDY(dev);
     dev->id = g_strdup("sio");
 
-    child = dtb_find_node(node, "iop-sio-nub");
+    child = dtb_get_node(node, "iop-sio-nub");
     g_assert_nonnull(child);
 
     prop = dtb_find_prop(node, "reg");

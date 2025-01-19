@@ -590,7 +590,7 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
         QCryptoHashAlgo alg = QCRYPTO_HASH_ALGO_SHA1;
         g_autofree uint8_t *hash = NULL;
         size_t hash_len = 0;
-        DTBNode *child = dtb_find_node(root, "chosen");
+        DTBNode *child = dtb_get_node(root, "chosen");
         DTBProp *prop = NULL;
         g_autofree Error *err = NULL;
         prop = dtb_find_prop(child, "crypto-hash-method");

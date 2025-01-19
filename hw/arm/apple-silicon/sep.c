@@ -3264,7 +3264,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
                           s, "sep.debug_trace",
                           s->debug_trace_size); // Debug trace printing
     sysbus_init_mmio(sbd, &s->debug_trace_mr);
-    DTBNode *child = dtb_find_node(node, "iop-sep-nub");
+    DTBNode *child = dtb_get_node(node, "iop-sep-nub");
     g_assert_nonnull(child);
 
     MachineState *machine = MACHINE(qdev_get_machine());

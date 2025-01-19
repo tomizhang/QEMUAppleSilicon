@@ -64,7 +64,7 @@ DTBNode *dtb_create_node(DTBNode *parent, const char *name)
     }
 
     if (parent != NULL) {
-        g_assert_null(dtb_find_node(parent, name));
+        g_assert_null(dtb_get_node(parent, name));
         parent->children = g_list_append(parent->children, node);
     }
 
@@ -182,7 +182,7 @@ bool dtb_remove_node_named(DTBNode *parent, const char *name)
     g_assert_nonnull(parent);
     g_assert_nonnull(name);
 
-    node = dtb_find_node(parent, name);
+    node = dtb_get_node(parent, name);
 
     if (node == NULL) {
         return false;
@@ -417,7 +417,7 @@ DTBProp *dtb_find_prop(DTBNode *node, const char *name)
     return g_hash_table_lookup(node->props, name);
 }
 
-DTBNode *dtb_find_node(DTBNode *node, const char *path)
+DTBNode *dtb_get_node(DTBNode *node, const char *path)
 {
     GList *iter;
     DTBProp *prop;
@@ -458,59 +458,6 @@ DTBNode *dtb_find_node(DTBNode *node, const char *path)
         if (!found) {
             g_free(s);
             return NULL;
-        }
-    }
-
-    g_free(s);
-    return node;
-}
-
-DTBNode *dtb_get_node(DTBNode *node, const char *path)
-{
-    g_assert_nonnull(node);
-    g_assert_nonnull(path);
-
-    GList *iter = NULL;
-    DTBProp *prop = NULL;
-    DTBNode *child = NULL;
-    char *s;
-    const char *name;
-    bool found;
-    size_t name_len;
-
-    s = g_strdup(path);
-
-    while (node != NULL && ((name = qemu_strsep(&s, "/")))) {
-        name_len = strlen(name);
-        if (name_len == 0) {
-            continue;
-        }
-
-        found = false;
-
-        for (iter = node->children; iter; iter = iter->next) {
-            child = (DTBNode *)iter->data;
-
-            g_assert_nonnull(child);
-
-            prop = dtb_find_prop(child, "name");
-
-            if (prop == NULL) {
-                continue;
-            }
-
-            if (strncmp((const char *)prop->data, name, prop->length) == 0) {
-                node = child;
-                found = true;
-            }
-        }
-
-        if (!found) {
-            child = g_new0(DTBNode, 1);
-
-            dtb_set_prop(child, "name", name_len + 1, (uint8_t *)name);
-            node->children = g_list_append(node->children, child);
-            node = child;
         }
     }
 
