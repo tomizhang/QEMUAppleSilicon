@@ -52,7 +52,7 @@ jobs:
       - name: Build
         run: |
           mkdir build && cd build
-          CFLAGS="$CFLAGS -I/opt/homebrew/include" LDFLAGS="$LDFLAGS -L/opt/homebrew/lib" LIBTOOL="glibtool" ../configure --target-list=aarch64-softmmu,x86_64-softmmu --disable-bsd-user --disable-guest-agent --enable-lzfse --enable-slirp --enable-capstone --enable-curses --enable-libssh --enable-virtfs --enable-zstd --extra-cflags=-DNCURSES_WIDECHAR=1 --disable-sdl --disable-gtk --enable-cocoa --enable-lzfse --enable-nettle --enable-gnutls --disable-werror
+          LIBTOOL="glibtool" ../configure --target-list=aarch64-softmmu,x86_64-softmmu --disable-bsd-user --disable-guest-agent --enable-lzfse --enable-slirp --enable-capstone --enable-curses --enable-libssh --enable-virtfs --enable-zstd --extra-cflags=-DNCURSES_WIDECHAR=1 --disable-sdl --disable-gtk --enable-cocoa --enable-lzfse --enable-nettle --enable-gnutls --disable-werror --extra-cflags="-I/opt/homebrew/include" --extra-ldflags="-L/opt/homebrew/lib"
           make -j$(sysctl -n hw.logicalcpu)
       - name: Install
         run: |
