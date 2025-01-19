@@ -81,6 +81,7 @@ static const char *KEEP_COMP[] = {
 #endif
     "sart,coastguard\0$",
     "sart,t8030\0$",
+    "sacm,1\0$",
     "sio-dma-controller\0$",
     "smc-pmu\0$",
     "smc-tempsensor\0$",
