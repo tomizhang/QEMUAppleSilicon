@@ -4096,6 +4096,7 @@ static int answer_cmd_0x2_disconnect_sp(struct AppleSSCState *ssc_state,
     HEXDUMP("cmd_0x02_req", request, SSC_REQUEST_SIZE_CMD_0x2);
     uint8_t kbkdf_index = request[1];
     if (!is_keyslot_valid(ssc_state, kbkdf_index)) { // should already exist
+        DBGLOG("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
@@ -4105,6 +4106,7 @@ static int answer_cmd_0x2_disconnect_sp(struct AppleSSCState *ssc_state,
            sizeof(ssc_state->ecc_keys[kbkdf_index]));
     memset(&ssc_state->kbkdf_keys[kbkdf_index], 0,
            sizeof(ssc_state->kbkdf_keys[kbkdf_index]));
+    ssc_state->kbkdf_counter[kbkdf_index] = 0;
     DBGLOG("answer_cmd_0x2_disconnect_sp: kbkdf_index: %u\n", kbkdf_index);
     return 0;
 }
@@ -4143,11 +4145,11 @@ static int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
         return 0;
     }
     int blk_offset =
-        (kbkdf_index_dataslot * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
-        (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
+        (kbkdf_index_dataslot * CMD_METADATA_DATA_PAYLOAD_LENGTH *
+        SSC_REQUEST_MAX_COPIES) + (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
     int key_offset =
-        (KBKDF_KEY_MAX_SLOTS * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
-        (kbkdf_index_dataslot * CMD_METADATA_PAYLOAD_LENGTH);
+        (KBKDF_KEY_KEY_FILE_OFFSET * CMD_METADATA_DATA_PAYLOAD_LENGTH *
+        SSC_REQUEST_MAX_COPIES) + (kbkdf_index_dataslot * KBKDF_KEY_KEY_LENGTH);
     DBGLOG("cmd_0x03_req: blk_offset: 0x%x\n", blk_offset);
     HEXDUMP("cmd_0x03_req: ssc_state->kbkdf_keys[kbkdf_index_key]",
             ssc_state->kbkdf_keys[kbkdf_index_key], KBKDF_CMAC_OUTPUT_LEN);
@@ -4212,7 +4214,8 @@ static int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
     }
-    int blk_offset = (kbkdf_index * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
+    int blk_offset = (kbkdf_index * CMD_METADATA_DATA_PAYLOAD_LENGTH *
+                      SSC_REQUEST_MAX_COPIES) +
                      (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
     DBGLOG("cmd_0x04_req: blk_offset: 0x%x\n", blk_offset);
     HEXDUMP("cmd_0x04_req: ssc_state->kbkdf_keys[kbkdf_index]",
@@ -4267,7 +4270,8 @@ static int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
     }
-    int blk_offset = (kbkdf_index * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
+    int blk_offset = (kbkdf_index * CMD_METADATA_DATA_PAYLOAD_LENGTH *
+                      SSC_REQUEST_MAX_COPIES) +
                      (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
     DBGLOG("cmd_0x05_req: blk_offset: 0x%x\n", blk_offset);
     HEXDUMP("cmd_0x05_req: ssc_state->kbkdf_keys[kbkdf_index]",
@@ -4334,11 +4338,13 @@ static int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
         return 0;
     }
     int blk_offset =
-        (kbkdf_index_dataslot * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
+        (kbkdf_index_dataslot * CMD_METADATA_DATA_PAYLOAD_LENGTH *
+         SSC_REQUEST_MAX_COPIES) +
         (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
     int key_offset =
-        (KBKDF_KEY_MAX_SLOTS * CMD_METADATA_DATA_PAYLOAD_LENGTH * 4) +
-        (kbkdf_index_dataslot * CMD_METADATA_PAYLOAD_LENGTH);
+        (KBKDF_KEY_KEY_FILE_OFFSET * CMD_METADATA_DATA_PAYLOAD_LENGTH *
+         SSC_REQUEST_MAX_COPIES) +
+        (kbkdf_index_dataslot * KBKDF_KEY_KEY_LENGTH);
     DBGLOG("cmd_0x06_req: blk_offset: 0x%x\n", blk_offset);
     HEXDUMP("cmd_0x06_req: ssc_state->kbkdf_keys[kbkdf_index_key]",
             ssc_state->kbkdf_keys[kbkdf_index_key], KBKDF_CMAC_OUTPUT_LEN);
@@ -4447,12 +4453,14 @@ static uint8_t apple_ssc_rx(I2CSlave *i2c)
     if (ssc->resp_cur == 1) {
         uint8_t cmd = ssc->req_cmd[0];
         if (cmd > 0x09) {
+            qemu_log_mask(LOG_UNIMP,
+                          "%s: cmd %u: invalid command > 0x09", __func__, cmd);
             do_response_prefix(ssc->req_cmd, ssc->resp_cmd,
                                SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID);
         } else if (ssc->req_cur != ssc_request_sizes[cmd]) {
             qemu_log_mask(LOG_UNIMP,
-                          "%s: cmd %u: cmdsize mismatch req_cur 0x%02x != "
-                          "should 0x%02x\n",
+                          "%s: cmd %u: invalid cmdsize mismatch req_cur "
+                          "is 0x%02x != should 0x%02x\n",
                           __func__, cmd, ssc->req_cur, ssc_request_sizes[cmd]);
             do_response_prefix(ssc->req_cmd, ssc->resp_cmd,
                                SSC_RESPONSE_FLAG_COMMAND_SIZE_MISMATCH);

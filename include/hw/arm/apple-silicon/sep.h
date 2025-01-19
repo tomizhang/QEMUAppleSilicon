@@ -125,7 +125,8 @@ typedef struct {
 #define KBKDF_KEY_RESPONSE_KEY_OFFSET 0x28
 #define KBKDF_KEY_SEED_LENGTH 8
 #define KBKDF_KEY_KEY_LENGTH 0x20
-#define KBKDF_KEY_MAX_SLOTS 0x4a // store mac_keys after that
+#define KBKDF_KEY_MAX_SLOTS 0x50
+#define KBKDF_KEY_KEY_FILE_OFFSET 0x100 // 0x100*4*0x40 // store mac_keys after that
 
 #define KBKDF_CMAC_LENGTH_SIZE 2
 #define KBKDF_CMAC_LABEL_SIZE 0x10
