@@ -28,7 +28,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          CFLAGS="$CFLAGS -I/usr/local/include" LDFLAGS="$LDFLAGS -L/usr/local/lib" ../configure --target-list=aarch64-softmmu,x86_64-softmmu --enable-capstone --enable-slirp --enable-lzfse --enable-nettle --enable-gnutls --disable-werror
+          PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig ../configure --target-list=aarch64-softmmu,x86_64-softmmu --enable-capstone --enable-slirp --enable-lzfse --enable-nettle --enable-gnutls --disable-werror
           make -j$(nproc)
       - name: Install
         run: |

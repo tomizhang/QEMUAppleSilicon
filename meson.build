@@ -1834,7 +1834,7 @@ if not gnutls_crypto.found()
     endif
   endif
   if (not get_option('nettle').auto() or have_system) and not gcrypt.found()
-    nettle = dependency('nettle', version: '>=3.4',
+    nettle = dependency('nettle', version: '>=3.10',
                         method: 'pkg-config',
                         required: get_option('nettle'))
     if nettle.found() and not cc.has_header('nettle/xts.h', dependencies: nettle)
