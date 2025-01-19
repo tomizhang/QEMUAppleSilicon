@@ -748,33 +748,6 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         // HACK: Use DEV model to restore without FDR errors
         dtb_set_prop(t8030_machine->device_tree, "compatible", 28,
                      "N104DEV\0iPhone12,1\0AppleARM");
-        DTBNode *filesystems =
-            dtb_get_node(t8030_machine->device_tree, "filesystems");
-        dtb_remove_node_named(filesystems, "fstab");
-        DTBNode *fstab = dtb_create_node(filesystems, "fstab");
-        dtb_set_prop_u32(fstab, "AAPL,phandle", 265);
-        dtb_set_prop_u32(fstab, "max_fs_retries", 1);
-        dtb_set_prop_u32(fstab, "os_env_type", 2);
-        DTBNode *recv_data_vol =
-            dtb_create_node(fstab, "ephemeral-recovery-data-vol");
-        dtb_set_prop_u32(recv_data_vol, "AAPL,phandle", 266);
-        dtb_set_prop(recv_data_vol, "vol.fs_mntopts", 48,
-                     "nosuid,nodev,size=262144,template=/private/var/");
-        dtb_set_prop(recv_data_vol, "vol.fs_type", 3, "rw");
-        dtb_set_prop(recv_data_vol, "vol.fs_name", 5, "Data");
-        dtb_set_prop_null(recv_data_vol, "vol.fs_ephemeral");
-        dtb_set_prop(recv_data_vol, "vol.fs_file", 13, "/private/var");
-        dtb_set_prop_u32(recv_data_vol, "vol.fs_mntorder", 0);
-        dtb_set_prop_u32(recv_data_vol, "vol.fs_passno", 2);
-
-        dtb_set_prop_u32(chosen, "ephemeral-storage", 1);
-        dtb_set_prop_u32(chosen, "sepfw-load-at-boot", 0);
-        // commenting this out might not be fully correct, but it's needed for
-        // recovery to succeed.
-        // dtb_set_prop_u32(chosen, "protected-data-access", 0);
-        dtb_set_prop_u32(chosen, "disable-av-content-protection", 1);
-        dtb_set_prop_u32(chosen, "use-recovery-securityd", 1);
-        dtb_set_prop_u32(chosen, "disable-accessory-firmware", 1);
     } else {
         dtb_set_prop(t8030_machine->device_tree, "compatible", 27,
                      "N104AP\0iPhone12,1\0AppleARM");
