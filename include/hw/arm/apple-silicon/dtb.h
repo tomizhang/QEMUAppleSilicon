@@ -39,7 +39,7 @@ typedef struct {
 } DTBNode;
 
 DTBNode *dtb_create_node(DTBNode *parent, const char *name);
-DTBNode *dtb_unserialise(uint8_t *dtb_blob);
+DTBNode *dtb_deserialise(uint8_t *dtb_blob);
 void dtb_serialise(uint8_t *buf, DTBNode *root);
 bool dtb_remove_node_named(DTBNode *parent, const char *name);
 void dtb_remove_node(DTBNode *node, DTBNode *child);

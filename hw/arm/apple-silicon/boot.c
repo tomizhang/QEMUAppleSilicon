@@ -443,7 +443,7 @@ DTBNode *load_dtb_from_file(char *filename)
                    filename, payload_type);
     }
 
-    root = dtb_unserialise(file_data);
+    root = dtb_deserialise(file_data);
     g_free(file_data);
     return root;
 }

@@ -139,7 +139,7 @@ static DTBNode *dtb_deserialise_node(uint8_t **dtb_blob)
     return node;
 }
 
-DTBNode *dtb_unserialise(uint8_t *dtb_blob)
+DTBNode *dtb_deserialise(uint8_t *dtb_blob)
 {
     return dtb_deserialise_node(&dtb_blob);
 }
