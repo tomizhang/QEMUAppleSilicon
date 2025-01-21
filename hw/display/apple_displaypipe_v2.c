@@ -25,6 +25,7 @@
 #include "hw/irq.h"
 #include "hw/qdev-properties.h"
 #include "hw/resettable.h"
+#include "qemu/error-report.h"
 #include "qemu/log.h"
 #include "qom/object.h"
 #include "sysemu/dma.h"
@@ -63,6 +64,16 @@
  */
 
 #define REG_CONTROL_INT_FILTER 0x45818
+#define CONTROL_INT_FILTER_MODE_CHANGED BIT(1)
+#define CONTROL_INT_FILTER_DISP_UNDERRUN BIT(3)
+#define CONTROL_INT_FILTER_VBLANK BIT(10) // "Swap Done"
+#define CONTROL_INT_FILTER_SUB_FRAME_OVERFLOW BIT(11)
+#define CONTROL_INT_FILTER_M3 BIT(13)
+#define CONTROL_INT_FILTER_PCC BIT(17)
+#define CONTROL_INT_FILTER_VSYNC BIT(19) // "Start accumulating"
+#define CONTROL_INT_FILTER_FRAME_DONE BIT(20) // "Frame Processed"
+#define CONTROL_INT_FILTER_AXI_READ_ERR BIT(30)
+#define CONTROL_INT_FILTER_AXI_WRITE_ERR BIT(31)
 #define REG_CONTROL_VERSION 0x46020
 #define CONTROL_VERSION_A0 0x70044
 #define CONTROL_VERSION_A1 0x70045
@@ -269,25 +280,21 @@ static void apple_gp_draw_bh(void *opaque)
                     s->pixel_format);
     }
     // TODO: Decompress the data and display it properly.
-    uint16_t stride = s->pixel_format & GP_PIXEL_FORMAT_COMPRESSED ?
-                          width :
-                          s->layers[0].stride;
-#if 1
+    if (s->pixel_format & GP_PIXEL_FORMAT_COMPRESSED) {
+        error_report("[GP%zu] Dropping frame, because it is compressed.",
+                     s->index);
+        return;
+    }
     for (uint16_t y = 0; y < height; y++) {
         uint8_t *dest = memory_region_get_ram_ptr(s->vram);
-#if 1
         memcpy(dest + (y * (s->disp_state->width * sizeof(uint32_t))),
-               buf + (y * stride), width * sizeof(uint32_t));
-#endif
+               buf + (y * s->layers[0].stride), width * sizeof(uint32_t));
     }
     memory_region_set_dirty(s->vram, 0,
                             s->height * s->width * sizeof(uint32_t));
-#endif
     g_free(buf);
-    // TODO: bit 10 might be VBlank, and bit 20 that the transfer finished.
-    s->disp_state->int_filter |= BIT(10) | BIT(20);
-    // TODO: irq 0 might be VBlank, 2 be GP0, 3 be GP1.
-    qemu_irq_raise(s->disp_state->irqs[0]);
+    s->disp_state->int_filter |= CONTROL_INT_FILTER_FRAME_DONE;
+    qemu_irq_raise(s->disp_state->irqs[2 + s->index]);
 }
 
 static bool apple_genpipev2_init(GenPipeState *s, size_t index,
@@ -325,7 +332,14 @@ static void apple_disp_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
     case REG_CONTROL_INT_FILTER:
         s->int_filter &= ~(uint32_t)data;
-        qemu_irq_lower(s->irqs[0]);
+        if ((s->int_filter &
+             (CONTROL_INT_FILTER_VBLANK | CONTROL_INT_FILTER_VSYNC)) == 0) {
+            qemu_irq_lower(s->irqs[0]);
+        }
+        if ((s->int_filter & CONTROL_INT_FILTER_FRAME_DONE) == 0) {
+            qemu_irq_lower(s->irqs[2]);
+            qemu_irq_lower(s->irqs[3]);
+        }
         break;
 
     default:
@@ -386,6 +400,20 @@ static const MemoryRegionOps apple_disp_v2_reg_ops = {
 static uint32_t disp_timing_info[] = { 0x33C, 0x90, 0x1, 0x1,
                                        0x700, 0x1,  0x1, 0x1 };
 
+static void vblank_timer_tick(void *opaque)
+{
+    AppleDisplayPipeV2State *s;
+
+    s = APPLE_DISPLAYPIPE_V2(opaque);
+
+    s->int_filter |= CONTROL_INT_FILTER_VBLANK;
+    qemu_irq_raise(s->irqs[0]);
+
+    // 60Hz
+    timer_mod(s->vblank_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                                   NANOSECONDS_PER_SECOND / 60);
+}
+
 AppleDisplayPipeV2State *apple_displaypipe_v2_create(DTBNode *node)
 {
     DeviceState *dev;
@@ -414,11 +442,11 @@ AppleDisplayPipeV2State *apple_displaypipe_v2_create(DTBNode *node)
     sysbus_init_mmio(sbd, &s->up_regs);
     object_property_add_const_link(OBJECT(sbd), "up.regs", OBJECT(&s->up_regs));
 
-    s->invalidated = true;
-
     for (i = 0; i < 9; i++) {
         sysbus_init_irq(sbd, &s->irqs[i]);
     }
+
+    s->vblank_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, vblank_timer_tick, s);
 
     return s;
 }
@@ -445,6 +473,9 @@ static void apple_displaypipe_v2_gfx_update(void *opaque)
 {
     AppleDisplayPipeV2State *s = APPLE_DISPLAYPIPE_V2(opaque);
     DisplaySurface *surface = qemu_console_surface(s->console);
+
+    s->int_filter |= CONTROL_INT_FILTER_VSYNC;
+    qemu_irq_raise(s->irqs[0]);
 
     int stride = s->width * sizeof(uint32_t);
     int first = 0, last = 0;
@@ -475,6 +506,8 @@ static void apple_displaypipe_v2_reset_hold(Object *obj, ResetType type)
     s->invalidated = true;
     s->int_filter = 0;
     qemu_irq_lower(s->irqs[0]);
+    qemu_irq_lower(s->irqs[2]);
+    qemu_irq_lower(s->irqs[3]);
     apple_genpipev2_init(&s->genpipes[0], 0, &s->vram, &s->dma_as, s);
     apple_genpipev2_init(&s->genpipes[1], 1, &s->vram, &s->dma_as, s);
 
@@ -489,6 +522,10 @@ static void apple_displaypipe_v2_realize(DeviceState *dev, Error **errp)
 
     s->console = graphic_console_init(dev, 0, &apple_displaypipe_v2_ops, s);
     qemu_console_resize(s->console, s->width, s->height);
+
+    // 60Hz
+    timer_mod(s->vblank_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                                   NANOSECONDS_PER_SECOND / 60);
 }
 
 static Property apple_displaypipe_v2_props[] = {
