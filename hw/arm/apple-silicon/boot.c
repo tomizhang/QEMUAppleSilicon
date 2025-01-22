@@ -513,9 +513,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
 
     child = dtb_get_node(root, "product");
     g_assert_nonnull(child);
-#if 0
-    dtb_set_prop_u32(child, "allow-hactivation", 1); // Needs *DEV instead of *AP
-#endif
+    dtb_set_prop_u32(child, "allow-hactivation", 1);
 
     macho_dtb_node_process(root, NULL);
 

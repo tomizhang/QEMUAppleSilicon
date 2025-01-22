@@ -241,6 +241,18 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     *(uint32_t *)vtop_slid(0xFFFFFFF00838030C) = cpu_to_le32(0x52800000);
     *(uint32_t *)vtop_slid(0xFFFFFFF008380310) = nop;
 
+    // this will tell launchd this is an internal build,
+    // and that way we can get hactivation without bypassing
+    // or patching the activation procedure.
+    // This is NOT an iCloud bypass. This is utilising code that ALREADY exists
+    // in the activation daemon. This is essentially telling iOS, it's a
+    // development kernel/device, NOT the real product sold on market. IF you
+    // decide to use this knowledge to BYPASS technological countermeasures
+    // or any other intellectual theft or crime, YOU are responsible in full,
+    // AND SHOULD BE PROSECUTED TO THE FULL EXTENT OF THE LAW.
+    // We do NOT endorse nor approve the theft of property.
+    memcpy((char *)vtop_slid(0xFFFFFFF00703884E), "profile", 8);
+
     xnu_kpf(hdr);
 }
 
