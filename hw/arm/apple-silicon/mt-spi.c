@@ -17,56 +17,16 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/mt-spi.h"
 #include "hw/irq.h"
 #include "hw/ssi/ssi.h"
-#include "qemu/cutils.h"
+#include "qemu/crc16.h"
+#include "qemu/error-report.h"
 #include "qemu/lockable.h"
-
-static const uint16_t crc16_table[256] = {
-    0x0000, 0xC0C1, 0xC181, 0x0140, 0xC301, 0x03C0, 0x0280, 0xC241, 0xC601,
-    0x06C0, 0x0780, 0xC741, 0x0500, 0xC5C1, 0xC481, 0x0440, 0xCC01, 0x0CC0,
-    0x0D80, 0xCD41, 0x0F00, 0xCFC1, 0xCE81, 0x0E40, 0x0A00, 0xCAC1, 0xCB81,
-    0x0B40, 0xC901, 0x09C0, 0x0880, 0xC841, 0xD801, 0x18C0, 0x1980, 0xD941,
-    0x1B00, 0xDBC1, 0xDA81, 0x1A40, 0x1E00, 0xDEC1, 0xDF81, 0x1F40, 0xDD01,
-    0x1DC0, 0x1C80, 0xDC41, 0x1400, 0xD4C1, 0xD581, 0x1540, 0xD701, 0x17C0,
-    0x1680, 0xD641, 0xD201, 0x12C0, 0x1380, 0xD341, 0x1100, 0xD1C1, 0xD081,
-    0x1040, 0xF001, 0x30C0, 0x3180, 0xF141, 0x3300, 0xF3C1, 0xF281, 0x3240,
-    0x3600, 0xF6C1, 0xF781, 0x3740, 0xF501, 0x35C0, 0x3480, 0xF441, 0x3C00,
-    0xFCC1, 0xFD81, 0x3D40, 0xFF01, 0x3FC0, 0x3E80, 0xFE41, 0xFA01, 0x3AC0,
-    0x3B80, 0xFB41, 0x3900, 0xF9C1, 0xF881, 0x3840, 0x2800, 0xE8C1, 0xE981,
-    0x2940, 0xEB01, 0x2BC0, 0x2A80, 0xEA41, 0xEE01, 0x2EC0, 0x2F80, 0xEF41,
-    0x2D00, 0xEDC1, 0xEC81, 0x2C40, 0xE401, 0x24C0, 0x2580, 0xE541, 0x2700,
-    0xE7C1, 0xE681, 0x2640, 0x2200, 0xE2C1, 0xE381, 0x2340, 0xE101, 0x21C0,
-    0x2080, 0xE041, 0xA001, 0x60C0, 0x6180, 0xA141, 0x6300, 0xA3C1, 0xA281,
-    0x6240, 0x6600, 0xA6C1, 0xA781, 0x6740, 0xA501, 0x65C0, 0x6480, 0xA441,
-    0x6C00, 0xACC1, 0xAD81, 0x6D40, 0xAF01, 0x6FC0, 0x6E80, 0xAE41, 0xAA01,
-    0x6AC0, 0x6B80, 0xAB41, 0x6900, 0xA9C1, 0xA881, 0x6840, 0x7800, 0xB8C1,
-    0xB981, 0x7940, 0xBB01, 0x7BC0, 0x7A80, 0xBA41, 0xBE01, 0x7EC0, 0x7F80,
-    0xBF41, 0x7D00, 0xBDC1, 0xBC81, 0x7C40, 0xB401, 0x74C0, 0x7580, 0xB541,
-    0x7700, 0xB7C1, 0xB681, 0x7640, 0x7200, 0xB2C1, 0xB381, 0x7340, 0xB101,
-    0x71C0, 0x7080, 0xB041, 0x5000, 0x90C1, 0x9181, 0x5140, 0x9301, 0x53C0,
-    0x5280, 0x9241, 0x9601, 0x56C0, 0x5780, 0x9741, 0x5500, 0x95C1, 0x9481,
-    0x5440, 0x9C01, 0x5CC0, 0x5D80, 0x9D41, 0x5F00, 0x9FC1, 0x9E81, 0x5E40,
-    0x5A00, 0x9AC1, 0x9B81, 0x5B40, 0x9901, 0x59C0, 0x5880, 0x9841, 0x8801,
-    0x48C0, 0x4980, 0x8941, 0x4B00, 0x8BC1, 0x8A81, 0x4A40, 0x4E00, 0x8EC1,
-    0x8F81, 0x4F40, 0x8D01, 0x4DC0, 0x4C80, 0x8C41, 0x4400, 0x84C1, 0x8581,
-    0x4540, 0x8701, 0x47C0, 0x4680, 0x8641, 0x8201, 0x42C0, 0x4380, 0x8341,
-    0x4100, 0x81C1, 0x8081, 0x4040,
-};
-
-static uint16_t crc16_byte(uint16_t crc, const uint8_t data)
-{
-    return (crc >> 8) ^ crc16_table[(crc ^ data) & 0xff];
-}
-
-static uint16_t crc16(uint16_t crc, uint8_t const *buffer, size_t len)
-{
-    while (len--) {
-        crc = crc16_byte(crc, *buffer++);
-    }
-    return crc;
-}
+#include "qemu/timer.h"
+#include "ui/console.h"
+#include "ui/input.h"
 
 typedef struct AppleMTSPIBuffer {
     uint8_t *data;
@@ -75,10 +35,17 @@ typedef struct AppleMTSPIBuffer {
     size_t read_pos;
 } AppleMTSPIBuffer;
 
+typedef struct AppleMTSPILLPacket {
+    AppleMTSPIBuffer buf;
+    QTAILQ_ENTRY(AppleMTSPILLPacket) entry;
+    uint8_t type;
+} AppleMTSPILLPacket;
+
 struct AppleMTSPIState {
     SSIPeripheral parent_obj;
 
     QemuMutex lock;
+    QemuInputHandlerState *input_state;
     /// IRQ of the Multi Touch Controller is Active Low.
     /// qemu_irq_raise means IRQ inactive,
     /// qemu_irq_lower means IRQ active.
@@ -86,19 +53,18 @@ struct AppleMTSPIState {
     AppleMTSPIBuffer tx;
     AppleMTSPIBuffer rx;
     AppleMTSPIBuffer pending_hbpp;
-    AppleMTSPIBuffer pending_fw;
+    QTAILQ_HEAD(, AppleMTSPILLPacket) pending_fw;
+    uint8_t frame;
+    QEMUTimer *timer;
+    QEMUTimer *end_timer;
+    int x;
+    int y;
+    int prev_x;
+    int prev_y;
+    uint32_t prev_ts;
+    int btn_state;
+    int prev_btn_state;
 };
-
-#define DBG_FUNC_ENTRY() fprintf(stderr, "%s: entered\n", __func__)
-#define DBG_FUNC_EXIT() fprintf(stderr, "%s@%d: exited\n", __func__, __LINE__)
-#define DBG_UINT(expr) fprintf(stderr, "%s: (" #expr ") = %d\n", __func__, expr)
-#define DBG_USIZE(expr) \
-    fprintf(stderr, "%s: (" #expr ") = %ld\n", __func__, expr)
-#define DBG_USIZE_HEX(expr) \
-    fprintf(stderr, "%s: (" #expr ") = %lX\n", __func__, expr)
-#define DBG_UINT_HEX(expr) \
-    fprintf(stderr, "%s: (" #expr ") = 0x%X\n", __func__, expr)
-#define DBG_PTR(expr) fprintf(stderr, "%s: (" #expr ") = %p\n", __func__, expr)
 
 // HBPP Command:
 // u8 packet_type
@@ -136,14 +102,17 @@ struct AppleMTSPIState {
 #define LL_PACKET_NAK (0xE4FB139)
 #define LL_PACKET_BUSY (0xF8E5179C)
 
-#define HID_PACKET_GET_RESULT_DATA (0x10)
-#define HID_PACKET_SET_RESULT_DATA (0x20)
-#define HID_PACKET_GET_INPUT_REPORT (0x30)
-#define HID_PACKET_GET_OUTPUT_REPORT (0x31)
-#define HID_PACKET_GET_FEATURE_REPORT (0x32)
-#define HID_PACKET_SET_INPUT_REPORT (0x50)
-#define HID_PACKET_SET_OUTPUT_REPORT (0x51)
-#define HID_PACKET_SET_FEATURE_REPORT (0x52)
+#define HID_CONTROL_PACKET_GET_RESULT_DATA (0x10)
+#define HID_CONTROL_PACKET_SET_RESULT_DATA (0x20)
+#define HID_CONTROL_PACKET_GET_INPUT_REPORT (0x30)
+#define HID_CONTROL_PACKET_GET_OUTPUT_REPORT (0x31)
+#define HID_CONTROL_PACKET_GET_FEATURE_REPORT (0x32)
+#define HID_CONTROL_PACKET_SET_INPUT_REPORT (0x50)
+#define HID_CONTROL_PACKET_SET_OUTPUT_REPORT (0x51)
+#define HID_CONTROL_PACKET_SET_FEATURE_REPORT (0x52)
+
+#define HID_TRANSFER_PACKET_INPUT (0x10)
+#define HID_TRANSFER_PACKET_OUTPUT (0x20)
 
 #define HID_PACKET_STATUS_SUCCESS (0)
 #define HID_PACKET_STATUS_BUSY (1)
@@ -151,6 +120,31 @@ struct AppleMTSPIState {
 #define HID_PACKET_STATUS_ERROR_ID_MISMATCH (3)
 #define HID_PACKET_STATUS_ERROR_UNSUPPORTED (4)
 #define HID_PACKET_STATUS_ERROR_INCORRECT_LENGTH (5)
+
+#define HID_REPORT_BINARY_PATH_OR_IMAGE (0x44)
+#define HID_REPORT_SENSOR_REGION_PARAM (0xA1)
+#define HID_REPORT_SENSOR_REGION_DESC (0xD0)
+#define HID_REPORT_FAMILY_ID (0xD1)
+#define HID_REPORT_BASIC_DEVICE_INFO (0xD3)
+#define HID_REPORT_BUTTONS (0xD7)
+#define HID_REPORT_SENSOR_SURFACE_DESC (0xD9)
+#define HID_REPORT_POWER_STATS (0x72)
+#define HID_REPORT_POWER_STATS_DESC (0x73)
+#define HID_REPORT_STATUS (0x7F)
+
+#define MT_FAMILY_ID (0xC0)
+
+#define MT_SENSOR_SURFACE_WIDTH (7500)
+#define MT_SENSOR_SURFACE_HEIGHT (15500)
+
+#define PATH_STAGE_NOT_TRACKING (0)
+#define PATH_STAGE_START_IN_RANGE (1)
+#define PATH_STAGE_HOVER_IN_RANGE (2)
+#define PATH_STAGE_MAKE_TOUCH (3)
+#define PATH_STAGE_TOUCHING (4)
+#define PATH_STAGE_BREAK_TOUCH (5)
+#define PATH_STAGE_LINGER_IN_RANGE (6)
+#define PATH_STAGE_OUT_OF_RANGE (7)
 
 static void apple_mt_spi_buf_free(AppleMTSPIBuffer *buf)
 {
@@ -296,17 +290,44 @@ static inline uint32_t apple_mt_spi_buf_read_dword(const AppleMTSPIBuffer *buf,
            (apple_mt_spi_buf_read_word(buf, off + sizeof(uint16_t)) << 16);
 }
 
-static void apple_mt_spi_enter_reset(Object *obj, ResetType type)
+static void apple_mt_spi_reset_unlocked(AppleMTSPIState *s, ResetType type)
+{
+    AppleMTSPILLPacket *packet;
+
+    qemu_irq_raise(s->irq);
+
+    timer_del(s->timer);
+    timer_del(s->end_timer);
+
+    s->btn_state = 0;
+    s->prev_btn_state = 0;
+    s->prev_x = 0;
+    s->prev_y = 0;
+    s->x = 0;
+    s->y = 0;
+    s->prev_ts = 0;
+    s->frame = 0;
+
+    apple_mt_spi_buf_free(&s->tx);
+    apple_mt_spi_buf_free(&s->rx);
+    apple_mt_spi_buf_free(&s->pending_hbpp);
+
+    while (!QTAILQ_EMPTY(&s->pending_fw)) {
+        packet = QTAILQ_FIRST(&s->pending_fw);
+        QTAILQ_REMOVE(&s->pending_fw, packet, entry);
+        apple_mt_spi_buf_free(&packet->buf);
+        g_free(packet);
+    }
+}
+
+static void apple_mt_spi_reset_hold(Object *obj, ResetType type)
 {
     AppleMTSPIState *s;
 
     s = APPLE_MT_SPI(obj);
 
-    qemu_irq_raise(s->irq);
-
-    apple_mt_spi_buf_free(&s->tx);
-    apple_mt_spi_buf_free(&s->rx);
-    apple_mt_spi_buf_free(&s->pending_hbpp);
+    QEMU_LOCK_GUARD(&s->lock);
+    apple_mt_spi_reset_unlocked(s, type);
 }
 
 static void apple_mt_spi_push_pending_hbpp_word(AppleMTSPIState *s,
@@ -341,15 +362,14 @@ static inline uint16_t apple_mt_spi_hbpp_packet_hdr_len(uint8_t val)
     case HBPP_PACKET_DATA:
         return 0xA;
     default:
-        DBG_UINT(val);
-        g_assert_not_reached();
+        warn_report("Unknown HBPP packet type 0x%X", val);
+        return 0x2;
     }
 }
 
 static void apple_mt_spi_handle_hbpp_data(AppleMTSPIState *s)
 {
     uint16_t payload_len;
-    uint32_t address;
     uint16_t new_rx_capacity;
 
     if (!apple_mt_spi_buf_is_full(&s->rx)) {
@@ -357,11 +377,6 @@ static void apple_mt_spi_handle_hbpp_data(AppleMTSPIState *s)
     }
 
     payload_len = apple_mt_spi_buf_read_word(&s->rx, 2) * sizeof(uint32_t);
-    address = apple_mt_spi_buf_read_dword(&s->rx, 4);
-
-    fprintf(stderr, "%s: 0x%08X <- 0x%04X bytes\n", __func__, address,
-            payload_len);
-
     new_rx_capacity = apple_mt_spi_hbpp_packet_hdr_len(HBPP_PACKET_DATA) +
                       payload_len + sizeof(uint32_t);
 
@@ -374,19 +389,10 @@ static void apple_mt_spi_handle_hbpp_data(AppleMTSPIState *s)
 
 static void apple_mt_spi_handle_hbpp_mem_rmw(AppleMTSPIState *s)
 {
-    uint32_t address;
-    uint32_t mask;
-    uint32_t value;
-
     if (!apple_mt_spi_buf_is_full(&s->rx)) {
         return;
     }
 
-    address = apple_mt_spi_buf_read_dword(&s->rx, 2);
-    mask = apple_mt_spi_buf_read_dword(&s->rx, 6);
-    value = apple_mt_spi_buf_read_dword(&s->rx, 10);
-
-    fprintf(stderr, "%s: 0x%X[0x%X] <- 0x%X\n", __func__, address, mask, value);
     apple_mt_spi_push_pending_hbpp_word(s, HBPP_PACKET_ACK_WR_REQ);
 }
 
@@ -404,14 +410,12 @@ static void apple_mt_spi_handle_hbpp(AppleMTSPIState *s)
     switch (packet_type) {
     case HBPP_PACKET_RESET:
         if (apple_mt_spi_buf_is_full(&s->rx)) {
-            fprintf(stderr, "%s: Reset\n", __func__);
-            apple_mt_spi_enter_reset(OBJECT(s), RESET_TYPE_COLD);
+            apple_mt_spi_reset_unlocked(s, RESET_TYPE_COLD);
             apple_mt_spi_push_pending_hbpp_word(s, HBPP_PACKET_REQ_BOOT);
         }
         break;
     case HBPP_PACKET_NOP:
         if (apple_mt_spi_buf_pos_at_start(&s->rx)) {
-            fprintf(stderr, "%s: NOP\n", __func__);
             if (apple_mt_spi_buf_is_empty(&s->tx)) {
                 apple_mt_spi_buf_push_word(&s->tx, HBPP_PACKET_ACK_NOP);
             }
@@ -419,13 +423,11 @@ static void apple_mt_spi_handle_hbpp(AppleMTSPIState *s)
         break;
     case HBPP_PACKET_INT_ACK:
         if (apple_mt_spi_buf_pos_at_start(&s->rx)) {
-            fprintf(stderr, "%s: Int Ack\n", __func__);
             apple_mt_spi_buf_append(&s->tx, &s->pending_hbpp);
         }
         break;
     case HBPP_PACKET_MEM_READ:
         if (apple_mt_spi_buf_pos_at_start(&s->rx)) {
-            fprintf(stderr, "%s: Mem Read\n", __func__);
             apple_mt_spi_push_pending_hbpp_word(s, HBPP_PACKET_ACK_RD_REQ);
             apple_mt_spi_push_pending_hbpp_dword(s, 0x00000000); // value
             apple_mt_spi_push_pending_hbpp_word(s, 0x0000); // crc16 of value
@@ -436,7 +438,6 @@ static void apple_mt_spi_handle_hbpp(AppleMTSPIState *s)
         break;
     case HBPP_PACKET_REQ_CAL:
         if (apple_mt_spi_buf_pos_at_start(&s->rx)) {
-            fprintf(stderr, "%s: Request Calibration\n", __func__);
             apple_mt_spi_push_pending_hbpp_word(s, HBPP_PACKET_CAL_DONE);
         }
         break;
@@ -444,8 +445,7 @@ static void apple_mt_spi_handle_hbpp(AppleMTSPIState *s)
         apple_mt_spi_handle_hbpp_data(s);
         break;
     default:
-        fprintf(stderr, "%s: Unknown packet type 0x%02X\n", __func__,
-                packet_type);
+        error_report("%s: Unknown packet type 0x%02X", __func__, packet_type);
         break;
     }
 }
@@ -483,25 +483,20 @@ static void apple_mt_spi_push_no_data(AppleMTSPIBuffer *buf)
 static uint8_t apple_mt_spi_ll_read_payload_byte(AppleMTSPIBuffer *buf,
                                                  size_t off)
 {
-    size_t offset;
-
     g_assert_false(apple_mt_spi_buf_is_empty(buf));
-    g_assert_cmphex(6, <=, buf->len);
-    offset = sizeof(uint32_t) + sizeof(uint64_t) + lduw_be_p(buf->data + 6);
-    g_assert_cmphex(offset + off, <, buf->len);
-    return buf->data[offset + off];
+    g_assert_cmphex(sizeof(uint32_t) + sizeof(uint64_t) + off + sizeof(uint8_t),
+                    <=, buf->len);
+    return buf->data[sizeof(uint32_t) + sizeof(uint64_t) + off];
 }
 
 static uint16_t apple_mt_spi_ll_read_payload_word(AppleMTSPIBuffer *buf,
                                                   size_t off)
 {
-    size_t offset;
-
     g_assert_false(apple_mt_spi_buf_is_empty(buf));
-    g_assert_cmphex(6, <=, buf->len);
-    offset = sizeof(uint32_t) + sizeof(uint64_t) + lduw_be_p(buf->data + 6);
-    g_assert_cmphex(offset + off + sizeof(uint16_t), <=, buf->len);
-    return lduw_le_p(buf->data + offset + off);
+    g_assert_cmphex(sizeof(uint32_t) + sizeof(uint64_t) + off +
+                        sizeof(uint16_t),
+                    <=, buf->len);
+    return lduw_le_p(buf->data + sizeof(uint32_t) + sizeof(uint64_t) + off);
 }
 
 static void apple_mt_spi_push_hid_hdr(AppleMTSPIBuffer *buf, uint8_t type,
@@ -518,72 +513,171 @@ static void apple_mt_spi_push_hid_hdr(AppleMTSPIBuffer *buf, uint8_t type,
     apple_mt_spi_buf_push_word(buf, payload_length);
 }
 
+static void apple_mt_spi_push_report_hdr(AppleMTSPIBuffer *buf, uint8_t type,
+                                         uint8_t report_id,
+                                         uint8_t packet_status,
+                                         uint8_t frame_number,
+                                         uint16_t payload_length)
+{
+    apple_mt_spi_push_hid_hdr(buf, type, report_id, packet_status, frame_number,
+                              0, payload_length + sizeof(uint8_t));
+    apple_mt_spi_buf_push_byte(buf, report_id);
+}
+
+static void apple_mt_spi_push_report_byte(AppleMTSPIBuffer *buf, uint8_t type,
+                                          uint8_t report_id,
+                                          uint8_t packet_status,
+                                          uint8_t frame_number, uint8_t val)
+{
+    apple_mt_spi_push_report_hdr(buf, type, report_id, packet_status,
+                                 frame_number, sizeof(uint8_t) * 2);
+    apple_mt_spi_buf_push_byte(buf, val);
+}
+
+static void apple_mt_spi_handle_get_feature(AppleMTSPIState *s)
+{
+    AppleMTSPILLPacket *packet;
+    AppleMTSPIBuffer buf;
+    uint8_t report_id;
+    uint8_t frame_number;
+
+    memset(&buf, 0, sizeof(buf));
+
+    report_id = apple_mt_spi_ll_read_payload_byte(&s->rx, sizeof(uint8_t));
+    frame_number =
+        apple_mt_spi_ll_read_payload_byte(&s->rx, sizeof(uint8_t) * 3);
+
+    packet = g_new0(AppleMTSPILLPacket, 1);
+    packet->type = LL_PACKET_CONTROL;
+    switch (report_id) {
+    case HID_REPORT_FAMILY_ID:
+        apple_mt_spi_push_report_byte(
+            &packet->buf, HID_CONTROL_PACKET_SET_OUTPUT_REPORT, report_id,
+            HID_PACKET_STATUS_SUCCESS, frame_number, MT_FAMILY_ID);
+        break;
+    case HID_REPORT_BASIC_DEVICE_INFO:
+        apple_mt_spi_push_report_hdr(
+            &packet->buf, HID_CONTROL_PACKET_SET_OUTPUT_REPORT, report_id,
+            HID_PACKET_STATUS_SUCCESS, frame_number, 5);
+        apple_mt_spi_buf_push_byte(&packet->buf, 1); // endianness
+        apple_mt_spi_buf_push_byte(&packet->buf, 32); // rows
+        apple_mt_spi_buf_push_byte(&packet->buf, 16); // columns
+        apple_mt_spi_buf_push_word(&packet->buf,
+                                   bswap16(0x292)); // BCD ver
+        break;
+    case HID_REPORT_SENSOR_SURFACE_DESC:
+        apple_mt_spi_push_report_hdr(
+            &packet->buf, HID_CONTROL_PACKET_SET_OUTPUT_REPORT, report_id,
+            HID_PACKET_STATUS_SUCCESS, frame_number, 8);
+        apple_mt_spi_buf_push_dword(&packet->buf, MT_SENSOR_SURFACE_WIDTH);
+        apple_mt_spi_buf_push_dword(&packet->buf, MT_SENSOR_SURFACE_HEIGHT);
+        break;
+    case HID_REPORT_SENSOR_REGION_PARAM:
+        apple_mt_spi_push_report_hdr(
+            &packet->buf, HID_CONTROL_PACKET_SET_OUTPUT_REPORT, report_id,
+            HID_PACKET_STATUS_SUCCESS, frame_number, 6);
+        apple_mt_spi_buf_push_word(&packet->buf, 0);
+        apple_mt_spi_buf_push_word(&packet->buf, 0);
+        apple_mt_spi_buf_push_word(&packet->buf, 0);
+        break;
+    case HID_REPORT_SENSOR_REGION_DESC:
+        apple_mt_spi_push_report_hdr(
+            &packet->buf, HID_CONTROL_PACKET_SET_OUTPUT_REPORT, report_id,
+            HID_PACKET_STATUS_SUCCESS, frame_number, 4);
+        apple_mt_spi_buf_push_byte(&packet->buf, 0); // region count
+        apple_mt_spi_buf_push_byte(&packet->buf, 0);
+        apple_mt_spi_buf_push_byte(&packet->buf, 0);
+        apple_mt_spi_buf_push_byte(&packet->buf, 0);
+        break;
+    default:
+        apple_mt_spi_push_report_byte(
+            &packet->buf, HID_CONTROL_PACKET_SET_OUTPUT_REPORT, report_id,
+            HID_PACKET_STATUS_SUCCESS, frame_number, 0);
+        break;
+    }
+    apple_mt_spi_buf_push_crc16(&packet->buf);
+    QTAILQ_INSERT_TAIL(&s->pending_fw, packet, entry);
+}
+
+static void apple_mt_spi_handle_set_feature(AppleMTSPIState *s)
+{
+    AppleMTSPILLPacket *packet;
+    uint8_t report_id;
+    uint8_t frame_number;
+
+    report_id = apple_mt_spi_ll_read_payload_byte(&s->rx, sizeof(uint8_t));
+    frame_number =
+        apple_mt_spi_ll_read_payload_byte(&s->rx, sizeof(uint8_t) * 3);
+
+    packet = g_new0(AppleMTSPILLPacket, 1);
+    packet->type = LL_PACKET_CONTROL;
+    apple_mt_spi_push_hid_hdr(&packet->buf,
+                              HID_CONTROL_PACKET_SET_OUTPUT_REPORT, report_id,
+                              HID_PACKET_STATUS_SUCCESS, frame_number, 0, 0);
+    apple_mt_spi_buf_push_crc16(&packet->buf);
+    QTAILQ_INSERT_TAIL(&s->pending_fw, packet, entry);
+}
+
+static void apple_mt_spi_handle_control(AppleMTSPIState *s)
+{
+    uint8_t type = apple_mt_spi_ll_read_payload_byte(&s->rx, 0);
+
+    switch (type) {
+    case HID_CONTROL_PACKET_GET_FEATURE_REPORT:
+        apple_mt_spi_handle_get_feature(s);
+        break;
+    case HID_CONTROL_PACKET_SET_FEATURE_REPORT:
+        apple_mt_spi_handle_set_feature(s);
+        break;
+    default:
+        warn_report("Unknown HID packet type 0x%X", type);
+        break;
+    }
+}
+
 static void apple_mt_spi_handle_fw_packet(AppleMTSPIState *s)
 {
     uint8_t packet_type;
-    AppleMTSPIBuffer ll_buf;
+    AppleMTSPIBuffer buf;
+    AppleMTSPILLPacket *packet;
 
     if (apple_mt_spi_buf_get_pos(&s->rx) == sizeof(uint32_t)) {
         apple_mt_spi_buf_set_capacity(&s->rx, LL_PACKET_LEN);
 
-        memset(&ll_buf, 0, sizeof(ll_buf));
+        memset(&buf, 0, sizeof(buf));
 
-        if (apple_mt_spi_buf_is_empty(&s->pending_fw)) {
-            apple_mt_spi_push_no_data(&ll_buf);
+        if (QTAILQ_EMPTY(&s->pending_fw)) {
+            apple_mt_spi_push_no_data(&buf);
         } else {
-            apple_mt_spi_push_ll_hdr(&ll_buf, LL_PACKET_LOSSLESS_OUTPUT, 0, 0,
-                                     0, s->pending_fw.len);
-            // qemu_hexdump(stderr, "PendingFW", s->pending_fw.data,
-            //              s->pending_fw.len);
-            apple_mt_spi_buf_append(&ll_buf, &s->pending_fw);
-            apple_mt_spi_pad_ll_packet(&ll_buf);
-            apple_mt_spi_buf_push_crc16(&ll_buf);
+            packet = QTAILQ_FIRST(&s->pending_fw);
+            g_assert_nonnull(packet);
+            apple_mt_spi_push_ll_hdr(&buf, packet->type, 0, 0, 0,
+                                     packet->buf.len);
+            apple_mt_spi_buf_append(&buf, &packet->buf);
+            apple_mt_spi_pad_ll_packet(&buf);
+            apple_mt_spi_buf_push_crc16(&buf);
+            QTAILQ_REMOVE(&s->pending_fw, packet, entry);
+            g_free(packet);
+            packet = NULL;
         }
 
-        // qemu_hexdump(stderr, "LL TX", ll_buf.data, ll_buf.len);
-        apple_mt_spi_buf_append(&s->tx, &ll_buf);
+        apple_mt_spi_buf_append(&s->tx, &buf);
+    }
+
+    if (!apple_mt_spi_buf_is_full(&s->rx)) {
+        return;
     }
 
     packet_type = apple_mt_spi_buf_read_byte(&s->rx, sizeof(uint32_t));
 
     switch (packet_type) {
     case LL_PACKET_NO_DATA:
-        if (apple_mt_spi_buf_get_pos(&s->rx) == sizeof(uint32_t)) {
-            fprintf(stderr, "%s: No Data\n", __func__);
-        }
         break;
     case LL_PACKET_CONTROL:
-        if (apple_mt_spi_buf_is_full(&s->rx)) {
-            fprintf(stderr, "%s: Control\n", __func__);
-
-            memset(&ll_buf, 0, sizeof(ll_buf));
-
-            uint8_t type = apple_mt_spi_ll_read_payload_byte(&s->rx, 0);
-            uint8_t report_id =
-                apple_mt_spi_ll_read_payload_byte(&s->rx, sizeof(uint8_t));
-            uint8_t frame_number =
-                apple_mt_spi_ll_read_payload_byte(&s->rx, sizeof(uint8_t) * 3);
-            // uint16_t requested_len =
-            //     apple_mt_spi_ll_read_payload_word(&s->rx, sizeof(uint8_t) * 4);
-
-            DBG_UINT_HEX(type);
-            DBG_UINT_HEX(report_id);
-            DBG_UINT_HEX(frame_number);
-            // DBG_UINT_HEX(requested_len);
-
-            apple_mt_spi_push_hid_hdr(&ll_buf, HID_PACKET_SET_RESULT_DATA,
-                                      report_id, HID_PACKET_STATUS_SUCCESS,
-                                      frame_number, 0, 8);
-            apple_mt_spi_buf_push_dword(&ll_buf, 0xDEADBEEF);
-            apple_mt_spi_buf_push_dword(&ll_buf, 0xFEEDFACE);
-            apple_mt_spi_buf_push_crc16(&ll_buf);
-            apple_mt_spi_buf_append(&s->pending_fw, &ll_buf);
-        }
+        apple_mt_spi_handle_control(s);
         break;
     default:
-        if (apple_mt_spi_buf_get_pos(&s->rx) == sizeof(uint32_t)) {
-            fprintf(stderr, "%s: Unknown type 0x%X\n", __func__, packet_type);
-        }
+        warn_report("%s: Unknown LL packet type 0x%X", __func__, packet_type);
         break;
     }
 }
@@ -616,10 +710,6 @@ static void apple_mt_spi_handle_fw(AppleMTSPIState *s)
         apple_mt_spi_handle_fw_packet(s);
         break;
     }
-
-    // if (apple_mt_spi_buf_is_full(&s->rx)) {
-    //     qemu_hexdump(stderr, "RX", s->rx.data, s->rx.len);
-    // }
 }
 
 static uint32_t apple_mt_spi_transfer(SSIPeripheral *dev, uint32_t val)
@@ -646,7 +736,7 @@ static uint32_t apple_mt_spi_transfer(SSIPeripheral *dev, uint32_t val)
     ret = apple_mt_spi_buf_pop(&s->tx);
 
     if (apple_mt_spi_buf_is_empty(&s->pending_hbpp) &&
-        apple_mt_spi_buf_is_empty(&s->pending_fw)) {
+        QTAILQ_EMPTY(&s->pending_fw)) {
         qemu_irq_raise(s->irq);
     } else {
         qemu_irq_lower(s->irq);
@@ -655,8 +745,147 @@ static uint32_t apple_mt_spi_transfer(SSIPeripheral *dev, uint32_t val)
     return ret;
 }
 
+static void apple_mt_spi_send_path_update(AppleMTSPIState *s,
+                                          uint8_t path_stage)
+{
+    uint32_t ts;
+    AppleMTSPILLPacket *packet;
+
+    ts = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) / 1000000;
+
+    packet = g_new0(AppleMTSPILLPacket, 1);
+
+    packet->type = LL_PACKET_LOSSLESS_OUTPUT;
+    apple_mt_spi_push_report_hdr(&packet->buf, HID_TRANSFER_PACKET_OUTPUT,
+                                 HID_REPORT_BINARY_PATH_OR_IMAGE,
+                                 HID_PACKET_STATUS_SUCCESS, s->frame, 27 + 28);
+    apple_mt_spi_buf_push_byte(&packet->buf, s->frame);
+    apple_mt_spi_buf_push_byte(&packet->buf, 28); // header len
+    apple_mt_spi_buf_push_byte(&packet->buf, 0);
+    apple_mt_spi_buf_push_dword(&packet->buf, ts);
+    apple_mt_spi_buf_push_byte(&packet->buf, 0);
+    apple_mt_spi_buf_push_byte(&packet->buf, 0);
+    apple_mt_spi_buf_push_byte(&packet->buf, 0);
+    apple_mt_spi_buf_push_byte(&packet->buf, 0);
+    apple_mt_spi_buf_push_word(&packet->buf, 0);
+    apple_mt_spi_buf_push_word(&packet->buf, 0); // image len
+    apple_mt_spi_buf_push_byte(&packet->buf, 1); // path count
+    apple_mt_spi_buf_push_byte(&packet->buf, 28); // path len
+    apple_mt_spi_buf_push_word(&packet->buf, 0);
+    apple_mt_spi_buf_push_word(&packet->buf, 0);
+    apple_mt_spi_buf_push_word(&packet->buf, 0);
+    apple_mt_spi_buf_push_byte(&packet->buf, 0);
+    apple_mt_spi_buf_push_byte(&packet->buf, 0);
+    apple_mt_spi_buf_push_byte(&packet->buf, 0);
+    apple_mt_spi_buf_push_byte(&packet->buf, 0);
+
+    // path 0
+    apple_mt_spi_buf_push_byte(&packet->buf, 1); // id
+    apple_mt_spi_buf_push_byte(&packet->buf, path_stage); // event
+    apple_mt_spi_buf_push_byte(&packet->buf, 1); // finger id
+    apple_mt_spi_buf_push_byte(&packet->buf, 1); // hand id
+    apple_mt_spi_buf_push_word(&packet->buf, s->x);
+    apple_mt_spi_buf_push_word(&packet->buf, s->y);
+    apple_mt_spi_buf_push_word(&packet->buf,
+                               (s->x - s->prev_x) / (ts - s->prev_ts + 1) *
+                                   1000); // x vel
+    apple_mt_spi_buf_push_word(&packet->buf,
+                               (s->y - s->prev_y) / (ts - s->prev_ts + 1) *
+                                   1000); // y vel
+    apple_mt_spi_buf_push_word(&packet->buf, 0); // rad2
+    apple_mt_spi_buf_push_word(&packet->buf, 0); // rad3
+    apple_mt_spi_buf_push_word(&packet->buf, 0); // angle
+    apple_mt_spi_buf_push_word(&packet->buf, 0); // rad1
+    apple_mt_spi_buf_push_word(&packet->buf, 0); // contact density
+    apple_mt_spi_buf_push_word(&packet->buf, 0);
+    apple_mt_spi_buf_push_word(&packet->buf, 0);
+    apple_mt_spi_buf_push_word(&packet->buf, 0);
+
+    apple_mt_spi_buf_push_crc16(&packet->buf);
+
+    QTAILQ_INSERT_TAIL(&s->pending_fw, packet, entry);
+    qemu_irq_lower(s->irq);
+
+    s->frame = !s->frame;
+    s->prev_ts = ts;
+}
+
+static void touch_timer_tick(void *opaque)
+{
+    AppleMTSPIState *s;
+
+    s = APPLE_MT_SPI(opaque);
+
+    QEMU_LOCK_GUARD(&s->lock);
+
+    apple_mt_spi_send_path_update(s, PATH_STAGE_TOUCHING);
+
+    if (s->btn_state & MOUSE_EVENT_LBUTTON) {
+        timer_mod(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                                NANOSECONDS_PER_SECOND / 40);
+    }
+}
+
+static void touch_end_timer_tick(void *opaque)
+{
+    AppleMTSPIState *s;
+
+    s = APPLE_MT_SPI(opaque);
+
+    QEMU_LOCK_GUARD(&s->lock);
+
+    apple_mt_spi_send_path_update(s, PATH_STAGE_OUT_OF_RANGE);
+    apple_mt_spi_send_path_update(s, PATH_STAGE_NOT_TRACKING);
+
+    s->prev_ts = 0;
+    s->prev_x = 0;
+    s->prev_y = 0;
+}
+
+static void apple_mt_spi_mouse_event(void *opaque, int dx, int dy, int dz,
+                                     int buttons_state)
+{
+    AppleMTSPIState *s;
+
+    s = APPLE_MT_SPI(opaque);
+
+    QEMU_LOCK_GUARD(&s->lock);
+
+    s->prev_x = s->x;
+    s->prev_y = s->y;
+    s->x = qemu_input_scale_axis(dx, INPUT_EVENT_ABS_MIN, INPUT_EVENT_ABS_MAX,
+                                 0, MT_SENSOR_SURFACE_WIDTH);
+    s->y =
+        qemu_input_scale_axis(INPUT_EVENT_ABS_MAX - dy, INPUT_EVENT_ABS_MIN,
+                              INPUT_EVENT_ABS_MAX, 0, MT_SENSOR_SURFACE_HEIGHT);
+    s->prev_btn_state = s->btn_state;
+    s->btn_state = buttons_state;
+
+    if (s->btn_state & MOUSE_EVENT_LBUTTON) {
+        if (!(s->prev_btn_state & MOUSE_EVENT_LBUTTON)) {
+            apple_mt_spi_send_path_update(s, PATH_STAGE_START_IN_RANGE);
+            apple_mt_spi_send_path_update(s, PATH_STAGE_MAKE_TOUCH);
+
+            timer_del(s->end_timer);
+            timer_mod(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                                    NANOSECONDS_PER_SECOND / 40);
+        }
+    } else if (s->prev_btn_state & MOUSE_EVENT_LBUTTON) {
+        apple_mt_spi_send_path_update(s, PATH_STAGE_BREAK_TOUCH);
+
+        timer_del(s->timer);
+        timer_mod(s->end_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                                    NANOSECONDS_PER_SECOND / 40);
+    }
+}
 static void apple_mt_spi_realize(SSIPeripheral *dev, Error **errp)
 {
+    AppleMTSPIState *s;
+
+    s = APPLE_MT_SPI(dev);
+
+    qemu_add_mouse_event_handler(apple_mt_spi_mouse_event, s, 1,
+                                 "Apple Multitouch HID SPI");
 }
 
 static void apple_mt_spi_class_init(ObjectClass *klass, void *data)
@@ -665,7 +894,7 @@ static void apple_mt_spi_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
     SSIPeripheralClass *k = SSI_PERIPHERAL_CLASS(klass);
 
-    rc->phases.enter = apple_mt_spi_enter_reset;
+    rc->phases.hold = apple_mt_spi_reset_hold;
 
     k->realize = apple_mt_spi_realize;
     k->transfer = apple_mt_spi_transfer;
@@ -681,6 +910,10 @@ static void apple_mt_instance_init(Object *obj)
     s = APPLE_MT_SPI(obj);
 
     qdev_init_gpio_out_named(DEVICE(s), &s->irq, APPLE_MT_SPI_IRQ, 1);
+    s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, touch_timer_tick, s);
+    s->end_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, touch_end_timer_tick, s);
+
+    QTAILQ_INIT(&s->pending_fw);
 
     qemu_mutex_init(&s->lock);
 }
