@@ -1,7 +1,8 @@
 /*
  * Apple Multi Touch SPI Controller.
  *
- * Copyright (c) 2024 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2025 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2025 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -781,7 +782,7 @@ static void apple_mt_spi_send_path_update(AppleMTSPIState *s,
 
     // path 0
     apple_mt_spi_buf_push_byte(&packet->buf, 1); // id
-    apple_mt_spi_buf_push_byte(&packet->buf, path_stage); // event
+    apple_mt_spi_buf_push_byte(&packet->buf, path_stage);
     apple_mt_spi_buf_push_byte(&packet->buf, 1); // finger id
     apple_mt_spi_buf_push_byte(&packet->buf, 1); // hand id
     apple_mt_spi_buf_push_word(&packet->buf, s->x);
