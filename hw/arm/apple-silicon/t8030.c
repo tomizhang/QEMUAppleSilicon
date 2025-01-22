@@ -241,7 +241,7 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     *(uint32_t *)vtop_slid(0xFFFFFFF00838030C) = cpu_to_le32(0x52800000);
     *(uint32_t *)vtop_slid(0xFFFFFFF008380310) = nop;
 
-    xnu_kpf();
+    xnu_kpf(hdr);
 }
 
 static bool t8030_check_panic(T8030MachineState *t8030_machine)
@@ -752,7 +752,7 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         if (!g_file_get_contents(t8030_machine->ticket_filename,
                                  &info->ticket_data,
                                  (gsize *)&info->ticket_length, NULL)) {
-            error_report("Failed to read ticket from file %s",
+            error_report("`%s` file read failed.",
                          t8030_machine->ticket_filename);
         }
     }
@@ -2452,7 +2452,6 @@ static void t8030_machine_init(MachineState *machine)
     hdr = macho_load_file(machine->kernel_filename, NULL);
     g_assert_nonnull(hdr);
     t8030_machine->kernel = hdr;
-    xnu_header = hdr;
     build_version = macho_build_version(hdr);
     info_report("Loading %s %u.%u...", macho_platform_string(hdr),
                 BUILD_VERSION_MAJOR(build_version),

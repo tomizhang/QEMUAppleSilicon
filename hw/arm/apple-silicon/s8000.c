@@ -26,6 +26,7 @@
 #include "hw/arm/apple-silicon/s8000-config.c.inc"
 #include "hw/arm/apple-silicon/s8000.h"
 #include "hw/arm/apple-silicon/sep-sim.h"
+#include "hw/arm/apple-silicon/xnu_pf.h"
 #include "hw/arm/exynos4210.h"
 #include "hw/block/apple_nvme_mmu.h"
 #include "hw/display/adbe_v2.h"
@@ -141,6 +142,7 @@ static void s8000_create_s3c_uart(const S8000MachineState *s8000_machine,
 
 static void s8000_patch_kernel(MachoHeader64 *hdr)
 {
+    xnu_kpf(hdr);
 }
 
 static bool s8000_check_panic(S8000MachineState *s8000_machine)
@@ -1175,7 +1177,6 @@ static void s8000_machine_init(MachineState *machine)
     g_assert_nonnull(secure_monitor);
     s8000_machine->kernel = hdr;
     s8000_machine->secure_monitor = secure_monitor;
-    xnu_header = hdr;
     build_version = macho_build_version(hdr);
     info_report("Loading %s %u.%u...", macho_platform_string(hdr),
                 BUILD_VERSION_MAJOR(build_version),

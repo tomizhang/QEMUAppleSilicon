@@ -35,8 +35,6 @@
 #include "lzfse.h"
 #include "lzss.h"
 
-MachoHeader64 *xnu_header;
-
 static const char *KEEP_COMP[] = {
     "adbe0,s8000\0$",
     "aes,s8000\0$",

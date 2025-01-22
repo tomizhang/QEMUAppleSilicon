@@ -32,10 +32,10 @@ typedef struct {
     bool is_required;
 } ApplePfPatchset;
 
-#define XNU_PF_ACCESS_8BIT 0x8
-#define XNU_PF_ACCESS_16BIT 0x10
-#define XNU_PF_ACCESS_32BIT 0x20
-#define XNU_PF_ACCESS_64BIT 0x40
+#define XNU_PF_ACCESS_8BIT (0x8)
+#define XNU_PF_ACCESS_16BIT (0x10)
+#define XNU_PF_ACCESS_32BIT (0x20)
+#define XNU_PF_ACCESS_64BIT (0x40)
 
 ApplePfRange *xnu_pf_range_from_va(uint64_t va, uint64_t size);
 
@@ -43,10 +43,6 @@ ApplePfRange *xnu_pf_segment(MachoHeader64 *header, const char *segment_name);
 
 ApplePfRange *xnu_pf_section(MachoHeader64 *header, const char *segment,
                              const char *section_name);
-
-ApplePfRange *xnu_pf_all(MachoHeader64 *header);
-
-ApplePfRange *xnu_pf_all_x(MachoHeader64 *header);
 
 void xnu_pf_disable_patch(ApplePfPatch *patch);
 
@@ -74,5 +70,5 @@ MachoHeader64 *xnu_pf_get_kext_header(MachoHeader64 *kheader,
 
 void xnu_pf_apply_each_kext(MachoHeader64 *kheader, ApplePfPatchset *patchset);
 
-void xnu_kpf(void);
+void xnu_kpf(MachoHeader64 *hdr);
 #endif

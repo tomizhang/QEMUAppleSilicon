@@ -8,25 +8,20 @@ ApplePfRange *xnu_pf_range_from_va(uint64_t va, uint64_t size)
     ApplePfRange *range = g_malloc0(sizeof(ApplePfRange));
     range->va = va;
     range->size = size;
-    range->cacheable_base = ((uint8_t *)(va - g_virt_base + g_phys_base));
-
+    range->cacheable_base = (uint8_t *)(va - g_virt_base + g_phys_base);
     return range;
 }
 
 ApplePfRange *xnu_pf_segment(MachoHeader64 *header, const char *segment_name)
 {
     MachoSegmentCommand64 *seg = macho_get_segment(header, segment_name);
-    if (!seg) {
+    if (seg == NULL) {
         return NULL;
     }
 
-    if (header != xnu_header) {
-        return xnu_pf_range_from_va(
-            g_virt_slide + (0xffff000000000000 | seg->vmaddr), seg->filesize);
-    }
-
-    return xnu_pf_range_from_va(xnu_slide_hdr_va(header, seg->vmaddr),
-                                seg->filesize);
+    return xnu_pf_range_from_va(
+        xnu_slide_hdr_va(header, 0xFFFF000000000000 | seg->vmaddr),
+        seg->filesize);
 }
 
 ApplePfRange *xnu_pf_section(MachoHeader64 *header, const char *segment_name,
@@ -34,35 +29,32 @@ ApplePfRange *xnu_pf_section(MachoHeader64 *header, const char *segment_name,
 {
     MachoSection64 *sec;
     MachoSegmentCommand64 *seg = macho_get_segment(header, segment_name);
-    if (!seg) {
+    if (seg == NULL) {
         return NULL;
     }
 
     sec = macho_get_section(seg, section_name);
-    if (!sec) {
+    if (sec == NULL) {
         return NULL;
     }
 
-    if (header != xnu_header) {
-        return xnu_pf_range_from_va(
-            g_virt_slide + (0xffff000000000000 | sec->addr), sec->size);
-    }
-
-    return xnu_pf_range_from_va(xnu_slide_hdr_va(header, sec->addr), sec->size);
+    return xnu_pf_range_from_va(
+        xnu_slide_hdr_va(header, 0xFFFF000000000000 | sec->addr), sec->size);
 }
 
 static MachoHeader64 *xnu_pf_get_first_kext(MachoHeader64 *kheader)
 {
     uint64_t *start, kextb;
-    ApplePfRange *kmod_start_range =
+    ApplePfRange *kmod_start_range;
+    MachoHeader64 *rv;
+
+    kmod_start_range =
         xnu_pf_section(kheader, "__PRELINK_INFO", "__kmod_start");
 
-    if (!kmod_start_range) {
-        MachoHeader64 *rv;
-
+    if (kmod_start_range == NULL) {
         kmod_start_range = xnu_pf_section(kheader, "__PRELINK_TEXT", "__text");
-        if (!kmod_start_range) {
-            error_report("unsupported xnu");
+        if (kmod_start_range == NULL) {
+            error_report("Unsupported XNU.");
         }
         rv = (MachoHeader64 *)kmod_start_range->cacheable_base;
         g_free(kmod_start_range);
@@ -190,33 +182,33 @@ MachoHeader64 *xnu_pf_get_kext_header(MachoHeader64 *kheader,
 
 ApplePfRange *xnu_pf_get_actual_text_exec(MachoHeader64 *header)
 {
-    ApplePfRange *text_exec_range =
-        xnu_pf_section(header, "__TEXT_EXEC", "__text");
+    ApplePfRange *text_exec = xnu_pf_section(header, "__TEXT_EXEC", "__text");
     if (header->file_type == MH_FILESET) {
-        return text_exec_range;
+        return text_exec;
     }
 
     MachoHeader64 *first_kext = xnu_pf_get_first_kext(header);
     if (first_kext) {
-        g_autofree ApplePfRange *first_kext_text_exec_range =
+        ApplePfRange *first_kext_text_exec =
             xnu_pf_section(first_kext, "__TEXT_EXEC", "__text");
 
-        if (first_kext_text_exec_range) {
+        if (first_kext_text_exec) {
             uint64_t text_exec_end_real;
             uint64_t text_exec_end = text_exec_end_real =
-                ((uint64_t)(text_exec_range->va)) + text_exec_range->size;
-            uint64_t first_kext_p =
-                ((uint64_t)(first_kext_text_exec_range->va));
+                ((uint64_t)(text_exec->va)) + text_exec->size;
+            uint64_t first_kext_p = ((uint64_t)(first_kext_text_exec->va));
 
             if (text_exec_end > first_kext_p &&
-                first_kext_text_exec_range->va > text_exec_range->va) {
+                first_kext_text_exec->va > text_exec->va) {
                 text_exec_end = first_kext_p;
             }
 
-            text_exec_range->size -= text_exec_end_real - text_exec_end;
+            text_exec->size -= text_exec_end_real - text_exec_end;
         }
+
+        g_free(first_kext_text_exec);
     }
-    return text_exec_range;
+    return text_exec;
 }
 
 void xnu_pf_apply_each_kext(MachoHeader64 *kheader, ApplePfPatchset *patchset)
@@ -267,20 +259,9 @@ void xnu_pf_apply_each_kext(MachoHeader64 *kheader, ApplePfPatchset *patchset)
     }
 }
 
-ApplePfRange *xnu_pf_all(MachoHeader64 *header)
-{
-    return NULL;
-}
-
-ApplePfRange *xnu_pf_all_x(MachoHeader64 *header)
-{
-    return NULL;
-}
-
 ApplePfPatchset *xnu_pf_patchset_create(uint8_t pf_accesstype)
 {
-    ApplePfPatchset *r = g_malloc0(sizeof(ApplePfPatchset));
-    r->patch_head = NULL;
+    ApplePfPatchset *r = g_new0(ApplePfPatchset, 1);
     r->accesstype = pf_accesstype;
     r->is_required = true;
     return r;
@@ -456,7 +437,6 @@ ApplePfPatch *xnu_pf_maskmatch(ApplePfPatchset *patchset, const char *name,
     ApplePfMaskMatch *mm;
     uint32_t loadc;
 
-    /* Sanity check */
     for (i = 0; i < entryc; i++) {
         if ((matches[i] & masks[i]) != matches[i]) {
             error_report("Bad maskmatch: %s (index %u)", name, i);

@@ -153,8 +153,6 @@ typedef struct {
     uint32_t reserved;
 } MachoHeader64;
 
-extern MachoHeader64 *xnu_header;
-
 typedef struct {
     uint32_t cmd;
     uint32_t cmd_size;
