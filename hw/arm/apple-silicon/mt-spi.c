@@ -823,7 +823,7 @@ static void touch_timer_tick(void *opaque)
 
     if (s->btn_state & MOUSE_EVENT_LBUTTON) {
         timer_mod(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                                NANOSECONDS_PER_SECOND / 40);
+                                NANOSECONDS_PER_SECOND / 20);
     }
 }
 
@@ -869,14 +869,14 @@ static void apple_mt_spi_mouse_event(void *opaque, int dx, int dy, int dz,
 
             timer_del(s->end_timer);
             timer_mod(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                                    NANOSECONDS_PER_SECOND / 40);
+                                    NANOSECONDS_PER_SECOND / 20);
         }
     } else if (s->prev_btn_state & MOUSE_EVENT_LBUTTON) {
         apple_mt_spi_send_path_update(s, PATH_STAGE_BREAK_TOUCH);
 
         timer_del(s->timer);
         timer_mod(s->end_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                                    NANOSECONDS_PER_SECOND / 40);
+                                    NANOSECONDS_PER_SECOND / 20);
     }
 }
 static void apple_mt_spi_realize(SSIPeripheral *dev, Error **errp)
