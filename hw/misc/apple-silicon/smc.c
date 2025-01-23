@@ -79,14 +79,8 @@ enum smc_command {
 };
 
 enum smc_result {
-    kSMCBadFuncParameter = 0xc0,
-    kSMCEventBuffWrongOrder = 0xc4,
-    kSMCEventBuffReadError = 0xc5,
-    kSMCDeviceAccessError = 0xc7,
-    kSMCUnsupportedFeature = 0xcb,
-    kSMCSMBAccessError = 0xcc,
-    kSMCTimeoutError = 0xb7,
-    kSMCKeyIndexRangeError = 0xb8,
+    kSMCSuccess = 0,
+    kSMCError = 1,
     kSMCCommCollision = 0x80,
     kSMCSpuriousData = 0x81,
     kSMCBadCommand = 0x82,
@@ -97,8 +91,14 @@ enum smc_result {
     kSMCKeySizeMismatch = 0x87,
     kSMCFramingError = 0x88,
     kSMCBadArgumentError = 0x89,
-    kSMCError = 1,
-    kSMCSuccess = 0,
+    kSMCTimeoutError = 0xB7,
+    kSMCKeyIndexRangeError = 0xB8,
+    kSMCBadFuncParameter = 0xC0,
+    kSMCEventBuffWrongOrder = 0xC4,
+    kSMCEventBuffReadError = 0xC5,
+    kSMCDeviceAccessError = 0xC7,
+    kSMCUnsupportedFeature = 0xCB,
+    kSMCSMBAccessError = 0xCC,
 };
 
 enum smc_notify_type {
