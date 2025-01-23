@@ -468,7 +468,7 @@ static int dwc3_bd_copy(DWC3State *s, DWC3BufferDesc *desc, USBPacket *p)
         if (buffer == NULL) {
             qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x if_0: USB_RET_SUCCESS\n", __func__, xfer_size);
         }
-        dwc3_bd_unmap(s, desc);
+        //dwc3_bd_unmap(s, desc); // please uncomment this only if you know what you're doing, unlike me. breaks right clicks in vnc over ssh, by leading to null-pointer crashes in glibc.
         return xfer_size;
     }
 
