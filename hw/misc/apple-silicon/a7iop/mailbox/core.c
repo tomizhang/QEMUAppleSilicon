@@ -402,6 +402,7 @@ uint32_t apple_a7iop_interrupt_status_pop(AppleA7IOPMailbox *s)
     if (lowest_msg) {
         QTAILQ_REMOVE(&s->interrupt_status, lowest_msg, entry);
         ret = lowest_msg->status;
+        g_free(lowest_msg);
     }
     // ap_update_irq(s);
     // iop_update_irq(s);
