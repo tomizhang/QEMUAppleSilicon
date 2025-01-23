@@ -188,11 +188,6 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     //! AppleSEPManager::_initTimeoutMultiplier 'sim' -> '  m'
     *(uint32_t *)vtop_slid(0xFFFFFFF008B569E0) = cpu_to_le32(0x52840408);
 
-    // gAppleSMCDebugLevel = 0xFFFFFFFF;
-    // gAppleSMCDebugPath = 0x2;
-    //*(uint32_t *)vtop_slid(0xFFFFFFF0099EAA18) = 0xFFFFFFFF;
-    //*(uint32_t *)vtop_slid(0xFFFFFFF0099EAA1C) = 0x2;
-
     // Disable AMX
     // _gAMXVersion = 0
     // __cpu_capabilities | 0x800 (ucnormal)
@@ -224,9 +219,6 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
 
     // com.apple.os.update- -> xom.apple.os.update-
     *(char *)vtop_slid(0xFFFFFFF0075085FC) = 'x';
-
-    // _gAPCIEdebugFlags: orig == 0x80000001
-    *(uint32_t *)vtop_slid(0xFFFFFFF00984AB1C) = cpu_to_le32(0xFFFFFFFF);
 
     // Disable check for `PE_i_can_has_debugger` in MTSPI/MTDevice code
     // so we can use the boot arguments `mt-strings=1 mt-bytes=1`.
