@@ -110,7 +110,7 @@ static uint64_t apple_a7iop_reg_read(void *opaque, hwaddr addr, unsigned size)
             ret = interrupt_status;
             qemu_log_mask(LOG_UNIMP,
                           "%s: REG_V3_INTERRUPT_STATUS: returning "
-                          "interrupt_status: 0x%05llX\n",
+                          "interrupt_status: 0x%05" PRIX64 "\n",
                           s->role, ret);
         } else if (a7iop_mbox->iop_nonempty) {
             ret = 0x40000;

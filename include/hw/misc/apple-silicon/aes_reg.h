@@ -224,6 +224,12 @@ typedef struct aes_command_iv {
     uint32_t iv[4];
 } command_iv_t;
 
+typedef struct aes_command_dsb {
+    uint32_t command;
+    uint32_t data0[4];
+    uint32_t data1[4];
+} command_dsb_t;
+
 typedef struct aes_command_data {
 #define COMMAND_DATA_COMMAND_KEY_CONTEXT_SHIFT (27)
 #define COMMAND_DATA_COMMAND_KEY_CONTEXT_MASK (0x1)
