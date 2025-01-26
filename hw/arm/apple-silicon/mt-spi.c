@@ -133,15 +133,13 @@ struct AppleMTSPIState {
 #define HID_REPORT_POWER_STATS_DESC (0x73)
 #define HID_REPORT_STATUS (0x7F)
 
-#define MT_FAMILY_ID (0xC0) // real iPhone says 0xc2
-
-#define MT_SENSOR_SURFACE_WIDTH (6458) // 0x193a == display_width/828 * 7.8
-#define MT_SENSOR_SURFACE_HEIGHT (13977) // 0x3699 == display_height/1792 * 7.8
-
-#define MT_SENSOR_SURFACE_POS_X_MIN ((int16_t)0xff1e)
-#define MT_SENSOR_SURFACE_POS_Y_MIN ((int16_t)0xff1c)
-#define MT_SENSOR_SURFACE_POS_X_MAX ((int16_t)0x184f)
-#define MT_SENSOR_SURFACE_POS_Y_MAX ((int16_t)0x35ab)
+#define MT_FAMILY_ID (0xC3)
+#define MT_LITTLE_ENDIAN (1)
+#define MT_ROWS (31)
+#define MT_COLUMNS (15)
+#define MT_BCD_VER (bswap16(0x292))
+#define MT_SENSOR_SURFACE_WIDTH (6458) // display_width/828 * 7.8
+#define MT_SENSOR_SURFACE_HEIGHT (13977) // display_height/1792 * 7.8
 
 #define PATH_STAGE_NOT_TRACKING (0)
 #define PATH_STAGE_START_IN_RANGE (1)
@@ -565,11 +563,10 @@ static void apple_mt_spi_handle_get_feature(AppleMTSPIState *s)
         apple_mt_spi_push_report_hdr(
             &packet->buf, HID_CONTROL_PACKET_SET_OUTPUT_REPORT, report_id,
             HID_PACKET_STATUS_SUCCESS, frame_number, 5);
-        apple_mt_spi_buf_push_byte(&packet->buf, 1); // endianness
-        apple_mt_spi_buf_push_byte(&packet->buf, 31); // rows
-        apple_mt_spi_buf_push_byte(&packet->buf, 15); // columns
-        // iPhone says 0x421, but the emulator needs 0x292 for whatever reason
-        apple_mt_spi_buf_push_word(&packet->buf, bswap16(0x292)); // BCD ver
+        apple_mt_spi_buf_push_byte(&packet->buf, MT_LITTLE_ENDIAN);
+        apple_mt_spi_buf_push_byte(&packet->buf, MT_ROWS);
+        apple_mt_spi_buf_push_byte(&packet->buf, MT_COLUMNS);
+        apple_mt_spi_buf_push_word(&packet->buf, MT_BCD_VER);
         break;
     case HID_REPORT_SENSOR_SURFACE_DESC:
         apple_mt_spi_push_report_hdr(
@@ -577,10 +574,10 @@ static void apple_mt_spi_handle_get_feature(AppleMTSPIState *s)
             HID_PACKET_STATUS_SUCCESS, frame_number, 16);
         apple_mt_spi_buf_push_dword(&packet->buf, MT_SENSOR_SURFACE_WIDTH);
         apple_mt_spi_buf_push_dword(&packet->buf, MT_SENSOR_SURFACE_HEIGHT);
-        apple_mt_spi_buf_push_word(&packet->buf, MT_SENSOR_SURFACE_POS_X_MIN);
-        apple_mt_spi_buf_push_word(&packet->buf, MT_SENSOR_SURFACE_POS_Y_MIN);
-        apple_mt_spi_buf_push_word(&packet->buf, MT_SENSOR_SURFACE_POS_X_MAX);
-        apple_mt_spi_buf_push_word(&packet->buf, MT_SENSOR_SURFACE_POS_Y_MAX);
+        apple_mt_spi_buf_push_word(&packet->buf, 0);
+        apple_mt_spi_buf_push_word(&packet->buf, 0);
+        apple_mt_spi_buf_push_word(&packet->buf, MT_SENSOR_SURFACE_WIDTH);
+        apple_mt_spi_buf_push_word(&packet->buf, MT_SENSOR_SURFACE_HEIGHT);
         break;
     case HID_REPORT_SENSOR_REGION_PARAM:
         apple_mt_spi_push_report_hdr(
@@ -598,7 +595,7 @@ static void apple_mt_spi_handle_get_feature(AppleMTSPIState *s)
 
         apple_mt_spi_buf_push_byte(&packet->buf, 0x1); // type Multitouch
         apple_mt_spi_buf_push_byte(&packet->buf, 0); // start_row
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x1e); // rows
+        apple_mt_spi_buf_push_byte(&packet->buf, 0x1E); // rows
         apple_mt_spi_buf_push_byte(&packet->buf, 0x01); // row_skip
         apple_mt_spi_buf_push_byte(&packet->buf, 0x0); // start_col
         apple_mt_spi_buf_push_byte(&packet->buf, 0xe); // cols
@@ -606,19 +603,19 @@ static void apple_mt_spi_handle_get_feature(AppleMTSPIState *s)
 
         apple_mt_spi_buf_push_byte(&packet->buf, 0x8); // type CommonMode
         apple_mt_spi_buf_push_byte(&packet->buf, 0); // start_row
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x1e); // rows
+        apple_mt_spi_buf_push_byte(&packet->buf, 0x1E); // rows
         apple_mt_spi_buf_push_byte(&packet->buf, 0x01); // row_skip
-        apple_mt_spi_buf_push_byte(&packet->buf, 0xe); // start_col
+        apple_mt_spi_buf_push_byte(&packet->buf, 0xE); // start_col
         apple_mt_spi_buf_push_byte(&packet->buf, 0x1); // cols
         apple_mt_spi_buf_push_byte(&packet->buf, 0x0); // hardware_coloffset
 
-        apple_mt_spi_buf_push_byte(&packet->buf, 0xb); // type unknown
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x1e); // maybe rows?
+        apple_mt_spi_buf_push_byte(&packet->buf, 0xB); // type unknown
+        apple_mt_spi_buf_push_byte(&packet->buf, 0x1E); // maybe rows?
         apple_mt_spi_buf_push_byte(&packet->buf, 0x1); // maybe row_skip?
         apple_mt_spi_buf_push_byte(&packet->buf, 0x1); // unknown
         apple_mt_spi_buf_push_byte(&packet->buf, 0x0); // unknown
         // maybe ignored? offsets 0x14/0x15 > size 0x14
-        apple_mt_spi_buf_push_byte(&packet->buf, 0xf);
+        apple_mt_spi_buf_push_byte(&packet->buf, 0xF);
         apple_mt_spi_buf_push_byte(&packet->buf, 0x0);
         break;
     default:
@@ -886,12 +883,10 @@ static void apple_mt_spi_mouse_event(void *opaque, int dx, int dy, int dz,
     s->prev_x = s->x;
     s->prev_y = s->y;
     s->x = qemu_input_scale_axis(dx, INPUT_EVENT_ABS_MIN, INPUT_EVENT_ABS_MAX,
-                                 MT_SENSOR_SURFACE_POS_X_MIN,
-                                 MT_SENSOR_SURFACE_POS_X_MAX);
+                                 0, MT_SENSOR_SURFACE_WIDTH);
     s->y =
         qemu_input_scale_axis(INPUT_EVENT_ABS_MAX - dy, INPUT_EVENT_ABS_MIN,
-                              INPUT_EVENT_ABS_MAX, MT_SENSOR_SURFACE_POS_Y_MIN,
-                              MT_SENSOR_SURFACE_POS_Y_MAX);
+                              INPUT_EVENT_ABS_MAX, 0, MT_SENSOR_SURFACE_HEIGHT);
     // hardcoded calibration by 16 pixels on y-axis for display_height 1792.
     // Tested accuracy is +/- 1 pixel.
     s->y -= qemu_input_scale_axis(16, 0, 1792, 0, MT_SENSOR_SURFACE_HEIGHT);
