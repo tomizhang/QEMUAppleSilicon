@@ -75,42 +75,23 @@
 
 #define T8030_GPIO_FORCE_DFU 161
 
-#define T8030_DISPLAY_BASE (T8030_DRAM_BASE + 0xF7FB4000)
-#define T8030_DISPLAY_SIZE (67ull * MiB)
-
-// TODO: the overlap can be worked around in two ways, by moving the kernel away
-// or by moving ans_text/sio away.
-// TODO: Fix it properly by implementing a carveout allocator
-
-// #define T8030_KERNEL_REGION_BASE T8030_DRAM_BASE
-#define T8030_KERNEL_REGION_BASE (T8030_DRAM_BASE + (32ull * MiB))
-#define T8030_KERNEL_REGION_SIZE 0xF000000ull
+#define T8030_DISPLAY_SIZE (67 * MiB)
 
 #define T8030_DWC2_IRQ 495
 
 #define T8030_NUM_UARTS 9
 
-#define T8030_ANS_TEXT_BASE 0x800024000ull
-// #define T8030_ANS_TEXT_BASE 0x8fc2dc000ull
 #define T8030_ANS_TEXT_SIZE 0x124000ull
-#define T8030_ANS_DATA_BASE 0x8FC400000ull
 #define T8030_ANS_DATA_SIZE 0x3C00000ull
-// #define T8030_ANS_REGION_BASE 0x8fc2d0000ull
-// #define T8030_ANS_REGION_SIZE
-// (0xc000ull+T8030_ANS_TEXT_SIZE+T8030_ANS_DATA_SIZE) #define
-// T8030_SMC_REGION_SIZE 0x80000ull
 #define T8030_SMC_TEXT_SIZE 0x30000ull
 #define T8030_SMC_DATA_SIZE 0x30000ull
 #define T8030_SMC_SRAM_SIZE 0x4000ull
 
-#define T8030_SIO_TEXT_BASE 0x8010A8000ull
 #define T8030_SIO_TEXT_SIZE 0x1C000ull
 #define T8030_SIO_TEXT_REMAP 0x200000ull
-#define T8030_SIO_DATA_BASE 0x80186C000ull
 #define T8030_SIO_DATA_SIZE 0xF8000ull
 #define T8030_SIO_DATA_REMAP 0x220000ull
 
-#define T8030_PANIC_BASE 0x8FC2B4000ull
 #define T8030_PANIC_SIZE 0x100000ull
 
 #define T8030_AMCC_BASE 0x200000000ull
@@ -306,7 +287,7 @@ static void get_kaslr_slides(T8030MachineState *t8030_machine,
 }
 
 static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
-                                  const char *cmdline)
+                                  const char *cmdline, CarveoutAllocator *ca)
 {
     MachineState *machine = MACHINE(t8030_machine);
     MachoHeader64 *hdr = t8030_machine->kernel;
@@ -315,7 +296,6 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     hwaddr virt_low;
     hwaddr virt_end;
     hwaddr dtb_va;
-    hwaddr top_of_kernel_data_pa;
     hwaddr mem_size;
     hwaddr phys_ptr;
     hwaddr amcc_lower;
@@ -337,7 +317,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     last_base = last_seg->vmaddr;
     text_base = macho_get_segment(hdr, "__TEXT")->vmaddr;
 
-    g_phys_base = T8030_KERNEL_REGION_BASE;
+    g_phys_base = T8030_DRAM_BASE;
     g_virt_base += g_virt_slide - g_phys_slide;
 
     // TrustCache
@@ -404,26 +384,25 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     info_report("Device tree virtual base: 0x" TARGET_FMT_lx, dtb_va);
     info_report("Device tree size: 0x" TARGET_FMT_lx, info->device_tree_size);
 
-    mem_size =
-        machine->maxram_size -
-        (T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE));
+    mem_size = carveout_alloc_finalise(ca);
     info_report("mem_size: 0x%" PRIx64 "", mem_size);
 
     macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
                    info);
 
-    top_of_kernel_data_pa = (ROUND_UP_16K(phys_ptr) + 0x3000ull) & ~0x3FFFull;
+    info->top_of_kernel_data_pa =
+        (ROUND_UP_16K(phys_ptr) + 0x3000ull) & ~0x3FFFull;
 
     info_report("Boot args: [%s]", cmdline);
-    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,
-                         g_virt_base, g_phys_base, mem_size,
-                         top_of_kernel_data_pa, dtb_va, info->device_tree_size,
-                         t8030_machine->video_args, cmdline);
+    macho_setup_bootargs(
+        "BootArgs", nsas, sysmem, info->kern_boot_args_addr, g_virt_base,
+        g_phys_base, mem_size, info->top_of_kernel_data_pa, dtb_va,
+        info->device_tree_size, t8030_machine->video_args, cmdline);
     g_virt_base = virt_low;
 }
 
 static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
-                                  const char *cmdline)
+                                  const char *cmdline, CarveoutAllocator *ca)
 {
     MachineState *machine = MACHINE(t8030_machine);
     MachoHeader64 *hdr = t8030_machine->kernel;
@@ -432,7 +411,6 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     hwaddr virt_low;
     hwaddr virt_end;
     hwaddr dtb_va;
-    hwaddr top_of_kernel_data_pa;
     hwaddr mem_size;
     hwaddr phys_ptr;
     hwaddr amcc_lower;
@@ -464,7 +442,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
         g_virt_slide += grown_slide;
     }
 
-    g_phys_base = phys_ptr = T8030_KERNEL_REGION_BASE;
+    g_phys_base = phys_ptr = T8030_DRAM_BASE;
     phys_ptr |= (virt_low & L2_GRANULE_MASK);
     phys_ptr += g_phys_slide;
     phys_ptr -= extradata_size;
@@ -521,21 +499,88 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     info->kern_boot_args_size = 0x4000;
     phys_ptr += info->kern_boot_args_size;
 
-    mem_size =
-        machine->maxram_size -
-        (T8030_KERNEL_REGION_SIZE - (g_phys_base - T8030_KERNEL_REGION_BASE));
+    mem_size = carveout_alloc_finalise(ca);
 
     macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
                    info);
 
-    top_of_kernel_data_pa = (ROUND_UP_16K(phys_ptr) + 0x3000ull) & ~0x3fffull;
+    info->top_of_kernel_data_pa =
+        (ROUND_UP_16K(phys_ptr) + 0x3000ull) & ~0x3fffull;
 
     info_report("Boot args: [%s]", cmdline);
-    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,
-                         g_virt_base, g_phys_base, mem_size,
-                         top_of_kernel_data_pa, dtb_va, info->device_tree_size,
-                         t8030_machine->video_args, cmdline);
+    macho_setup_bootargs(
+        "BootArgs", nsas, sysmem, info->kern_boot_args_addr, g_virt_base,
+        g_phys_base, mem_size, info->top_of_kernel_data_pa, dtb_va,
+        info->device_tree_size, t8030_machine->video_args, cmdline);
     g_virt_base = virt_low;
+}
+
+static void t8030_sio_mem_setup(T8030MachineState *t8030_machine,
+                                CarveoutAllocator *ca)
+{
+    DTBNode *child;
+    DTBNode *iop_nub;
+    AppleIopSegmentRange segranges[2];
+
+    child = dtb_get_node(t8030_machine->device_tree, "arm-io");
+    g_assert_nonnull(child);
+    child = dtb_get_node(child, "sio");
+    g_assert_nonnull(child);
+    iop_nub = dtb_get_node(child, "iop-sio-nub");
+    g_assert_nonnull(iop_nub);
+
+    segranges[0].phys = carveout_alloc_mem(ca, T8030_SIO_TEXT_SIZE);
+    segranges[0].virt = 0x0;
+    segranges[0].remap = T8030_SIO_TEXT_REMAP;
+    segranges[0].size = T8030_SIO_TEXT_SIZE;
+    segranges[0].flag = 0x1;
+
+    segranges[1].phys = carveout_alloc_mem(ca, T8030_SIO_DATA_SIZE);
+    segranges[1].virt = T8030_SIO_TEXT_SIZE;
+    segranges[1].remap = T8030_SIO_DATA_REMAP;
+    segranges[1].size = T8030_SIO_DATA_SIZE;
+    segranges[1].flag = 0x0;
+
+
+    dtb_set_prop(child, "segment-ranges", sizeof(segranges), segranges);
+    dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
+}
+
+static void t8030_ans_mem_setup(T8030MachineState *t8030_machine,
+                                CarveoutAllocator *ca)
+{
+    DTBNode *child;
+    DTBNode *iop_nub;
+    AppleIopSegmentRange segranges[2];
+    DTBProp *prop;
+
+    child = dtb_get_node(t8030_machine->device_tree, "arm-io");
+    g_assert_nonnull(child);
+    child = dtb_get_node(child, "ans");
+    g_assert_nonnull(child);
+    iop_nub = dtb_get_node(child, "iop-ans-nub");
+    g_assert_nonnull(iop_nub);
+
+    segranges[0].phys = carveout_alloc_mem(ca, T8030_ANS_TEXT_SIZE);
+    segranges[0].virt = 0x0;
+    segranges[0].remap = segranges[0].phys;
+    segranges[0].size = T8030_ANS_TEXT_SIZE;
+    segranges[0].flag = 0x1;
+
+    segranges[1].phys = carveout_alloc_mem(ca, T8030_ANS_DATA_SIZE);
+    segranges[1].virt = T8030_ANS_TEXT_SIZE;
+    segranges[1].remap = segranges[1].phys;
+    segranges[1].size = T8030_ANS_DATA_SIZE;
+    segranges[1].flag = 0x0;
+
+    prop = dtb_find_prop(iop_nub, "region-base");
+    *(uint64_t *)prop->data = segranges[1].phys;
+
+    prop = dtb_find_prop(iop_nub, "region-size");
+    *(uint64_t *)prop->data = T8030_ANS_DATA_SIZE;
+
+    // dtb_set_prop(child, "segment-ranges", sizeof(segranges), segranges);
+    dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
 }
 
 static void t8030_memory_setup(T8030MachineState *t8030_machine)
@@ -549,6 +594,13 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     char *cmdline;
     char *seprom;
     gsize fsize;
+    CarveoutAllocator *ca;
+
+    ca = carveout_alloc_new(
+        dtb_get_node(t8030_machine->device_tree, "/chosen/carveout-memory-map"),
+        T8030_DRAM_BASE, T8030_DRAM_SIZE, 16 * KiB);
+    t8030_sio_mem_setup(t8030_machine, ca);
+    t8030_ans_mem_setup(t8030_machine, ca);
 
     machine = MACHINE(t8030_machine);
     info = &t8030_machine->bootinfo;
@@ -784,27 +836,31 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
 
     DTBNode *pram = dtb_get_node(t8030_machine->device_tree, "pram");
     if (pram) {
-        uint64_t panic_reg[2] = { 0 };
-        uint64_t panic_base = T8030_PANIC_BASE;
-        uint64_t panic_size = T8030_PANIC_SIZE;
-
-        panic_reg[0] = panic_base;
-        panic_reg[1] = panic_size;
-
+        uint64_t panic_reg[2];
+        panic_reg[0] = carveout_alloc_mem(ca, T8030_PANIC_SIZE);
+        panic_reg[1] = T8030_PANIC_SIZE;
         dtb_set_prop(pram, "reg", sizeof(panic_reg), &panic_reg);
-        dtb_set_prop_u64(chosen, "embedded-panic-log-size", panic_size);
-        t8030_machine->panic_base = panic_base;
-        t8030_machine->panic_size = panic_size;
+        dtb_set_prop_u64(chosen, "embedded-panic-log-size", panic_reg[1]);
+        t8030_machine->panic_base = panic_reg[0];
+        t8030_machine->panic_size = panic_reg[1];
     }
 
     DTBNode *vram = dtb_get_node(t8030_machine->device_tree, "vram");
     if (vram) {
-        uint64_t vram_reg[2] = { 0 };
-        uint64_t vram_base = T8030_DISPLAY_BASE;
-        uint64_t vram_size = T8030_DISPLAY_SIZE;
-        vram_reg[0] = vram_base;
-        vram_reg[1] = vram_size;
+        uint64_t vram_reg[2];
+        vram_reg[0] = carveout_alloc_mem(ca, T8030_DISPLAY_SIZE);
+        vram_reg[1] = T8030_DISPLAY_SIZE;
         dtb_set_prop(vram, "reg", sizeof(vram_reg), &vram_reg);
+        t8030_machine->video_args.base_addr = vram_reg[0];
+        AppleDisplayPipeV2State *display =
+            APPLE_DISPLAYPIPE_V2(object_property_get_link(
+                OBJECT(t8030_machine), "disp0", &error_abort));
+        if (memory_region_is_mapped(&display->vram)) {
+            memory_region_del_subregion(t8030_machine->sysmem, &display->vram);
+        }
+        memory_region_add_subregion_overlap(t8030_machine->sysmem,
+                                            t8030_machine->video_args.base_addr,
+                                            &display->vram, 1);
     }
 
     hdr = t8030_machine->kernel;
@@ -816,10 +872,10 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
 
     switch (hdr->file_type) {
     case MH_EXECUTE:
-        t8030_load_classic_kc(t8030_machine, cmdline);
+        t8030_load_classic_kc(t8030_machine, cmdline, ca);
         break;
     case MH_FILESET:
-        t8030_load_fileset_kc(t8030_machine, cmdline);
+        t8030_load_fileset_kc(t8030_machine, cmdline, ca);
         break;
     default:
         error_setg(&error_abort, "Unsupported kernelcache type: 0x%x\n",
@@ -1116,16 +1172,10 @@ static void amcc_reg_write(void *opaque, hwaddr addr, uint64_t data,
 static uint64_t amcc_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     T8030MachineState *t8030_machine = T8030_MACHINE(opaque);
-    // hwaddr orig_addr = addr;
     uint64_t result = 0;
     uint64_t base =
-        (T8030_KERNEL_REGION_BASE - T8030_DRAM_BASE) + T8030_KERNEL_REGION_SIZE;
-    // uint64_t amcc_size = 0xada0000;
+        t8030_machine->bootinfo.top_of_kernel_data_pa - T8030_DRAM_BASE;
     uint64_t amcc_size = 0xf000000;
-    // uint64_t base =
-    // (T8030_KERNEL_REGION_BASE-T8030_DRAM_BASE)+T8030_KERNEL_REGION_SIZE+0x1000000;
-    // uint64_t base = 0x14000000; // T8015
-    // uint64_t amcc_size = 0x6000000; // T8015
     switch (addr) {
     case 0x6A0:
     case 0x406A0:
@@ -1485,7 +1535,6 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     SysBusDevice *ans;
     DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io");
     DTBNode *iop_nub;
-    AppleIopSegmentRange segranges[2] = { 0 };
 
     g_assert_nonnull(child);
     child = dtb_get_node(child, "ans");
@@ -1493,29 +1542,7 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     iop_nub = dtb_get_node(child, "iop-ans-nub");
     g_assert_nonnull(iop_nub);
 
-    prop = dtb_find_prop(iop_nub, "region-base");
-    *(uint64_t *)prop->data = T8030_ANS_DATA_BASE;
-    //*(uint64_t *)prop->value = T8030_ANS_REGION_BASE;
-
-    prop = dtb_find_prop(iop_nub, "region-size");
-    *(uint64_t *)prop->data = T8030_ANS_DATA_SIZE;
-    //*(uint64_t *)prop->value = T8030_ANS_REGION_SIZE;
-
     dtb_set_prop(iop_nub, "segment-names", 14, "__TEXT;__DATA");
-
-    segranges[0].phys = T8030_ANS_TEXT_BASE;
-    segranges[0].virt = 0x0;
-    segranges[0].remap = T8030_ANS_TEXT_BASE;
-    segranges[0].size = T8030_ANS_TEXT_SIZE;
-    segranges[0].flag = 0x1;
-
-    segranges[1].phys = T8030_ANS_DATA_BASE;
-    segranges[1].virt = T8030_ANS_TEXT_SIZE;
-    segranges[1].remap = T8030_ANS_DATA_BASE;
-    segranges[1].size = T8030_ANS_DATA_SIZE;
-    segranges[1].flag = 0x0;
-
-    dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
 
     t8030_create_sart(t8030_machine);
     sart = SYS_BUS_DEVICE(object_property_get_link(OBJECT(t8030_machine),
@@ -1982,7 +2009,6 @@ static void t8030_create_sio(T8030MachineState *t8030_machine)
     AppleDARTState *dart;
     DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io");
     DTBNode *iop_nub;
-    AppleIopSegmentRange segranges[2] = { 0 };
     IOMMUMemoryRegion *dma_mr = NULL;
     DTBNode *dart_sio = dtb_get_node(child, "dart-sio");
     DTBNode *dart_sio_mapper = dtb_get_node(dart_sio, "mapper-sio");
@@ -1995,28 +2021,6 @@ static void t8030_create_sio(T8030MachineState *t8030_machine)
 
     dtb_set_prop(child, "segment-names", 14, "__TEXT;__DATA");
     dtb_set_prop(iop_nub, "segment-names", 14, "__TEXT;__DATA");
-
-    segranges[0].phys = T8030_SIO_TEXT_BASE;
-    segranges[0].virt = 0x0;
-    segranges[0].remap = T8030_SIO_TEXT_REMAP;
-    segranges[0].size = T8030_SIO_TEXT_SIZE;
-    segranges[0].flag = 0x1;
-
-    segranges[1].phys = T8030_SIO_DATA_BASE;
-    segranges[1].virt = T8030_SIO_TEXT_SIZE;
-    segranges[1].remap = T8030_SIO_DATA_REMAP;
-    segranges[1].size = T8030_SIO_DATA_SIZE;
-    segranges[1].flag = 0x0;
-
-    dtb_set_prop(child, "segment-ranges", sizeof(segranges), segranges);
-    dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
-#if 0
-    // TODO: maybe set pre-loaded and running properties in SIO as well ;; SIO doesn't have the running property set ;; pre-loaded is being set in apple_sio_create (running is commented out)
-    dtb_set_prop_u32(iop_nub, "pre-loaded", 1);
-    // dtb_set_prop_u32(iop_nub, "running", 1);
-    // dtb_set_prop_u32(child, "pre-loaded", 1);
-    // dtb_set_prop_u32(child, "running", 1);
-#endif
 
     sio = apple_sio_create(child, APPLE_A7IOP_V4,
                            t8030_machine->rtbuddy_protocol_ver);
@@ -2114,7 +2118,6 @@ static void t8030_create_display(T8030MachineState *t8030_machine)
     s = apple_displaypipe_v2_create(child);
     sbd = SYS_BUS_DEVICE(s);
 
-    t8030_machine->video_args.base_addr = T8030_DISPLAY_BASE;
     t8030_machine->video_args.row_bytes = s->width * 4;
     t8030_machine->video_args.width = s->width;
     t8030_machine->video_args.height = s->height;
@@ -2155,9 +2158,6 @@ static void t8030_create_display(T8030MachineState *t8030_machine)
 
     memory_region_init_ram(&s->vram, OBJECT(sbd), "vram", T8030_DISPLAY_SIZE,
                            &error_fatal);
-    memory_region_add_subregion_overlap(t8030_machine->sysmem,
-                                        t8030_machine->video_args.base_addr,
-                                        &s->vram, 1);
     object_property_add_const_link(OBJECT(sbd), "vram", OBJECT(&s->vram));
     object_property_add_child(OBJECT(t8030_machine), "disp0", OBJECT(sbd));
 
@@ -2486,7 +2486,7 @@ static void t8030_machine_init(MachineState *machine)
     g_virt_base = kernel_low;
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
 
-    t8030_patch_kernel(hdr);
+    // t8030_patch_kernel(hdr);
 
     t8030_machine->device_tree = load_dtb_from_file(machine->dtb);
     t8030_machine->trustcache =
