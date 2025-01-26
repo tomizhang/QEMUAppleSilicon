@@ -864,7 +864,6 @@ static void touch_end_timer_tick(void *opaque)
     QEMU_LOCK_GUARD(&s->lock);
 
     apple_mt_spi_send_path_update(s, PATH_STAGE_OUT_OF_RANGE);
-    apple_mt_spi_send_path_update(s, PATH_STAGE_NOT_TRACKING);
 
     s->prev_ts = 0;
     s->prev_x = 0;
@@ -895,14 +894,6 @@ static void apple_mt_spi_mouse_event(void *opaque, int dx, int dy, int dz,
 
     if (s->btn_state & MOUSE_EVENT_LBUTTON) {
         if (!(s->prev_btn_state & MOUSE_EVENT_LBUTTON)) {
-#if 0
-            warn_report("%s: for calibration: lbutton pressed: x: %d y: %d",
-                          __func__, qemu_input_scale_axis(dx,
-                           INPUT_EVENT_ABS_MIN, INPUT_EVENT_ABS_MAX, 0, 828),
-                          qemu_input_scale_axis(dy, INPUT_EVENT_ABS_MIN,
-                                                INPUT_EVENT_ABS_MAX, 0, 1792));
-#endif
-            apple_mt_spi_send_path_update(s, PATH_STAGE_START_IN_RANGE);
             apple_mt_spi_send_path_update(s, PATH_STAGE_MAKE_TOUCH);
 
             timer_del(s->end_timer);
