@@ -1,5 +1,5 @@
 /*
- * Apple t8030 SoC.
+ * Apple T8030 SoC.
  *
  * Copyright (c) 2023-2025 Visual Ehrmanntraut (VisualEhrmanntraut).
  * Copyright (c) 2023-2025 Christian Inci (chris-pcguy).
@@ -361,7 +361,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
         g_file_get_contents(t8030_machine->sep_fw_filename, &sep->sepfw_data,
                             NULL, NULL);
     }
-    info->sep_fw_size = ROUND_UP_16K(8 * MiB);
+    info->sep_fw_size = 8 * MiB;
     phys_ptr += info->sep_fw_size;
 
     // Kernel boot args
@@ -384,8 +384,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
                    info);
 
-    info->top_of_kernel_data_pa =
-        (ROUND_UP_16K(phys_ptr) + 0x3000ull) & ~0x3FFFull;
+    info->top_of_kernel_data_pa = ROUND_UP_16K(phys_ptr);
 
     info_report("Boot args: [%s]", cmdline);
     macho_setup_bootargs(
@@ -486,7 +485,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
 
     // SEPFW
     info->sep_fw_addr = phys_ptr;
-    info->sep_fw_size = ROUND_UP_16K(8 * MiB);
+    info->sep_fw_size = 8 * MiB;
     phys_ptr += info->sep_fw_size;
 
     info->kern_boot_args_addr = phys_ptr;
@@ -498,8 +497,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
                    info);
 
-    info->top_of_kernel_data_pa =
-        (ROUND_UP_16K(phys_ptr) + 0x3000ull) & ~0x3fffull;
+    info->top_of_kernel_data_pa = ROUND_UP_16K(phys_ptr);
 
     info_report("Boot args: [%s]", cmdline);
     macho_setup_bootargs(
