@@ -482,23 +482,6 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
     dtb_set_prop_u32(child, "security-domain", 1);
     dtb_set_prop_u32(child, "chip-epoch", 1);
     // dtb_set_prop_u32(child, "debug-enabled", 1);
-#if 0
-    uint32_t software_behavior[4] = { 0 }; // 0x10(16) bytes
-    // 0x11 is the default for LL
-    software_behavior[0] |= 0x1; // valid
-    // software_behavior[0] |= 0x2; // ?/GoogleMail
-    // software_behavior[0] |= 0x4; // VOLUME/VolumeLimit
-    // software_behavior[0] |= 0x8; // SHUTTER/ShutterClick
-    software_behavior[0] |= 0x10; // TVNTSC/NTSC
-    // software_behavior[0] |= 0x20; // ?/NoWiFi
-    // software_behavior[0] |= 0x40; // CNBRICK/ChinaBrick
-    // software_behavior[0] |= 0x80; // NOVOIP/NoVOIP
-    // software_behavior[0] |= 0x100; // GB18030/GB18030
-    // software_behavior[0] |= 0x200; // NOPASSCODETILES/NoPasscodeLocationTiles
-    // software_behavior[0] |= 0x400; // EUVOLUME/EUVolumeLimit
-    dtb_set_prop(child, "software-behavior", sizeof(software_behavior),
-                 software_behavior);
-#endif
 
     child = dtb_get_node(root, "defaults");
     g_assert_nonnull(child);

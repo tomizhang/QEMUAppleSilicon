@@ -582,7 +582,6 @@ static void t8030_ans_mem_setup(T8030MachineState *t8030_machine,
     prop = dtb_find_prop(iop_nub, "region-size");
     *(uint64_t *)prop->data = T8030_ANS_DATA_SIZE;
 
-    // dtb_set_prop(child, "segment-ranges", sizeof(segranges), segranges);
     dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
 }
 
@@ -2487,7 +2486,7 @@ static void t8030_machine_init(MachineState *machine)
     g_virt_base = kernel_low;
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
 
-    // t8030_patch_kernel(hdr);
+    t8030_patch_kernel(hdr);
 
     t8030_machine->device_tree = load_dtb_from_file(machine->dtb);
     t8030_machine->trustcache =
@@ -2559,21 +2558,6 @@ static void t8030_machine_init(MachineState *machine)
     // TODO: PMP
     dtb_set_prop(t8030_machine->device_tree, "target-type", 4, "sim");
     dtb_set_prop_u32(child, "device-color-policy", 0);
-
-    /// BlueTool skips wifivendor check if the product/product-id (not
-    /// bluetooth/product-id) is one of these two values
-    /// bluetoothd says 0x7D1
-    // uint8_t product_id[] = {0x86, 0xCC, 0x1F, 0xC0, 0xF2, 0x77, 0x03, 0xC5,
-    // 0x97, 0x60, 0x0A, 0x11, 0x8F, 0x77, 0xD3, 0x81, 0xE0, 0x4A, 0x14, 0x98};
-
-    // bluetoothd says 0x7D1
-    // uint8_t product_id[] = {0x63, 0xA6, 0x2C, 0x65, 0xC4, 0x2A, 0x4B, 0x57,
-    // 0x5B, 0x6F, 0x86, 0xF9, 0x13, 0xDF, 0xDB, 0x7D, 0x2B, 0xCD, 0x8A, 0x67};
-
-    /// set unknown platform (product/product-id) for bluetoothd; this crashes
-    /// bluetoothd
-    // uint8_t product_id[0x14] = {0x0};
-    // dtb_set_prop(child, "product-id", sizeof(product_id), product_id);
 
     t8030_cpu_setup(t8030_machine);
 
