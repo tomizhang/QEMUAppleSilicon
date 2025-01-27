@@ -21,17 +21,9 @@
 #define HW_MISC_APPLE_SILICON_ROSWELL_H
 
 #include "qemu/osdep.h"
-#include "hw/i2c/i2c.h"
 #include "qom/object.h"
 
 #define TYPE_APPLE_ROSWELL "apple-roswell"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleRoswellState, APPLE_ROSWELL);
-
-struct AppleRoswellState {
-    /*< private >*/
-    I2CSlave i2c;
-
-    /*< public >*/
-};
 
 #endif /* HW_MISC_APPLE_SILICON_ROSWELL_H */

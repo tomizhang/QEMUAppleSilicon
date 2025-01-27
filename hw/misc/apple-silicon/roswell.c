@@ -18,7 +18,15 @@
  */
 
 #include "qemu/osdep.h"
+#include "hw/i2c/i2c.h"
 #include "hw/misc/apple-silicon/roswell.h"
+
+struct AppleRoswellState {
+    /*< private >*/
+    I2CSlave i2c;
+
+    /*< public >*/
+};
 
 static uint8_t apple_roswell_rx(I2CSlave *i2c)
 {
