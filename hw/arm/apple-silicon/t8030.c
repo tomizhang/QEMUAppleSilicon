@@ -25,6 +25,7 @@
 #include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/dart.h"
 #include "hw/arm/apple-silicon/dtb.h"
+#include "hw/arm/apple-silicon/lm-backlight.h"
 #include "hw/arm/apple-silicon/mem.h"
 #include "hw/arm/apple-silicon/mt-spi.h"
 #include "hw/arm/apple-silicon/sart.h"
@@ -2028,6 +2029,33 @@ static void t8030_create_roswell(T8030MachineState *t8030_machine)
                             *(uint32_t *)prop->data);
 }
 
+static void t8030_create_backlight(T8030MachineState *t8030_machine)
+{
+    DTBNode *child;
+    DTBProp *prop;
+    AppleI2CState *i2c;
+
+    child = dtb_get_node(t8030_machine->device_tree, "arm-io/i2c0/lm3539");
+    g_assert_nonnull(child);
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    i2c = APPLE_I2C(
+        object_property_get_link(OBJECT(t8030_machine), "i2c0", &error_fatal));
+    i2c_slave_create_simple(i2c->bus, TYPE_APPLE_LM_BACKLIGHT,
+                            *(uint32_t *)prop->data);
+
+    child = dtb_get_node(t8030_machine->device_tree, "arm-io/i2c2/lm3539-1");
+    g_assert_nonnull(child);
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    i2c = APPLE_I2C(
+        object_property_get_link(OBJECT(t8030_machine), "i2c2", &error_fatal));
+    i2c_slave_create_simple(i2c->bus, TYPE_APPLE_LM_BACKLIGHT,
+                            *(uint32_t *)prop->data);
+}
+
 static void t8030_create_misc(T8030MachineState *t8030_machine)
 {
     DTBNode *child;
@@ -2566,6 +2594,8 @@ static void t8030_machine_init(MachineState *machine)
 #ifdef ENABLE_ROSWELL
     t8030_create_roswell(t8030_machine);
 #endif
+
+    t8030_create_backlight(t8030_machine);
 
     t8030_create_misc(t8030_machine);
 

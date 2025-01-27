@@ -14,6 +14,7 @@ arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
     'apple-silicon/t8030.c',
     'apple-silicon/xnu_kpf.c',
     'apple-silicon/xnu_pf.c',
+    'apple-silicon/lm-backlight.c',
 ))
 arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: tasn1)
 arm_ss.add(when: 'CONFIG_APPLE_DART', if_true: files('apple-silicon/dart.c'),

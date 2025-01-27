@@ -45,6 +45,8 @@ static const char *KEEP_COMP[] = {
     "arm-io,s8000\0$",
     "arm-io,t8030\0$",
     "atc-phy,t8030\0atc-phy,t8027\0$",
+    "backlight\0$",
+    "backlight,lm3539\0$",
 #ifdef ENABLE_BASEBAND
     "baseband,i19\0$",
 #endif
@@ -99,7 +101,6 @@ static const char *KEEP_COMP[] = {
 };
 
 static const char *REM_NAMES[] = {
-    "backlight\0$",
     "dart-ane\0$",
     "dart-aop\0$",
     "dart-apcie2\0$",
@@ -139,7 +140,7 @@ static const char *REM_NAMES[] = {
 };
 
 static const char *REM_DEV_TYPES[] = {
-    "bluetooth\0$",     "wlan\0$",          "aop\0$", "backlight\0$", "pmp\0$",
+    "bluetooth\0$",     "wlan\0$",          "aop\0$", "pmp\0$",
 #ifndef ENABLE_BASEBAND
     "baseband\0$",      "baseband-spmi\0$",
 #endif
