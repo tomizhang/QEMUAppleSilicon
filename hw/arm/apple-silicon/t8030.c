@@ -61,46 +61,37 @@
 #include "sysemu/runstate.h"
 #include "sysemu/sysemu.h"
 
-#define T8030_SROM_BASE 0x100000000ull
-#define T8030_SROM_SIZE 0x80000ull
+#define T8030_SROM_BASE (0x100000000)
+#define T8030_SROM_SIZE (0x80000)
 
-#define T8030_SRAM_BASE 0x19C000000ull
-#define T8030_SRAM_SIZE 0x400000ull
+#define T8030_SRAM_BASE (0x19C000000)
+#define T8030_SRAM_SIZE (0x400000)
 
-#define T8030_DRAM_BASE 0x800000000ull
-#define T8030_DRAM_SIZE (4ull * GiB)
+#define T8030_DRAM_BASE (0x800000000)
+#define T8030_DRAM_SIZE (4 * GiB)
 
-#define T8030_SEPROM_BASE 0x240000000ull
-#define T8030_SEPROM_SIZE 0x4000000ull
+#define T8030_SEPROM_BASE (0x240000000)
+#define T8030_SEPROM_SIZE (0x4000000)
 
-#define T8030_GPIO_FORCE_DFU 161
+#define T8030_GPIO_FORCE_DFU (161)
 
 #define T8030_DISPLAY_SIZE (67 * MiB)
 
-#define T8030_DWC2_IRQ 495
+#define T8030_DWC2_IRQ (495)
 
-#define T8030_NUM_UARTS 9
+#define T8030_NUM_UARTS (9)
 
-#define T8030_ANS_TEXT_SIZE 0x124000ull
-#define T8030_ANS_DATA_SIZE 0x3C00000ull
-#define T8030_SMC_TEXT_SIZE 0x30000ull
-#define T8030_SMC_DATA_SIZE 0x30000ull
-// for iOS 17, might need further testing, alternatively increase region-size
-//#define T8030_SMC_TEXT_SIZE 0x10000ull
-//#define T8030_SMC_DATA_SIZE 0x10000ull
-#define T8030_SMC_SRAM_SIZE 0x4000ull
+#define T8030_ANS_TEXT_SIZE (0x124000)
+#define T8030_ANS_DATA_SIZE (0x3C00000)
+#define T8030_SMC_SRAM_SIZE (0x4000)
+#define T8030_SIO_TEXT_SIZE (0x1C000)
+#define T8030_SIO_DATA_SIZE (0xF8000)
+#define T8030_PANIC_SIZE (0x100000)
 
-#define T8030_SIO_TEXT_SIZE 0x1C000ull
-#define T8030_SIO_TEXT_REMAP 0x200000ull
-#define T8030_SIO_DATA_SIZE 0xF8000ull
-#define T8030_SIO_DATA_REMAP 0x220000ull
-
-#define T8030_PANIC_SIZE 0x100000ull
-
-#define T8030_AMCC_BASE 0x200000000ull
-#define T8030_AMCC_SIZE 0x100000ull
-#define AMCC_PLANE_COUNT 4
-#define AMCC_PLANE_STRIDE 0x40000ull
+#define T8030_AMCC_BASE (0x200000000)
+#define T8030_AMCC_SIZE (0x100000)
+#define AMCC_PLANE_COUNT (4)
+#define AMCC_PLANE_STRIDE (0x40000)
 #define AMCC_LOWER(_p) (0x680 + (_p) * AMCC_PLANE_STRIDE)
 #define AMCC_UPPER(_p) (0x684 + (_p) * AMCC_PLANE_STRIDE)
 #define AMCC_REG(_tms, _x) *(uint32_t *)(&t8030_machine->amcc_reg[_x])
@@ -518,71 +509,36 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     g_virt_base = virt_low;
 }
 
-static void t8030_sio_mem_setup(T8030MachineState *t8030_machine,
-                                CarveoutAllocator *ca)
+static void t8030_rtkit_mem_setup(T8030MachineState *t8030_machine,
+                                  CarveoutAllocator *ca, const char *name,
+                                  const char *nub_name, hwaddr text_size,
+                                  hwaddr data_size)
 {
     DTBNode *child;
-    DTBNode *iop_nub;
     AppleIopSegmentRange segranges[2];
 
     child = dtb_get_node(t8030_machine->device_tree, "arm-io");
     g_assert_nonnull(child);
-    child = dtb_get_node(child, "sio");
+    child = dtb_get_node(child, name);
     g_assert_nonnull(child);
-    iop_nub = dtb_get_node(child, "iop-sio-nub");
-    g_assert_nonnull(iop_nub);
-
-    segranges[0].phys = carveout_alloc_mem(ca, T8030_SIO_TEXT_SIZE);
-    segranges[0].virt = 0x0;
-    segranges[0].remap = T8030_SIO_TEXT_REMAP;
-    segranges[0].size = T8030_SIO_TEXT_SIZE;
-    segranges[0].flag = 0x1;
-
-    segranges[1].phys = carveout_alloc_mem(ca, T8030_SIO_DATA_SIZE);
-    segranges[1].virt = T8030_SIO_TEXT_SIZE;
-    segranges[1].remap = T8030_SIO_DATA_REMAP;
-    segranges[1].size = T8030_SIO_DATA_SIZE;
-    segranges[1].flag = 0x0;
-
-
-    dtb_set_prop(child, "segment-ranges", sizeof(segranges), segranges);
-    dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
-}
-
-static void t8030_ans_mem_setup(T8030MachineState *t8030_machine,
-                                CarveoutAllocator *ca)
-{
-    DTBNode *child;
-    DTBNode *iop_nub;
-    AppleIopSegmentRange segranges[2];
-    DTBProp *prop;
-
-    child = dtb_get_node(t8030_machine->device_tree, "arm-io");
+    child = dtb_get_node(child, nub_name);
     g_assert_nonnull(child);
-    child = dtb_get_node(child, "ans");
-    g_assert_nonnull(child);
-    iop_nub = dtb_get_node(child, "iop-ans-nub");
-    g_assert_nonnull(iop_nub);
 
-    segranges[0].phys = carveout_alloc_mem(ca, T8030_ANS_TEXT_SIZE);
+    segranges[0].phys = carveout_alloc_mem(ca, text_size + data_size);
     segranges[0].virt = 0x0;
     segranges[0].remap = segranges[0].phys;
-    segranges[0].size = T8030_ANS_TEXT_SIZE;
+    segranges[0].size = text_size;
     segranges[0].flag = 0x1;
 
-    segranges[1].phys = carveout_alloc_mem(ca, T8030_ANS_DATA_SIZE);
-    segranges[1].virt = T8030_ANS_TEXT_SIZE;
+    segranges[1].phys = segranges[0].phys + T8030_SIO_TEXT_SIZE;
+    segranges[1].virt = segranges[0].virt + text_size;
     segranges[1].remap = segranges[1].phys;
-    segranges[1].size = T8030_ANS_DATA_SIZE;
+    segranges[1].size = data_size;
     segranges[1].flag = 0x0;
 
-    prop = dtb_find_prop(iop_nub, "region-base");
-    *(uint64_t *)prop->data = segranges[1].phys;
-
-    prop = dtb_find_prop(iop_nub, "region-size");
-    *(uint64_t *)prop->data = T8030_ANS_DATA_SIZE;
-
-    dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
+    dtb_set_prop_u64(child, "region-base", segranges[0].phys);
+    dtb_set_prop_u64(child, "region-size", text_size + data_size);
+    dtb_set_prop(child, "segment-ranges", sizeof(segranges), segranges);
 }
 
 static void t8030_memory_setup(T8030MachineState *t8030_machine)
@@ -601,8 +557,11 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     ca = carveout_alloc_new(
         dtb_get_node(t8030_machine->device_tree, "/chosen/carveout-memory-map"),
         T8030_DRAM_BASE, T8030_DRAM_SIZE, 16 * KiB);
-    t8030_sio_mem_setup(t8030_machine, ca);
-    t8030_ans_mem_setup(t8030_machine, ca);
+
+    t8030_rtkit_mem_setup(t8030_machine, ca, "sio", "iop-sio-nub",
+                          T8030_SIO_TEXT_SIZE, T8030_SIO_DATA_SIZE);
+    t8030_rtkit_mem_setup(t8030_machine, ca, "ans", "iop-ans-nub",
+                          T8030_ANS_TEXT_SIZE, T8030_ANS_DATA_SIZE);
 
     machine = MACHINE(t8030_machine);
     info = &t8030_machine->bootinfo;
@@ -1931,9 +1890,6 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
     AppleIopSegmentRange segranges[2] = { 0 };
     hwaddr smc_region_base;
     uint64_t smc_region_size;
-    hwaddr smc_text_base;
-    hwaddr smc_data_base;
-    hwaddr smc_sram_base;
 
     g_assert_nonnull(child);
     child = dtb_get_node(child, "smc");
@@ -1950,29 +1906,26 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
     g_assert_nonnull(prop);
     smc_region_size = *(uint64_t *)prop->data;
 
-    smc_text_base = smc_region_base;
-    smc_data_base = smc_text_base + T8030_SMC_TEXT_SIZE;
-    smc_sram_base = smc_data_base + T8030_SMC_DATA_SIZE;
-
     allocate_ram(t8030_machine->sysmem, "SMC_REGION0", smc_region_base,
                  smc_region_size, 0);
 
-    segranges[0].phys = smc_text_base;
+    segranges[0].phys = smc_region_base + T8030_SMC_SRAM_SIZE;
     segranges[0].virt = 0x0;
-    segranges[0].remap = smc_text_base;
-    segranges[0].size = T8030_SMC_TEXT_SIZE;
+    segranges[0].remap = smc_region_base;
+    segranges[0].size = (smc_region_size - T8030_SMC_SRAM_SIZE) / 2;
     segranges[0].flag = 0x1;
 
-    segranges[1].phys = smc_data_base;
-    segranges[1].virt = T8030_SMC_TEXT_SIZE;
-    segranges[1].remap = smc_data_base;
-    segranges[1].size = T8030_SMC_DATA_SIZE;
+    segranges[1].phys = segranges[0].phys + segranges[0].size;
+    segranges[1].virt = segranges[0].size;
+    segranges[1].remap = segranges[1].phys;
+    segranges[1].size =
+        segranges[0].size - smc_region_size - T8030_SMC_SRAM_SIZE;
     segranges[1].flag = 0x0;
 
     dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
 
     // used as a helper for apple_smc_create
-    dtb_set_prop_hwaddr(iop_nub, "sram-addr", smc_sram_base);
+    dtb_set_prop_hwaddr(iop_nub, "sram-addr", smc_region_base);
 
     smc = apple_smc_create(child, APPLE_A7IOP_V4,
                            t8030_machine->rtbuddy_protocol_ver);
@@ -1987,7 +1940,7 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
         sysbus_mmio_map(smc, i, t8030_machine->soc_base_pa + reg[i * 2]);
     }
 
-    sysbus_mmio_map(smc, 2, smc_sram_base);
+    sysbus_mmio_map(smc, 2, smc_region_base);
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
