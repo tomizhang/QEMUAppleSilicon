@@ -422,19 +422,19 @@ DTBNode *dtb_get_node(DTBNode *node, const char *path)
     GList *iter;
     DTBProp *prop;
     DTBNode *child;
-    char *cur_path;
-    char *path_dup;
-    const char *next;
+    char *next;
+    char *string;
+    const char *token;
     bool found;
 
     g_assert_nonnull(node);
     g_assert_nonnull(path);
 
-    path_dup = g_strdup(path);
-    cur_path = path_dup;
+    string = g_strdup(path);
+    next = string;
 
-    while (node != NULL && ((next = qemu_strsep(&cur_path, "/")))) {
-        if (*next == '\0') {
+    while (node != NULL && ((token = qemu_strsep(&next, "/")))) {
+        if (*token == '\0') {
             continue;
         }
 
@@ -451,7 +451,7 @@ DTBNode *dtb_get_node(DTBNode *node, const char *path)
                 continue;
             }
 
-            if (strncmp((const char *)prop->data, next, prop->length) == 0) {
+            if (strncmp((const char *)prop->data, token, prop->length) == 0) {
                 node = child;
                 found = true;
                 break;
@@ -459,11 +459,11 @@ DTBNode *dtb_get_node(DTBNode *node, const char *path)
         }
 
         if (!found) {
-            g_free(path_dup);
+            g_free(string);
             return NULL;
         }
     }
 
-    g_free(path_dup);
+    g_free(string);
     return node;
 }
