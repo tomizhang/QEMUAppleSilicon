@@ -258,16 +258,15 @@ DTBProp *dtb_set_prop_hwaddr(DTBNode *node, const char *name, const hwaddr val)
 
 static uint32_t dtb_get_placeholder_size(DTBProp *prop, const char *name)
 {
-    char *token;
-    char *next;
     char *string;
+    char *next;
+    const char *token;
     uint32_t len;
 
     g_assert_nonnull(prop->data);
     g_assert_cmphex(prop->length, >, 0);
 
-    string = g_new0(char, prop->length);
-    next = string;
+    next = string = g_new0(char, prop->length);
     memcpy(next, prop->data, prop->length);
 
     while ((token = qemu_strsep(&next, ",")) != NULL) {
@@ -430,8 +429,7 @@ DTBNode *dtb_get_node(DTBNode *node, const char *path)
     g_assert_nonnull(node);
     g_assert_nonnull(path);
 
-    string = g_strdup(path);
-    next = string;
+    next = string = g_strdup(path);
 
     while (node != NULL && ((token = qemu_strsep(&next, "/")))) {
         if (*token == '\0') {
