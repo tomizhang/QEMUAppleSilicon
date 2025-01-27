@@ -46,7 +46,7 @@ typedef enum sio_endpoint {
 } sio_endpoint;
 
 typedef enum sio_param_id {
-    PARAM_PROTOCOL = 0, /* Should be 9 for 14.0b5 */
+    PARAM_PROTOCOL = 0,
     PARAM_DMA_SEGMENT_BASE = 1,
     PARAM_DMA_SEGMENT_SIZE = 2,
     PARAM_DMA_RESPONSE_BASE = 11,
@@ -191,22 +191,22 @@ int apple_sio_dma_remaining(AppleSIODMAEndpoint *ep)
 }
 
 static void apple_sio_control(AppleSIOState *s, AppleSIODMAEndpoint *ep,
-                              sio_msg m)
+                              sio_msg *m)
 {
     AppleRTBuddy *rtb;
     sio_msg reply = { 0 };
 
     rtb = APPLE_RTBUDDY(s);
-    reply.ep = m.ep;
-    reply.tag = m.tag;
-    switch (m.op) {
+    reply.ep = m->ep;
+    reply.tag = m->tag;
+    switch (m->op) {
     case OP_GET_PARAM: {
-        reply.data = s->params[m.param];
+        reply.data = s->params[m->param];
         reply.op = OP_GET_PARAM_RETURN;
         break;
     }
     case OP_SET_PARAM: {
-        s->params[m.param] = m.data;
+        s->params[m->param] = m->data;
         reply.op = OP_ACK;
         break;
     }
@@ -302,7 +302,7 @@ static void apple_sio_handle_endpoint(void *opaque, uint32_t ep, uint64_t msg)
     switch (m.ep) {
     case EP_CONTROL:
     case EP_PERF:
-        apple_sio_control(sio, &sio->eps[EP_CONTROL], m);
+        apple_sio_control(sio, &sio->eps[EP_CONTROL], &m);
         break;
     default:
         if (m.ep >= SIO_NUM_EPS) {
