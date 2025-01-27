@@ -430,6 +430,7 @@ DTBNode *dtb_get_node(DTBNode *node, const char *path)
     g_assert_nonnull(path);
 
     s = g_strdup(path);
+    char *orig_s = s;
 
     while (node != NULL && ((next = qemu_strsep(&s, "/")))) {
         if (*next == '\0') {
@@ -457,11 +458,11 @@ DTBNode *dtb_get_node(DTBNode *node, const char *path)
         }
 
         if (!found) {
-            g_free(s);
+            g_free(orig_s);
             return NULL;
         }
     }
 
-    g_free(s);
+    g_free(orig_s);
     return node;
 }
