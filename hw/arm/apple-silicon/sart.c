@@ -200,8 +200,13 @@ SysBusDevice *apple_sart_create(DTBNode *node)
     dev->id = g_strdup((const char *)prop->data);
 
     prop = dtb_find_prop(node, "sart-version");
-    g_assert_nonnull(prop);
-    s->version = *(uint32_t *)prop->data;
+    if (prop == NULL) {
+        // iOS 13?
+        s->version = 1;
+    } else {
+        g_assert_nonnull(prop);
+        s->version = *(uint32_t *)prop->data;
+    }
     g_assert_cmpuint(s->version, >=, 1);
     g_assert_cmpuint(s->version, <=, 3);
 

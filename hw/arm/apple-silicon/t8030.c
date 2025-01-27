@@ -553,8 +553,15 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     gsize fsize;
     CarveoutAllocator *ca;
 
+    DTBNode *carveout_memory_map = dtb_get_node(t8030_machine->device_tree, "/chosen/carveout-memory-map");
+    if (/*BUILD_VERSION_MAJOR(t8030_machine->build_version) == 13 && */carveout_memory_map == NULL) {
+        fprintf(stderr, "%s: warning: carveout-memory-map unavailable? iOS 13?\n", __func__);
+        DTBNode *chosen = dtb_get_node(t8030_machine->device_tree, "chosen");
+        carveout_memory_map = dtb_create_node(chosen, "carveout-memory-map");
+    }
+
     ca = carveout_alloc_new(
-        dtb_get_node(t8030_machine->device_tree, "/chosen/carveout-memory-map"),
+        carveout_memory_map,
         T8030_DRAM_BASE, T8030_DRAM_SIZE, 16 * KiB);
 
     t8030_rtkit_mem_setup(t8030_machine, ca, "sio", "iop-sio-nub",
@@ -1389,6 +1396,13 @@ static void t8030_amcc_setup(T8030MachineState *t8030_machine)
     DTBNode *child;
 
     child = dtb_get_node(t8030_machine->device_tree, "chosen/lock-regs/amcc");
+    if (/*BUILD_VERSION_MAJOR(t8030_machine->build_version) == 13 && */child == NULL) {
+        fprintf(stderr, "%s: warning: amcc registers unavailable? iOS 13?\n", __func__);
+        DTBNode *chosen = dtb_get_node(t8030_machine->device_tree, "chosen");
+        DTBNode *lock_regs = dtb_create_node(chosen, "lock-regs");
+        child = dtb_create_node(lock_regs, "amcc");
+        dtb_create_node(child, "amcc-ctrr-a");
+    }
     g_assert_nonnull(child);
 
     dtb_set_prop_u32(child, "aperture-count", 1);
