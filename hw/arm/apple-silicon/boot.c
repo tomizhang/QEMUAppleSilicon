@@ -76,9 +76,7 @@ static const char *KEEP_COMP[] = {
     "pmgr1,t8030\0$",
     "pmu,d2255\0$", // problematic on S8000 (if AIC configed for T8030?)
     "pmu,spmi\0pmu,avus\0$",
-#ifdef ENABLE_ROSWELL
     "roswell\0$",
-#endif
     "sart,coastguard\0$",
     "sart,t8030\0$",
     "sacm,1\0$",

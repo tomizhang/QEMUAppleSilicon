@@ -2605,9 +2605,7 @@ static void t8030_machine_init(MachineState *machine)
         t8030_create_sep_sim(t8030_machine);
     }
 
-#ifdef ENABLE_ROSWELL
     t8030_create_roswell(t8030_machine);
-#endif
 
     t8030_create_backlight(t8030_machine);
 

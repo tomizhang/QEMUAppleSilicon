@@ -20,7 +20,6 @@
 // #define ENABLE_BASEBAND
 #define ENABLE_SEP
 #define ENABLE_SEP_SECURITY
-// #define ENABLE_ROSWELL
 
 #include "qemu/osdep.h"
 #include "exec/hwaddr.h"
