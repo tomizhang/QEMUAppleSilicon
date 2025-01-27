@@ -85,6 +85,9 @@
 #define T8030_ANS_DATA_SIZE 0x3C00000ull
 #define T8030_SMC_TEXT_SIZE 0x30000ull
 #define T8030_SMC_DATA_SIZE 0x30000ull
+// for iOS 17, might need further testing, alternatively increase region-size
+//#define T8030_SMC_TEXT_SIZE 0x10000ull
+//#define T8030_SMC_DATA_SIZE 0x10000ull
 #define T8030_SMC_SRAM_SIZE 0x4000ull
 
 #define T8030_SIO_TEXT_SIZE 0x1C000ull
@@ -2448,9 +2451,7 @@ static void t8030_machine_init(MachineState *machine)
                      0x2000000ULL, 0); // 0x1000000 is too low
     }
     if (t8030_machine->sep_fw_filename) {
-        // allocate_ram(t8030_machine->sysmem, "SEPFW_", 0x000000000ULL,
-        // 0x1000000ULL, 0);
-        //  allocated in sep.c map_sepfw() instead.
+        allocate_ram(t8030_machine->sysmem, "SEPFW_", 0, 16 * MiB, 0);
     }
 
     hdr = macho_load_file(machine->kernel_filename, NULL);

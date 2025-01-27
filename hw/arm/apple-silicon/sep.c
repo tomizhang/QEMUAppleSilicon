@@ -70,15 +70,16 @@
     } while (0)
 #endif
 
-#define ENABLE_CPU_DUMP_STATE 0
+// #define ENABLE_CPU_DUMP_STATE
 
 // currently only for T8015, it's hardcoded elsewhere for T8020/T8030, now
 // here even for T8020/T8030
-#define SEP_ENABLE_HARDCODED_FIRMWARE 1
-#define SEP_ENABLE_DEBUG_TRACE_MAPPING 1
-#define SEP_ENABLE_TRACE_BUFFER 1
+#define SEP_ENABLE_HARDCODED_FIRMWARE
+#define SEP_ENABLE_DEBUG_TRACE_MAPPING
+#define SEP_ENABLE_TRACE_BUFFER
 // can cause conflicts with kernel and userspace, not anymore?
-#define SEP_ENABLE_OVERWRITE_SHMBUF_OBJECTS 1
+#define SEP_ENABLE_OVERWRITE_SHMBUF_OBJECTS
+#define SEP_DISABLE_ASLR
 
 #define SEP_AESS_CMD_FLAG_KEYSIZE_AES128 0x0
 #define SEP_AESS_CMD_FLAG_KEYSIZE_AES192 0x100
@@ -421,7 +422,7 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
     AddressSpace *nsas = &address_space_memory;
     uint32_t offset = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     // cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
 
@@ -434,23 +435,7 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         return;
     }
 
-    if (s->chip_id >= 0x8015) {
-        addr += 0x4000;
-
-        address_space_read(nsas,
-                           s->shmbuf_base + s->trace_buffer_base_offset + 0x4,
-                           MEMTXATTRS_UNSPECIFIED, &offset, sizeof(offset));
-
-        if (offset == 0x0) {
-            offset = 0x100;
-            address_space_write(
-                nsas, s->shmbuf_base + s->trace_buffer_base_offset + 0x4,
-                MEMTXATTRS_UNSPECIFIED, &offset, sizeof(offset));
-        }
-    } else {
-        offset = ((uint32_t *)s->debug_trace_regs)[0x4 / 4];
-    }
-
+    offset = ((uint32_t *)s->debug_trace_regs)[0x4 / 4];
     offset -= 1;
     offset <<= 6;
 
@@ -458,6 +443,7 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
     uint32_t addr_mod = addr % 0x40;
     if (addr != 0x40 && // offset register
+        addr != 0x04 && // some index
         addr_mod != 0x20 && addr_mod != 0x28 && addr_mod != 0x00 &&
         addr_mod != 0x08 && addr_mod != 0x10 && addr_mod != 0x18 &&
         addr_mod != 0x30) {
@@ -826,7 +812,7 @@ static uint64_t debug_trace_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     if (!s->shmbuf_base) {
@@ -837,23 +823,23 @@ static uint64_t debug_trace_reg_read(void *opaque, hwaddr addr, unsigned size)
             addr, size);
         return 0;
     }
-    if (s->chip_id >= 0x8015) {
-        addr += 0x4000;
-    }
-    ((uint32_t *)s->debug_trace_regs)[0x00 / 4] =
-        0xffffffff; // negated trace exclusion mask for wrapper
-    ((uint32_t *)s->debug_trace_regs)[0x1c / 4] =
-        0x0; // disable trace mask for inner function
-    ((uint32_t *)s->debug_trace_regs)[0x20 / 4] =
-        0xffffffff; // trace mask for inner function
-
     switch (addr) {
+    case 0x0:
+        return 0xffffffff; // negated trace exclusion mask for wrapper
+    case 0x4: // some index
+        goto jump_default;
+    case 0x1c:
+        return 0x0; // disable trace mask for inner function
+    case 0x20:
+        return 0xffffffff; // trace mask for inner function
     default:
-        memcpy(&ret, &s->debug_trace_regs[addr], size);
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Unknown read at 0x" HWADDR_FMT_plx
                       " size=%u ret==0x%" PRIx64 "\n",
                       addr, size, ret);
+    jump_default:
+        memcpy(&ret, &s->debug_trace_regs[addr], size);
+        break;
     }
     return ret;
 }
@@ -897,7 +883,7 @@ static void trng_regs_reg_write(void *opaque, hwaddr addr, uint64_t data,
     sep = APPLE_SEP(
         object_property_get_link(OBJECT(machine), "sep", &error_fatal));
     AppleA7IOP *a7iop = APPLE_A7IOP(sep);
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
 
@@ -1036,7 +1022,7 @@ static uint64_t trng_regs_reg_read(void *opaque, hwaddr addr, unsigned size)
     sep = APPLE_SEP(
         object_property_get_link(OBJECT(machine), "sep", &error_fatal));
     AppleA7IOP *a7iop = APPLE_A7IOP(sep);
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
 
@@ -1147,7 +1133,7 @@ static void pmgr_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1229,7 +1215,7 @@ static uint64_t pmgr_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     memcpy(&ret, &s->pmgr_base_regs[addr], size);
@@ -1249,7 +1235,7 @@ static uint64_t pmgr_base_reg_read(void *opaque, hwaddr addr, unsigned size)
 #endif
         break;
     case 0x8200:
-#if SEP_ENABLE_TRACE_BUFFER
+#ifdef SEP_ENABLE_TRACE_BUFFER
         enable_trace_buffer(s); // for T8015
 #endif
         goto jump_default;
@@ -1284,7 +1270,7 @@ static void key_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1333,7 +1319,7 @@ static uint64_t key_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1365,7 +1351,7 @@ static void key_fkey_reg_write(void *opaque, hwaddr addr, uint64_t data,
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1394,7 +1380,7 @@ static uint64_t key_fkey_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1432,7 +1418,7 @@ static void key_fcfg_reg_write(void *opaque, hwaddr addr, uint64_t data,
     AppleSEPState *s = APPLE_SEP(opaque);
     AppleA7IOP *a7iop = APPLE_A7IOP(s);
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1507,7 +1493,7 @@ static uint64_t key_fcfg_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1548,7 +1534,7 @@ static void moni_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1567,7 +1553,7 @@ static uint64_t moni_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1599,7 +1585,7 @@ static void moni_thrm_reg_write(void *opaque, hwaddr addr, uint64_t data,
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1618,7 +1604,7 @@ static uint64_t moni_thrm_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1650,7 +1636,7 @@ static void eisp_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1669,7 +1655,7 @@ static uint64_t eisp_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1707,7 +1693,7 @@ static void eisp_hmac_reg_write(void *opaque, hwaddr addr, uint64_t data,
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -1726,7 +1712,7 @@ static uint64_t eisp_hmac_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -2288,7 +2274,7 @@ static void aess_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     AppleAESSState *s;
     s = (AppleAESSState *)opaque;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     qemu_log_mask(LOG_UNIMP, "\n");
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
@@ -2367,7 +2353,7 @@ static uint64_t aess_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     s = (AppleAESSState *)opaque;
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     qemu_log_mask(LOG_UNIMP, "\n");
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
@@ -2454,7 +2440,7 @@ static void pka_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     ApplePKAState *s;
     s = (ApplePKAState *)opaque;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -2514,7 +2500,7 @@ static uint64_t pka_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     s = (ApplePKAState *)opaque;
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -2571,7 +2557,7 @@ static void misc0_reg_write(void *opaque, hwaddr addr, uint64_t data,
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -2591,7 +2577,7 @@ static uint64_t misc0_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -2626,7 +2612,7 @@ static void misc2_reg_write(void *opaque, hwaddr addr, uint64_t data,
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -2646,7 +2632,7 @@ static uint64_t misc2_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -2689,7 +2675,7 @@ void enable_trace_buffer(AppleSEPState *s)
         uint32_t size;
         uint64_t offset;
     } shm_region_t;
-#if SEP_ENABLE_OVERWRITE_SHMBUF_OBJECTS
+#ifdef SEP_ENABLE_OVERWRITE_SHMBUF_OBJECTS
     shm_region_t shm_region_TRAC = { 0 };
     g_assert_cmpuint(sizeof(shm_region_TRAC), ==, 0x10);
     shm_region_TRAC.name = 'TRAC';
@@ -2708,25 +2694,6 @@ void enable_trace_buffer(AppleSEPState *s)
     address_space_set(nsas, s->shmbuf_base + 0xc000 + 0x20, 0,
                       region_SCOT_size - 0x20,
                       MEMTXATTRS_UNSPECIFIED); // clean up SCOT a bit
-    // that + 0x4000 for >= t8020 is still necessary (casal) and also for t8015
-    // (stlxr).
-    if (s->chip_id >= 0x8015) {
-        address_space_set(nsas, s->shmbuf_base + s->trace_buffer_base_offset, 0,
-                          0x4000, MEMTXATTRS_UNSPECIFIED);
-        uint32_t value;
-        value = 0xffffffff;
-        address_space_write(
-            nsas, s->shmbuf_base + s->trace_buffer_base_offset,
-            MEMTXATTRS_UNSPECIFIED, &value,
-            sizeof(value)); // causes "qemu: warning: Blocked re-entrant IO on
-                            // MemoryRegion: sep.debug_trace at addr: 0x0" on
-                            // t8015 if not inside this if
-        value = 0x100;
-        address_space_write(nsas,
-                            s->shmbuf_base + s->trace_buffer_base_offset + 0x4,
-                            MEMTXATTRS_UNSPECIFIED, &value, sizeof(value));
-    }
-
 #endif
     typedef struct QEMU_PACKED {
         uint64_t name;
@@ -2893,7 +2860,7 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
     AppleSEPState *s = APPLE_SEP(opaque);
     struct sep_message sep_msg = { 0 };
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -2929,7 +2896,7 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
         if (data == 0xFC4A2CAC && (s->chip_id >= 0x8020)) // Enable Trace Buffer
         {
             // Only works for T8020, because the T8015 SEPOS is compressed.
-#if SEP_ENABLE_TRACE_BUFFER
+#ifdef SEP_ENABLE_TRACE_BUFFER
             enable_trace_buffer(s);
 #endif
         }
@@ -2950,16 +2917,18 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
                 // ASLR. GDB's awatch refuses to tell me where it ends up, so
                 // here you go, I'm just zeroing that shit. == This disables
                 // ASLR for SEPOS apps
+#ifdef SEP_DISABLE_ASLR
                 address_space_set(nsas, phys_addr, 0, 0x16,
                                   MEMTXATTRS_UNSPECIFIED); // phys_SEPB + 0x80;
                                                            // pc==0x240005BAC
+#endif
             }
         }
         if (data == 0x41a7 && (s->chip_id >= 0x8015)) {
             DBGLOG("%s: SEPFW_copy_test0: 0x" HWADDR_FMT_plx " 0x%" PRIx64 "\n",
                    __func__, s->sep_fw_addr, s->sep_fw_size);
             AddressSpace *nsas = &address_space_memory;
-#if SEP_ENABLE_HARDCODED_FIRMWARE
+#ifdef SEP_ENABLE_HARDCODED_FIRMWARE
             address_space_write(nsas, s->sep_fw_addr, MEMTXATTRS_UNSPECIFIED,
                                 s->sepfw_data, s->sep_fw_size);
 #endif
@@ -2982,28 +2951,23 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
                               shmbuf_base, sep_msg.endpoint, sep_msg.tag,
                               sep_msg.opcode, sep_msg.opcode, sep_msg.param,
                               sep_msg.data);
-                s->debug_trace_mmio_index = -1;
+                int debug_trace_mmio_index = -1;
                 if (s->chip_id == 0x8015) {
-                    s->debug_trace_mmio_index = 11;
+                    debug_trace_mmio_index = 11;
                 } else if (s->chip_id >= 0x8020) {
-                    s->debug_trace_mmio_index = 14;
+                    debug_trace_mmio_index = 14;
                 }
-                if (s->debug_trace_mmio_index != -1) {
+                if (debug_trace_mmio_index != -1) {
                     s->shmbuf_base = shmbuf_base;
                     uint64_t tracebuf_mmio_addr =
                         shmbuf_base + s->trace_buffer_base_offset;
-                    if (s->chip_id >= 0x8015) {
-                        tracebuf_mmio_addr += 0x4000;
-                    }
                     qemu_log_mask(
                         LOG_UNIMP,
                         "%s: SHMBUF_TEST1: tracbuf=0x" HWADDR_FMT_plx "\n",
                         APPLE_A7IOP(s)->iop_mailbox->role, tracebuf_mmio_addr);
-#if SEP_ENABLE_DEBUG_TRACE_MAPPING
-                    sysbus_mmio_map(SYS_BUS_DEVICE(s),
-                                    s->debug_trace_mmio_index,
-                                    tracebuf_mmio_addr); // Debug trace printing
-#endif
+// if SEP_ENABLE_DEBUG_TRACE_MAPPING
+// TODO: T8020 isn't handled here anymore, but T8015 probably still should.
+// endif
                 }
             }
         }
@@ -3123,7 +3087,7 @@ static uint64_t misc4_reg_read(void *opaque, hwaddr addr, unsigned size)
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
 
-#if ENABLE_CPU_DUMP_STATE
+#ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -3181,30 +3145,38 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     s->base = base;
     s->modern = modern;
     s->chip_id = chip_id;
-    s->sepfw_mr = NULL;
-    s->debug_trace_mmio_index = -1;
 
     if (s->chip_id >= 0x8020) {
         s->shmbuf_base = 0x80C000;
         s->trace_buffer_base_offset = 0x10000;
-        s->debug_trace_size = 0xC000;
+        s->debug_trace_size = 0x10000;
     } else if (s->chip_id == 0x8015) {
         s->shmbuf_base = 0; // is dynamic
         s->trace_buffer_base_offset = 0x10000;
-        s->debug_trace_size = 0xC000;
+        s->debug_trace_size = 0x10000;
     } else {
         s->shmbuf_base = 0;
         s->trace_buffer_base_offset = 0;
         s->debug_trace_size = 0;
     }
 
+    MemoryRegion *mr0 = g_new0(MemoryRegion, 1);
+    memory_region_init_alias(mr0, OBJECT(s), "sep_dma", ool_mr, 0, 16 * MiB);
     if (modern) {
         s->cpu = ARM_CPU(apple_a13_cpu_create(NULL, g_strdup("sep-cpu"), cpu_id,
                                               0, -1, 'P'));
+        memory_region_add_subregion(&APPLE_A13(s->cpu)->memory, 0, mr0);
     } else {
         s->cpu = ARM_CPU(apple_a9_create(NULL, g_strdup("sep-cpu"), cpu_id, 0));
         object_property_set_bool(OBJECT(s->cpu), "aarch64", false, NULL);
         unset_feature(&s->cpu->env, ARM_FEATURE_AARCH64);
+        memory_region_add_subregion(&APPLE_A9(s->cpu)->memory, 0, mr0);
+    }
+    if (s->chip_id >= 0x8020) {
+        // hack to make SEP_ENABLE_OVERWRITE_SHMBUF_OBJECTS work properly
+        MemoryRegion *mr1 = g_new0(MemoryRegion, 1);
+        memory_region_init_alias(mr1, OBJECT(s), "sep_shmbuf_hdr", ool_mr, s->shmbuf_base, 0x4000);
+        memory_region_add_subregion(get_system_memory(), s->shmbuf_base, mr1);
     }
     object_property_set_uint(OBJECT(s->cpu), "rvbar", s->base & ~0xFFF, NULL);
     object_property_add_child(OBJECT(dev), DEVICE(s->cpu)->id, OBJECT(s->cpu));
@@ -3267,6 +3239,10 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
                           s, "sep.debug_trace",
                           s->debug_trace_size); // Debug trace printing
     sysbus_init_mmio(sbd, &s->debug_trace_mr);
+    if (s->chip_id >= 0x8020) {
+        memory_region_add_subregion(&APPLE_A13(s->cpu)->memory, s->shmbuf_base + s->trace_buffer_base_offset, &s->debug_trace_mr);
+    }
+    // TODO: Let's think about something for T8015
     DTBNode *child = dtb_get_node(node, "iop-sep-nub");
     g_assert_nonnull(child);
 
@@ -3468,14 +3444,11 @@ static void pka_reset(ApplePKAState *s)
 static void map_sepfw(AppleSEPState *s)
 {
     DBGLOG("%s: entered function\n", __func__);
-    if (s->sepfw_mr == NULL) {
-        s->sepfw_mr = allocate_ram(get_system_memory(), "SEPFW", 0x000000000ULL,
-                                   0x1000000ULL, 0);
-    }
     AddressSpace *nsas = &address_space_memory;
     // Apparently needed because of a bug occurring on XNU
-    address_space_set(nsas, 0x4000ULL, 0, ROUND_UP_16K(8 * MiB),
-                      MEMTXATTRS_UNSPECIFIED);
+    // clear lowest 0x4000 bytes, because they shouldn't contain any valid data
+    // note to myself: don't try to clear more than 8 MiB here, it will break
+    address_space_set(nsas, 0x0, 0, 8 * MiB, MEMTXATTRS_UNSPECIFIED);
     address_space_rw(nsas, 0x4000ULL, MEMTXATTRS_UNSPECIFIED,
                      (uint8_t *)s->sepfw_data, s->sep_fw_size, true);
 }
@@ -3494,13 +3467,9 @@ static void apple_sep_reset_hold(Object *obj, ResetType type)
 
     aess_reset(&s->aess_state);
     pka_reset(&s->pka_state);
-    // ssc_reset(&s->ssc_state);
-
-    // apple_ssc_reset called via
-    // apple_ssc_class_init ... dc->reset
+    // apple_ssc_reset is being called, but not here.
     run_on_cpu(CPU(s->cpu), apple_sep_cpu_reset_work, RUN_ON_CPU_HOST_PTR(s));
     map_sepfw(s);
-    // s->debug_trace_mmio_index = -1;
 }
 
 static void apple_sep_class_init(ObjectClass *klass, void *data)
