@@ -50,6 +50,9 @@ static const char *KEEP_COMP[] = {
 #ifdef ENABLE_BASEBAND
     "baseband,i19\0$",
 #endif
+#ifdef ENABLE_SEP_SECURITY
+    "biosensor,pearl\0$",
+#endif
     "buttons\0$",
     // "dart,s8000\0dart,s5l8960x\0$",
     "dart,t8020\0$",
@@ -234,6 +237,9 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
         }
         if (!found) {
             g_assert_nonnull(parent);
+            info_report("Removing node %s because its compatible property %s "
+                        "is not in the whitelist",
+                        dtb_find_prop(node, "name")->data, prop->data);
             dtb_remove_node(parent, node);
             return;
         }
