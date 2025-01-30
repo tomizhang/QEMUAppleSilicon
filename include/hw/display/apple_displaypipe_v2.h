@@ -55,7 +55,7 @@ struct AppleDisplayPipeV2State {
 
     /*< public >*/
     QEMUTimer *vblank_timer;
-    uint32_t width, height;
+    uint32_t width, height, refresh_rate;
     MemoryRegion up_regs, vram;
     MemoryRegion *dma_mr;
     AddressSpace dma_as;

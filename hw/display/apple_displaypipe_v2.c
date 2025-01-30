@@ -409,9 +409,9 @@ static void vblank_timer_tick(void *opaque)
     s->int_filter |= CONTROL_INT_FILTER_VBLANK;
     qemu_irq_raise(s->irqs[0]);
 
-    // 60Hz
-    timer_mod(s->vblank_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                                   NANOSECONDS_PER_SECOND / 60);
+    timer_mod(s->vblank_timer,
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                  NANOSECONDS_PER_SECOND / s->refresh_rate * 1000);
 }
 
 AppleDisplayPipeV2State *apple_displaypipe_v2_create(DTBNode *node)
@@ -494,9 +494,25 @@ static void apple_displaypipe_v2_gfx_update(void *opaque)
     }
 }
 
+// TODO: Width/Height changes? Is that even possible?
+static void apple_displaypipe_v2_ui_info(void *opaque, uint32_t head,
+                                         QemuUIInfo *info)
+{
+    AppleDisplayPipeV2State *s;
+
+    if (!info->width || !info->height || !info->refresh_rate) {
+        return;
+    }
+
+    s = APPLE_DISPLAYPIPE_V2(opaque);
+
+    s->refresh_rate = info->refresh_rate;
+}
+
 static const GraphicHwOps apple_displaypipe_v2_ops = {
     .invalidate = apple_displaypipe_v2_invalidate,
     .gfx_update = apple_displaypipe_v2_gfx_update,
+    .ui_info = apple_displaypipe_v2_ui_info,
 };
 
 static void apple_displaypipe_v2_reset_hold(Object *obj, ResetType type)
@@ -523,14 +539,16 @@ static void apple_displaypipe_v2_realize(DeviceState *dev, Error **errp)
     s->console = graphic_console_init(dev, 0, &apple_displaypipe_v2_ops, s);
     qemu_console_resize(s->console, s->width, s->height);
 
-    // 60Hz
-    timer_mod(s->vblank_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                                   NANOSECONDS_PER_SECOND / 60);
+    timer_mod(s->vblank_timer,
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                  NANOSECONDS_PER_SECOND / s->refresh_rate * 1000);
 }
 
 static Property apple_displaypipe_v2_props[] = {
     DEFINE_PROP_UINT32("width", AppleDisplayPipeV2State, width, 828),
     DEFINE_PROP_UINT32("height", AppleDisplayPipeV2State, height, 1792),
+    DEFINE_PROP_UINT32("refresh-rate", AppleDisplayPipeV2State, refresh_rate,
+                       60000),
     DEFINE_PROP_END_OF_LIST(),
 };
 
