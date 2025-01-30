@@ -72,14 +72,14 @@
 
 // #define ENABLE_CPU_DUMP_STATE
 
-// currently only for T8015, it's hardcoded elsewhere for T8020/T8030, now
-// here even for T8020/T8030
 #define SEP_ENABLE_HARDCODED_FIRMWARE
 #define SEP_ENABLE_DEBUG_TRACE_MAPPING
 #define SEP_ENABLE_TRACE_BUFFER
 // can cause conflicts with kernel and userspace, not anymore?
 #define SEP_ENABLE_OVERWRITE_SHMBUF_OBJECTS
 #define SEP_DISABLE_ASLR
+
+#define SEP_USE_IOS14_OVERRIDE
 
 #define SEP_AESS_CMD_FLAG_KEYSIZE_AES128 0x0
 #define SEP_AESS_CMD_FLAG_KEYSIZE_AES192 0x100
@@ -137,8 +137,8 @@
 #define SEP_AESS_COMMAND_0xb 0xb // custom aes key?
 
 
-#define SEP_AESS_REGISTER_CLOCK 0x4
-#define SEP_AESS_REGISTER_CONTROL 0x8
+#define SEP_AESS_REGISTER_STATUS 0x4
+#define SEP_AESS_REGISTER_COMMAND 0x8
 #define SEP_AESS_REGISTER_INTERRUPT_STATUS 0xc
 #define SEP_AESS_REGISTER_INTERRUPT_ENABLED 0x10
 #define SEP_AESS_REGISTER_0x14_KEYWRAP_ITERATIONS_COUNTER 0x14
@@ -150,7 +150,7 @@
 #define SEP_AESS_REGISTER_TAG_OUT 0x60
 #define SEP_AESS_REGISTER_OUT 0x70
 
-#define SEP_AESS_REGISTER_CLOCK_RUN_COMMAND 0x1
+#define SEP_AESS_REGISTER_STATUS_RUN_COMMAND 0x1
 #define SEP_AESS_REGISTER_INTERRUPT_STATUS_UNRECOVERABLE_ERROR_INTERRUPT 0x2
 
 #define SEP_AESS_SEED_BITS_BIT0 (1 << 0)
@@ -187,6 +187,10 @@ static uint32_t AESS_UID_SEED_INVALID[0x20 / 4] = { 0x1ff11ff1, 0x1ff11ff1,
                                                     0x1ff11ff1, 0xcafeca55,
                                                     0xc4f3c4aa, 0xd34db33f,
                                                     0x1ff11ff1, 0x1ff11ff1 };
+
+#define SEP_PKA_STATUS_INTERRUPT_0xA 0x1
+#define SEP_PKA_STATUS_INTERRUPT_0xB 0x2
+#define SEP_PKA_STATUS_INTERRUPT_0xC 0x4
 
 
 static inline void block16_set(union nettle_block16 *r,
@@ -421,6 +425,10 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
     AppleSEPState *s = APPLE_SEP(opaque);
     AddressSpace *nsas = &address_space_memory;
     uint32_t offset = 0;
+    if (size == 1) {
+        // iOS 15 SEPFW workaround against a brief logspam
+        return;
+    }
 
 #ifdef ENABLE_CPU_DUMP_STATE
     // cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
@@ -827,6 +835,8 @@ static uint64_t debug_trace_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x0:
         return 0xffffffff; // negated trace exclusion mask for wrapper
     case 0x4: // some index
+    case 0x18: // unknown0
+    case 0x40: // unknown1
         goto jump_default;
     case 0x1c:
         return 0x0; // disable trace mask for inner function
@@ -848,9 +858,9 @@ static const MemoryRegionOps debug_trace_reg_ops = {
     .write = debug_trace_reg_write,
     .read = debug_trace_reg_read,
     .endianness = DEVICE_NATIVE_ENDIAN,
-    .valid.min_access_size = 4,
+    .valid.min_access_size = 1,
     .valid.max_access_size = 8,
-    .impl.min_access_size = 4,
+    .impl.min_access_size = 1,
     .impl.max_access_size = 8,
     .valid.unaligned = false,
 };
@@ -1880,7 +1890,7 @@ static void aess_keywrap_uid(AppleAESSState *s, uint8_t *in, uint8_t *out,
     // TODO: Second half of output might be CMAC!!!
     g_assert_cmpuint(cipher_alg, ==, QCRYPTO_CIPHER_ALGO_AES_256);
     QCryptoCipher *cipher;
-    uint32_t normalized_cmd = SEP_AESS_CMD_WITHOUT_FLAGS(s->ctl);
+    uint32_t normalized_cmd = SEP_AESS_CMD_WITHOUT_FLAGS(s->command);
     size_t key_len = qcrypto_cipher_get_key_len(cipher_alg);
     size_t data_len = 0x20;
     g_assert_cmpuint(data_len, ==, 0x20);
@@ -1901,9 +1911,9 @@ static void aess_keywrap_uid(AppleAESSState *s, uint8_t *in, uint8_t *out,
     // in the same output keys.
     xor_32bit_value(&used_key[0x10], s->reg_0x14_keywrap_iterations_counter,
                     0x8 / 4); // seed_bits are only for keywrap
-    DBGLOG("%s: s->ctl: 0x%02x normalized_cmd: 0x%02x cipher_alg: %u; "
+    DBGLOG("%s: s->command: 0x%02x normalized_cmd: 0x%02x cipher_alg: %u; "
            "key_len: %lu; iterations: %u\n",
-           __func__, s->ctl, normalized_cmd, cipher_alg, key_len,
+           __func__, s->command, normalized_cmd, cipher_alg, key_len,
            s->reg_0x14_keywrap_iterations_counter);
     HEXDUMP("aess_keywrap_uid: used_key", used_key, sizeof(used_key));
     HEXDUMP("aess_keywrap_uid: in", in, data_len);
@@ -1952,9 +1962,9 @@ static int aess_get_custom_keywrap_index(uint32_t cmd)
 
 static bool check_register_0x18_keydisable_bit_invalid(AppleAESSState *s)
 {
-    ////uint32_t normalized_cmd = SEP_AESS_CMD_WITHOUT_FLAGS(s->ctl);
-    ////uint32_t cmd = s->ctl;
-    uint32_t cmd = SEP_AESS_CMD_WITHOUT_KEYSIZE(s->ctl);
+    ////uint32_t normalized_cmd = SEP_AESS_CMD_WITHOUT_FLAGS(s->command);
+    ////uint32_t cmd = s->command;
+    uint32_t cmd = SEP_AESS_CMD_WITHOUT_KEYSIZE(s->command);
     bool reg_0x18_keydisable_bit0 = (s->reg_0x18_keydisable & 0x1) != 0;
     bool reg_0x18_keydisable_bit1 = (s->reg_0x18_keydisable & 0x2) != 0;
     bool reg_0x18_keydisable_bit3 = (s->reg_0x18_keydisable & 0x8) != 0;
@@ -1997,13 +2007,13 @@ static bool check_register_0x18_keydisable_bit_invalid(AppleAESSState *s)
 
 static void aess_handle_cmd(AppleAESSState *s)
 {
-    bool use_aes256 = (s->ctl & SEP_AESS_CMD_FLAG_KEYSIZE_AES256) != 0;
+    bool use_aes256 = (s->command & SEP_AESS_CMD_FLAG_KEYSIZE_AES256) != 0;
     bool keyselect_non_gid0 =
-        SEP_AESS_CMD_FLAG_KEYSELECT_GID1_CUSTOM(s->ctl) != 0;
-    bool keyselect_gid1 = (s->ctl & SEP_AESS_CMD_FLAG_KEYSELECT_GID1) != 0;
-    bool keyselect_custom = (s->ctl & SEP_AESS_CMD_FLAG_KEYSELECT_CUSTOM) != 0;
-    uint32_t normalized_cmd = SEP_AESS_CMD_WITHOUT_FLAGS(s->ctl);
-    QCryptoCipherAlgo cipher_alg = get_aes_cipher_alg(s->ctl);
+        SEP_AESS_CMD_FLAG_KEYSELECT_GID1_CUSTOM(s->command) != 0;
+    bool keyselect_gid1 = (s->command & SEP_AESS_CMD_FLAG_KEYSELECT_GID1) != 0;
+    bool keyselect_custom = (s->command & SEP_AESS_CMD_FLAG_KEYSELECT_CUSTOM) != 0;
+    uint32_t normalized_cmd = SEP_AESS_CMD_WITHOUT_FLAGS(s->command);
+    QCryptoCipherAlgo cipher_alg = get_aes_cipher_alg(s->command);
     size_t key_len = qcrypto_cipher_get_key_len(cipher_alg);
     bool zero_iv_two_blocks_encryption = false;
     bool register_0x18_keydisable_bit_invalid =
@@ -2066,7 +2076,7 @@ static void aess_handle_cmd(AppleAESSState *s)
             SEP_AESS_COMMAND_ENCRYPT_CBC_ONLY_NONCUSTOM_FORCE_CUSTOM_AES256) /* GID0 || GID1 || Custom */
     {
         bool custom_encryption = false;
-        uint32_t original_command = s->ctl;
+        uint32_t original_command = s->command;
         DBGLOG("%s: original_command 0x%03x ; ", __func__, original_command);
         HEXDUMP("s->in_full", s->in_full, sizeof(s->in_full));
         if (normalized_cmd ==
@@ -2097,7 +2107,7 @@ static void aess_handle_cmd(AppleAESSState *s)
                     aess_decryption_dict(s, dict_out, s->in_dec, do_encryption);
                 if (found) {
                     DBGLOG("%s: aess_decryption_dict: Found it! cmd=0x%x\n",
-                           __func__, s->ctl);
+                           __func__, s->command);
                     memcpy(s->out, dict_out, sizeof(s->out));
                     goto jump_return;
                 }
@@ -2106,7 +2116,7 @@ static void aess_handle_cmd(AppleAESSState *s)
         uint8_t used_key[0x20] = { 0 };
         if (custom_encryption) {
             int custom_keywrap_index =
-                aess_get_custom_keywrap_index(s->ctl & 0xff);
+                aess_get_custom_keywrap_index(s->command & 0xff);
             if (s->custom_key_index_enabled[custom_keywrap_index]) {
                 memcpy(used_key, s->custom_key_index[custom_keywrap_index],
                        sizeof(used_key));
@@ -2149,7 +2159,7 @@ static void aess_handle_cmd(AppleAESSState *s)
                 &error_abort); // sizeof(iv) == 0x10 on 256 and 128
             qcrypto_cipher_encrypt(cipher, s->in_full, s->out_full,
                                    sizeof(s->in_full), &error_abort);
-            // if ((s->ctl & 0xf) == 0x9)
+            // if ((s->command & 0xf) == 0x9)
         } else if (do_encryption) {
             qcrypto_cipher_setiv(
                 cipher, iv, sizeof(iv),
@@ -2222,7 +2232,7 @@ static void aess_handle_cmd(AppleAESSState *s)
              0x1) // sync/set key for command 0x206(0x201), 0x246(0x241),
                   // 0x208/0x288(0x281), 0x248/0x2c8(0x2c1)
     {
-        int custom_keywrap_index = aess_get_custom_keywrap_index(s->ctl & 0xff);
+        int custom_keywrap_index = aess_get_custom_keywrap_index(s->command & 0xff);
         memcpy(s->custom_key_index[custom_keywrap_index], s->in_full,
                sizeof(s->custom_key_index[custom_keywrap_index]));
         xor_32bit_value(
@@ -2232,8 +2242,8 @@ static void aess_handle_cmd(AppleAESSState *s)
         s->custom_key_index_enabled[custom_keywrap_index] = true;
         qemu_log_mask(
             LOG_UNIMP,
-            "SEP AESS_BASE: %s: sync/set key command 0x%02x s->ctl 0x%02x\n",
-            __func__, normalized_cmd, s->ctl);
+            "SEP AESS_BASE: %s: sync/set key command 0x%02x s->command 0x%02x\n",
+            __func__, normalized_cmd, s->command);
     }
 #endif
 // TODO: other sync commands: 0x205(0x201), 0x204(0x281), 0x245(0x241),
@@ -2246,12 +2256,12 @@ static void aess_handle_cmd(AppleAESSState *s)
 #if 1
     else {
         qemu_log_mask(LOG_UNIMP, "SEP AESS_BASE: %s: Unknown command 0x%02x\n",
-                      __func__, s->ctl);
+                      __func__, s->command);
         // valid_command = false;
     }
 #endif
 
-////s->clock |= (1 << 1); // TODO: only on success^H^H^Hfailure
+////s->status |= (1 << 1); // TODO: only on success^H^H^Hfailure
 jump_return:
     invalid_parameters |= !valid_command;
     s->interrupt_status =
@@ -2279,22 +2289,22 @@ static void aess_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
-    case SEP_AESS_REGISTER_CLOCK: // Clock
-        s->clock = data;
-        if ((s->clock & SEP_AESS_REGISTER_CLOCK_RUN_COMMAND) != 0) {
+    case SEP_AESS_REGISTER_STATUS: // Status
+        s->status = data;
+        if ((s->status & SEP_AESS_REGISTER_STATUS_RUN_COMMAND) != 0) {
             aess_handle_cmd(s);
         }
         goto jump_default;
-    case SEP_AESS_REGISTER_CONTROL: // CTL
+    case SEP_AESS_REGISTER_COMMAND: // Command
         data &= 0x3ff; // for T8020
-        s->ctl = data;
+        s->command = data;
         goto jump_default;
-    case SEP_AESS_REGISTER_INTERRUPT_STATUS: // State
+    case SEP_AESS_REGISTER_INTERRUPT_STATUS: // Interrupt Status
         if ((data & 0x1) != 0) {
             s->interrupt_status &= ~0x1;
         }
         goto jump_default;
-    case SEP_AESS_REGISTER_INTERRUPT_ENABLED: // has no affect on keywrap?
+    case SEP_AESS_REGISTER_INTERRUPT_ENABLED: // Interrupt Enabled
         data &= 0x3;
         s->interrupt_enabled = data;
         goto jump_default;
@@ -2358,18 +2368,18 @@ static uint64_t aess_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
-    case SEP_AESS_REGISTER_CLOCK: // Clock
-        s->clock &= ~(1 << 1);
-        s->clock |= 0x100; // ???
-        ret = s->clock;
+    case SEP_AESS_REGISTER_STATUS: // Status
+        s->status &= ~(1 << 1);
+        s->status |= 0x100; // ???
+        ret = s->status;
         goto jump_default;
-    case SEP_AESS_REGISTER_CONTROL: // CTL
-        ret = s->ctl;
+    case SEP_AESS_REGISTER_COMMAND: // Command
+        ret = s->command;
         goto jump_default;
-    case SEP_AESS_REGISTER_INTERRUPT_STATUS: // State
+    case SEP_AESS_REGISTER_INTERRUPT_STATUS: // Interrupt Status
         ret = s->interrupt_status;
         goto jump_default;
-    case SEP_AESS_REGISTER_INTERRUPT_ENABLED:
+    case SEP_AESS_REGISTER_INTERRUPT_ENABLED: // Interrupt Enabled
         ret = s->interrupt_enabled;
         goto jump_default;
     case SEP_AESS_REGISTER_0x14_KEYWRAP_ITERATIONS_COUNTER:
@@ -2744,25 +2754,43 @@ void enable_trace_buffer(AppleSEPState *s)
 
 // SEPOS_PHYS_BASEs: not in runtime, but while in SEPROM. Same on T8020
 // (0x340611ba8-0x11ba8)
+// get this with gdb, prerequisite is disabling aslr(?):
+// b *0x<sepos_module_start_function> ; gva2gpa 0x<sepos_module_start_function>
+// the result minus <sepos_module_start_function>
+// maybe it's not that easy to disable the SEPOS module ASLR under iOS 15:
+// so instead make breakpoints for the second (or both) eret and do "si".
 #define SEPOS_PHYS_BASE_T8015 0x3404a4000ull
-#define SEPOS_PHYS_BASE_T8020 0x340600000ull
+#define SEPOS_PHYS_BASE_T8020_IOS14 0x340600000ull
+#define SEPOS_PHYS_BASE_T8020_IOS15 0x340710000ull
 #define SEPOS_OBJECT_MAPPING_BASE_VERSION_EARLY_V14 0x198d0
+#define SEPOS_OBJECT_MAPPING_BASE_VERSION_IOS15 0x1d748
 #define SEPOS_OBJECT_MAPPING_INDEX 7
 // #define SEPOS_VIRT_MAPPING_BASE 0x282d0
 // #define SEPOS_VIRT_MAPPING_INDEX 555
 #define SEPOS_ACL_BASE_VERSION_EARLY_V14 0x140d0
+#define SEPOS_ACL_BASE_VERSION_IOS15 0x18348
 #define SEPOS_ACL_INDEX 19
 
     uint64_t sepos_phys_base = 0x0;
     uint64_t sepos_object_mapping_base = 0x0;
     uint64_t sepos_acl_base = 0x0;
+#ifdef SEP_USE_IOS14_OVERRIDE
     sepos_object_mapping_base = SEPOS_OBJECT_MAPPING_BASE_VERSION_EARLY_V14;
     sepos_acl_base = SEPOS_ACL_BASE_VERSION_EARLY_V14;
+#else
+    sepos_object_mapping_base = SEPOS_OBJECT_MAPPING_BASE_VERSION_IOS15;
+    sepos_acl_base = SEPOS_ACL_BASE_VERSION_IOS15;
+#endif
     if (s->chip_id == 0x8015) {
         sepos_phys_base = SEPOS_PHYS_BASE_T8015;
     } else if (s->chip_id >= 0x8020) {
-        sepos_phys_base = SEPOS_PHYS_BASE_T8020;
+#ifdef SEP_USE_IOS14_OVERRIDE
+        sepos_phys_base = SEPOS_PHYS_BASE_T8020_IOS14;
+#else
+        sepos_phys_base = SEPOS_PHYS_BASE_T8020_IOS15;
+#endif
     }
+#ifdef SEP_USE_IOS14_OVERRIDE
     object_mapping_TRAC.name = 'TRAC';
     object_mapping_TRAC.size = s->debug_trace_size;
     object_mapping_TRAC.maybe_permissions = 0x06;
@@ -2802,36 +2830,25 @@ void enable_trace_buffer(AppleSEPState *s)
                             (sizeof(sepos_acl_t) * SEPOS_ACL_INDEX),
                         MEMTXATTRS_UNSPECIFIED, &acl_for_TRAC,
                         sizeof(acl_for_TRAC));
-#if 0
-    // bypass if_module_AAES_Debu_or_SEPD(sending_pid) check inside get_acl_check_is_sender_matching_or_AAES_Debu_or_SEPD_and_accessible_by_all_processes(ool_handle, sending_pid)
-    uint32_t value32_nop = 0xd503201f; // nop
-    address_space_write(nsas, sepos_phys_base + 0xd82c, MEMTXATTRS_UNSPECIFIED, &value32_nop, sizeof(value32_nop));
-#elif 0
-    // alternative bypass as if_module_AAES_Debu_or_SEPD is also used by other
-    // functions, very wide-reaching, as it's bypassing e.g. overflow checks on
-    // many different functions.
-    uint32_t value32_mov_x0_1 = 0xd2800020; // mov x0, #0x1
-    // address_space_write(nsas, sepos_phys_base + 0x133d4,
-    // MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_1, sizeof(value32_mov_x0_1)); //
-    // T8020 address_space_write(nsas, sepos_phys_base + 0x133b0,
-    // MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_1, sizeof(value32_mov_x0_1)); //
-    // T8015
-#else
+#endif
     // alternative bypass as if_module_AAES_Debu_or_SEPD is also used by other
     // functions, more restrictive.
     uint32_t value32_nop = 0xd503201f; // nop
+    uint64_t bypass_offset = 0;
     if (s->chip_id >= 0x8020) {
-        address_space_write(nsas, sepos_phys_base + 0x11bb0,
-                            MEMTXATTRS_UNSPECIFIED, &value32_nop,
-                            sizeof(value32_nop)); // T8020
+#ifdef SEP_USE_IOS14_OVERRIDE
+        bypass_offset = 0x11bb0; // T8020 iOS14
+#else
+        bypass_offset = 0x12fb4; // T8020 iOS15
+#endif
     } else if (s->chip_id == 0x8015) {
         // T8015's SEPFW SEPOS is not reachable from SEPROM, it's LZVN
         // compressed.
-        address_space_write(nsas, sepos_phys_base + 0x11c2c,
-                            MEMTXATTRS_UNSPECIFIED, &value32_nop,
-                            sizeof(value32_nop)); // T8015
+        bypass_offset = 0x11c2c; // T8015
     }
-#endif
+    address_space_write(nsas, sepos_phys_base + bypass_offset,
+                        MEMTXATTRS_UNSPECIFIED, &value32_nop,
+                        sizeof(value32_nop));
 }
 
 static void apple_sep_send_message(AppleSEPState *s, uint8_t ep, uint8_t tag,
@@ -2904,10 +2921,16 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case 0x8:
         if (data == 0x23BFDFE7) {
             hwaddr phys_addr = 0x0;
+            // easy way of retrieving the address:
+            // b *0x340000000 ; p/x $x0+0x80 == e.g. 0x340736380
             if (s->chip_id == 0x8015) {
                 phys_addr = 0x34015FD40ull; // T8015
             } else if (s->chip_id >= 0x8020) {
-                phys_addr = 0x340736380ull; // T8020
+#ifdef SEP_USE_IOS14_OVERRIDE
+                phys_addr = 0x340736380ull; // T8020 iOS 14
+#else
+                phys_addr = 0x34086e380ull; // T8020 iOS 15
+#endif
             } else {
                 // g_assert_not_reached();
             }
@@ -3147,7 +3170,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     s->chip_id = chip_id;
 
     if (s->chip_id >= 0x8020) {
-        s->shmbuf_base = 0x80C000;
+        s->shmbuf_base = SEP_SHMBUF_BASE;
         s->trace_buffer_base_offset = 0x10000;
         s->debug_trace_size = 0x10000;
     } else if (s->chip_id == 0x8015) {
@@ -3161,7 +3184,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     }
 
     MemoryRegion *mr0 = g_new0(MemoryRegion, 1);
-    memory_region_init_alias(mr0, OBJECT(s), "sep_dma", ool_mr, 0, 16 * MiB);
+    memory_region_init_alias(mr0, OBJECT(s), "sep_dma", ool_mr, 0, SEP_DMA_MAPPING_SIZE);
     if (modern) {
         s->cpu = ARM_CPU(apple_a13_cpu_create(NULL, g_strdup("sep-cpu"), cpu_id,
                                               0, -1, 'P'));
@@ -3235,6 +3258,8 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
                           0x4000); // MISC4 ; was: MISC48 Sicily(T8101). now:
                                    // Some encrypted data from SEPROM.
     sysbus_init_mmio(sbd, &s->misc4_mr);
+#ifdef SEP_ENABLE_DEBUG_TRACE_MAPPING
+    // TODO: Let's think about something for T8015
     memory_region_init_io(&s->debug_trace_mr, OBJECT(dev), &debug_trace_reg_ops,
                           s, "sep.debug_trace",
                           s->debug_trace_size); // Debug trace printing
@@ -3242,7 +3267,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     if (s->chip_id >= 0x8020) {
         memory_region_add_subregion(&APPLE_A13(s->cpu)->memory, s->shmbuf_base + s->trace_buffer_base_offset, &s->debug_trace_mr);
     }
-    // TODO: Let's think about something for T8015
+#endif
     DTBNode *child = dtb_get_node(node, "iop-sep-nub");
     g_assert_nonnull(child);
 
@@ -3414,8 +3439,8 @@ static void apple_sep_realize(DeviceState *dev, Error **errp)
 
 static void aess_reset(AppleAESSState *s)
 {
-    s->clock = 0;
-    s->ctl = 0;
+    s->status = 0;
+    s->command = 0;
     s->interrupt_status = 0;
     s->interrupt_enabled = 0;
     s->reg_0x14_keywrap_iterations_counter = 0;
@@ -3446,9 +3471,9 @@ static void map_sepfw(AppleSEPState *s)
     DBGLOG("%s: entered function\n", __func__);
     AddressSpace *nsas = &address_space_memory;
     // Apparently needed because of a bug occurring on XNU
-    // clear lowest 0x4000 bytes, because they shouldn't contain any valid data
-    // note to myself: don't try to clear more than 8 MiB here, it will break
-    address_space_set(nsas, 0x0, 0, 8 * MiB, MEMTXATTRS_UNSPECIFIED);
+    // clear lowest 0x4000 bytes as well, because they shouldn't contain any
+    // valid data
+    address_space_set(nsas, 0x0, 0, SEPFW_MAPPING_SIZE, MEMTXATTRS_UNSPECIFIED);
     address_space_rw(nsas, 0x4000ULL, MEMTXATTRS_UNSPECIFIED,
                      (uint8_t *)s->sepfw_data, s->sep_fw_size, true);
 }

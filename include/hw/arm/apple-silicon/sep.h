@@ -43,10 +43,12 @@ OBJECT_DECLARE_TYPE(AppleSEPState, AppleSEPClass, APPLE_SEP)
 typedef struct AppleSSCState AppleSSCState;
 DECLARE_INSTANCE_CHECKER(AppleSSCState, APPLE_SSC, TYPE_APPLE_SSC)
 
-// #define TRACE_BUFFER_BASE_OFFSET 0x10000
-// #define DEBUG_TRACE_SIZE (0x80000)
-//  Prevent T8015 AP overlap
 #define DEBUG_TRACE_SIZE (0x10000)
+
+// Some SEPFW versions can be a tad larger than 8 MiB
+#define SEPFW_MAPPING_SIZE (16 * MiB)
+#define SEP_DMA_MAPPING_SIZE (SEPFW_MAPPING_SIZE * 2)
+#define SEP_SHMBUF_BASE (SEPFW_MAPPING_SIZE + 0xC000)
 
 typedef struct {
     uint8_t key[32];
@@ -61,8 +63,8 @@ typedef struct {
 
 typedef struct {
     uint32_t chip_id;
-    uint32_t clock; // 0x4
-    uint32_t ctl; // 0x8
+    uint32_t status; // 0x4
+    uint32_t command; // 0x8
     uint32_t interrupt_status; // 0xc
     uint32_t interrupt_enabled; // 0x10
     uint32_t reg_0x14_keywrap_iterations_counter; // 0x14
@@ -105,10 +107,17 @@ typedef struct {
 } AppleAESSState;
 
 typedef struct {
+    uint32_t command; // 0x0
     uint32_t status0; // 0x4
     uint32_t status_in0; // 0x8
     uint32_t img4out_dgst_clock; // 0x40
+    uint8_t output0[32]; // 0x60 ; read_cmd_0x2
+    uint8_t input0[0x80]; // 0x80 ; write_cmd_0x0 ; SMRK_pub ; 1024 bits ; measurement==0x34_bytes
+    uint8_t public_key[32]; // 0x100 // for AESS ; read_cmd_0x0 ; read public_key ; status_in0 needs to be 0x1
+    uint8_t attest_hash[32]; // 0x180 ; read_cmd_0x3 ; read attest_hash ; status_in0 needs to be 0x1
+    uint8_t input1[0x20a]; // 0x200 .. 0x40a (not inclusive) ; write_cmd_0x1 ; 4176 bits, maybe rsa input?
     uint32_t chip_revision_clock; // 0x800
+    uint32_t cmd_0xd_answer; // 0x820 ; cmd_0xd
     uint32_t chipid_ecid_misc_clock; // 0x840
 } ApplePKAState;
 

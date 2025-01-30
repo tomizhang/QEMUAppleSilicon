@@ -362,7 +362,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
         g_file_get_contents(t8030_machine->sep_fw_filename, &sep->sepfw_data,
                             NULL, NULL);
     }
-    info->sep_fw_size = 8 * MiB;
+    info->sep_fw_size = SEPFW_MAPPING_SIZE;
     phys_ptr += info->sep_fw_size;
 
     // Kernel boot args
@@ -476,19 +476,30 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
 
     dtb_va = ptov_static(info->device_tree_addr);
 
-    if (machine->initrd_filename) {
+    if (machine->initrd_filename != NULL) {
         info->ramdisk_addr = phys_ptr;
         macho_load_ramdisk(machine->initrd_filename, nsas, sysmem,
                            info->ramdisk_addr, &info->ramdisk_size);
-        info->ramdisk_size = ROUND_UP(info->ramdisk_size, 0x400);
+        info->ramdisk_size = ROUND_UP_16K(info->ramdisk_size);
         phys_ptr += info->ramdisk_size;
     }
 
     // SEPFW
     info->sep_fw_addr = phys_ptr;
-    info->sep_fw_size = 8 * MiB;
+    if (t8030_machine->sep_fw_filename != NULL) {
+        macho_load_raw_file(t8030_machine->sep_fw_filename, nsas, sysmem,
+                            "sepfw", info->sep_fw_addr, &info->sep_fw_size);
+        AppleSEPState *sep = APPLE_SEP(object_property_get_link(
+            OBJECT(t8030_machine), "sep", &error_fatal));
+        sep->sep_fw_addr = info->sep_fw_addr;
+        sep->sep_fw_size = info->sep_fw_size;
+        g_file_get_contents(t8030_machine->sep_fw_filename, &sep->sepfw_data,
+                            NULL, NULL);
+    }
+    info->sep_fw_size = SEPFW_MAPPING_SIZE;
     phys_ptr += info->sep_fw_size;
 
+    // Kernel boot args
     info->kern_boot_args_addr = phys_ptr;
     info->kern_boot_args_size = 0x4000;
     phys_ptr += info->kern_boot_args_size;
@@ -2443,7 +2454,7 @@ static void t8030_machine_init(MachineState *machine)
                      0x2000000ULL, 0); // 0x1000000 is too low
     }
     if (t8030_machine->sep_fw_filename) {
-        allocate_ram(t8030_machine->sysmem, "SEPFW_", 0, 16 * MiB, 0);
+        allocate_ram(t8030_machine->sysmem, "SEPFW_", 0x0, SEP_DMA_MAPPING_SIZE, 0);
     }
 
     hdr = macho_load_file(machine->kernel_filename, NULL);

@@ -176,7 +176,7 @@ static void apple_rtbuddy_handle_mgmt_msg(void *opaque, uint32_t ep,
     a7iop = APPLE_A7IOP(opaque);
     msg = (AppleRTBuddyManagementMessage *)&message;
 
-    trace_apple_rtbuddy_handle_mgmt_msg(a7iop->role, msg->raw, s->ep0_status);
+    trace_apple_rtbuddy_handle_mgmt_msg(a7iop->role, msg->raw, s->ep0_status, msg->type);
 
     switch (msg->type) {
     case MSG_TYPE_PING:
