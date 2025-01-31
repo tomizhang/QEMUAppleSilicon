@@ -69,7 +69,6 @@
 #define T8030_SRAM_SIZE (0x400000)
 
 #define T8030_DRAM_BASE (0x800000000)
-#define T8030_DRAM_SIZE (4 * GiB)
 
 #define T8030_SEPROM_BASE (0x240000000)
 #define T8030_SEPROM_SIZE (0x4000000)
@@ -564,21 +563,15 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     gsize fsize;
     CarveoutAllocator *ca;
 
-    DTBNode *carveout_memory_map = dtb_get_node(t8030_machine->device_tree, "/chosen/carveout-memory-map");
-    if (/*BUILD_VERSION_MAJOR(t8030_machine->build_version) == 13 && */carveout_memory_map == NULL) {
-        fprintf(stderr, "%s: warning: carveout-memory-map unavailable? iOS 13?\n", __func__);
+    DTBNode *carveout_memory_map =
+        dtb_get_node(t8030_machine->device_tree, "/chosen/carveout-memory-map");
+    if (carveout_memory_map == NULL) {
+        fprintf(stderr,
+                "%s: warning: carveout-memory-map unavailable? iOS 13?\n",
+                __func__);
         DTBNode *chosen = dtb_get_node(t8030_machine->device_tree, "chosen");
         carveout_memory_map = dtb_create_node(chosen, "carveout-memory-map");
     }
-
-    ca = carveout_alloc_new(
-        carveout_memory_map,
-        T8030_DRAM_BASE, T8030_DRAM_SIZE, 16 * KiB);
-
-    t8030_rtkit_mem_setup(t8030_machine, ca, "sio", "iop-sio-nub",
-                          T8030_SIO_TEXT_SIZE, T8030_SIO_DATA_SIZE);
-    t8030_rtkit_mem_setup(t8030_machine, ca, "ans", "iop-ans-nub",
-                          T8030_ANS_TEXT_SIZE, T8030_ANS_DATA_SIZE);
 
     machine = MACHINE(t8030_machine);
     info = &t8030_machine->bootinfo;
@@ -591,7 +584,15 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     }
 
     info->dram_base = T8030_DRAM_BASE;
-    info->dram_size = T8030_DRAM_SIZE;
+    info->dram_size = machine->maxram_size;
+
+    ca = carveout_alloc_new(carveout_memory_map, info->dram_base,
+                            info->dram_size, 16 * KiB);
+
+    t8030_rtkit_mem_setup(t8030_machine, ca, "sio", "iop-sio-nub",
+                          T8030_SIO_TEXT_SIZE, T8030_SIO_DATA_SIZE);
+    t8030_rtkit_mem_setup(t8030_machine, ca, "ans", "iop-ans-nub",
+                          T8030_ANS_TEXT_SIZE, T8030_ANS_DATA_SIZE);
 
     if (t8030_machine->seprom_filename) {
         if (!g_file_get_contents(t8030_machine->seprom_filename, &seprom,
@@ -967,15 +968,15 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
             return 0xA55AC33C; // security domain | 0x2
         return 0xA050C030; // security domain | 0x0
     case 0x3D2BC010:
-        sep_bit30_current_value = ((sep == NULL) ? 0 :
-                                   (sep->pmgr_fuse_changer_bit0_was_set << 30));
+        sep_bit30_current_value =
+            ((sep == NULL) ? 0 : (sep->pmgr_fuse_changer_bit0_was_set << 30));
         QEMU_FALLTHROUGH;
     case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO?
                      // AppleSEPROM-A12-D331pAP
         return (board_id & 0x7) | ((security_epoch & 0x7f) << 5) |
                sep_bit30_current_value | (1 << 31);
-                          // (security epoch & 0x7F) << 5 ;; (sep_bit30 << 30)
-                          // for SEP | (1 << 31) for SEP and AP
+        // (security epoch & 0x7F) << 5 ;; (sep_bit30 << 30)
+        // for SEP | (1 << 31) for SEP and AP
     case 0x3D2BC020: // T8030 iBSS: FUN_19c07feac_return_value_causes_crash;
                      // same address on T8020 iBoot, but possibly different
                      // handling
@@ -1414,8 +1415,9 @@ static void t8030_amcc_setup(T8030MachineState *t8030_machine)
     DTBNode *child;
 
     child = dtb_get_node(t8030_machine->device_tree, "chosen/lock-regs/amcc");
-    if (/*BUILD_VERSION_MAJOR(t8030_machine->build_version) == 13 && */child == NULL) {
-        fprintf(stderr, "%s: warning: amcc registers unavailable? iOS 13?\n", __func__);
+    if (child == NULL) {
+        fprintf(stderr, "%s: warning: amcc registers unavailable? iOS 13?\n",
+                __func__);
         DTBNode *chosen = dtb_get_node(t8030_machine->device_tree, "chosen");
         DTBNode *lock_regs = dtb_create_node(chosen, "lock-regs");
         child = dtb_create_node(lock_regs, "amcc");
@@ -2451,7 +2453,7 @@ static void t8030_machine_init(MachineState *machine)
     allocate_ram(t8030_machine->sysmem, "SRAM", T8030_SRAM_BASE,
                  T8030_SRAM_SIZE, 0);
     allocate_ram(t8030_machine->sysmem, "DRAM", T8030_DRAM_BASE,
-                 T8030_DRAM_SIZE, 0);
+                 machine->maxram_size, 0);
     if (t8030_machine->seprom_filename) {
         allocate_ram(t8030_machine->sysmem, "SEPROM", T8030_SEPROM_BASE,
                      T8030_SEPROM_SIZE, 0);
@@ -2461,7 +2463,8 @@ static void t8030_machine_init(MachineState *machine)
                      0x2000000ULL, 0); // 0x1000000 is too low
     }
     if (t8030_machine->sep_fw_filename) {
-        allocate_ram(t8030_machine->sysmem, "SEPFW_", 0x0, SEP_DMA_MAPPING_SIZE, 0);
+        allocate_ram(t8030_machine->sysmem, "SEPFW_", 0x0, SEP_DMA_MAPPING_SIZE,
+                     0);
     }
 
     hdr = macho_load_file(machine->kernel_filename, NULL);
@@ -2791,8 +2794,7 @@ static bool t8030_get_kaslr_off(Object *obj, Error **errp)
 
 static ram_addr_t t8030_machine_fixup_ram_size(ram_addr_t size)
 {
-    g_assert_cmpuint(size, ==, T8030_DRAM_SIZE);
-    return size;
+    return ROUND_UP_16K(size);
 }
 
 static void t8030_set_force_dfu(Object *obj, bool value, Error **errp)
@@ -2825,7 +2827,7 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
     mc->no_parallel = 1;
     mc->default_cpu_type = TYPE_APPLE_A13;
     mc->minimum_page_bits = 14;
-    mc->default_ram_size = T8030_DRAM_SIZE;
+    mc->default_ram_size = 4 * GiB;
     mc->fixup_ram_size = t8030_machine_fixup_ram_size;
 
     object_class_property_add_str(klass, "trustcache",
