@@ -189,7 +189,7 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     *(uint32_t *)vtop_slid(0xFFFFFFF008B57B28) = nop;
 
     // `AppleSEPManager::_loadChannelObjectEntries`:
-    // use SCOT as TRAC, thus making it bigger.
+    // use SCOT as TRAC, thus making it bigger: 0x10000 bytes instead of 0x20.
     *(uint32_t *)vtop_slid(0xFFFFFFF008B58030) = cpu_to_le32(0x52A00028);
 #endif
 
@@ -916,6 +916,8 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     int security_domain = 1;
     int raw_prod = 1;
     int raw_secure_mode = 1;
+    // sep_bit30_current_value should stay zero on raw and only change current.
+    int sep_bit30_current_value = 0;
     // chip_revision = 0x01;
     chip_revision = 0x11;
     // board_id = 0x4;
@@ -941,6 +943,10 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
             return 0xA55AC33C; // IBFL | 0x10
         return 0xA050C030; // IBFL | 0x00
     case 0x3D2BC004: // Current Secure Mode SEP T8020
+        // handle SEP DSEC demotion
+        if (sep != NULL && sep->pmgr_fuse_changer_bit1_was_set)
+            return 0xA050C030; // SEP DSEC img4 tag demotion active
+        QEMU_FALLTHROUGH;
     case 0x3D2BC404: // maybe T8030 current secure mode???
         if (current_secure_mode)
             return 0xA55AC33C; // CPFM | 0x01 ; IBFL_base == 0x0C
@@ -961,13 +967,14 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
             return 0xA55AC33C; // security domain | 0x2
         return 0xA050C030; // security domain | 0x0
     case 0x3D2BC010:
+        sep_bit30_current_value = ((sep == NULL) ? 0 :
+                                   (sep->pmgr_fuse_changer_bit0_was_set << 30));
+        QEMU_FALLTHROUGH;
     case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO?
                      // AppleSEPROM-A12-D331pAP
         return (board_id & 0x7) | ((security_epoch & 0x7f) << 5) |
-               ((sep == NULL) ?
-                    0 :
-                    (((sep->pmgr_base_regs[0x8000] & 0x1) != 0) << 30)) |
-               (1 << 31); // (security epoch & 0x7F) << 5 ;; (sep_bit30 << 30)
+               sep_bit30_current_value | (1 << 31);
+                          // (security epoch & 0x7F) << 5 ;; (sep_bit30 << 30)
                           // for SEP | (1 << 31) for SEP and AP
     case 0x3D2BC020: // T8030 iBSS: FUN_19c07feac_return_value_causes_crash;
                      // same address on T8020 iBoot, but possibly different

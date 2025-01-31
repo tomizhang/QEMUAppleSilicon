@@ -249,6 +249,8 @@ struct AppleSEPState {
     hwaddr trace_buffer_base_offset;
     hwaddr debug_trace_size;
     gchar *sepfw_data;
+    bool pmgr_fuse_changer_bit0_was_set;
+    bool pmgr_fuse_changer_bit1_was_set;
 };
 
 AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,

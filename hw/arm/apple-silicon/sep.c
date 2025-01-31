@@ -156,8 +156,8 @@
 #define SEP_AESS_SEED_BITS_BIT0 (1 << 0)
 #define SEP_AESS_SEED_BITS_BIT27 (1 << 27) // cmds 0x50 and 0x90
 #define SEP_AESS_SEED_BITS_BIT28 (1 << 28) // invalid EKEY?
-#define SEP_AESS_SEED_BITS_BIT29 (1 << 29) // valid DSEC?
-#define SEP_AESS_SEED_BITS_DEMOTED (1 << 30) // allow demotion/is demoted?
+#define SEP_AESS_SEED_BITS_SEP_DSEC_DEMOTED (1 << 29) // DSEC tag present, demote SEP
+#define SEP_AESS_SEED_BITS_AP_PROD_DEMOTED (1 << 30) // ap is prod-fused and demoted
 #define SEP_AESS_SEED_BITS_IMG4_VERIFIED (1 << 31) // img4 verified?
 
 
@@ -1206,6 +1206,19 @@ static void pmgr_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
             "SEP PMGR_BASE: PowerState %s write after at 0x" HWADDR_FMT_plx
             " with value 0x%" PRIx64 "\n",
             sepos_powerstate_name(addr), addr, data);
+        goto jump_default;
+    case 0x8000:
+        // the resulting values should only reset on SoC reset
+        if ((data & 1) != 0) {
+            s->pmgr_fuse_changer_bit0_was_set = true;
+        }
+        if ((data & 2) != 0) {
+            s->pmgr_fuse_changer_bit1_was_set = true;
+        }
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP PMGR_BASE: fuse change write at 0x" HWADDR_FMT_plx
+                      " with value 0x%" PRIx64 "\n",
+                      addr, data);
         goto jump_default;
     default:
 #if 1
@@ -3489,6 +3502,22 @@ static void apple_sep_reset_hold(Object *obj, ResetType type)
     if (sc->parent_phases.hold != NULL) {
         sc->parent_phases.hold(obj, type);
     }
+    s->pmgr_fuse_changer_bit0_was_set = false;
+    s->pmgr_fuse_changer_bit1_was_set = false;
+    memset(s->pmgr_base_regs, 0, sizeof(s->pmgr_base_regs));
+    memset(s->key_base_regs, 0, sizeof(s->key_base_regs));
+    memset(s->key_fkey_regs, 0, sizeof(s->key_fkey_regs));
+    memset(s->key_fcfg_regs, 0, sizeof(s->key_fcfg_regs));
+    memset(s->moni_base_regs, 0, sizeof(s->moni_base_regs));
+    memset(s->moni_thrm_regs, 0, sizeof(s->moni_thrm_regs));
+    memset(s->eisp_base_regs, 0, sizeof(s->eisp_base_regs));
+    memset(s->eisp_hmac_regs, 0, sizeof(s->eisp_hmac_regs));
+    memset(s->aess_base_regs, 0, sizeof(s->aess_base_regs));
+    memset(s->pka_base_regs, 0, sizeof(s->pka_base_regs));
+    memset(s->misc0_regs, 0, sizeof(s->misc0_regs));
+    memset(s->misc2_regs, 0, sizeof(s->misc2_regs));
+    memset(s->misc4_regs, 0, sizeof(s->misc4_regs));
+    memset(s->debug_trace_regs, 0, sizeof(s->debug_trace_regs));
 
     aess_reset(&s->aess_state);
     pka_reset(&s->pka_state);
