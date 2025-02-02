@@ -617,10 +617,6 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         uint32_t value32_nop = 0xD503201F; // nop
         // mov w0, #0x10000000
         // uint32_t value32_mov_w0_0x10000000 = 0x52a20000;
-        // mov w0, #0x8030
-        // uint32_t value32_mov_w0_8030 = 0x52900600;
-        // mov w8, #0x8030
-        // uint32_t value32_mov_w8_8030 = 0x52900608;
         // uint32_t value32_mov_w0_0 = 0x52800000; // mov w0, #0x0
         // uint32_t value32_mov_w8_0x1000 = 0x52820008;
 #if 1 // for T8020 SEPROM
@@ -638,51 +634,41 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         // maybe_Img4DecodeEvaluateTrust: Skip RSA verification result.
         // not actually stuck, it just takes a while to complete while GDB is in
         // use.
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x12144,
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x1130c,
         //                     MEMTXATTRS_UNSPECIFIED, &value32_nop,
         //                     sizeof(value32_nop));
 
         // maybe_Img4DecodeEvaluateTrust: payload_raw
         // hashing stuck, nop'ing
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x121D8,
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x113b0,
                             MEMTXATTRS_UNSPECIFIED, &value32_nop,
                             sizeof(value32_nop));
 
         // maybe_Img4DecodeEvaluateTrust: nop'ing
         // result of payload_raw hashing
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x121DC,
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x113b4,
                             MEMTXATTRS_UNSPECIFIED, &value32_nop,
                             sizeof(value32_nop));
 
         // memcmp_validstrs30: fake success
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x0ABD8,
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x0963c,
                             MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
                             sizeof(value32_mov_x0_0));
 
-        // memcmp_validstrs14: fake success
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x0CA84,
-        //                     MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
-        //                     sizeof(value32_mov_x0_0));
-
-        // get_chipid: patch get_chipid to return 0x8030 instead of 0x8020
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x091B4,
-        //                     MEMTXATTRS_UNSPECIFIED, &value32_mov_w0_8030,
-        //                     sizeof(value32_mov_w0_8030));
-
-        // another chipid
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x09178,
-        //                     MEMTXATTRS_UNSPECIFIED, &value32_mov_w8_8030,
-        //                     sizeof(value32_mov_w8_8030));
+        // memcmp_validstrs14: fake success; for nvram bypass?
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x0b574,
+                            MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
+                            sizeof(value32_mov_x0_0));
 
         // load_sepos: jump over
         // img4_compare_verified_values_true_on_success
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x077AC,
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x06234,
                             MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_1,
                             sizeof(value32_mov_x0_1));
 
         // maybe_verify_rsa_signature: return
         // fake return value
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x123BC,
+        address_space_write(nsas, T8030_SEPROM_BASE + 0x11630,
                             MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
                             sizeof(value32_mov_x0_0));
 
@@ -717,24 +703,8 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         // `ApplePMGR::_cpuIdle`: skip time check
         // *(uint32_t *)vtop_slid(0xFFFFFFF008794F24) = value32_mov_x0_0;
 
-        // `image4_validate_property_callback`: skip AMNM
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x0D2C8,
-        //                     MEMTXATTRS_UNSPECIFIED, &value32_nop,
-        //                     sizeof(value32_nop));
-
-        // maybe_Img4DecodeEvaluateTrust: Skip RSA verification result.
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x12144,
-        //                     MEMTXATTRS_UNSPECIFIED, &value32_nop,
-        //                     sizeof(value32_nop));
-
-        // memcmp_validstrs14: fake success; for
-        // nvram bypass?
-        address_space_write(nsas, T8030_SEPROM_BASE + 0x0CA84,
-                            MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0,
-                            sizeof(value32_mov_x0_0));
-
         // memcmp_validstrs20: fake success
-        // address_space_write(nsas, T8030_SEPROM_BASE + 0x02AB0,
+        // address_space_write(nsas, T8030_SEPROM_BASE + 0x02A04,
         // MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0, sizeof(value32_mov_x0_0));
 #endif // for T8020 SEPROM
     }
@@ -1028,16 +998,8 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         return pmgr_unk_e4800; // 0x240002c00 and 0x2400037a4
     case 0x3D2E4000 ... 0x3D2E417f: // ???? 0x24000377c
         return pmgr_unk_e4000[((base + addr) - 0x3D2E4000) / 4]; // 0x24000377c
-    /* BEGIN: for T8015 */
-    /* BEGIN: from T8030 AP AES */
-    case 0x3d2d0020: //! board-id
-        return t8030_machine->board_id;
-    case 0x3d2d0034: //? bit 24 = is first boot ; bit 25 = something with memory
-                     // encryption?
-        return (1 << 24) | (1 << 25);
-        // return (1 << 24) | (0 << 25);
-    /* END: from T8030 AP AES */
     ///
+    /* BEGIN: for T8015 */
     case 0x352bc000: // CURRENT_PROD T8015 AP
         return (current_prod << 0) | (current_secure_mode << 1) |
                ((security_domain & 3) << 2) | ((board_id & 7) << 4) |
@@ -2221,36 +2183,47 @@ static void t8030_create_sep(T8030MachineState *t8030_machine)
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
     reg = (uint64_t *)prop->data;
+    // AKF_MBOX reg is handled here, using the device tree.
+    // XPRT_{PMSC,FUSE,MISC} regs are not handled in this function.
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 0,
                     t8030_machine->soc_base_pa + reg[0]);
+    // PMGR_BASE T8020/T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 1,
-                    t8030_machine->soc_base_pa + 0x41000000); // PMGR_BASE T8020
+                    t8030_machine->soc_base_pa + 0x41000000);
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 2,
-                    t8030_machine->soc_base_pa + 0x41100000); // TRNG_REGS T8020
+                    t8030_machine->soc_base_pa + 0x41180000); // TRNG_REGS T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 3,
-                    t8030_machine->soc_base_pa + 0x41180000); // KEY_BASE T8020
+                    t8030_machine->soc_base_pa + 0x411c0000); // KEY_BASE T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 4,
-                    t8030_machine->soc_base_pa + 0x41400000); // KEY_FCFG T8020
+                    t8030_machine->soc_base_pa + 0x41440000); // KEY_FCFG T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 5,
-                    t8030_machine->soc_base_pa + 0x41380000); // MONI_BASE T8020
+                    t8030_machine->soc_base_pa + 0x413c0000); // MONI_BASE T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 6,
-                    t8030_machine->soc_base_pa + 0x413c0000); // MONI_THRM T8020
+                    t8030_machine->soc_base_pa + 0x41400000); // MONI_THRM T8030
+     // EISP_BASE T8020/T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 7,
-                    t8030_machine->soc_base_pa + 0x40800000); // EISP_BASE T8020
+                    t8030_machine->soc_base_pa + 0x40800000);
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 8,
-                    t8030_machine->soc_base_pa + 0x40a60000); // EISP_HMAC T8020
+                    t8030_machine->soc_base_pa + 0x40aa0000); // EISP_HMAC T8030
+    // AESS_BASE T8020/T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 9,
-                    t8030_machine->soc_base_pa + 0x41040000); // AESS_BASE T8020
+                    t8030_machine->soc_base_pa + 0x41040000);
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 10,
-                    t8030_machine->soc_base_pa + 0x41140000); // PKA_BASE T8020
+                    t8030_machine->soc_base_pa + 0x41080000); // AESH_BASE T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 11,
-                    t8030_machine->soc_base_pa + 0x41080000); // MISC0
+                    t8030_machine->soc_base_pa + 0x41100000); // PKA_BASE T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 12,
-                    t8030_machine->soc_base_pa + 0x410C4000); // MISC2
+                    t8030_machine->soc_base_pa + 0x41504000); // PKA_TMM T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 13,
+                    t8030_machine->soc_base_pa + 0x41080000); // MISC0 T80[23]0
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 14,
+                    t8030_machine->soc_base_pa + 0x410C4000); // MISC2 T80[23]0
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 15,
                     t8030_machine->soc_base_pa +
-                        0x41240000); // MISC4 ; Some encrypted data from SEPROM.
-    // index 14 is not mapped here
+                        0x41280000); // encrypted progress counter T8030
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 16,
+                    t8030_machine->soc_base_pa +
+                        0x41500000); // ; boot monitor T8030
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);

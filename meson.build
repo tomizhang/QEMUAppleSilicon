@@ -3545,6 +3545,7 @@ if have_system
     'hw/adc',
     'hw/alpha',
     'hw/arm',
+    'hw/arm/apple-silicon',
     'hw/audio',
     'hw/block',
     'hw/char',

@@ -5,8 +5,6 @@
 #include "qemu/bitops.h"
 #include "qemu/lockable.h"
 
-#define CPU_CTRL_RUN BIT(4)
-
 void apple_a7iop_send_ap(AppleA7IOP *s, AppleA7IOPMessage *msg)
 {
     apple_a7iop_mailbox_send_ap(s->iop_mailbox, msg);
@@ -66,7 +64,7 @@ void apple_a7iop_set_cpu_ctrl(AppleA7IOP *s, uint32_t value)
     {
         s->cpu_ctrl = value;
     }
-    if (value & CPU_CTRL_RUN) {
+    if ((value & (CPU_CTRL_RUN | SEP_BOOT_MONITOR_RUN)) != 0) {
         apple_a7iop_cpu_start(s, false);
     }
 }

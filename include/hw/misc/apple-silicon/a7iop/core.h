@@ -6,6 +6,9 @@
 #include "hw/misc/apple-silicon/a7iop/mailbox/core.h"
 #include "hw/sysbus.h"
 
+#define CPU_CTRL_RUN BIT(4)
+#define SEP_BOOT_MONITOR_RUN BIT(16)
+
 #define TYPE_APPLE_A7IOP "apple-a7iop"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleA7IOP, APPLE_A7IOP)
 

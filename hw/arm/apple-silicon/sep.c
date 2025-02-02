@@ -33,6 +33,7 @@
 #include "hw/i2c/apple_i2c.h"
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
+#include "hw/misc/apple-silicon/a7iop/private.h"
 #include "hw/or-irq.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
@@ -45,6 +46,7 @@
 #include "qom/object.h"
 #include "sysemu/block-backend-global-state.h"
 #include "sysemu/block-backend-io.h"
+#include "target/arm/cpregs.h"
 #include "nettle/ccm.h"
 #include "nettle/cmac.h"
 #include "nettle/ecc-curve.h"
@@ -55,6 +57,7 @@
 #include "nettle/knuth-lfib.h"
 #include <nettle/macros.h>
 #include <nettle/memxor.h>
+#include "trace.h"
 
 // #define SEP_DEBUG
 
@@ -423,7 +426,6 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
                                   unsigned size)
 {
     AppleSEPState *s = APPLE_SEP(opaque);
-    AddressSpace *nsas = &address_space_memory;
     uint32_t offset = 0;
     if (size == 1) {
         // iOS 15 SEPFW workaround against a brief logspam
@@ -1462,7 +1464,7 @@ static void key_fcfg_reg_write(void *opaque, hwaddr addr, uint64_t data,
             DeviceState *gpio = NULL;
             gpio = DEVICE(object_property_get_link(OBJECT(machine), "sep_gpio", &error_fatal));
             qemu_set_irq(qdev_get_gpio_in(gpio, 0), true);
-            //((uint32_t *)s->misc4_regs)[0x00] = 0xdeadbee8ull;
+            //((uint32_t *)s->progress_regs)[0x00] = 0xdeadbee8ull;
         }
 #endif
 #if 0
@@ -1494,9 +1496,25 @@ static void key_fcfg_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case 0x10:
         // if ((data & 1) != 0)
         if (data == 0x1) {
-            //((uint32_t*)s->key_fcfg_regs)[0x00 / 4] |= (1 << 31) | (1 << 0);
-            ((uint32_t *)s->key_fcfg_regs)[0x00 / 4] = (1 << 31) | (1 << 0);
+            ////((uint32_t*)s->key_fcfg_regs)[0x00 / 4] |= (1 << 31) | (1 << 0);
+            //((uint32_t *)s->key_fcfg_regs)[0x00 / 4] = (1 << 31) | (1 << 0);
+            ((uint32_t *)s->key_base_regs)[0x00 / 4] = (1 << 31) | (1 << 0);
         }
+        goto jump_default;
+    case 0x14:
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP KEY_FCFG: vals 0x" HWADDR_FMT_plx
+                      " with value 0x%" PRIx64 "\n",
+                      addr, data);
+        if (data == 0xffff) {
+            s->key_fcfg_offset_0x14_index = 0x0;
+            memset(s->key_fcfg_offset_0x14_values, 0, sizeof(s->key_fcfg_offset_0x14_values));
+        }
+        uint8_t index = s->key_fcfg_offset_0x14_index;
+        uint8_t index_limit = sizeof(s->key_fcfg_offset_0x14_values)/sizeof(s->key_fcfg_offset_0x14_values[0]);
+        index = (index < index_limit) ? index : 0;
+        s->key_fcfg_offset_0x14_values[index] = data & 0xffff;
+        s->key_fcfg_offset_0x14_index++;
         goto jump_default;
     default:
     jump_default:
@@ -1515,11 +1533,31 @@ static uint64_t key_fcfg_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
+    uint8_t key_fcfg_offset_0x14_index = 0;
+    uint8_t key_fcfg_offset_0x14_index_limit = 0;
 
 #ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
+    case 0x14:
+        // it'll complain otherwise:
+        // ../hw/arm/apple-silicon/sep.c:1541:9: warning: label followed by a
+        // declaration is a C23 extension [-Wc23-extensions]
+        key_fcfg_offset_0x14_index = s->key_fcfg_offset_0x14_index;
+        key_fcfg_offset_0x14_index_limit =
+                                     sizeof(s->key_fcfg_offset_0x14_values)/
+                                     sizeof(s->key_fcfg_offset_0x14_values[0]);
+        key_fcfg_offset_0x14_index = (key_fcfg_offset_0x14_index <
+                                      key_fcfg_offset_0x14_index_limit)
+                                     ? key_fcfg_offset_0x14_index : 0;
+        ret = ((uint32_t)key_fcfg_offset_0x14_index << 16) |
+              s->key_fcfg_offset_0x14_values[key_fcfg_offset_0x14_index];
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP KEY_FCFG: vals read at 0x" HWADDR_FMT_plx
+                      " ret: 0x%" PRIx64 "\n",
+                      addr, ret);
+        break;
     case 0x18: // for SKG ; 0x4 | (value & 0x3)
         // ret = 0x4 | 0x0; // when AMK is disabled
         ret = 0x4 | 0x1; // when AMK is enabled
@@ -2454,6 +2492,63 @@ static const MemoryRegionOps aess_base_reg_ops = {
     .valid.unaligned = false,
 };
 
+static void aesh_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
+                               unsigned size)
+{
+    AppleSEPState *s = APPLE_SEP(opaque);
+
+#ifdef ENABLE_CPU_DUMP_STATE
+    cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
+#endif
+    switch (addr) {
+    default:
+        memcpy(&s->aesh_base_regs[addr], &data, size);
+    jump_default:
+#if 0
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP AESH_BASE: Unknown write at 0x" HWADDR_FMT_plx
+                      " with value 0x%" PRIx64 "\n",
+                      addr, data);
+#endif
+        break;
+    }
+}
+
+static uint64_t aesh_base_reg_read(void *opaque, hwaddr addr, unsigned size)
+{
+    AppleSEPState *s = APPLE_SEP(opaque);
+    uint64_t ret = 0;
+
+#ifdef ENABLE_CPU_DUMP_STATE
+    cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
+#endif
+    switch (addr) {
+    default:
+        memcpy(&ret, &s->aesh_base_regs[addr], size);
+    jump_default:
+#if 0
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP AESH_BASE: Unknown read at 0x" HWADDR_FMT_plx
+                      " with value 0x%" PRIx64 "\n",
+                      addr, ret);
+#endif
+        break;
+    }
+
+    return ret;
+}
+
+static const MemoryRegionOps aesh_base_reg_ops = {
+    .write = aesh_base_reg_write,
+    .read = aesh_base_reg_read,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid.min_access_size = 4,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
+    .valid.unaligned = false,
+};
+
 static void pka_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
                                unsigned size)
 {
@@ -2575,6 +2670,63 @@ static const MemoryRegionOps pka_base_reg_ops = {
     .valid.unaligned = false,
 };
 
+static void pka_tmm_reg_write(void *opaque, hwaddr addr, uint64_t data,
+                               unsigned size)
+{
+    AppleSEPState *s = APPLE_SEP(opaque);
+
+#ifdef ENABLE_CPU_DUMP_STATE
+    cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
+#endif
+    switch (addr) {
+    default:
+        memcpy(&s->pka_tmm_regs[addr], &data, size);
+    jump_default:
+#if 0
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP PKA_TMM: Unknown write at 0x" HWADDR_FMT_plx
+                      " with value 0x%" PRIx64 "\n",
+                      addr, data);
+#endif
+        break;
+    }
+}
+
+static uint64_t pka_tmm_reg_read(void *opaque, hwaddr addr, unsigned size)
+{
+    AppleSEPState *s = APPLE_SEP(opaque);
+    uint64_t ret = 0;
+
+#ifdef ENABLE_CPU_DUMP_STATE
+    cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
+#endif
+    switch (addr) {
+    default:
+        memcpy(&ret, &s->pka_tmm_regs[addr], size);
+    jump_default:
+#if 0
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP PKA_TMM: Unknown read at 0x" HWADDR_FMT_plx
+                      " with value 0x%" PRIx64 "\n",
+                      addr, ret);
+#endif
+        break;
+    }
+
+    return ret;
+}
+
+static const MemoryRegionOps pka_tmm_reg_ops = {
+    .write = pka_tmm_reg_write,
+    .read = pka_tmm_reg_read,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid.min_access_size = 4,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
+    .valid.unaligned = false,
+};
+
 static void misc0_reg_write(void *opaque, hwaddr addr, uint64_t data,
                             unsigned size)
 {
@@ -2683,6 +2835,79 @@ static const MemoryRegionOps misc2_reg_ops = {
     .valid.unaligned = false,
 };
 
+static void boot_monitor_reg_write(void *opaque, hwaddr addr, uint64_t data,
+                            unsigned size)
+{
+    AppleSEPState *s = APPLE_SEP(opaque);
+
+#ifdef ENABLE_CPU_DUMP_STATE
+    cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
+#endif
+    switch (addr) {
+    case 0x04: // some status flag, bit0
+        data &= ~(1 << 0); // reset bit0 for read
+        QEMU_FALLTHROUGH;
+    case 0x08: // maybe some command0?
+    case 0x10: // maybe some command1?
+    case 0x20: // load address low
+    case 0x24: // load address high
+    case 0x28: // end address low
+    case 0x2c: // end address high
+    case 0x30: // unknown1 address low
+    case 0x34: // unknown1 address high
+    case 0x38: // unknown2 address low
+    case 0x3c: // unknown2 address high
+    case 0x40: // unknown0 address low
+    case 0x44: // unknown0 address high
+    case 0x48: // randomness low
+    case 0x4c: // randomness high
+        //goto jump_default;
+    default:
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP Boot Monitor: Unknown write at 0x" HWADDR_FMT_plx
+                      " with value 0x%" PRIx64 "\n",
+                      addr, data);
+    jump_default:
+        memcpy(&s->boot_monitor_regs[addr], &data, size);
+        break;
+    }
+}
+
+static uint64_t boot_monitor_reg_read(void *opaque, hwaddr addr, unsigned size)
+{
+    AppleSEPState *s = APPLE_SEP(opaque);
+    uint64_t ret = 0;
+
+#ifdef ENABLE_CPU_DUMP_STATE
+    cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
+#endif
+    switch (addr) {
+    case 0x04: // some status flag, bit0
+        goto jump_default;
+    default:
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP Boot Monitor: Unknown read at 0x" HWADDR_FMT_plx "\n",
+                      addr);
+    jump_default:
+        memcpy(&ret, &s->boot_monitor_regs[addr], size);
+        break;
+    }
+
+    return ret;
+}
+
+static const MemoryRegionOps boot_monitor_reg_ops = {
+    .write = boot_monitor_reg_write,
+    .read = boot_monitor_reg_read,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .valid.min_access_size = 4,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
+    .valid.unaligned = false,
+};
+
+
 void enable_trace_buffer(AppleSEPState *s)
 {
     qemu_log_mask(
@@ -2775,12 +3000,15 @@ void enable_trace_buffer(AppleSEPState *s)
 #define SEPOS_PHYS_BASE_T8015 0x3404a4000ull
 #define SEPOS_PHYS_BASE_T8020_IOS14 0x340600000ull
 #define SEPOS_PHYS_BASE_T8020_IOS15 0x340710000ull
-#define SEPOS_OBJECT_MAPPING_BASE_VERSION_EARLY_V14 0x198d0
+#define SEPOS_PHYS_BASE_T8030_IOS14 0x340634000ull
+// for T8020/T8030 SEPFW of early 14 and 14.7.1
+#define SEPOS_OBJECT_MAPPING_BASE_VERSION_IOS14 0x198d0
 #define SEPOS_OBJECT_MAPPING_BASE_VERSION_IOS15 0x1d748
 #define SEPOS_OBJECT_MAPPING_INDEX 7
 // #define SEPOS_VIRT_MAPPING_BASE 0x282d0
 // #define SEPOS_VIRT_MAPPING_INDEX 555
-#define SEPOS_ACL_BASE_VERSION_EARLY_V14 0x140d0
+// for T8020/T8030 SEPFW of early 14 and 14.7.1
+#define SEPOS_ACL_BASE_VERSION_IOS14 0x140d0
 #define SEPOS_ACL_BASE_VERSION_IOS15 0x18348
 #define SEPOS_ACL_INDEX 19
 
@@ -2788,8 +3016,8 @@ void enable_trace_buffer(AppleSEPState *s)
     uint64_t sepos_object_mapping_base = 0x0;
     uint64_t sepos_acl_base = 0x0;
 #ifdef SEP_USE_IOS14_OVERRIDE
-    sepos_object_mapping_base = SEPOS_OBJECT_MAPPING_BASE_VERSION_EARLY_V14;
-    sepos_acl_base = SEPOS_ACL_BASE_VERSION_EARLY_V14;
+    sepos_object_mapping_base = SEPOS_OBJECT_MAPPING_BASE_VERSION_IOS14;
+    sepos_acl_base = SEPOS_ACL_BASE_VERSION_IOS14;
 #else
     sepos_object_mapping_base = SEPOS_OBJECT_MAPPING_BASE_VERSION_IOS15;
     sepos_acl_base = SEPOS_ACL_BASE_VERSION_IOS15;
@@ -2798,7 +3026,8 @@ void enable_trace_buffer(AppleSEPState *s)
         sepos_phys_base = SEPOS_PHYS_BASE_T8015;
     } else if (s->chip_id >= 0x8020) {
 #ifdef SEP_USE_IOS14_OVERRIDE
-        sepos_phys_base = SEPOS_PHYS_BASE_T8020_IOS14;
+        //sepos_phys_base = SEPOS_PHYS_BASE_T8020_IOS14;
+        sepos_phys_base = SEPOS_PHYS_BASE_T8030_IOS14;
 #else
         sepos_phys_base = SEPOS_PHYS_BASE_T8020_IOS15;
 #endif
@@ -2850,7 +3079,8 @@ void enable_trace_buffer(AppleSEPState *s)
     uint64_t bypass_offset = 0;
     if (s->chip_id >= 0x8020) {
 #ifdef SEP_USE_IOS14_OVERRIDE
-        bypass_offset = 0x11bb0; // T8020 iOS14
+        //bypass_offset = 0x11bb0; // T8020 iOS14
+        bypass_offset = 0x11b34; // T8030 iOS14
 #else
         bypass_offset = 0x12fb4; // T8020 iOS15
 #endif
@@ -2884,7 +3114,7 @@ static void apple_sep_send_message(AppleSEPState *s, uint8_t ep, uint8_t tag,
     apple_a7iop_send_iop(a7iop, sent_msg);
 }
 
-static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
+static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
                             unsigned size)
 {
     AppleSEPState *s = APPLE_SEP(opaque);
@@ -2912,7 +3142,7 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
             apple_sep_send_message(s, 0xff, 0x67, 3, 0x00, 0x00);
             qemu_log_mask(
                 LOG_UNIMP,
-                "SEP MISC4: Sent fake SEPROM_Opcode3/kOpCode_GenerateNonce\n");
+                "SEP Progress: Sent fake SEPROM_Opcode3/kOpCode_GenerateNonce\n");
 
 
             sep_msg.opcode = 17; // Opcode 17
@@ -2923,7 +3153,7 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
             apple_sep_send_message(s, 0xff, 0x0, 17, 0x00, 0x8000);
             qemu_log_mask(LOG_UNIMP, "SEP MISC4: Sent fake SEPROM_Opcode17\n");
         }
-        if (data == 0xFC4A2CAC && (s->chip_id >= 0x8020)) // Enable Trace Buffer
+        if ((data == 0xFC4A2CAC || data == 0xeee6ba79) && (s->chip_id >= 0x8020)) // Enable Trace Buffer
         {
             // Only works for T8020, because the T8015 SEPOS is compressed.
 #ifdef SEP_ENABLE_TRACE_BUFFER
@@ -2934,13 +3164,17 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case 0x8:
         if (data == 0x23BFDFE7) {
             hwaddr phys_addr = 0x0;
-            // easy way of retrieving the address:
+            // easy way of retrieving the sepb random_0 address T8020:
             // b *0x340000000 ; p/x $x0+0x80 == e.g. 0x340736380
+            // easy way of retrieving the sepb random_0 address T8030:
+            // go to the first SYS_ACC_PWR_DN_SAVE read in the kernel, and
+            // then do p/x $x0+0x80 == e.g. 0x3407ca380
             if (s->chip_id == 0x8015) {
                 phys_addr = 0x34015FD40ull; // T8015
             } else if (s->chip_id >= 0x8020) {
 #ifdef SEP_USE_IOS14_OVERRIDE
-                phys_addr = 0x340736380ull; // T8020 iOS 14
+                //phys_addr = 0x340736380ull; // T8020 iOS 14
+                phys_addr = 0x3407ca380ull; // T8030 iOS 14
 #else
                 phys_addr = 0x34086e380ull; // T8020 iOS 15
 #endif
@@ -2954,7 +3188,8 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
                 // here you go, I'm just zeroing that shit. == This disables
                 // ASLR for SEPOS apps
 #ifdef SEP_DISABLE_ASLR
-                address_space_set(nsas, phys_addr, 0, 0x16,
+                //address_space_set(nsas, phys_addr, 0, 0x40,
+                address_space_set(nsas, phys_addr, 0, 16,
                                   MEMTXATTRS_UNSPECIFIED); // phys_SEPB + 0x80;
                                                            // pc==0x240005BAC
 #endif
@@ -3024,10 +3259,10 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
         }
         break;
     case 0x0:
-        memcpy(&s->misc4_regs[addr], &data, size);
+        memcpy(&s->progress_regs[addr], &data, size);
 #if 0
         qemu_log_mask(LOG_UNIMP,
-                      "SEP MISC4: MISC4_0 write at 0x" HWADDR_FMT_plx
+                      "SEP Progress: Progress_0 write at 0x" HWADDR_FMT_plx
                       " with value 0x%" PRIx64 "\n",
                       addr, data);
 #endif
@@ -3079,9 +3314,9 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
         }
         break;
     case 0x3370:
-        memcpy(&s->misc4_regs[addr], &data, size);
+        memcpy(&s->progress_regs[addr], &data, size);
         qemu_log_mask(LOG_UNIMP,
-                      "SEP MISC4: MISC4_1 write at 0x" HWADDR_FMT_plx
+                      "SEP Progress: Progress_1 write at 0x" HWADDR_FMT_plx
                       " with value 0x%" PRIx64 "\n",
                       addr, data);
         // apple_mbox_set_custom0(s->mbox, data);
@@ -3103,14 +3338,14 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case 0x314:
     case 0x318:
     case 0x31c:
-        memcpy(&s->misc4_regs[addr], &data, size);
+        memcpy(&s->progress_regs[addr], &data, size);
         break;
     default:
         // jump_default:
-        memcpy(&s->misc4_regs[addr], &data, size);
+        memcpy(&s->progress_regs[addr], &data, size);
 #if 0
         qemu_log_mask(LOG_UNIMP,
-                      "SEP MISC4: Unknown write at 0x" HWADDR_FMT_plx
+                      "SEP Progress: Unknown write at 0x" HWADDR_FMT_plx
                       " with value 0x%" PRIx64 "\n",
                       addr, data);
 #endif
@@ -3118,7 +3353,7 @@ static void misc4_reg_write(void *opaque, hwaddr addr, uint64_t data,
     }
 }
 
-static uint64_t misc4_reg_read(void *opaque, hwaddr addr, unsigned size)
+static uint64_t progress_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     AppleSEPState *s = APPLE_SEP(opaque);
     uint64_t ret = 0;
@@ -3128,10 +3363,10 @@ static uint64_t misc4_reg_read(void *opaque, hwaddr addr, unsigned size)
 #endif
     switch (addr) {
     default:
-        memcpy(&ret, &s->misc4_regs[addr], size);
+        memcpy(&ret, &s->progress_regs[addr], size);
 #if 0
         qemu_log_mask(LOG_UNIMP,
-                      "SEP MISC4: Unknown read at 0x" HWADDR_FMT_plx "\n",
+                      "SEP Progress: Unknown read at 0x" HWADDR_FMT_plx "\n",
                       addr);
 #endif
         break;
@@ -3140,15 +3375,115 @@ static uint64_t misc4_reg_read(void *opaque, hwaddr addr, unsigned size)
     return ret;
 }
 
-static const MemoryRegionOps misc4_reg_ops = {
-    .write = misc4_reg_write,
-    .read = misc4_reg_read,
+static const MemoryRegionOps progress_reg_ops = {
+    .write = progress_reg_write,
+    .read = progress_reg_read,
     .endianness = DEVICE_NATIVE_ENDIAN,
     .valid.min_access_size = 4,
     .valid.max_access_size = 4,
     .impl.min_access_size = 4,
     .impl.max_access_size = 4,
     .valid.unaligned = false,
+};
+
+static void apple_sep_cpu_reset_work(CPUState *cpu, run_on_cpu_data data);
+#if 0
+
+static void apple_sep_cpu_reset_work2(CPUState *cpu, run_on_cpu_data data)
+{
+    vaddr load_addr = (vaddr)data.host_ptr;
+    DBGLOG("apple_sep_cpu_reset_work2: before cpu_set_pc: base=0x" HWADDR_FMT_plx
+           "\n",
+           load_addr);
+    cpu_set_pc(cpu, load_addr);
+}
+#endif
+
+#if 1
+static void apple_sep_cpu_moni_jump(CPUState *cpu, run_on_cpu_data data)
+{
+    vaddr load_addr = data.target_ptr;
+    DBGLOG("%s: before cpu_set_pc: base=0x" HWADDR_FMT_plx "\n", __func__, load_addr);
+    cpu_set_pc(cpu, load_addr);
+}
+#endif
+
+#if 0
+static void apple_sep_cpu_moni_jump(CPUState *cpu, run_on_cpu_data data)
+{
+    // can raise an exception here "0x340005c0c: movi    v0.2d, #0x0" because of the reset
+    AppleSEPState *s = data.host_ptr;
+    vaddr load_addr = *(vaddr*)&s->boot_monitor_regs[0x20];
+    // "crn, crm, op0, op1, op2" instead of "p_op0, p_op1, p_crn, p_crm, p_op2"
+    //const ARMCPRegInfo *ri = get_arm_cp_reginfo(s->cpu->cp_regs, ENCODE_AA64_CP_REG(CP_REG_ARM64_SYSREG_CP, 15, 2, 3, 7, 0));
+    //assert(ri);
+    //vaddr local_SYS_ACC_PWR_DN_SAVE = read_raw_cp_reg(&s->cpu->env, ri);
+    //cpu_reset(cpu);
+    DBGLOG("%s: before cpu_set_pc: base=0x" HWADDR_FMT_plx "\n", __func__, load_addr);
+    cpu_set_pc(cpu, load_addr);
+    //write_raw_cp_reg(&s->cpu->env, ri, local_SYS_ACC_PWR_DN_SAVE); // is static
+    //raw_write(&s->cpu->env, ri, local_SYS_ACC_PWR_DN_SAVE);
+}
+#endif
+
+
+
+
+static void apple_sep_iop_start(AppleA7IOP *s)
+{
+    // some race conditions might happen before, during and/or after the jump.
+    AppleSEPState *sep;
+
+    sep = APPLE_SEP(s);
+
+    trace_apple_sep_iop_start(s->iop_mailbox->role);
+
+    apple_a7iop_set_cpu_status(s, apple_a7iop_get_cpu_status(s) &
+                                      ~CPU_STATUS_IDLE);
+
+    vaddr load_addr = *(vaddr *)&sep->boot_monitor_regs[0x20];
+    // Don't prevent two successive calls of this, it is actually intended,
+    // once by seprom and once by sepfw.
+    // rely on apple_a7iop_set_cpu_ctrl for "(cpu_ctrl & SEP_BOOT_MONITOR_RUN)"
+    if (sep->modern && load_addr != 0)
+    {
+#if 1
+        qemu_log_mask(LOG_UNIMP,
+                      "%s: have load_addr 0x" HWADDR_FMT_plx "\n",
+                      __func__, load_addr);
+#endif
+        //vaddr old_base = sep->base;
+        //sep->base = load_addr;
+        //cpu_reset(CPU(sep->cpu)); 
+        //run_on_cpu(CPU(sep->cpu), apple_sep_cpu_reset_work, RUN_ON_CPU_HOST_PTR(sep));
+        //async_safe_run_on_cpu(CPU(sep->cpu), apple_sep_cpu_reset_work, RUN_ON_CPU_HOST_PTR(sep));
+        //async_safe_run_on_cpu(CPU(sep->cpu), apple_sep_cpu_moni_jump, RUN_ON_CPU_HOST_PTR(sep));
+        async_safe_run_on_cpu(CPU(sep->cpu), apple_sep_cpu_moni_jump, RUN_ON_CPU_TARGET_PTR(load_addr));
+        //sep->base = old_base;
+        // HACK: because cpu_set_pc skips over the first instruction.
+        //ARM_CPU(sep->cpu)->env.xregs[1] = load_addr;
+        //cpu_pause(CPU(sep->cpu));
+        //cpu_set_pc(CPU(sep->cpu), load_addr);
+        //cpu_resume(CPU(sep->cpu));
+    }
+}
+
+static void apple_sep_iop_wakeup(AppleA7IOP *s)
+{
+    AppleSEPState *sep;
+
+    sep = APPLE_SEP(s);
+
+    trace_apple_sep_iop_wakeup(s->iop_mailbox->role);
+
+    apple_a7iop_set_cpu_status(s, apple_a7iop_get_cpu_status(s) &
+                                      ~CPU_STATUS_IDLE);
+
+    // TODO
+}
+static const AppleA7IOPOps apple_sep_iop_ops = {
+    .start = apple_sep_iop_start,
+    .wakeup = apple_sep_iop_wakeup,
 };
 
 void create_eeprom_entry(uint32_t eeprom_index, uint32_t unkn0,
@@ -3177,7 +3512,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     reg = (uint64_t *)prop->data;
 
     apple_a7iop_init(a7iop, "SEP", reg[1],
-                     modern ? APPLE_A7IOP_V4 : APPLE_A7IOP_V2, NULL, NULL);
+                     modern ? APPLE_A7IOP_V4 : APPLE_A7IOP_V2, &apple_sep_iop_ops, NULL);
     s->base = base;
     s->modern = modern;
     s->chip_id = chip_id;
@@ -3217,15 +3552,17 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     object_property_set_uint(OBJECT(s->cpu), "rvbar", s->base & ~0xFFF, NULL);
     object_property_add_child(OBJECT(dev), DEVICE(s->cpu)->id, OBJECT(s->cpu));
 
+    // AKF_MBOX reg is handled using the device tree
+    // XPRT_{PMSC,FUSE,MISC} regs are handled in t8030.c
     memory_region_init_io(&s->pmgr_base_mr, OBJECT(dev), &pmgr_base_reg_ops, s,
-                          "sep.pmgr_base", 0x10000); // PMGR_BASE T8020
+                          "sep.pmgr_base", 0x10000); // PMGR_BASE T8030
     sysbus_init_mmio(sbd, &s->pmgr_base_mr);
     memory_region_init_io(&s->trng_regs_mr, OBJECT(dev), &trng_regs_reg_ops,
                           &s->trng_state, "sep.trng_regs",
-                          0x10000); // TRNG_REGS T8020
+                          0x10000); // TRNG_REGS T8030
     sysbus_init_mmio(sbd, &s->trng_regs_mr);
     memory_region_init_io(&s->key_base_mr, OBJECT(dev), &key_base_reg_ops, s,
-                          "sep.key_base", 0x10000); // KEY_BASE T8020
+                          "sep.key_base", 0x10000); // KEY_BASE T8030
     sysbus_init_mmio(sbd, &s->key_base_mr);
     if (s->chip_id == 0x8015) {
         memory_region_init_io(&s->key_fkey_mr, OBJECT(dev), &key_fkey_reg_ops,
@@ -3235,42 +3572,53 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
                               s, "sep.key_fcfg", 0x10000); // KEY_FCFG T8015
     } else if (s->chip_id >= 0x8020) {
         memory_region_init_io(&s->key_fcfg_mr, OBJECT(dev), &key_fcfg_reg_ops,
-                              s, "sep.key_fcfg", 0x18000); // KEY_FCFG T8020
+                              s, "sep.key_fcfg", 0x14000); // KEY_FCFG T8030
     }
     sysbus_init_mmio(sbd, &s->key_fcfg_mr);
     if (s->chip_id >= 0x8020) {
         memory_region_init_io(&s->moni_base_mr, OBJECT(dev), &moni_base_reg_ops,
-                              s, "sep.moni_base", 0x40000); // MONI_BASE T8020
+                              s, "sep.moni_base", 0x40000); // MONI_BASE T8030
         sysbus_init_mmio(sbd, &s->moni_base_mr);
         memory_region_init_io(&s->moni_thrm_mr, OBJECT(dev), &moni_thrm_reg_ops,
-                              s, "sep.moni_thrm", 0x10000); // MONI_THRM T8020
+                              s, "sep.moni_thrm", 0x10000); // MONI_THRM T8030
         sysbus_init_mmio(sbd, &s->moni_thrm_mr);
+        // EISP_BASE T8020/T8030
         memory_region_init_io(&s->eisp_base_mr, OBJECT(dev), &eisp_base_reg_ops,
-                              s, "sep.eisp_base", 0x240000); // EISP_BASE T8020
+                              s, "sep.eisp_base", 0x240000); 
         sysbus_init_mmio(sbd, &s->eisp_base_mr);
         memory_region_init_io(&s->eisp_hmac_mr, OBJECT(dev), &eisp_hmac_reg_ops,
-                              s, "sep.eisp_hmac", 0x4000); // EISP_HMAC T8020
+                              s, "sep.eisp_hmac", 0x4000); // EISP_HMAC T8030
         sysbus_init_mmio(sbd, &s->eisp_hmac_mr);
     }
     memory_region_init_io(&s->aess_base_mr, OBJECT(dev), &aess_base_reg_ops,
                           &s->aess_state, "sep.aess_base",
-                          0x10000); // AESS_BASE T8020
+                          0x10000); // AESS_BASE T8030
     sysbus_init_mmio(sbd, &s->aess_base_mr);
+    memory_region_init_io(&s->aesh_base_mr, OBJECT(dev), &aesh_base_reg_ops,
+                          s, "sep.aesh_base", 0x10000); // AESH_BASE T8030
+    sysbus_init_mmio(sbd, &s->aesh_base_mr);
     memory_region_init_io(&s->pka_base_mr, OBJECT(dev), &pka_base_reg_ops,
                           &s->pka_state, "sep.pka_base",
-                          0x10000); // PKA_BASE T8020
+                          0x10000); // PKA_BASE T8030
     sysbus_init_mmio(sbd, &s->pka_base_mr);
+    memory_region_init_io(&s->pka_tmm_mr, OBJECT(dev), &pka_tmm_reg_ops,
+                          s, "sep.pka_tmm", 0x4000); // PKA_TMM T8030
+    sysbus_init_mmio(sbd, &s->pka_tmm_mr);
     memory_region_init_io(&s->misc0_mr, OBJECT(dev), &misc0_reg_ops, s,
                           "sep.misc0", 0x4000);
     sysbus_init_mmio(sbd, &s->misc0_mr);
     memory_region_init_io(&s->misc2_mr, OBJECT(dev), &misc2_reg_ops, s,
                           "sep.misc2", 0x4000);
     sysbus_init_mmio(sbd, &s->misc2_mr);
-    memory_region_init_io(&s->misc4_mr, OBJECT(dev), &misc4_reg_ops, s,
-                          "sep.misc4",
-                          0x4000); // MISC4 ; was: MISC48 Sicily(T8101). now:
-                                   // Some encrypted data from SEPROM.
-    sysbus_init_mmio(sbd, &s->misc4_mr);
+    memory_region_init_io(&s->progress_mr, OBJECT(dev), &progress_reg_ops, s,
+                          "sep.progress",
+                          0x4000); // Some encrypted data from SEPROM.
+                                   // possibly progress counter like in
+                                   // SecureROM, but encrypted
+    sysbus_init_mmio(sbd, &s->progress_mr);
+    memory_region_init_io(&s->boot_monitor_mr, OBJECT(dev), &boot_monitor_reg_ops, s,
+                          "sep.boot_monitor", 0x4000); // MISC5 T8030 maybe boot monitor?
+    sysbus_init_mmio(sbd, &s->boot_monitor_mr);
 #ifdef SEP_ENABLE_DEBUG_TRACE_MAPPING
     // TODO: Let's think about something for T8015
     memory_region_init_io(&s->debug_trace_mr, OBJECT(dev), &debug_trace_reg_ops,
@@ -3294,7 +3642,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     if (s->chip_id == 0x8015) {
         sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x240F00000ull);
     } else {
-        sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x241480000ull);
+        sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x2414c0000ull); // T8030
     }
     s->aess_state.chip_id = s->chip_id;
 
@@ -3315,7 +3663,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     if (s->chip_id == 0x8015) {
         sysbus_mmio_map(i2c, 0, 0x240700000ull);
     } else {
-        sysbus_mmio_map(i2c, 0, 0x241440000ull);
+        sysbus_mmio_map(i2c, 0, 0x241480000ull); // T8030
     }
     sysbus_realize_and_unref(i2c, &error_fatal);
     uint64_t eeprom0_size = 64 * KiB;
@@ -3487,8 +3835,10 @@ static void map_sepfw(AppleSEPState *s)
     // clear lowest 0x4000 bytes as well, because they shouldn't contain any
     // valid data
     address_space_set(nsas, 0x0, 0, SEPFW_MAPPING_SIZE, MEMTXATTRS_UNSPECIFIED);
+#ifdef SEP_ENABLE_HARDCODED_FIRMWARE
     address_space_rw(nsas, 0x4000ULL, MEMTXATTRS_UNSPECIFIED,
                      (uint8_t *)s->sepfw_data, s->sep_fw_size, true);
+#endif
 }
 
 static void apple_sep_reset_hold(Object *obj, ResetType type)
@@ -3502,6 +3852,8 @@ static void apple_sep_reset_hold(Object *obj, ResetType type)
     if (sc->parent_phases.hold != NULL) {
         sc->parent_phases.hold(obj, type);
     }
+    s->key_fcfg_offset_0x14_index = 0;
+    memset(s->key_fcfg_offset_0x14_values, 0, sizeof(s->key_fcfg_offset_0x14_values));
     s->pmgr_fuse_changer_bit0_was_set = false;
     s->pmgr_fuse_changer_bit1_was_set = false;
     memset(s->pmgr_base_regs, 0, sizeof(s->pmgr_base_regs));
@@ -3513,10 +3865,13 @@ static void apple_sep_reset_hold(Object *obj, ResetType type)
     memset(s->eisp_base_regs, 0, sizeof(s->eisp_base_regs));
     memset(s->eisp_hmac_regs, 0, sizeof(s->eisp_hmac_regs));
     memset(s->aess_base_regs, 0, sizeof(s->aess_base_regs));
+    memset(s->aesh_base_regs, 0, sizeof(s->aesh_base_regs));
     memset(s->pka_base_regs, 0, sizeof(s->pka_base_regs));
+    memset(s->pka_tmm_regs, 0, sizeof(s->pka_tmm_regs));
     memset(s->misc0_regs, 0, sizeof(s->misc0_regs));
     memset(s->misc2_regs, 0, sizeof(s->misc2_regs));
-    memset(s->misc4_regs, 0, sizeof(s->misc4_regs));
+    memset(s->boot_monitor_regs, 0, sizeof(s->boot_monitor_regs));
+    memset(s->progress_regs, 0, sizeof(s->progress_regs));
     memset(s->debug_trace_regs, 0, sizeof(s->debug_trace_regs));
 
     aess_reset(&s->aess_state);

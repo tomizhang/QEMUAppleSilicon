@@ -215,10 +215,13 @@ struct AppleSEPState {
     MemoryRegion eisp_base_mr;
     MemoryRegion eisp_hmac_mr;
     MemoryRegion aess_base_mr;
+    MemoryRegion aesh_base_mr;
     MemoryRegion pka_base_mr;
+    MemoryRegion pka_tmm_mr;
     MemoryRegion misc0_mr;
     MemoryRegion misc2_mr;
-    MemoryRegion misc4_mr;
+    MemoryRegion progress_mr;
+    MemoryRegion boot_monitor_mr;
     MemoryRegion debug_trace_mr;
     uint8_t pmgr_base_regs[REG_SIZE];
     uint8_t key_base_regs[REG_SIZE];
@@ -229,10 +232,13 @@ struct AppleSEPState {
     uint8_t eisp_base_regs[REG_SIZE];
     uint8_t eisp_hmac_regs[REG_SIZE];
     uint8_t aess_base_regs[REG_SIZE];
+    uint8_t aesh_base_regs[REG_SIZE];
     uint8_t pka_base_regs[REG_SIZE];
+    uint8_t pka_tmm_regs[REG_SIZE];
     uint8_t misc0_regs[REG_SIZE];
     uint8_t misc2_regs[REG_SIZE];
-    uint8_t misc4_regs[REG_SIZE];
+    uint8_t progress_regs[REG_SIZE];
+    uint8_t boot_monitor_regs[REG_SIZE];
     uint8_t debug_trace_regs[DEBUG_TRACE_SIZE]; // 0x10000
     QEMUTimer *timer;
     AppleTRNGState trng_state;
@@ -251,6 +257,8 @@ struct AppleSEPState {
     gchar *sepfw_data;
     bool pmgr_fuse_changer_bit0_was_set;
     bool pmgr_fuse_changer_bit1_was_set;
+    uint8_t key_fcfg_offset_0x14_index;
+    uint16_t key_fcfg_offset_0x14_values[5];
 };
 
 AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
