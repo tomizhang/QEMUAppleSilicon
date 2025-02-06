@@ -398,11 +398,10 @@ static uint64_t aes_security_reg_read(void *opaque, hwaddr addr, unsigned size)
         // << 2) | (1 << 1) | (0 << 0); // panic "AppleS8000AESAccelerator::AES
         // Error: IntStatus 0x0x2021\n" return (1 << 2) | (1 << 1) | (1 << 0);
         // // no panic
-        //return (1 << 2) | (1 << 0);
-        return 0xFF; // (val & 0xf)
+        return (1 << 2) | (1 << 0);
+        //return 0xFF; // (val & 0xf)
     case 0x20: // board-id
-        // return 0x4;
-        return s->board_id; // (val & 0x1f)
+        return s->board_id & 0x1f; // (val & 0x1f)
     case 0x30: // unknown1
         return 0x00;
         //return 0xFF; // many various flags // might cause sep skgs errors "panic(cpu 0 caller 0xfffffff008b69bb0): SEP Panic: :skg /skgs: 0x00017190 0x000169f8 0x000169d8 0x00011c2c 0x00011998 0x00013198 0x0000b98c 0x000160e8 [hnhpg]"
@@ -717,6 +716,8 @@ SysBusDevice *apple_aes_create(DTBNode *node, uint32_t board_id)
     dev = qdev_new(TYPE_APPLE_AES);
     s = APPLE_AES(dev);
     sbd = SYS_BUS_DEVICE(dev);
+
+    s->board_id = board_id;
 
     prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);

@@ -184,7 +184,23 @@ struct AppleSSCState {
     // bool cmd_0x7_called;
 };
 
-#define REG_SIZE (0x10000)
+#define PMGR_BASE_REG_SIZE (0x10000)
+#define TRNG_REGS_REG_SIZE (0x10000)
+#define KEY_BASE_REG_SIZE (0x10000)
+// #define KEY_FKEY_REG_SIZE (0x4000) // T8015
+#define KEY_FCFG_REG_SIZE (0x14000) // T8030 ; T8015 size is 0x10000
+#define MONI_BASE_REG_SIZE (0x40000)
+#define MONI_THRM_REG_SIZE (0x10000)
+#define EISP_BASE_REG_SIZE (0x240000)
+#define EISP_HMAC_REG_SIZE (0x4000)
+#define AESS_BASE_REG_SIZE (0x10000)
+#define AESH_BASE_REG_SIZE (0x10000)
+#define PKA_BASE_REG_SIZE (0x10000)
+#define PKA_TMM_REG_SIZE (0x4000)
+#define MISC0_REG_SIZE (0x4000) // ?
+#define MISC2_REG_SIZE (0x4000) // ?
+#define PROGRESS_REG_SIZE (0x4000) // ?
+#define BOOT_MONITOR_REG_SIZE (0x4000) // ?
 
 struct AppleSEPClass {
     /*< private >*/
@@ -208,7 +224,6 @@ struct AppleSEPState {
     MemoryRegion pmgr_base_mr;
     MemoryRegion trng_regs_mr;
     MemoryRegion key_base_mr;
-    MemoryRegion key_fkey_mr;
     MemoryRegion key_fcfg_mr;
     MemoryRegion moni_base_mr;
     MemoryRegion moni_thrm_mr;
@@ -223,22 +238,21 @@ struct AppleSEPState {
     MemoryRegion progress_mr;
     MemoryRegion boot_monitor_mr;
     MemoryRegion debug_trace_mr;
-    uint8_t pmgr_base_regs[REG_SIZE];
-    uint8_t key_base_regs[REG_SIZE];
-    uint8_t key_fkey_regs[REG_SIZE];
-    uint8_t key_fcfg_regs[REG_SIZE];
-    uint8_t moni_base_regs[REG_SIZE];
-    uint8_t moni_thrm_regs[REG_SIZE];
-    uint8_t eisp_base_regs[REG_SIZE];
-    uint8_t eisp_hmac_regs[REG_SIZE];
-    uint8_t aess_base_regs[REG_SIZE];
-    uint8_t aesh_base_regs[REG_SIZE];
-    uint8_t pka_base_regs[REG_SIZE];
-    uint8_t pka_tmm_regs[REG_SIZE];
-    uint8_t misc0_regs[REG_SIZE];
-    uint8_t misc2_regs[REG_SIZE];
-    uint8_t progress_regs[REG_SIZE];
-    uint8_t boot_monitor_regs[REG_SIZE];
+    uint8_t pmgr_base_regs[PMGR_BASE_REG_SIZE];
+    uint8_t key_base_regs[KEY_BASE_REG_SIZE];
+    uint8_t key_fcfg_regs[KEY_FCFG_REG_SIZE];
+    uint8_t moni_base_regs[MONI_BASE_REG_SIZE];
+    uint8_t moni_thrm_regs[MONI_THRM_REG_SIZE];
+    uint8_t eisp_base_regs[EISP_BASE_REG_SIZE];
+    uint8_t eisp_hmac_regs[EISP_HMAC_REG_SIZE];
+    uint8_t aess_base_regs[AESS_BASE_REG_SIZE];
+    uint8_t aesh_base_regs[AESH_BASE_REG_SIZE];
+    uint8_t pka_base_regs[PKA_BASE_REG_SIZE];
+    uint8_t pka_tmm_regs[PKA_TMM_REG_SIZE];
+    uint8_t misc0_regs[MISC0_REG_SIZE];
+    uint8_t misc2_regs[MISC2_REG_SIZE];
+    uint8_t progress_regs[PROGRESS_REG_SIZE];
+    uint8_t boot_monitor_regs[PROGRESS_REG_SIZE];
     uint8_t debug_trace_regs[DEBUG_TRACE_SIZE]; // 0x10000
     QEMUTimer *timer;
     AppleTRNGState trng_state;

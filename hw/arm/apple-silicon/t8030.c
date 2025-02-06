@@ -619,7 +619,7 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         // uint32_t value32_mov_w0_0x10000000 = 0x52a20000;
         // uint32_t value32_mov_w0_0 = 0x52800000; // mov w0, #0x0
         // uint32_t value32_mov_w8_0x1000 = 0x52820008;
-#if 1 // for T8020 SEPROM
+#if 1 // for T8030 SEPROM
       // _entry: prevent busy-loop (data section):
       // 240000024: data_242140108 = 0x4 should set
       // (data_242140108 & 0x8000000000000000) != 0
@@ -706,7 +706,7 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         // memcmp_validstrs20: fake success
         // address_space_write(nsas, T8030_SEPROM_BASE + 0x02A04,
         // MEMTXATTRS_UNSPECIFIED, &value32_mov_x0_0, sizeof(value32_mov_x0_0));
-#endif // for T8020 SEPROM
+#endif // for T8030 SEPROM
     }
 
     nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
@@ -943,7 +943,7 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         QEMU_FALLTHROUGH;
     case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO?
                      // AppleSEPROM-A12-D331pAP
-        return (board_id & 0x7) | ((security_epoch & 0x7f) << 5) |
+        return ((board_id >> 5) & 0x7) | ((security_epoch & 0x7f) << 5) |
                sep_bit30_current_value | (1 << 31);
         // (security epoch & 0x7F) << 5 ;; (sep_bit30 << 30)
         // for SEP | (1 << 31) for SEP and AP
@@ -972,11 +972,9 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
                          // bit1 being set causes kernel data abort
     case 0x3D2BC100: // ECID LOW T8020
     case 0x3D2BC300: // TODO
-    case 0x352bc080: // ECID LOW T8015
         return t8030_machine->ecid & 0xffffffff; // ECID lower
     case 0x3D2BC104: // ECID HIGH T8020
     case 0x3D2BC304: // TODO
-    case 0x352bc084: // ECID HIGH T8015
         return t8030_machine->ecid >> 32; // ECID upper
     case 0x3D2BC10c: // T8020 SEP Chip Revision?
         // case 0x3D2BC30c: // Maybe the T8030 SEP equivalent?
@@ -999,17 +997,6 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x3D2E4000 ... 0x3D2E417f: // ???? 0x24000377c
         return pmgr_unk_e4000[((base + addr) - 0x3D2E4000) / 4]; // 0x24000377c
     ///
-    /* BEGIN: for T8015 */
-    case 0x352bc000: // CURRENT_PROD T8015 AP
-        return (current_prod << 0) | (current_secure_mode << 1) |
-               ((security_domain & 3) << 2) | ((board_id & 7) << 4) |
-               ((security_epoch & 0x7f) << 9);
-    case 0x352bc200: // RAW_PROD T8015 AP
-        return (raw_prod << 0) | (raw_secure_mode << 1);
-    case 0x352bc018: // CPRV (Chip Revision) T8015
-        return ((chip_revision & 0x7) << 8) |
-               (((chip_revision & 0x70) >> 4) << 11);
-    /* END: for T8015 */
     case 0x3c100c4c: // Could that also have been for T8015? No idea anymore.
         return 0x1;
     ///
@@ -1150,7 +1137,10 @@ static uint64_t amcc_reg_read(void *opaque, hwaddr addr, unsigned size)
         result = 0x1;
         break;
     case 0x4:
-        result = 0xcf;
+    case 0x40004:
+    case 0x80004:
+    case 0xc0004:
+        result = 0x2f;
         break;
     default: {
         memcpy(&result, t8030_machine->amcc_reg + addr, size);
@@ -2223,7 +2213,7 @@ static void t8030_create_sep(T8030MachineState *t8030_machine)
                         0x41280000); // encrypted progress counter T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 16,
                     t8030_machine->soc_base_pa +
-                        0x41500000); // ; boot monitor T8030
+                        0x41500000); // boot monitor T8030
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
@@ -2522,7 +2512,7 @@ static void t8030_machine_init(MachineState *machine)
     // acceleration on T8030. It also gives us AGX-compressed data in the
     // Display Pipes, which we don't know how to decompress yet.
     dtb_set_prop_u32(child, "chip-id", 0x8015);
-    t8030_machine->board_id = 0x4; // Match with apple_aes.c
+    t8030_machine->board_id = 0x4;
     dtb_set_prop_u32(child, "board-id", t8030_machine->board_id);
     dtb_set_prop_u32(child, "certificate-production-status", 1);
     dtb_set_prop_u32(child, "certificate-security-mode", 1);

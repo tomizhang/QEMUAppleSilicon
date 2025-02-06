@@ -1371,72 +1371,6 @@ static const MemoryRegionOps key_base_reg_ops = {
 };
 
 
-static void key_fkey_reg_write(void *opaque, hwaddr addr, uint64_t data,
-                               unsigned size)
-{
-    AppleSEPState *s = APPLE_SEP(opaque);
-
-#ifdef ENABLE_CPU_DUMP_STATE
-    cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
-#endif
-    switch (addr) {
-    case 0x8:
-        if ((data & 1) != 0) {
-            uint64_t cmd = (data >> 8) & 0xff;
-            qemu_log_mask(LOG_UNIMP,
-                          "SEP KEY_FKEY: Offset 0x" HWADDR_FMT_plx
-                          ": Execute Command: cmd 0x%" PRIx64 "\n",
-                          addr, cmd);
-        }
-        goto jump_default;
-    default:
-    jump_default:
-        memcpy(&s->key_fkey_regs[addr], &data, size);
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP KEY_FKEY: Unknown write at 0x" HWADDR_FMT_plx
-                      " with value 0x%" PRIx64 "\n",
-                      addr, data);
-        break;
-    }
-}
-
-static uint64_t key_fkey_reg_read(void *opaque, hwaddr addr, unsigned size)
-{
-    AppleSEPState *s = APPLE_SEP(opaque);
-    uint64_t ret = 0;
-
-#ifdef ENABLE_CPU_DUMP_STATE
-    cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
-#endif
-    switch (addr) {
-    case 0x4:
-        ((uint32_t *)s->key_fkey_regs)[addr / 4] = (1 << 0);
-        goto jump_default;
-    default:
-    jump_default:
-        memcpy(&ret, &s->key_fkey_regs[addr], size);
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP KEY_FKEY: Unknown read at 0x" HWADDR_FMT_plx
-                      " size=%u ret==0x%" PRIx64 "\n",
-                      addr, size, ret);
-        break;
-    }
-
-    return ret;
-}
-
-static const MemoryRegionOps key_fkey_reg_ops = {
-    .write = key_fkey_reg_write,
-    .read = key_fkey_reg_read,
-    .endianness = DEVICE_NATIVE_ENDIAN,
-    .valid.min_access_size = 4,
-    .valid.max_access_size = 4,
-    .impl.min_access_size = 4,
-    .impl.max_access_size = 4,
-    .valid.unaligned = false,
-};
-
-
 static void key_fcfg_reg_write(void *opaque, hwaddr addr, uint64_t data,
                                unsigned size)
 {
@@ -3187,9 +3121,10 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
                 // ASLR. GDB's awatch refuses to tell me where it ends up, so
                 // here you go, I'm just zeroing that shit. == This disables
                 // ASLR for SEPOS apps
+                // Future iOS versions might use more than 16 bytes, so zero
+                // the whole field here.
 #ifdef SEP_DISABLE_ASLR
-                //address_space_set(nsas, phys_addr, 0, 0x40,
-                address_space_set(nsas, phys_addr, 0, 16,
+                address_space_set(nsas, phys_addr, 0, 0x40,
                                   MEMTXATTRS_UNSPECIFIED); // phys_SEPB + 0x80;
                                                            // pc==0x240005BAC
 #endif
@@ -3522,6 +3457,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
         s->trace_buffer_base_offset = 0x10000;
         s->debug_trace_size = 0x10000;
     } else if (s->chip_id == 0x8015) {
+        g_assert_not_reached();
         s->shmbuf_base = 0; // is dynamic
         s->trace_buffer_base_offset = 0x10000;
         s->debug_trace_size = 0x10000;
@@ -3555,69 +3491,58 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     // AKF_MBOX reg is handled using the device tree
     // XPRT_{PMSC,FUSE,MISC} regs are handled in t8030.c
     memory_region_init_io(&s->pmgr_base_mr, OBJECT(dev), &pmgr_base_reg_ops, s,
-                          "sep.pmgr_base", 0x10000); // PMGR_BASE T8030
+                          "sep.pmgr_base", PMGR_BASE_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->pmgr_base_mr);
     memory_region_init_io(&s->trng_regs_mr, OBJECT(dev), &trng_regs_reg_ops,
                           &s->trng_state, "sep.trng_regs",
-                          0x10000); // TRNG_REGS T8030
+                          TRNG_REGS_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->trng_regs_mr);
     memory_region_init_io(&s->key_base_mr, OBJECT(dev), &key_base_reg_ops, s,
-                          "sep.key_base", 0x10000); // KEY_BASE T8030
+                          "sep.key_base", KEY_BASE_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->key_base_mr);
-    if (s->chip_id == 0x8015) {
-        memory_region_init_io(&s->key_fkey_mr, OBJECT(dev), &key_fkey_reg_ops,
-                              s, "sep.key_fkey", 0x4000); // KEY_FKEY T8015
-        sysbus_init_mmio(sbd, &s->key_fkey_mr);
-        memory_region_init_io(&s->key_fcfg_mr, OBJECT(dev), &key_fcfg_reg_ops,
-                              s, "sep.key_fcfg", 0x10000); // KEY_FCFG T8015
-    } else if (s->chip_id >= 0x8020) {
-        memory_region_init_io(&s->key_fcfg_mr, OBJECT(dev), &key_fcfg_reg_ops,
-                              s, "sep.key_fcfg", 0x14000); // KEY_FCFG T8030
-    }
+    memory_region_init_io(&s->key_fcfg_mr, OBJECT(dev), &key_fcfg_reg_ops,
+                          s, "sep.key_fcfg", KEY_FCFG_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->key_fcfg_mr);
-    if (s->chip_id >= 0x8020) {
-        memory_region_init_io(&s->moni_base_mr, OBJECT(dev), &moni_base_reg_ops,
-                              s, "sep.moni_base", 0x40000); // MONI_BASE T8030
-        sysbus_init_mmio(sbd, &s->moni_base_mr);
-        memory_region_init_io(&s->moni_thrm_mr, OBJECT(dev), &moni_thrm_reg_ops,
-                              s, "sep.moni_thrm", 0x10000); // MONI_THRM T8030
-        sysbus_init_mmio(sbd, &s->moni_thrm_mr);
-        // EISP_BASE T8020/T8030
-        memory_region_init_io(&s->eisp_base_mr, OBJECT(dev), &eisp_base_reg_ops,
-                              s, "sep.eisp_base", 0x240000); 
-        sysbus_init_mmio(sbd, &s->eisp_base_mr);
-        memory_region_init_io(&s->eisp_hmac_mr, OBJECT(dev), &eisp_hmac_reg_ops,
-                              s, "sep.eisp_hmac", 0x4000); // EISP_HMAC T8030
-        sysbus_init_mmio(sbd, &s->eisp_hmac_mr);
-    }
+    memory_region_init_io(&s->moni_base_mr, OBJECT(dev), &moni_base_reg_ops,
+                          s, "sep.moni_base", MONI_BASE_REG_SIZE); // T8030
+    sysbus_init_mmio(sbd, &s->moni_base_mr);
+    memory_region_init_io(&s->moni_thrm_mr, OBJECT(dev), &moni_thrm_reg_ops,
+                          s, "sep.moni_thrm", MONI_THRM_REG_SIZE); // T8030
+    sysbus_init_mmio(sbd, &s->moni_thrm_mr);
+    // EISP_BASE T8020/T8030
+    memory_region_init_io(&s->eisp_base_mr, OBJECT(dev), &eisp_base_reg_ops,
+                          s, "sep.eisp_base", EISP_BASE_REG_SIZE);
+    sysbus_init_mmio(sbd, &s->eisp_base_mr);
+    memory_region_init_io(&s->eisp_hmac_mr, OBJECT(dev), &eisp_hmac_reg_ops,
+                          s, "sep.eisp_hmac", EISP_HMAC_REG_SIZE); // T8030
+    sysbus_init_mmio(sbd, &s->eisp_hmac_mr);
     memory_region_init_io(&s->aess_base_mr, OBJECT(dev), &aess_base_reg_ops,
                           &s->aess_state, "sep.aess_base",
-                          0x10000); // AESS_BASE T8030
+                          AESS_BASE_REG_SIZE); // AESS_BASE T8030
     sysbus_init_mmio(sbd, &s->aess_base_mr);
     memory_region_init_io(&s->aesh_base_mr, OBJECT(dev), &aesh_base_reg_ops,
-                          s, "sep.aesh_base", 0x10000); // AESH_BASE T8030
+                          s, "sep.aesh_base", AESH_BASE_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->aesh_base_mr);
     memory_region_init_io(&s->pka_base_mr, OBJECT(dev), &pka_base_reg_ops,
                           &s->pka_state, "sep.pka_base",
-                          0x10000); // PKA_BASE T8030
+                          PKA_BASE_REG_SIZE); // PKA_BASE T8030
     sysbus_init_mmio(sbd, &s->pka_base_mr);
     memory_region_init_io(&s->pka_tmm_mr, OBJECT(dev), &pka_tmm_reg_ops,
-                          s, "sep.pka_tmm", 0x4000); // PKA_TMM T8030
+                          s, "sep.pka_tmm", PKA_TMM_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->pka_tmm_mr);
     memory_region_init_io(&s->misc0_mr, OBJECT(dev), &misc0_reg_ops, s,
-                          "sep.misc0", 0x4000);
+                          "sep.misc0", MISC0_REG_SIZE);
     sysbus_init_mmio(sbd, &s->misc0_mr);
     memory_region_init_io(&s->misc2_mr, OBJECT(dev), &misc2_reg_ops, s,
-                          "sep.misc2", 0x4000);
+                          "sep.misc2", MISC2_REG_SIZE);
     sysbus_init_mmio(sbd, &s->misc2_mr);
     memory_region_init_io(&s->progress_mr, OBJECT(dev), &progress_reg_ops, s,
                           "sep.progress",
-                          0x4000); // Some encrypted data from SEPROM.
-                                   // possibly progress counter like in
-                                   // SecureROM, but encrypted
+                          PROGRESS_REG_SIZE); // Encrypted progress counter?
     sysbus_init_mmio(sbd, &s->progress_mr);
-    memory_region_init_io(&s->boot_monitor_mr, OBJECT(dev), &boot_monitor_reg_ops, s,
-                          "sep.boot_monitor", 0x4000); // MISC5 T8030 maybe boot monitor?
+    memory_region_init_io(&s->boot_monitor_mr, OBJECT(dev),
+                          &boot_monitor_reg_ops, s,
+                          "sep.boot_monitor", BOOT_MONITOR_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->boot_monitor_mr);
 #ifdef SEP_ENABLE_DEBUG_TRACE_MAPPING
     // TODO: Let's think about something for T8015
@@ -3625,9 +3550,8 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
                           s, "sep.debug_trace",
                           s->debug_trace_size); // Debug trace printing
     sysbus_init_mmio(sbd, &s->debug_trace_mr);
-    if (s->chip_id >= 0x8020) {
-        memory_region_add_subregion(&APPLE_A13(s->cpu)->memory, s->shmbuf_base + s->trace_buffer_base_offset, &s->debug_trace_mr);
-    }
+    memory_region_add_subregion(&APPLE_A13(s->cpu)->memory, s->shmbuf_base +
+                                s->trace_buffer_base_offset, &s->debug_trace_mr);
 #endif
     DTBNode *child = dtb_get_node(node, "iop-sep-nub");
     g_assert_nonnull(child);
@@ -3639,11 +3563,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     gpio = apple_custom_gpio_create((char *)"sep_gpio", 0x10000, sep_gpio_pins,
                                     sep_gpio_int_groups);
     g_assert_nonnull(gpio);
-    if (s->chip_id == 0x8015) {
-        sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x240F00000ull);
-    } else {
-        sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x2414c0000ull); // T8030
-    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x2414c0000ull); // T8030
     s->aess_state.chip_id = s->chip_id;
 
     for (i = 0; i < sep_gpio_int_groups; i++) {
@@ -3660,11 +3580,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     i2c = apple_i2c_create("sep_i2c");
     g_assert_nonnull(i2c);
     object_property_add_child(OBJECT(machine), "sep_i2c", OBJECT(i2c));
-    if (s->chip_id == 0x8015) {
-        sysbus_mmio_map(i2c, 0, 0x240700000ull);
-    } else {
-        sysbus_mmio_map(i2c, 0, 0x241480000ull); // T8030
-    }
+    sysbus_mmio_map(i2c, 0, 0x241480000ull); // T8030
     sysbus_realize_and_unref(i2c, &error_fatal);
     uint64_t eeprom0_size = 64 * KiB;
     if (s->chip_id >= 0x8020) {
@@ -3858,7 +3774,6 @@ static void apple_sep_reset_hold(Object *obj, ResetType type)
     s->pmgr_fuse_changer_bit1_was_set = false;
     memset(s->pmgr_base_regs, 0, sizeof(s->pmgr_base_regs));
     memset(s->key_base_regs, 0, sizeof(s->key_base_regs));
-    memset(s->key_fkey_regs, 0, sizeof(s->key_fkey_regs));
     memset(s->key_fcfg_regs, 0, sizeof(s->key_fcfg_regs));
     memset(s->moni_base_regs, 0, sizeof(s->moni_base_regs));
     memset(s->moni_thrm_regs, 0, sizeof(s->moni_thrm_regs));
