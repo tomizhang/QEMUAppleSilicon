@@ -3549,10 +3549,10 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     memory_region_init_io(&s->debug_trace_mr, OBJECT(dev), &debug_trace_reg_ops,
                           s, "sep.debug_trace",
                           s->debug_trace_size); // Debug trace printing
-    sysbus_init_mmio(sbd, &s->debug_trace_mr);
     memory_region_add_subregion(&APPLE_A13(s->cpu)->memory, s->shmbuf_base +
                                 s->trace_buffer_base_offset, &s->debug_trace_mr);
 #endif
+
     DTBNode *child = dtb_get_node(node, "iop-sep-nub");
     g_assert_nonnull(child);
 

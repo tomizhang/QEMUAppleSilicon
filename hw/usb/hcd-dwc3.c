@@ -425,7 +425,7 @@ static int dwc3_bd_copy(DWC3State *s, DWC3BufferDesc *desc, USBPacket *p)
 
     buffer = g_malloc0(xfer_size);
     if (buffer == NULL) {
-        qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x\n", __func__, xfer_size);
+        //qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x\n", __func__, xfer_size);
     }
     if (p->pid == USB_TOKEN_IN) {
 #if 1
@@ -466,7 +466,7 @@ static int dwc3_bd_copy(DWC3State *s, DWC3BufferDesc *desc, USBPacket *p)
         packet_left % p->ep->max_packet_size == 0) {
         p->status = USB_RET_SUCCESS;
         if (buffer == NULL) {
-            qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x if_0: USB_RET_SUCCESS\n", __func__, xfer_size);
+            //qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x if_0: USB_RET_SUCCESS\n", __func__, xfer_size);
         }
         //dwc3_bd_unmap(s, desc); // please uncomment this only if you know what you're doing, unlike me. breaks right clicks in vnc over ssh, by leading to null-pointer crashes in glibc.
         return xfer_size;
@@ -476,7 +476,7 @@ static int dwc3_bd_copy(DWC3State *s, DWC3BufferDesc *desc, USBPacket *p)
     if (dwc3_bd_writeback(s, desc, p, actual_xfer < xfer_size)) {
         p->status = USB_RET_SUCCESS;
         if (buffer == NULL) {
-            qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x if_1: USB_RET_SUCCESS; actual_xfer < xfer_size %u ; actual_xfer %u ; xfer_size %u\n", __func__, xfer_size, actual_xfer < xfer_size, actual_xfer, xfer_size);
+            //qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x if_1: USB_RET_SUCCESS; actual_xfer < xfer_size %u ; actual_xfer %u ; xfer_size %u\n", __func__, xfer_size, actual_xfer < xfer_size, actual_xfer, xfer_size);
         }
     } else {
         if (desc->trbs[0].ctrl & TRB_CTRL_LST) {
@@ -490,7 +490,7 @@ static int dwc3_bd_copy(DWC3State *s, DWC3BufferDesc *desc, USBPacket *p)
             p->status = USB_RET_SUCCESS; // fixes hangs for idevicesyslog and error disconnects when running "launchctl list" or "htop"/"top" using ssh, because iOS likes to send empty packets on high load (when transporting a lot of data out of iOS).
         }
         if (buffer == NULL) {
-            qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x if_1: USB_RET_ASYNC\n", __func__, xfer_size);
+            //qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x if_1: USB_RET_ASYNC\n", __func__, xfer_size);
         }
     }
     //

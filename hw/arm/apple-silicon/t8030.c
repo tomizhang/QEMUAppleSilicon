@@ -976,17 +976,18 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x3D2BC104: // ECID HIGH T8020
     case 0x3D2BC304: // TODO
         return t8030_machine->ecid >> 32; // ECID upper
-    case 0x3D2BC10c: // T8020 SEP Chip Revision?
+    case 0x3D2BC10C: // T8020 SEP Chip Revision
+    case 0x3D2BC30C: // T8030 SEP Chip Revision
         // case 0x3D2BC30c: // Maybe the T8030 SEP equivalent?
         //  1 vs. not 1: TRNG/Monitor
         //  0 vs. not 0: Monitor
         //  2 vs. not 2: ARTM
         //  Production SARS doesn't like value (0 << 28) in combination with
         //  kbkdf_index being 0
-        // return 0; // 0
+        // return 0 << 28; // 0 ; might be the production value
         // return 2 << 28; // 1
         // return 3 << 28; // 1
-        return 8 << 28; // 2
+        return 8 << 28; // 2 ; might be a development value, skips a few checks (lynx and others)
     case 0x3D2E8000: // ????
         // return 0x32B3; // memory encryption AMK (Authentication Master Key)
         // disabled
