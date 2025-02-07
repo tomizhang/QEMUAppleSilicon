@@ -197,7 +197,6 @@ SysBusDevice *apple_ans_create(DTBNode *node, AppleA7IOPVersion version,
     DTBNode *child;
     DTBProp *prop;
     uint64_t *reg;
-    uint32_t data;
     MemoryRegion *alias;
 
     dev = qdev_new(TYPE_APPLE_ANS);
@@ -207,7 +206,7 @@ SysBusDevice *apple_ans_create(DTBNode *node, AppleA7IOPVersion version,
     pex = PCIE_HOST_BRIDGE(dev);
 
     prop = dtb_find_prop(node, "reg");
-    assert(prop);
+    g_assert_nonnull(prop);
 
     reg = (uint64_t *)prop->data;
 
@@ -229,14 +228,14 @@ SysBusDevice *apple_ans_create(DTBNode *node, AppleA7IOPVersion version,
     sysbus_init_irq(sbd, &s->irq);
 
     child = dtb_get_node(node, "iop-ans-nub");
-    assert(child);
+    g_assert_nonnull(child);
 
     dtb_set_prop_u32(child, "pre-loaded", 1);
     dtb_set_prop_u32(child, "running", 1);
 
     object_initialize_child(OBJECT(dev), "nvme", &s->nvme, TYPE_NVME);
 
-    object_property_set_str(OBJECT(&s->nvme), "serial", "QEMUAPPLESILICONANS",
+    object_property_set_str(OBJECT(&s->nvme), "serial", "ChefKiss-ANS",
                             &error_fatal);
     object_property_set_bool(OBJECT(&s->nvme), "is-apple-ans", true,
                              &error_fatal);
@@ -309,11 +308,10 @@ static void apple_ans_class_init(ObjectClass *klass, void *data)
 
     dc->realize = apple_ans_realize;
     dc->unrealize = apple_ans_unrealize;
-    /* device_class_set_legacy_reset(dc, apple_ans_reset); */
-    dc->desc = "Apple ANS NVMe";
+    // device_class_set_legacy_reset(dc, apple_ans_reset); 
+    dc->desc = "Apple NAND Storage (ANS)";
     dc->vmsd = &vmstate_apple_ans;
     set_bit(DEVICE_CATEGORY_BRIDGE, dc->categories);
-    dc->fw_name = "pci";
 }
 
 static const TypeInfo apple_ans_info = {

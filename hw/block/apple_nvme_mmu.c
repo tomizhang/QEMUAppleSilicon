@@ -47,7 +47,7 @@ SysBusDevice *apple_nvme_mmu_create(DTBNode *node)
 
     object_initialize_child(OBJECT(dev), "nvme", &s->nvme, TYPE_NVME);
 
-    object_property_set_str(OBJECT(&s->nvme), "serial", "QEMUAppleSiliconNVMe",
+    object_property_set_str(OBJECT(&s->nvme), "serial", "ChefKiss-NVMeMMU",
                             &error_fatal);
     object_property_set_uint(OBJECT(&s->nvme), "max_ioqpairs", 7, &error_fatal);
     object_property_set_uint(OBJECT(&s->nvme), "mdts", 8, &error_fatal);

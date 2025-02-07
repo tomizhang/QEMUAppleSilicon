@@ -987,7 +987,8 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         // return 0 << 28; // 0 ; might be the production value
         // return 2 << 28; // 1
         // return 3 << 28; // 1
-        return 8 << 28; // 2 ; might be a development value, skips a few checks (lynx and others)
+        return 8 << 28; // 2 ; might be a development value, skips a few checks
+                        // (lynx and others)
     case 0x3D2E8000: // ????
         // return 0x32B3; // memory encryption AMK (Authentication Master Key)
         // disabled
@@ -1904,8 +1905,7 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
     segranges[1].phys = segranges[0].phys + segranges[0].size;
     segranges[1].virt = segranges[0].size;
     segranges[1].remap = segranges[1].phys;
-    segranges[1].size =
-        segranges[0].size - smc_region_size - T8030_SMC_SRAM_SIZE;
+    segranges[1].size = smc_region_size - segranges[0].size - T8030_SMC_SRAM_SIZE;
     segranges[1].flag = 0x0;
 
     dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
@@ -2191,7 +2191,7 @@ static void t8030_create_sep(T8030MachineState *t8030_machine)
                     t8030_machine->soc_base_pa + 0x413c0000); // MONI_BASE T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 6,
                     t8030_machine->soc_base_pa + 0x41400000); // MONI_THRM T8030
-     // EISP_BASE T8020/T8030
+    // EISP_BASE T8020/T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 7,
                     t8030_machine->soc_base_pa + 0x40800000);
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 8,
