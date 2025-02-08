@@ -72,22 +72,6 @@
 #define CFG_FUNC1 (INPUT_ENABLE | FUNC_ALT1 | INT_MASKED)
 #define CFG_FUNC2 (INPUT_ENABLE | FUNC_ALT2 | INT_MASKED)
 
-static inline unsigned long find_first_bit32(const uint32_t *addr,
-                                             unsigned long size)
-{
-    unsigned long result, tmp;
-
-    for (result = 0; result < size;
-         result += (BITS_PER_BYTE * sizeof(uint32_t))) {
-        tmp = *addr++;
-        if (tmp) {
-            result += ctz32(tmp);
-            return result < size ? result : size;
-        }
-    }
-    return size;
-}
-
 static void apple_gpio_update_pincfg(AppleGPIOState *s, int pin, uint32_t value)
 {
     if ((value & INT_MASKED) != INT_MASKED) {

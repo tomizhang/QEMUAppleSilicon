@@ -136,15 +136,12 @@ static void apple_aic_update(AppleAICState *s)
     }
 
     i = -1;
-    while ((i = find_next_bit((unsigned long *)s->eir_state, s->numIRQ,
-                              i + 1)) < s->numIRQ) {
+    while ((i = find_next_bit32(s->eir_state, s->numIRQ, i + 1)) < s->numIRQ) {
         int dest;
-        if ((test_bit(i, (unsigned long *)s->eir_mask) == 0) &&
-            (dest = s->eir_dest[i])) {
+        if ((test_bit32(i, s->eir_mask) == 0) && (dest = s->eir_dest[i])) {
             if (((intr & dest) == 0)) {
                 /* The interrupt doesn't have a cpu that can process it yet */
-                uint32_t cpu =
-                    find_first_bit((unsigned long *)&s->eir_dest[i], s->numCPU);
+                uint32_t cpu = find_first_bit32(&s->eir_dest[i], s->numCPU);
                 intr |= (1 << cpu);
                 potential |= dest;
             } else {
@@ -177,9 +174,9 @@ static void apple_aic_set_irq(void *opaque, int irq, int level)
 
     trace_aic_set_irq(irq, level);
     if (level) {
-        set_bit(irq, (unsigned long *)s->eir_state);
+        set_bit32(irq, s->eir_state);
     } else {
-        clear_bit(irq, (unsigned long *)s->eir_state);
+        clear_bit32(irq, s->eir_state);
     }
 }
 
@@ -238,7 +235,7 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
 
         for (i = 0; i < s->numCPU; i++) {
             if (val & (1 << i)) {
-                set_bit(o->cpu_id, (unsigned long *)&s->cpus[i].pendingIPI);
+                set_bit32(o->cpu_id, &s->cpus[i].pendingIPI);
                 if (~s->cpus[i].ipi_mask & AIC_IPI_NORMAL) {
                     qemu_irq_raise(s->cpus[i].irq);
                 }
@@ -258,7 +255,7 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
 
         for (i = 0; i < s->numCPU; i++) {
             if (val & (1 << i)) {
-                clear_bit(o->cpu_id, (unsigned long *)&s->cpus[i].pendingIPI);
+                clear_bit32(o->cpu_id, &s->cpus[i].pendingIPI);
             }
         }
 
@@ -278,7 +275,7 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
 
         for (i = 0; i < s->numCPU; i++) {
             if (val & (1 << i)) {
-                set_bit(o->cpu_id, (unsigned long *)&s->cpus[i].deferredIPI);
+                set_bit32(o->cpu_id, &s->cpus[i].deferredIPI);
             }
         }
 
@@ -292,7 +289,7 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
 
         for (i = 0; i < s->numCPU; i++) {
             if (val & (1 << i)) {
-                clear_bit(o->cpu_id, (unsigned long *)&s->cpus[i].deferredIPI);
+                clear_bit32(o->cpu_id, &s->cpus[i].deferredIPI);
             }
         }
 
@@ -408,11 +405,11 @@ static uint64_t apple_aic_read(void *opaque, hwaddr addr, unsigned size)
         }
 
         i = -1;
-        while ((i = find_next_bit((unsigned long *)s->eir_state, s->numIRQ,
-                                  i + 1)) < s->numIRQ) {
-            if (test_bit(i, (unsigned long *)s->eir_mask) == 0) {
+        while ((i = find_next_bit32(s->eir_state, s->numIRQ, i + 1)) <
+               s->numIRQ) {
+            if (test_bit32(i, s->eir_mask) == 0) {
                 if (s->eir_dest[i] & (1 << o->cpu_id)) {
-                    set_bit(i, (unsigned long *)s->eir_mask);
+                    set_bit32(i, s->eir_mask);
                     return kAIC_INT_EXT | AIC_INT_EXTID(i);
                 }
             }

@@ -40,10 +40,11 @@ struct AppleSARTState {
     uint32_t reg[0x8000 / sizeof(uint32_t)];
 };
 
-static inline uint64_t sart_get_reg(AppleSARTState *s, uint32_t offset)
+static inline uint32_t sart_get_reg(AppleSARTState *s, uint32_t offset)
 {
-    // TODO: ASAN complains about uint64_t*, wants uint32_t*
-    return *(uint64_t *)((char *)s->reg + offset);
+    g_assert_cmphex(offset + sizeof(uint32_t), <=, sizeof(s->reg));
+    g_assert_cmphex(offset % sizeof(uint32_t), ==, 0);
+    return s->reg[offset / sizeof(uint32_t)];
 }
 
 static inline hwaddr sart_get_region_addr(AppleSARTState *s, int region)

@@ -17,6 +17,7 @@
 #include "atomic.h"
 
 #define BITS_PER_BYTE           CHAR_BIT
+#define BITS_PER_INT            (sizeof (unsigned int) * BITS_PER_BYTE)
 #define BITS_PER_LONG           (sizeof (unsigned long) * BITS_PER_BYTE)
 #define BITS_TO_LONGS(nr)       DIV_ROUND_UP(nr, BITS_PER_BYTE * sizeof(long))
 #define BITS_TO_U32S(nr)        DIV_ROUND_UP(nr, BITS_PER_BYTE * sizeof(uint32_t))
@@ -380,6 +381,24 @@ static inline int test_and_change_bit32(long nr, uint32_t *addr)
 static inline int test_bit32(long nr, const uint32_t *addr)
 {
     return 1U & (addr[BIT32_WORD(nr)] >> (nr & 31));
+}
+
+unsigned long find_next_bit32(const unsigned int *addr, unsigned long size,
+                            unsigned long offset);
+
+static inline unsigned long find_first_bit32(const uint32_t *addr,
+                                             unsigned long size)
+{
+    unsigned long result, tmp;
+
+    for (result = 0; result < size; result += BITS_PER_INT) {
+        tmp = *addr++;
+        if (tmp) {
+            result += ctz32(tmp);
+            return result < size ? result : size;
+        }
+    }
+    return size;
 }
 
 /**
