@@ -484,6 +484,20 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
            trace_id, arg2, arg3, arg4, arg5, tid, time);
     const char *tid_str = sepos_return_module_thread_string(s->chip_id, tid);
     switch (trace_id) {
+    case 0x82000004: { // SEP L4 task switch
+        // %s instead of %c%c%c%c because the names will be nullbytes sometimes.
+        uint64_t old_taskname = bswap32(arg2);
+        uint64_t new_taskname = bswap32(arg4);
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
+                      "L4 task switch: old task thread name: 0x%02" PRIx64
+                      "(%s) old task id: 0x%05" PRIx64
+                      " new task thread name: 0x%02" PRIx64 "(%s) "
+                      "arg5: 0x%02" PRIx64 "\n", tid, tid_str, arg2,
+                      (char*)&old_taskname, arg3, arg4, (char*)&new_taskname,
+                      arg5);
+        break;
+    }
     case 0x82010004: // panic
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
@@ -1897,9 +1911,11 @@ static void aess_keywrap_uid(AppleAESSState *s, uint8_t *in, uint8_t *out,
     xor_32bit_value(&used_key[0x10], s->reg_0x14_keywrap_iterations_counter,
                     0x8 / 4); // seed_bits are only for keywrap
     DBGLOG("%s: s->command: 0x%02x normalized_cmd: 0x%02x cipher_alg: %u; "
-           "key_len: %lu; iterations: %u\n",
-           __func__, s->command, normalized_cmd, cipher_alg, key_len,
-           s->reg_0x14_keywrap_iterations_counter);
+           "key_len: %lu; iterations: %u, seed_bits: 0x%02x, "
+           "reg_0x18_keydisable: 0x%02x\n", __func__, s->command,
+           normalized_cmd, cipher_alg, key_len,
+           s->reg_0x14_keywrap_iterations_counter, s->seed_bits,
+           s->reg_0x18_keydisable);
     HEXDUMP("aess_keywrap_uid: used_key", used_key, sizeof(used_key));
     HEXDUMP("aess_keywrap_uid: in", in, data_len);
     cipher = qcrypto_cipher_new(cipher_alg, QCRYPTO_CIPHER_MODE_CBC, used_key,
@@ -4213,9 +4229,8 @@ static void aes_keys_from_sp_key(struct AppleSSCState *ssc_state,
                                  uint8_t *aes_key_mackey,
                                  uint8_t *aes_key_extractorkey)
 {
-    // TODO: Either this or wrapping with "SP key"/"Spes"/"Lynx version 1
-    // crypto"
-    uint8_t hmac_key[0x20] = {};
+    // wrapping with "SP key"/"Spes"/"Lynx version 1 crypto" could be wrong.
+    uint8_t hmac_key[0x20] = {0};
     memcpy(hmac_key, ssc_state->slot_hmac_key[kbkdf_index], 0x20);
     HEXDUMP("aes_keys_from_sp_key: hmac_key", hmac_key, 0x20);
     kbkdf_generate_key(hmac_key, INFOSTR_AKE_MACKEY, prefix, aes_key_mackey,
@@ -4343,6 +4358,12 @@ static int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state,
             SECP384_PUBLIC_XY_SIZE);
     HEXDUMP("answer_cmd_0x1_connect_sp: cmac_req_should", cmac_req_should,
             AES_BLOCK_SIZE);
+    if (kbkdf_index >= KBKDF_KEY_MAX_SLOTS) {
+        DBGLOG("%s: kbkdf_index over limit: %u\n", __func__, kbkdf_index);
+        do_response_prefix(request, response,
+                           SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
+        return 0;
+    }
     if (is_keyslot_valid(ssc_state, kbkdf_index)) { // shouldn't already exist
         DBGLOG("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
         do_response_prefix(request, response,
@@ -4435,7 +4456,7 @@ static int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
     if (copy > 0) {
         DBGLOG("%s: invalid copy: %u\n", __func__, copy);
         do_response_prefix(request, response,
-                           SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID);
+                           SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         return 0;
     }
     if (kbkdf_index_key >= KBKDF_KEY_MAX_SLOTS ||
@@ -4513,7 +4534,7 @@ static int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state,
     if (copy >= SSC_REQUEST_MAX_COPIES) {
         DBGLOG("%s: invalid copy: %u\n", __func__, copy);
         do_response_prefix(request, response,
-                           SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID);
+                           SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         return 0;
     }
     if (kbkdf_index == 0 || kbkdf_index >= KBKDF_KEY_MAX_SLOTS ||
@@ -4569,7 +4590,7 @@ static int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
     if (copy >= SSC_REQUEST_MAX_COPIES) {
         DBGLOG("%s: invalid copy: %u\n", __func__, copy);
         do_response_prefix(request, response,
-                           SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID);
+                           SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         return 0;
     }
     if (kbkdf_index == 0 || kbkdf_index >= KBKDF_KEY_MAX_SLOTS ||
@@ -4628,7 +4649,7 @@ static int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
     if (copy >= SSC_REQUEST_MAX_COPIES) {
         DBGLOG("%s: invalid copy: %u\n", __func__, copy);
         do_response_prefix(request, response,
-                           SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID);
+                           SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         return 0;
     }
     if (kbkdf_index_key >= KBKDF_KEY_MAX_SLOTS ||
@@ -4764,7 +4785,7 @@ static uint8_t apple_ssc_rx(I2CSlave *i2c)
             qemu_log_mask(LOG_UNIMP,
                           "%s: cmd %u: invalid command > 0x09", __func__, cmd);
             do_response_prefix(ssc->req_cmd, ssc->resp_cmd,
-                               SSC_RESPONSE_FLAG_COPY_OR_COMMAND_INVALID);
+                               SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         } else if (ssc->req_cur != ssc_request_sizes[cmd]) {
             qemu_log_mask(LOG_UNIMP,
                           "%s: cmd %u: invalid cmdsize mismatch req_cur "
