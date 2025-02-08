@@ -1251,8 +1251,8 @@ static void s8000_machine_init(MachineState *machine)
     child = dtb_get_node(s8000_machine->device_tree, "product");
 
     dtb_set_prop_u32(child, "oled-display", 1);
-    dtb_set_prop(child, "graphics-featureset-class", 7, "MTL1,2");
-    dtb_set_prop(child, "graphics-featureset-fallbacks", 15, "MTL1,2:GLES2,0");
+    dtb_set_prop(child, "graphics-featureset-class", 1, "");
+    dtb_set_prop(child, "graphics-featureset-fallbacks", 1, "");
     dtb_set_prop_u32(child, "device-color-policy", 0);
 
     s8000_cpu_setup(s8000_machine);

@@ -2530,9 +2530,8 @@ static void t8030_machine_init(MachineState *machine)
     child = dtb_get_node(t8030_machine->device_tree, "product");
     dtb_set_prop_u64(child, "display-corner-radius", 0x100000027);
     dtb_set_prop_u32(child, "oled-display", 1);
-    dtb_set_prop(child, "graphics-featureset-class", 7, "APPLE4");
-    dtb_set_prop(child, "graphics-featureset-fallbacks", 38,
-                 "APPLE3:APPLE3v1:APPLE2:APPLE1:GLES2,0");
+    dtb_set_prop(child, "graphics-featureset-class", 1, "");
+    dtb_set_prop(child, "graphics-featureset-fallbacks", 1, "");
     // TODO: PMP
     dtb_set_prop(t8030_machine->device_tree, "target-type", 4, "sim");
     dtb_set_prop_u32(child, "device-color-policy", 0);
