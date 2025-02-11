@@ -29,24 +29,21 @@
 OBJECT_DECLARE_SIMPLE_TYPE(AppleDisplayPipeV2State, APPLE_DISPLAYPIPE_V2);
 
 typedef struct {
-    uint32_t start;
-    uint32_t end;
-    uint32_t stride;
-    uint32_t size;
-} GenPipeLayer;
-
-typedef struct {
     size_t index;
+    pixman_image_t *disp_image;
     MemoryRegion *vram;
     AddressSpace *dma_as;
     QEMUBH *bh;
-    // TODO: Not have this field.
-    AppleDisplayPipeV2State *disp_state;
+    uint16_t disp_width;
+    uint16_t disp_height;
     uint32_t config_control;
     uint32_t pixel_format;
     uint16_t width;
     uint16_t height;
-    GenPipeLayer layers[2];
+    uint32_t base;
+    uint32_t end;
+    uint32_t stride;
+    uint32_t size;
 } GenPipeState;
 
 struct AppleDisplayPipeV2State {
@@ -54,14 +51,16 @@ struct AppleDisplayPipeV2State {
     SysBusDevice parent_obj;
 
     /*< public >*/
-    QEMUTimer *vblank_timer;
-    uint32_t width, height, refresh_rate;
-    MemoryRegion up_regs, vram;
+    uint32_t width;
+    uint32_t height;
+    pixman_image_t *disp_image;
+    MemoryRegion up_regs;
+    MemoryRegion vram;
     MemoryRegion *dma_mr;
     AddressSpace dma_as;
     MemoryRegionSection vram_section;
     qemu_irq irqs[9];
-    uint32_t int_filter;
+    uint32_t int_status;
     GenPipeState genpipes[2];
     QemuConsole *console;
     bool invalidated;
