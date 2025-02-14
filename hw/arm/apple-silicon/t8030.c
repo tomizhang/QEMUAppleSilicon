@@ -36,7 +36,7 @@
 #include "hw/arm/apple-silicon/xnu_pf.h"
 #include "hw/block/apple_ans.h"
 #include "hw/char/apple_uart.h"
-#include "hw/display/apple_displaypipe_v2.h"
+#include "hw/display/apple_displaypipe_v4.h"
 #include "hw/dma/apple_sio.h"
 #include "hw/gpio/apple_gpio.h"
 #include "hw/i2c/apple_i2c.h"
@@ -801,8 +801,8 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         vram_reg[1] = T8030_DISPLAY_SIZE;
         dtb_set_prop(vram, "reg", sizeof(vram_reg), &vram_reg);
         t8030_machine->video_args.base_addr = vram_reg[0];
-        AppleDisplayPipeV2State *display =
-            APPLE_DISPLAYPIPE_V2(object_property_get_link(
+        AppleDisplayPipeV4State *display =
+            APPLE_DISPLAY_PIPE_V4(object_property_get_link(
                 OBJECT(t8030_machine), "disp0", &error_abort));
         if (memory_region_is_mapped(&display->vram)) {
             memory_region_del_subregion(t8030_machine->sysmem, &display->vram);
@@ -2074,7 +2074,7 @@ static void t8030_create_misc(T8030MachineState *t8030_machine)
 static void t8030_create_display(T8030MachineState *t8030_machine)
 {
     MachineState *machine;
-    AppleDisplayPipeV2State *s;
+    AppleDisplayPipeV4State *s;
     SysBusDevice *sbd;
     DTBNode *child;
     uint64_t *reg;
@@ -2084,7 +2084,7 @@ static void t8030_create_display(T8030MachineState *t8030_machine)
 
     child = dtb_get_node(t8030_machine->device_tree, "arm-io/disp0");
 
-    s = apple_displaypipe_v2_create(child);
+    s = adp_v4_create(child);
     sbd = SYS_BUS_DEVICE(s);
 
     t8030_machine->video_args.row_bytes = s->width * 4;

@@ -1,5 +1,5 @@
 /*
- * Apple Display Pipe V2 Controller.
+ * Apple Display Pipe V4 Controller.
  *
  * Copyright (c) 2023-2025 Visual Ehrmanntraut.
  *
@@ -16,8 +16,8 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef APPLE_DISPLAYPIPE_V2_H
-#define APPLE_DISPLAYPIPE_V2_H
+#ifndef APPLE_DISPLAYPIPE_V4_H
+#define APPLE_DISPLAYPIPE_V4_H
 
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
@@ -25,15 +25,14 @@
 #include "qom/object.h"
 #include "ui/console.h"
 
-#define TYPE_APPLE_DISPLAYPIPE_V2 "apple-displaypipe-v2"
-OBJECT_DECLARE_SIMPLE_TYPE(AppleDisplayPipeV2State, APPLE_DISPLAYPIPE_V2);
+#define TYPE_APPLE_DISPLAY_PIPE_V4 "apple-display-pipe-v4"
+OBJECT_DECLARE_SIMPLE_TYPE(AppleDisplayPipeV4State, APPLE_DISPLAY_PIPE_V4);
+
+#define ADP_V4_LAYER_COUNT (2)
 
 typedef struct {
     size_t index;
-    pixman_image_t *disp_image;
-    MemoryRegion *vram;
     AddressSpace *dma_as;
-    QEMUBH *bh;
     uint16_t disp_width;
     uint16_t disp_height;
     uint32_t config_control;
@@ -43,14 +42,22 @@ typedef struct {
     uint32_t base;
     uint32_t end;
     uint32_t stride;
-    uint32_t size;
-} GenPipeState;
+    uint16_t buf_width;
+    uint16_t buf_height;
+    bool dirty;
+} ADPGenPipeState;
 
-struct AppleDisplayPipeV2State {
+typedef struct {
+    uint32_t layer_config[ADP_V4_LAYER_COUNT];
+    bool dirty;
+} ADPBlendUnitState;
+
+struct AppleDisplayPipeV4State {
     /*< private >*/
     SysBusDevice parent_obj;
 
     /*< public >*/
+    QemuMutex lock;
     uint32_t width;
     uint32_t height;
     pixman_image_t *disp_image;
@@ -61,11 +68,12 @@ struct AppleDisplayPipeV2State {
     MemoryRegionSection vram_section;
     qemu_irq irqs[9];
     uint32_t int_status;
-    GenPipeState genpipes[2];
+    ADPGenPipeState generic_pipe[ADP_V4_LAYER_COUNT];
+    ADPBlendUnitState blend_unit;
     QemuConsole *console;
     bool invalidated;
 };
 
-AppleDisplayPipeV2State *apple_displaypipe_v2_create(DTBNode *node);
+AppleDisplayPipeV4State *adp_v4_create(DTBNode *node);
 
-#endif /* APPLE_DISPLAYPIPE_V2_H */
+#endif /* APPLE_DISPLAYPIPE_V4_H */
