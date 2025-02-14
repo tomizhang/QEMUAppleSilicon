@@ -44,6 +44,7 @@ typedef struct {
     uint32_t stride;
     uint16_t buf_width;
     uint16_t buf_height;
+    uint8_t *buf;
     bool dirty;
 } ADPGenPipeState;
 

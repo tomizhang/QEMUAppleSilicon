@@ -146,6 +146,62 @@ static void adp_update_irqs(AppleDisplayPipeV4State *s)
     qemu_set_irq(s->irqs[0], (s->int_status & CONTROL_INT_STATUS_VBLANK) != 0);
 }
 
+static pixman_format_code_t adp_gp_fmt_to_pixman(ADPGenPipeState *s)
+{
+    if ((s->pixel_format & GP_PIXEL_FORMAT_BGRA) == GP_PIXEL_FORMAT_BGRA) {
+        ADP_INFO("[gp%zu] Pixel Format is BGRA (0x%X).", s->index,
+                 s->pixel_format);
+        return PIXMAN_b8g8r8a8;
+    } else if ((s->pixel_format & GP_PIXEL_FORMAT_ARGB) ==
+               GP_PIXEL_FORMAT_ARGB) {
+        ADP_INFO("[gp%zu] Pixel Format is ARGB (0x%X).", s->index,
+                 s->pixel_format);
+        return PIXMAN_a8r8g8b8;
+    } else {
+        error_report("[gp%zu] Pixel Format is unknown (0x%X).", s->index,
+                     s->pixel_format);
+        return 0;
+    }
+}
+
+static uint8_t *adp_gp_read(ADPGenPipeState *s)
+{
+    uint8_t *buf;
+
+    // TODO: Decompress the data and display it properly.
+    if (s->pixel_format & GP_PIXEL_FORMAT_COMPRESSED) {
+        error_report("[gp%zu] Dropping frame as it's compressed.", s->index);
+        return NULL;
+    }
+
+    ADP_INFO("[gp%zu] Width and height is %dx%d.", s->index, s->buf_width,
+             s->buf_height);
+    ADP_INFO("[gp%zu] Stride is %d.", s->index, s->stride);
+
+    if (s->buf_height == 0 || s->buf_width == 0 || s->stride == 0) {
+        error_report(
+            "[gp%zu] Dropping frame as width, height or stride is zero.",
+            s->index);
+        return NULL;
+    }
+
+    if (s->buf_width > s->disp_width || s->buf_height > s->disp_height) {
+        error_report("[gp%zu] Dropping frame as it's larger than the screen.",
+                     s->index);
+        return NULL;
+    }
+
+
+    buf = g_malloc(s->buf_height * s->buf_width * s->stride);
+    if (dma_memory_read(s->dma_as, s->base, buf, s->end - s->base,
+                        MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
+        error_report("[gp%zu] Failed to read from DMA.", s->index);
+        g_free(buf);
+        return NULL;
+    }
+    return buf;
+}
+
 static void adp_gp_reg_write(ADPGenPipeState *s, hwaddr addr, uint64_t data)
 {
     switch (addr) {
@@ -153,6 +209,8 @@ static void adp_gp_reg_write(ADPGenPipeState *s, hwaddr addr, uint64_t data)
         ADP_INFO("[gp%zu] Control <- 0x" HWADDR_FMT_plx, s->index, data);
         s->config_control = (uint32_t)data;
         if (s->config_control & GP_CONFIG_CONTROL_RUN) {
+            g_free(s->buf);
+            s->buf = adp_gp_read(s);
             s->dirty = true;
         }
         break;
@@ -238,64 +296,12 @@ static uint32_t adp_gp_reg_read(ADPGenPipeState *s, hwaddr addr)
     }
 }
 
-static pixman_format_code_t adp_gp_fmt_to_pixman(ADPGenPipeState *s)
-{
-    if ((s->pixel_format & GP_PIXEL_FORMAT_BGRA) == GP_PIXEL_FORMAT_BGRA) {
-        ADP_INFO("[gp%zu] Pixel Format is BGRA (0x%X).", s->index,
-                 s->pixel_format);
-        return PIXMAN_b8g8r8a8;
-    } else if ((s->pixel_format & GP_PIXEL_FORMAT_ARGB) ==
-               GP_PIXEL_FORMAT_ARGB) {
-        ADP_INFO("[gp%zu] Pixel Format is ARGB (0x%X).", s->index,
-                 s->pixel_format);
-        return PIXMAN_a8r8g8b8;
-    } else {
-        error_report("[gp%zu] Pixel Format is unknown (0x%X).", s->index,
-                     s->pixel_format);
-        return 0;
-    }
-}
-static uint8_t *adp_gp_read(ADPGenPipeState *s)
-{
-    uint8_t *buf;
-
-    // TODO: Decompress the data and display it properly.
-    if (s->pixel_format & GP_PIXEL_FORMAT_COMPRESSED) {
-        error_report("[gp%zu] Dropping frame as it's compressed.", s->index);
-        return NULL;
-    }
-
-    ADP_INFO("[gp%zu] Width and height is %dx%d.", s->index, s->buf_width,
-             s->buf_height);
-    ADP_INFO("[gp%zu] Stride is %d.", s->index, s->stride);
-
-    if (s->buf_height == 0 || s->buf_width == 0 || s->stride == 0) {
-        error_report(
-            "[gp%zu] Dropping frame as width, height or stride is zero.",
-            s->index);
-        return NULL;
-    }
-
-    if (s->buf_width > s->disp_width || s->buf_height > s->disp_height) {
-        error_report("[gp%zu] Dropping frame as it's larger than the screen.",
-                     s->index);
-        return NULL;
-    }
-
-
-    buf = g_malloc(s->buf_height * s->buf_width * s->stride);
-    if (dma_memory_read(s->dma_as, s->base, buf, s->end - s->base,
-                        MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
-        error_report("[gp%zu] Failed to read from DMA.", s->index);
-        g_free(buf);
-        return NULL;
-    }
-    return buf;
-}
-
 static void adp_gp_reset(ADPGenPipeState *s, size_t index, AddressSpace *dma_as,
                          uint16_t disp_width, uint16_t disp_height)
 {
+    if (s->buf != NULL) {
+        g_free(s->buf);
+    }
     memset(s, 0, sizeof(*s));
     s->index = index;
     s->dma_as = dma_as;
@@ -489,8 +495,6 @@ static void adp_v4_update_disp_image(AppleDisplayPipeV4State *s)
     ADPGenPipeState *layer_1_pipe;
     uint8_t layer_0_blend_mode;
     uint8_t layer_1_blend_mode;
-    uint8_t *layer_0_buf;
-    uint8_t *layer_1_buf;
     size_t i;
     hwaddr off;
     pixman_format_code_t layer_0_fmt;
@@ -527,20 +531,18 @@ static void adp_v4_update_disp_image(AppleDisplayPipeV4State *s)
         if (layer_1_pipe->base == 0 || layer_1_pipe->end == 0) {
             adp_v4_blit_rect_black(s, layer_1_pipe->width,
                                    layer_1_pipe->height);
+            layer_1_pipe->dirty = false;
         } else {
-            layer_1_buf = adp_gp_read(layer_1_pipe);
-            g_assert_nonnull(layer_1_buf);
+            g_assert_nonnull(layer_1_pipe->buf);
             for (i = 0; i < layer_1_pipe->buf_height; i += 1) {
                 off = i * s->width * sizeof(uint32_t);
                 memcpy(memory_region_get_ram_ptr(&s->vram) + off,
-                       layer_1_buf + i * layer_1_pipe->stride,
+                       layer_1_pipe->buf + i * layer_1_pipe->stride,
                        layer_1_pipe->buf_width * sizeof(uint32_t));
                 memory_region_set_dirty(
                     &s->vram, off, layer_1_pipe->buf_width * sizeof(uint32_t));
             }
-            g_free(layer_1_buf);
         }
-        layer_1_pipe->dirty = false;
     } else if (layer_0_blend_mode == BLEND_MODE_BYPASS ||
                (layer_0_blend_mode != BLEND_MODE_NONE &&
                 layer_1_blend_mode == BLEND_MODE_NONE)) {
@@ -548,38 +550,34 @@ static void adp_v4_update_disp_image(AppleDisplayPipeV4State *s)
             adp_v4_blit_rect_black(s, layer_0_pipe->width,
                                    layer_0_pipe->height);
         } else {
-            layer_0_buf = adp_gp_read(layer_0_pipe);
-            g_assert_nonnull(layer_0_buf);
+            g_assert_nonnull(layer_0_pipe->buf);
             for (i = 0; i < layer_0_pipe->buf_height; i += 1) {
                 off = i * s->width * sizeof(uint32_t);
                 memcpy(memory_region_get_ram_ptr(&s->vram) + off,
-                       layer_0_buf + i * layer_0_pipe->stride,
+                       layer_0_pipe->buf + i * layer_0_pipe->stride,
                        layer_0_pipe->buf_width * sizeof(uint32_t));
                 memory_region_set_dirty(
                     &s->vram, off, layer_0_pipe->buf_width * sizeof(uint32_t));
             }
-            g_free(layer_0_buf);
         }
         layer_0_pipe->dirty = false;
     } else {
         g_assert(layer_0_pipe != layer_1_pipe);
 
-        layer_0_buf = adp_gp_read(layer_0_pipe);
-        g_assert_nonnull(layer_0_buf);
+        g_assert_nonnull(layer_0_pipe->buf);
         layer_0_fmt = adp_gp_fmt_to_pixman(layer_0_pipe);
         g_assert_cmphex(layer_0_fmt, !=, 0);
         layer_0_image = pixman_image_create_bits(
             layer_0_fmt, layer_0_pipe->buf_width, layer_0_pipe->buf_height,
-            (uint32_t *)layer_0_buf, layer_0_pipe->stride);
+            (uint32_t *)layer_0_pipe->buf, layer_0_pipe->stride);
         g_assert_nonnull(layer_0_image);
 
-        layer_1_buf = adp_gp_read(layer_1_pipe);
-        g_assert_nonnull(layer_1_buf);
+        g_assert_nonnull(layer_1_pipe->buf);
         layer_1_fmt = adp_gp_fmt_to_pixman(layer_1_pipe);
         g_assert_cmphex(layer_1_fmt, !=, 0);
         layer_1_image = pixman_image_create_bits(
             layer_1_fmt, layer_1_pipe->buf_width, layer_1_pipe->buf_height,
-            (uint32_t *)layer_1_buf, layer_1_pipe->stride);
+            (uint32_t *)layer_1_pipe->buf, layer_1_pipe->stride);
         g_assert_nonnull(layer_1_image);
 
         adp_v4_blit_rect_black(s, s->width, s->height);
@@ -593,8 +591,6 @@ static void adp_v4_update_disp_image(AppleDisplayPipeV4State *s)
 
         layer_0_pipe->dirty = false;
         layer_1_pipe->dirty = false;
-        g_free(layer_0_buf);
-        g_free(layer_1_buf);
         pixman_image_unref(layer_0_image);
         pixman_image_unref(layer_1_image);
 
