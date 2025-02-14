@@ -181,7 +181,7 @@ static void apple_ans_ep_handler(void *opaque, uint32_t ep, uint64_t msg)
     ANS_LOG_MSG(ep, msg);
 }
 
-static const AppleRTKitOps ans_mailbox_ops = {
+static const AppleRTKitOps ans_rtkit_ops = {
     .start = apple_ans_start,
     .wakeup = apple_ans_start,
 };
@@ -211,7 +211,7 @@ SysBusDevice *apple_ans_create(DTBNode *node, AppleA7IOPVersion version,
     reg = (uint64_t *)prop->data;
 
     s->rtk = apple_rtkit_new(s, "ANS2", reg[1], version, protocol_version,
-                             &ans_mailbox_ops);
+                             &ans_rtkit_ops);
     object_property_add_child(OBJECT(s), "rtkit", OBJECT(s->rtk));
     apple_rtkit_register_user_ep(s->rtk, 0, s, apple_ans_ep_handler);
     sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->rtk), 0));
