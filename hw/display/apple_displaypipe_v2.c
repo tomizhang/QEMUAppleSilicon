@@ -44,10 +44,13 @@
 
 /**
  * Block Bases (DisplayTarget5)
+ * 0x08000  |  M3 Control Mailbox
+ * 0x0A000  |  M3 Video Mode Mailbox
  * 0x40000  |  Control
  * 0x48000  |  Vertical Frame Timing Generator
  * 0x50000  |  Generic Pipe 0
  * 0x58000  |  Generic Pipe 1
+ * 0x60000  |  Blend
  * 0x70000  |  White Point Correction
  * 0x7C000  |  Panel Response Correction
  * 0x80000  |  Dither
@@ -56,8 +59,10 @@
  * 0x84000  |  Content Dependent Frame Duration
  * 0x88000  |  SPLR (Sub-Pixel Layout R?)
  * 0x90000  |  Burn-In Compensation Sampler
+ * 0x98000  |  SPUC
  * 0xA0000  |  PDC (Panel D? Correction?)
  * 0xB0000  |  PCC (Pixel Color Correction?)
+ * 0xD0000  |  PCC Mailbox
  * 0xF0000  |  DBM (Dynamic Backlight Modulation?)
  */
 
@@ -94,8 +99,8 @@
 #define REG_CONTROL_WRITE_LTR_CONFIG (0x461E0)
 
 #define GP_BLOCK_BASE (0x50000)
-#define REG_GP_REG_SIZE (0x08000)
-#define REG_GP_CONFIG_CONTROL (0x00004)
+#define REG_GP_REG_SIZE (0x8000)
+#define REG_GP_CONFIG_CONTROL (0x4)
 #define GP_CONFIG_CONTROL_RUN BIT(0)
 #define GP_CONFIG_CONTROL_USE_DMA BIT(18)
 #define GP_CONFIG_CONTROL_HDR BIT(24)
@@ -104,23 +109,23 @@
 #define GP_PIXEL_FORMAT_BGRA ((BIT(4) << 22) | BIT(24) | (3 << 13))
 #define GP_PIXEL_FORMAT_ARGB ((BIT(4) << 22) | BIT(24))
 #define GP_PIXEL_FORMAT_COMPRESSED BIT(30)
-#define REG_GP_BASE (0x00030)
-#define REG_GP_END (0x00040)
-#define REG_GP_STRIDE (0x00060)
-#define REG_GP_SIZE (0x00070)
-#define REG_GP_FRAME_SIZE (0x00080)
-#define REG_GP_CRC (0x00160)
-#define REG_GP_BANDWIDTH_RATE (0x00170)
-#define REG_GP_STATUS (0x00184)
+#define REG_GP_BASE (0x30)
+#define REG_GP_END (0x40)
+#define REG_GP_STRIDE (0x60)
+#define REG_GP_SIZE (0x70)
+#define REG_GP_FRAME_SIZE (0x80)
+#define REG_GP_CRC_DATA (0x160)
+#define REG_GP_BANDWIDTH_RATE (0x170)
+#define REG_GP_STATUS (0x184)
 #define GP_STATUS_DECOMPRESSION_FAIL BIT(0)
+
+#define GP_BLOCK_BASE_FOR(i) (GP_BLOCK_BASE + i * REG_GP_REG_SIZE)
+#define GP_BLOCK_END_FOR(i) (GP_BLOCK_BASE_FOR(i) + (REG_GP_REG_SIZE - 1))
 
 static void apple_disp_update_irqs(AppleDisplayPipeV2State *s)
 {
     qemu_set_irq(s->irqs[0], (s->int_status & CONTROL_INT_STATUS_VBLANK) != 0);
 }
-
-#define GP_BLOCK_BASE_FOR(i) (GP_BLOCK_BASE + i * REG_GP_REG_SIZE)
-#define GP_BLOCK_END_FOR(i) (GP_BLOCK_BASE_FOR(i) + (REG_GP_REG_SIZE - 1))
 
 static void apple_disp_gp_reg_write(GenPipeState *s, hwaddr addr, uint64_t data)
 {
@@ -208,7 +213,8 @@ static uint32_t apple_disp_gp_reg_read(GenPipeState *s, hwaddr addr)
         return (s->width << 16) | s->height;
     }
     default: {
-        DISP_DBGLOG("[GP%zu] Unknown @ 0x" HWADDR_FMT_plx " -> " HWADDR_FMT_plx,
+        DISP_DBGLOG("[GP%zu] Unknown @ 0x" HWADDR_FMT_plx
+                    " -> 0x" HWADDR_FMT_plx,
                     s->index, addr, (hwaddr)0);
         return 0;
     }
@@ -218,19 +224,21 @@ static uint32_t apple_disp_gp_reg_read(GenPipeState *s, hwaddr addr)
 static void apple_gp_draw_bh(void *opaque)
 {
     GenPipeState *s;
+    uint16_t height;
+    uint16_t width;
     pixman_format_code_t src_fmt;
     uint8_t *buf;
 
     s = (GenPipeState *)opaque;
-
-    uint16_t height = s->size & 0xFFFF;
-    uint16_t width = (s->size >> 16) & 0xFFFF;
 
     // TODO: Decompress the data and display it properly.
     if (s->pixel_format & GP_PIXEL_FORMAT_COMPRESSED) {
         error_report("[GP%zu] Dropping frame as it's compressed.", s->index);
         return;
     }
+
+    height = s->size & 0xFFFF;
+    width = (s->size >> 16) & 0xFFFF;
 
     DISP_DBGLOG("[GP%zu] Width and height is %dx%d.", s->index, width, height);
     DISP_DBGLOG("[GP%zu] Stride is %d.", s->index, s->stride);
@@ -312,21 +320,25 @@ static void apple_disp_reg_write(void *opaque, hwaddr addr, uint64_t data,
     }
 
     switch (addr) {
-    case GP_BLOCK_BASE_FOR(0)... GP_BLOCK_END_FOR(0):
+    case GP_BLOCK_BASE_FOR(0)... GP_BLOCK_END_FOR(0): {
         apple_disp_gp_reg_write(&s->genpipes[0], addr, data);
         break;
-    case GP_BLOCK_BASE_FOR(1)... GP_BLOCK_END_FOR(1):
+    }
+    case GP_BLOCK_BASE_FOR(1)... GP_BLOCK_END_FOR(1): {
         apple_disp_gp_reg_write(&s->genpipes[1], addr, data);
         break;
-    case REG_CONTROL_INT_STATUS:
+    }
+    case REG_CONTROL_INT_STATUS: {
         s->int_status &= ~(uint32_t)data;
         apple_disp_update_irqs(s);
         break;
-    default:
+    }
+    default: {
         DISP_DBGLOG("[disp] Unknown @ 0x" HWADDR_FMT_plx
                     " <- 0x" HWADDR_FMT_plx,
                     addr, data);
         break;
+    }
     }
 }
 
@@ -360,9 +372,12 @@ static uint64_t apple_disp_reg_read(void *opaque, hwaddr addr,
         DISP_DBGLOG("[disp] Int Status -> 0x%x", s->int_status);
         return s->int_status;
     }
-    default:
-        DISP_DBGLOG("[disp] Unknown read @ 0x" HWADDR_FMT_plx, addr);
+    default: {
+        DISP_DBGLOG("[disp] Unknown @ 0x" HWADDR_FMT_plx
+                    " -> 0x" HWADDR_FMT_plx,
+                    addr, (hwaddr)0);
         return 0;
+    }
     }
 }
 
