@@ -2,7 +2,7 @@
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/block/apple_ans.h"
 #include "hw/irq.h"
-#include "hw/misc/apple-silicon/a7iop/rtbuddy.h"
+#include "hw/misc/apple-silicon/a7iop/rtkit.h"
 #include "hw/nvme/nvme.h"
 #include "hw/pci/pci.h"
 #include "hw/pci/pcie_host.h"
@@ -57,7 +57,7 @@ struct AppleANSState {
     MemoryRegion io_mmio;
     MemoryRegion io_ioport;
     MemoryRegion msix;
-    AppleRTBuddy *rtb;
+    AppleRTKit *rtk;
     qemu_irq irq;
 
     NvmeCtrl nvme;
@@ -181,7 +181,7 @@ static void apple_ans_ep_handler(void *opaque, uint32_t ep, uint64_t msg)
     ANS_LOG_MSG(ep, msg);
 }
 
-static const AppleRTBuddyOps ans_mailbox_ops = {
+static const AppleRTKitOps ans_mailbox_ops = {
     .start = apple_ans_start,
     .wakeup = apple_ans_start,
 };
@@ -210,11 +210,11 @@ SysBusDevice *apple_ans_create(DTBNode *node, AppleA7IOPVersion version,
 
     reg = (uint64_t *)prop->data;
 
-    s->rtb = apple_rtbuddy_new(s, "ANS2", reg[1], version, protocol_version,
-                               &ans_mailbox_ops);
-    object_property_add_child(OBJECT(s), "rtbuddy", OBJECT(s->rtb));
-    apple_rtbuddy_register_user_ep(s->rtb, 0, s, apple_ans_ep_handler);
-    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->rtb), 0));
+    s->rtk = apple_rtkit_new(s, "ANS2", reg[1], version, protocol_version,
+                             &ans_mailbox_ops);
+    object_property_add_child(OBJECT(s), "rtkit", OBJECT(s->rtk));
+    apple_rtkit_register_user_ep(s->rtk, 0, s, apple_ans_ep_handler);
+    sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->rtk), 0));
 
     memory_region_init_io(&s->iomems[1], OBJECT(dev), &ascv2_core_reg_ops, s,
                           TYPE_APPLE_ANS ".ascv2-core-reg", reg[3]);
@@ -224,7 +224,7 @@ SysBusDevice *apple_ans_create(DTBNode *node, AppleA7IOPVersion version,
                           TYPE_APPLE_ANS ".iop-autoboot-reg", reg[5]);
     sysbus_init_mmio(sbd, &s->iomems[2]);
 
-    sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->rtb));
+    sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->rtk));
     sysbus_init_irq(sbd, &s->irq);
 
     child = dtb_get_node(node, "iop-ans-nub");
@@ -272,14 +272,14 @@ static void apple_ans_realize(DeviceState *dev, Error **errp)
 
     pci_realize_and_unref(PCI_DEVICE(&s->nvme), pci->bus, &error_fatal);
 
-    sysbus_realize(SYS_BUS_DEVICE(s->rtb), errp);
+    sysbus_realize(SYS_BUS_DEVICE(s->rtk), errp);
 }
 
 static void apple_ans_unrealize(DeviceState *dev)
 {
     AppleANSState *s = APPLE_ANS(dev);
 
-    qdev_unrealize(DEVICE(s->rtb));
+    qdev_unrealize(DEVICE(s->rtk));
 }
 
 static int apple_ans_post_load(void *opaque, int version_id)
@@ -308,7 +308,7 @@ static void apple_ans_class_init(ObjectClass *klass, void *data)
 
     dc->realize = apple_ans_realize;
     dc->unrealize = apple_ans_unrealize;
-    // device_class_set_legacy_reset(dc, apple_ans_reset); 
+    // device_class_set_legacy_reset(dc, apple_ans_reset);
     dc->desc = "Apple NAND Storage (ANS)";
     dc->vmsd = &vmstate_apple_ans;
     set_bit(DEVICE_CATEGORY_BRIDGE, dc->categories);

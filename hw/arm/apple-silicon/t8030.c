@@ -1497,7 +1497,7 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
                                                    "sart-ans", &error_fatal));
 
     ans = apple_ans_create(child, APPLE_A7IOP_V4,
-                           t8030_machine->rtbuddy_protocol_ver);
+                           t8030_machine->rtkit_protocol_ver);
     g_assert_nonnull(ans);
     g_assert_nonnull(object_property_add_const_link(
         OBJECT(ans), "dma-mr", OBJECT(sysbus_mmio_get_region(sart, 1))));
@@ -1905,7 +1905,8 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
     segranges[1].phys = segranges[0].phys + segranges[0].size;
     segranges[1].virt = segranges[0].size;
     segranges[1].remap = segranges[1].phys;
-    segranges[1].size = smc_region_size - segranges[0].size - T8030_SMC_SRAM_SIZE;
+    segranges[1].size =
+        smc_region_size - segranges[0].size - T8030_SMC_SRAM_SIZE;
     segranges[1].flag = 0x0;
 
     dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
@@ -1914,7 +1915,7 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
     dtb_set_prop_hwaddr(iop_nub, "sram-addr", smc_region_base);
 
     smc = apple_smc_create(child, APPLE_A7IOP_V4,
-                           t8030_machine->rtbuddy_protocol_ver);
+                           t8030_machine->rtkit_protocol_ver);
     g_assert_nonnull(smc);
 
     object_property_add_child(OBJECT(t8030_machine), "smc", OBJECT(smc));
@@ -1964,7 +1965,7 @@ static void t8030_create_sio(T8030MachineState *t8030_machine)
     dtb_set_prop(iop_nub, "segment-names", 14, "__TEXT;__DATA");
 
     sio = apple_sio_create(child, APPLE_A7IOP_V4,
-                           t8030_machine->rtbuddy_protocol_ver);
+                           t8030_machine->rtkit_protocol_ver);
     g_assert_nonnull(sio);
 
     object_property_add_child(OBJECT(t8030_machine), "sio", OBJECT(sio));
@@ -2442,16 +2443,16 @@ static void t8030_machine_init(MachineState *machine)
 
     switch (BUILD_VERSION_MAJOR(build_version)) {
     case 13:
-        t8030_machine->rtbuddy_protocol_ver = 10;
+        t8030_machine->rtkit_protocol_ver = 10;
         break;
     case 14:
-        t8030_machine->rtbuddy_protocol_ver = 11;
+        t8030_machine->rtkit_protocol_ver = 11;
         break;
     case 15:
     case 16:
     case 17:
     case 18:
-        t8030_machine->rtbuddy_protocol_ver = 12;
+        t8030_machine->rtkit_protocol_ver = 12;
         break;
     default:
         break;

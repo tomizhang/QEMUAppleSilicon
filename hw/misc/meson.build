@@ -146,7 +146,7 @@ system_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
     'apple-silicon/a7iop/mailbox/regs-v4.c',
     'apple-silicon/a7iop/regs-v2.c',
     'apple-silicon/a7iop/regs-v4.c',
-    'apple-silicon/a7iop/rtbuddy.c',
+    'apple-silicon/a7iop/rtkit.c',
     'apple-silicon/smc.c',
     'apple-silicon/roswell.c',
     'pmu_d2255.c'))

@@ -1,7 +1,7 @@
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/dma/apple_sio.h"
-#include "hw/misc/apple-silicon/a7iop/rtbuddy.h"
+#include "hw/misc/apple-silicon/a7iop/rtkit.h"
 #include "hw/resettable.h"
 #include "qapi/error.h"
 #include "qemu/iov.h"
@@ -140,17 +140,17 @@ static void apple_sio_unmap_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep)
 
 static void apple_sio_dma_writeback(AppleSIOState *s, AppleSIODMAEndpoint *ep)
 {
-    AppleRTBuddy *rtb;
+    AppleRTKit *rtk;
     sio_msg m = { 0 };
 
-    rtb = APPLE_RTBUDDY(s);
+    rtk = APPLE_RTKIT(s);
     m.op = OP_DMA_COMPLETE;
     m.ep = ep->id;
     m.param = (1 << 7);
     m.tag = ep->tag;
     m.data = ep->actual_length;
     apple_sio_unmap_dma(s, ep);
-    apple_rtbuddy_send_user_msg(rtb, 0, m.raw);
+    apple_rtkit_send_user_msg(rtk, 0, m.raw);
 }
 
 int apple_sio_dma_read(AppleSIODMAEndpoint *ep, void *buffer, size_t len)
@@ -193,10 +193,10 @@ int apple_sio_dma_remaining(AppleSIODMAEndpoint *ep)
 static void apple_sio_control(AppleSIOState *s, AppleSIODMAEndpoint *ep,
                               sio_msg *m)
 {
-    AppleRTBuddy *rtb;
+    AppleRTKit *rtk;
     sio_msg reply = { 0 };
 
-    rtb = APPLE_RTBUDDY(s);
+    rtk = APPLE_RTKIT(s);
     reply.ep = m->ep;
     reply.tag = m->tag;
     switch (m->op) {
@@ -213,15 +213,15 @@ static void apple_sio_control(AppleSIOState *s, AppleSIODMAEndpoint *ep,
     default:
         break;
     }
-    apple_rtbuddy_send_user_msg(rtb, 0, reply.raw);
+    apple_rtkit_send_user_msg(rtk, 0, reply.raw);
 };
 
 static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep, sio_msg m)
 {
-    AppleRTBuddy *rtb;
+    AppleRTKit *rtk;
     sio_msg reply = { 0 };
 
-    rtb = APPLE_RTBUDDY(s);
+    rtk = APPLE_RTKIT(s);
     reply.ep = m.ep;
     reply.tag = m.tag;
     switch (m.op) {
@@ -288,7 +288,7 @@ static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep, sio_msg m)
         reply.op = OP_ERROR;
         break;
     }
-    apple_rtbuddy_send_user_msg(rtb, 0, reply.raw);
+    apple_rtkit_send_user_msg(rtk, 0, reply.raw);
 };
 
 static void apple_sio_handle_endpoint(void *opaque, uint32_t ep, uint64_t msg)
@@ -379,7 +379,7 @@ SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
     DeviceState *dev;
     AppleSIOState *s;
     SysBusDevice *sbd;
-    AppleRTBuddy *rtb;
+    AppleRTKit *rtk;
     DTBNode *child;
     DTBProp *prop;
     uint64_t *reg;
@@ -387,7 +387,7 @@ SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
     dev = qdev_new(TYPE_APPLE_SIO);
     s = APPLE_SIO(dev);
     sbd = SYS_BUS_DEVICE(dev);
-    rtb = APPLE_RTBUDDY(dev);
+    rtk = APPLE_RTKIT(dev);
     dev->id = g_strdup("sio");
 
     child = dtb_get_node(node, "iop-sio-nub");
@@ -398,9 +398,8 @@ SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
 
     reg = (uint64_t *)prop->data;
 
-    apple_rtbuddy_init(rtb, NULL, "SIO", reg[1], version, protocol_version,
-                       NULL);
-    apple_rtbuddy_register_user_ep(rtb, 0, s, apple_sio_handle_endpoint);
+    apple_rtkit_init(rtk, NULL, "SIO", reg[1], version, protocol_version, NULL);
+    apple_rtkit_register_user_ep(rtk, 0, s, apple_sio_handle_endpoint);
 
     memory_region_init_io(&s->ascv2_iomem, OBJECT(dev), &ascv2_core_reg_ops, s,
                           TYPE_APPLE_SIO ".ascv2-core-reg", reg[3]);
@@ -476,7 +475,7 @@ static void apple_sio_class_init(ObjectClass *klass, void *data)
 
 static const TypeInfo apple_sio_info = {
     .name = TYPE_APPLE_SIO,
-    .parent = TYPE_APPLE_RTBUDDY,
+    .parent = TYPE_APPLE_RTKIT,
     .instance_size = sizeof(AppleSIOState),
     .class_size = sizeof(AppleSIOClass),
     .class_init = apple_sio_class_init,

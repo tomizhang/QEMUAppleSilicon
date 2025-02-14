@@ -3,7 +3,7 @@
 
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/misc/apple-silicon/a7iop/rtbuddy.h"
+#include "hw/misc/apple-silicon/a7iop/rtkit.h"
 #include "hw/sysbus.h"
 #include "qemu/iov.h"
 #include "qom/object.h"
@@ -46,7 +46,7 @@ typedef struct AppleSIODMAEndpoint {
 
 struct AppleSIOClass {
     /*< private >*/
-    AppleRTBuddyClass base_class;
+    AppleRTKitClass base_class;
 
     /*< public >*/
     DeviceRealize parent_realize;
@@ -55,7 +55,7 @@ struct AppleSIOClass {
 
 struct AppleSIOState {
     /*< private >*/
-    AppleRTBuddy parent_obj;
+    AppleRTKit parent_obj;
 
     /*< public >*/
     MemoryRegion ascv2_iomem;

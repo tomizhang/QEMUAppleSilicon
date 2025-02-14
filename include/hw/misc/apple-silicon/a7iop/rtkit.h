@@ -5,8 +5,8 @@
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "qemu/queue.h"
 
-#define TYPE_APPLE_RTBUDDY "apple-rtbuddy"
-OBJECT_DECLARE_TYPE(AppleRTBuddy, AppleRTBuddyClass, APPLE_RTBUDDY)
+#define TYPE_APPLE_RTKIT "apple-rtkit"
+OBJECT_DECLARE_TYPE(AppleRTKit, AppleRTKitClass, APPLE_RTKIT)
 
 #define EP_MANAGEMENT 0
 #define EP_CRASHLOG 1
@@ -17,7 +17,7 @@ typedef enum {
     EP0_WAIT_HELLO,
     EP0_WAIT_ROLLCALL,
     EP0_DONE,
-} AppleRTBuddyEP0State;
+} AppleRTKitEP0State;
 
 typedef struct QEMU_PACKED {
     union {
@@ -55,28 +55,28 @@ typedef struct QEMU_PACKED {
             uint8_t type : 4;
         };
     };
-} AppleRTBuddyManagementMessage;
+} AppleRTKitManagementMessage;
 
-typedef void AppleRTBuddyEPHandler(void *opaque, uint32_t ep, uint64_t msg);
+typedef void AppleRTKitEPHandler(void *opaque, uint32_t ep, uint64_t msg);
 
 typedef struct {
     void *opaque;
-    AppleRTBuddyEPHandler *handler;
+    AppleRTKitEPHandler *handler;
     bool user;
-} AppleRTBuddyEPData;
+} AppleRTKitEPData;
 
 typedef struct {
-    AppleRTBuddy *s;
+    AppleRTKit *s;
     uint32_t mask;
     uint32_t last_block;
-} AppleRTBuddyRollcallData;
+} AppleRTKitRollcallData;
 
 typedef struct {
     void (*start)(void *opaque);
     void (*wakeup)(void *opaque);
-} AppleRTBuddyOps;
+} AppleRTKitOps;
 
-struct AppleRTBuddyClass {
+struct AppleRTKitClass {
     /*< private >*/
     SysBusDevice base_class;
 
@@ -84,36 +84,34 @@ struct AppleRTBuddyClass {
     ResettablePhases parent_reset;
 };
 
-struct AppleRTBuddy {
+struct AppleRTKit {
     /*< private >*/
     AppleA7IOP parent_obj;
 
     /*< public >*/
-    const AppleRTBuddyOps *ops;
+    const AppleRTKitOps *ops;
     QemuMutex lock;
     void *opaque;
-    AppleRTBuddyEP0State ep0_status;
+    AppleRTKitEP0State ep0_status;
     uint32_t protocol_version;
     GTree *endpoints;
     QTAILQ_HEAD(, AppleA7IOPMessage) rollcall;
 };
 
-void apple_rtbuddy_send_control_msg(AppleRTBuddy *s, uint32_t ep,
-                                    uint64_t data);
-void apple_rtbuddy_send_user_msg(AppleRTBuddy *s, uint32_t ep, uint64_t data);
-void apple_rtbuddy_register_control_ep(AppleRTBuddy *s, uint32_t ep,
-                                       void *opaque,
-                                       AppleRTBuddyEPHandler *handler);
-void apple_rtbuddy_register_user_ep(AppleRTBuddy *s, uint32_t ep, void *opaque,
-                                    AppleRTBuddyEPHandler *handler);
-void apple_rtbuddy_unregister_control_ep(AppleRTBuddy *s, uint32_t ep);
-void apple_rtbuddy_unregister_user_ep(AppleRTBuddy *s, uint32_t ep);
-void apple_rtbuddy_init(AppleRTBuddy *s, void *opaque, const char *role,
-                        uint64_t mmio_size, AppleA7IOPVersion version,
-                        uint32_t protocol_version, const AppleRTBuddyOps *ops);
-AppleRTBuddy *apple_rtbuddy_new(void *opaque, const char *role,
-                                uint64_t mmio_size, AppleA7IOPVersion version,
-                                uint32_t protocol_version,
-                                const AppleRTBuddyOps *ops);
+void apple_rtkit_send_control_msg(AppleRTKit *s, uint32_t ep, uint64_t data);
+void apple_rtkit_send_user_msg(AppleRTKit *s, uint32_t ep, uint64_t data);
+void apple_rtkit_register_control_ep(AppleRTKit *s, uint32_t ep, void *opaque,
+                                     AppleRTKitEPHandler *handler);
+void apple_rtkit_register_user_ep(AppleRTKit *s, uint32_t ep, void *opaque,
+                                  AppleRTKitEPHandler *handler);
+void apple_rtkit_unregister_control_ep(AppleRTKit *s, uint32_t ep);
+void apple_rtkit_unregister_user_ep(AppleRTKit *s, uint32_t ep);
+void apple_rtkit_init(AppleRTKit *s, void *opaque, const char *role,
+                      uint64_t mmio_size, AppleA7IOPVersion version,
+                      uint32_t protocol_version, const AppleRTKitOps *ops);
+AppleRTKit *apple_rtkit_new(void *opaque, const char *role, uint64_t mmio_size,
+                            AppleA7IOPVersion version,
+                            uint32_t protocol_version,
+                            const AppleRTKitOps *ops);
 
 #endif /* HW_MISC_APPLE_SILICON_A7IOP_RTKIT_H */
