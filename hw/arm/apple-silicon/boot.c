@@ -102,6 +102,9 @@ static const char *KEEP_COMP[] = {
 };
 
 static const char *REM_NAMES[] = {
+    "gfx-asc\0$",
+    "smc-aop\0$",
+    "amfm\0$",
     "dart-ane\0$",
     "dart-aop\0$",
     "dart-apcie2\0$",
