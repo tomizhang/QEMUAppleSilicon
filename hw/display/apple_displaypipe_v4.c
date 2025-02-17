@@ -32,7 +32,7 @@
 #include "framebuffer.h"
 #include "pixman.h"
 
-#define DEBUG_DISP
+// #define DEBUG_DISP
 
 #ifdef DEBUG_DISP
 #define ADP_INFO(fmt, ...) info_report(fmt, __VA_ARGS__)
