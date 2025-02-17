@@ -148,7 +148,7 @@ static void dwc3_td_dump(DWC3Transfer *xfer)
     DWC3BufferDesc *desc;
     int k = 0;
 
-    DPRINTF("Dumping td 0x%x (0x%llx):\n", xfer->rsc_idx, xfer->tdaddr);
+    DPRINTF("Dumping td 0x%x (0x" HWADDR_FMT_plx "):\n", xfer->rsc_idx, xfer->tdaddr);
     if (QTAILQ_EMPTY(&xfer->buffers)) {
         DPRINTF("<empty>\n");
         return;
@@ -158,8 +158,8 @@ static void dwc3_td_dump(DWC3Transfer *xfer)
     QTAILQ_FOREACH (desc, &xfer->buffers, queue) {
         DPRINTF("Buffer Desc %d:\n", ++k);
         for (int i = 0; i < desc->count; i++) {
-            DPRINTF("\tTRB %d @ 0x%llx:\n", i, desc->trbs[i].addr);
-            DPRINTF("\t\tbp: 0x%llx\n", desc->trbs[i].bp);
+            DPRINTF("\tTRB %d @ 0x" HWADDR_FMT_plx ":\n", i, desc->trbs[i].addr);
+            DPRINTF("\t\tbp: 0x" HWADDR_FMT_plx "\n", desc->trbs[i].bp);
             DPRINTF("\t\tsize: 0x%x\n", desc->trbs[i].size);
             DPRINTF("\t\tcontrol: 0x%x (%s %s %s %s %s %s %s sid: %d)\n",
                     desc->trbs[i].ctrl,
@@ -400,36 +400,76 @@ static int dwc3_bd_copy(DWC3State *s, DWC3BufferDesc *desc, USBPacket *p)
 
     // assert(p->actual_length == 0);
 
-    //dwc3_bd_map(s, desc, p); // moved down, not anymore, now again
-
     xfer_size = packet_left;
     if (xfer_size > desc_left) {
         xfer_size = desc_left;
     }
 
-    //dwc3_bd_map(s, desc, p); // is that actually needed here?
-
-#if 0
+#if 1
     if (xfer_size == 0) {
+        if (p->pid == USB_TOKEN_IN) {
+    #if 1
+            DPRINTF("%s NULL IN Transfer 0x%x on EP %d to 0x" HWADDR_FMT_plx "\n", __func__, xfer_size,
+                    desc->epid, desc->trbs[0].bp);
+            DPRINTF("%s: p: 0x%x/0x%lx\n", __func__, p->actual_length,
+                    usb_packet_size(p));
+    #endif
+        } else {
+    #if 1
+            DPRINTF("%s NULL OUT Transfer 0x%x on EP %d to 0x" HWADDR_FMT_plx "\n", __func__,
+                    xfer_size, desc->epid, desc->trbs[0].bp);
+            DPRINTF("%s: p: 0x%x/0x%lx\n", __func__, p->actual_length,
+                    usb_packet_size(p));
+    #endif
+        }
+        usb_packet_copy(p, NULL, xfer_size);
+
+        if (desc->length - desc->actual_length > 0 && packet_left > 0 &&
+            packet_left % p->ep->max_packet_size == 0) {
+            p->status = USB_RET_SUCCESS;
+            DPRINTF("%s: buffer == NULL ; xfer_size 0x%x if_0: USB_RET_SUCCESS\n", __func__, xfer_size);
+            return xfer_size;
+        }
+
         desc->ended = true;
-        dwc3_bd_writeback(s, desc, p, 0);
-        p->status = USB_RET_SUCCESS;
 #if 0
-        dwc3_bd_unmap(s, desc); // and thus, this?
+        p->status = USB_RET_SUCCESS;
+        return xfer_size;
 #endif
+        // dwc3_bd_writeback must be called
+        if (dwc3_bd_writeback(s, desc, p, false)) {
+            DPRINTF("%s: buffer == NULL ; xfer_size 0x%x if_1: USB_RET_SUCCESS\n", __func__, xfer_size);
+            p->status = USB_RET_SUCCESS;
+        } else {
+            DPRINTF("%s: buffer == NULL ; xfer_size 0x%x if_2: USB_RET_SUCCESS\n", __func__, xfer_size);
+    #if 1
+            //if (desc->trbs[0].ctrl & TRB_CTRL_LST)
+            if (0)
+            {
+                struct dwc3_event_depevt event = { .endpoint_number = desc->epid,
+                                                .endpoint_event =
+                                                    DEPEVT_XFERNOTREADY };
+                event.status |= DEPEVT_STATUS_TRANSFER_ACTIVE;
+                p->status = USB_RET_ASYNC; // fixes USBMUXD_DEFAULT_DEVICE_MODE=3
+                dwc3_ep_event(s, desc->epid, event);
+            } else
+    #endif
+            {
+                p->status = USB_RET_SUCCESS; // fixes hangs for idevicesyslog and error disconnects when running "launchctl list" or "htop"/"top" using ssh, because iOS likes to send empty packets on high load (when transporting a lot of data out of iOS).
+            }
+        }
         return xfer_size;
     }
+
 #endif
 
     dwc3_bd_map(s, desc, p);
 
     buffer = g_malloc0(xfer_size);
-    if (buffer == NULL) {
-        //qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x\n", __func__, xfer_size);
-    }
+    g_assert_nonnull(buffer);
     if (p->pid == USB_TOKEN_IN) {
 #if 1
-        DPRINTF("%s IN Transfer 0x%x on EP %d to 0x%llx\n", __func__, xfer_size,
+        DPRINTF("%s IN Transfer 0x%x on EP %d to 0x" HWADDR_FMT_plx "\n", __func__, xfer_size,
                 desc->epid, desc->trbs[0].bp);
         DPRINTF("%s: p: 0x%x/0x%lx\n", __func__, p->actual_length,
                 usb_packet_size(p));
@@ -445,7 +485,7 @@ static int dwc3_bd_copy(DWC3State *s, DWC3BufferDesc *desc, USBPacket *p)
 #endif
     } else {
 #if 1
-        DPRINTF("%s OUT Transfer 0x%x on EP %d to 0x%llx\n", __func__,
+        DPRINTF("%s OUT Transfer 0x%x on EP %d to 0x" HWADDR_FMT_plx "\n", __func__,
                 xfer_size, desc->epid, desc->trbs[0].bp);
         DPRINTF("%s: p: 0x%x/0x%lx\n", __func__, p->actual_length,
                 usb_packet_size(p));
@@ -464,33 +504,32 @@ static int dwc3_bd_copy(DWC3State *s, DWC3BufferDesc *desc, USBPacket *p)
     desc->actual_length += actual_xfer;
     if (desc->length - desc->actual_length > 0 && packet_left > 0 &&
         packet_left % p->ep->max_packet_size == 0) {
+        DPRINTF("%s: buffer != NULL ; xfer_size 0x%x if_0: USB_RET_SUCCESS\n", __func__, xfer_size);
         p->status = USB_RET_SUCCESS;
-        if (buffer == NULL) {
-            //qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x if_0: USB_RET_SUCCESS\n", __func__, xfer_size);
-        }
         //dwc3_bd_unmap(s, desc); // please uncomment this only if you know what you're doing, unlike me. breaks right clicks in vnc over ssh, by leading to null-pointer crashes in glibc.
         return xfer_size;
     }
 
     desc->ended = true;
     if (dwc3_bd_writeback(s, desc, p, actual_xfer < xfer_size)) {
+        DPRINTF("%s: buffer != NULL ; xfer_size 0x%x if_1: USB_RET_SUCCESS\n", __func__, xfer_size);
         p->status = USB_RET_SUCCESS;
-        if (buffer == NULL) {
-            //qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x if_1: USB_RET_SUCCESS; actual_xfer < xfer_size %u ; actual_xfer %u ; xfer_size %u\n", __func__, xfer_size, actual_xfer < xfer_size, actual_xfer, xfer_size);
-        }
     } else {
-        if (desc->trbs[0].ctrl & TRB_CTRL_LST) {
+        DPRINTF("%s: buffer != NULL ; xfer_size 0x%x if_2: USB_RET_SUCCESS\n", __func__, xfer_size);
+#if 1
+        //if (desc->trbs[0].ctrl & TRB_CTRL_LST)
+        if (1)
+        {
             struct dwc3_event_depevt event = { .endpoint_number = desc->epid,
                                             .endpoint_event =
                                                 DEPEVT_XFERNOTREADY };
             event.status |= DEPEVT_STATUS_TRANSFER_ACTIVE;
             p->status = USB_RET_ASYNC; // fixes USBMUXD_DEFAULT_DEVICE_MODE=3
             dwc3_ep_event(s, desc->epid, event);
-        } else {
+        } else
+#endif
+        {
             p->status = USB_RET_SUCCESS; // fixes hangs for idevicesyslog and error disconnects when running "launchctl list" or "htop"/"top" using ssh, because iOS likes to send empty packets on high load (when transporting a lot of data out of iOS).
-        }
-        if (buffer == NULL) {
-            //qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer == NULL ; xfer_size 0x%x if_1: USB_RET_ASYNC\n", __func__, xfer_size);
         }
     }
     //
@@ -1482,7 +1521,7 @@ static void dwc3_process_packet(DWC3State *s, DWC3Endpoint *ep, USBPacket *p)
     DWC3BufferDesc *desc = NULL;
     DWC3Transfer *xfer = NULL;
 
-    DPRINTF("%s: pid: 0x%x ep: %d id: 0x%llx (%d/%d)\n", __func__, p->pid,
+    DPRINTF("%s: pid: 0x%x ep: %d id: 0x%" PRIx64 " (%d/%" PRIx64 ")\n", __func__, p->pid,
             ep->epid, p->id, p->actual_length, usb_packet_size(p));
     assert(bql_locked());
     if (ep->stalled && p->actual_length == 0) {
@@ -1584,7 +1623,7 @@ static void dwc3_usb_device_handle_reset(USBDevice *dev)
 static void dwc3_usb_device_cancel_packet(USBDevice *dev, USBPacket *p)
 {
     /* TODO: complete td if packet partially complete */
-    DPRINTF("%s: pid: 0x%x ep: %d id: 0x%llx\n", __func__, p->pid, p->ep->nr,
+    DPRINTF("%s: pid: 0x%x ep: %d id: 0x%" PRIx64 "\n", __func__, p->pid, p->ep->nr,
             p->id);
     // assert(p->actual_length == 0);
 }
