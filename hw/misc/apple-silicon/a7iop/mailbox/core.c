@@ -380,11 +380,7 @@ void apple_a7iop_interrupt_status_push(AppleA7IOPMailbox *s, uint32_t status)
         g_new0(struct AppleA7IOPInterruptStatusMessage, 1);
     msg->status = status;
     QTAILQ_INSERT_TAIL(&s->interrupt_status, msg, entry);
-    // apple_a7iop_mailbox_update_irq(s->ap_mailbox);
-    // apple_a7iop_mailbox_update_irq(s->iop_mailbox);
     apple_a7iop_mailbox_update_irq(s);
-    // qemu_log_mask(LOG_UNIMP, "%s: apple_mbox_interrupt_status_push:
-    // status=0x%05x\n", s->role, msg->status);
 }
 
 uint32_t apple_a7iop_interrupt_status_pop(AppleA7IOPMailbox *s)
@@ -435,7 +431,6 @@ AppleA7IOPMailbox *apple_a7iop_mailbox_new(const char *role,
     s->iop_mailbox = iop_mailbox ? iop_mailbox : s;
     s->ap_mailbox = ap_mailbox ? ap_mailbox : s;
     s->bh = bh;
-    s->ool_overlap_priority = 1;
     QTAILQ_INIT(&s->inbox);
     QTAILQ_INIT(&s->interrupt_status);
     qemu_mutex_init(&s->lock);
@@ -498,10 +493,6 @@ static void apple_a7iop_mailbox_reset(DeviceState *dev)
     s->iop_empty = 0;
     s->ap_nonempty = 0;
     s->ap_empty = 0;
-    s->last_ool_in_size = 0;
-    s->last_ool_in_addr = 0;
-    s->last_ool_out_size = 0;
-    s->last_ool_out_addr = 0;
     apple_a7iop_mailbox_update_irq(s);
 }
 

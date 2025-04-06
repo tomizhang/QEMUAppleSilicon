@@ -46,7 +46,6 @@
 #include "qom/object.h"
 #include "sysemu/block-backend-global-state.h"
 #include "sysemu/block-backend-io.h"
-#include "target/arm/cpregs.h"
 #include "nettle/ccm.h"
 #include "nettle/cmac.h"
 #include "nettle/ecc-curve.h"
@@ -55,9 +54,10 @@
 #include "nettle/hkdf.h"
 #include "nettle/hmac.h"
 #include "nettle/knuth-lfib.h"
+#include "target/arm/cpregs.h"
+#include "trace.h"
 #include <nettle/macros.h>
 #include <nettle/memxor.h>
-#include "trace.h"
 
 // #define SEP_DEBUG
 
@@ -159,8 +159,10 @@
 #define SEP_AESS_SEED_BITS_BIT0 (1 << 0)
 #define SEP_AESS_SEED_BITS_BIT27 (1 << 27) // cmds 0x50 and 0x90
 #define SEP_AESS_SEED_BITS_BIT28 (1 << 28) // invalid EKEY?
-#define SEP_AESS_SEED_BITS_SEP_DSEC_DEMOTED (1 << 29) // DSEC tag present, demote SEP
-#define SEP_AESS_SEED_BITS_AP_PROD_DEMOTED (1 << 30) // ap is prod-fused and demoted
+#define SEP_AESS_SEED_BITS_SEP_DSEC_DEMOTED \
+    (1 << 29) // DSEC tag present, demote SEP
+#define SEP_AESS_SEED_BITS_AP_PROD_DEMOTED \
+    (1 << 30) // ap is prod-fused and demoted
 #define SEP_AESS_SEED_BITS_IMG4_VERIFIED (1 << 31) // img4 verified?
 
 
@@ -469,7 +471,7 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         return;
     }
 
-    struct sep_message m = { 0 };
+    SEPMessage m = { 0 };
     uint64_t trace_id = *(uint64_t *)&s->debug_trace_regs[addr - 0x30];
     uint64_t arg2 = *(uint64_t *)&s->debug_trace_regs[addr - 0x28];
     uint64_t arg3 = *(uint64_t *)&s->debug_trace_regs[addr - 0x20];
@@ -478,9 +480,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
     uint64_t tid = *(uint64_t *)&s->debug_trace_regs[addr - 0x08];
     uint64_t time = *(uint64_t *)&s->debug_trace_regs[addr - 0x00];
     DBGLOG("\nDEBUG_TRACE: Debug:"
-           " 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64
-           " 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64
-           " %" PRIu64 "\n",
+           " 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64
+           " 0x%" PRIx64 " %" PRIu64 "\n",
            trace_id, arg2, arg3, arg4, arg5, tid, time);
     const char *tid_str = sepos_return_module_thread_string(s->chip_id, tid);
     switch (trace_id) {
@@ -493,9 +494,9 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
                       "L4 task switch: old task thread name: 0x%02" PRIx64
                       "(%s) old task id: 0x%05" PRIx64
                       " new task thread name: 0x%02" PRIx64 "(%s) "
-                      "arg5: 0x%02" PRIx64 "\n", tid, tid_str, arg2,
-                      (char*)&old_taskname, arg3, arg4, (char*)&new_taskname,
-                      arg5);
+                      "arg5: 0x%02" PRIx64 "\n",
+                      tid, tid_str, arg2, (char *)&old_taskname, arg3, arg4,
+                      (char *)&new_taskname, arg5);
         break;
     }
     case 0x82010004: // panic
@@ -516,7 +517,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: %s "
                       "SEP_IO__Control Sending message to other module:"
-                      " fromto: 0x%02" PRIx64 " method: 0x%02" PRIx64 " data0: 0x%02" PRIx64 " "
+                      " fromto: 0x%02" PRIx64 " method: 0x%02" PRIx64
+                      " data0: 0x%02" PRIx64 " "
                       "data1: 0x%02" PRIx64 "\n",
                       tid, tid_str,
                       (trace_id == 0x82040005) ? "Before" : "After", arg2, arg3,
@@ -526,7 +528,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "SEP_SERVICE__Call: request:"
-                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64 " "
+                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
+                      " "
                       "method: 0x%02" PRIx64 " data0: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg4, arg5);
         break;
@@ -534,7 +537,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "SEP_SERVICE__Call: response:"
-                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64 " "
+                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
+                      " "
                       "method: 0x%02" PRIx64 " status/data0: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg4, arg5);
         break;
@@ -542,7 +546,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
                       "module entered workloop function:"
-                      " handlers0: 0x%02" PRIx64 " handlers1: 0x%02" PRIx64 " arg5: "
+                      " handlers0: 0x%02" PRIx64 " handlers1: 0x%02" PRIx64
+                      " arg5: "
                       "0x%02" PRIx64 " arg6: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg4, arg5);
         break;
@@ -556,23 +561,25 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
                       tid, tid_str, arg2);
         break;
     case 0x82060014: // workloop function: before handlers0 handler
-        qemu_log_mask(
-            LOG_UNIMP,
-            "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP module "
-            "workloop function: before handlers0 handler:"
-            " handler_index: 0x%02" PRIx64 " data0: 0x%02" PRIx64 " data1: 0x%02" PRIx64 " "
-            "data2: 0x%02" PRIx64 "\n",
-            tid, tid_str, arg2, arg3, arg4, arg5);
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
+                      "/%s: SEP module "
+                      "workloop function: before handlers0 handler:"
+                      " handler_index: 0x%02" PRIx64 " data0: 0x%02" PRIx64
+                      " data1: 0x%02" PRIx64 " "
+                      "data2: 0x%02" PRIx64 "\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82060018: // workloop function: handlers0: handler not found,
                      // panic
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP module "
-                      "workloop function: handlers0: handler not found, panic:"
-                      " interface_msgid: 0x%02" PRIx64 " method: 0x%02" PRIx64 " data0: "
-                      "0x%02" PRIx64 " "
-                      "data1: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        qemu_log_mask(
+            LOG_UNIMP,
+            "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP module "
+            "workloop function: handlers0: handler not found, panic:"
+            " interface_msgid: 0x%02" PRIx64 " method: 0x%02" PRIx64 " data0: "
+            "0x%02" PRIx64 " "
+            "data1: 0x%02" PRIx64 "\n",
+            tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x8206001C: // workloop function: interface_msgid==0xFFFE
                      // before handler
@@ -585,69 +592,76 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         break;
     case 0x82080005: // 0x82080005==before Rpc_Call
     case 0x82080006: // 0x82080006==after Rpc_Call
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: %s "
-                      "Rpc_Call Sending message to other module:"
-                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64 " ool: "
-                      "0x%02" PRIx64 " method: 0x%02" PRIx64 "\n",
-                      tid, tid_str,
-                      (trace_id == 0x82080005) ? "Before" : "After", arg2, arg3,
-                      arg4, arg5);
+        qemu_log_mask(
+            LOG_UNIMP,
+            "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: %s "
+            "Rpc_Call Sending message to other module:"
+            " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64 " ool: "
+            "0x%02" PRIx64 " method: 0x%02" PRIx64 "\n",
+            tid, tid_str, (trace_id == 0x82080005) ? "Before" : "After", arg2,
+            arg3, arg4, arg5);
         break;
     case 0x8208000D: // before Rpc_Wait
         qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: Before "
+                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
+                      "/%s: Before "
                       "Rpc_Wait Receiving message from other module\n",
                       tid, tid_str);
         break;
     case 0x8208000E: // after Rpc_Wait
-        qemu_log_mask(
-            LOG_UNIMP,
-            "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: After "
-            "Rpc_Wait "
-            "Receiving message from other module:"
-            " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64 " ool: 0x%02" PRIx64 " "
-            "method: 0x%02" PRIx64 "\n",
-            tid, tid_str, arg2, arg3, arg4, arg5);
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
+                      "/%s: After "
+                      "Rpc_Wait "
+                      "Receiving message from other module:"
+                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
+                      " ool: 0x%02" PRIx64 " "
+                      "method: 0x%02" PRIx64 "\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82080019: // before Rpc_WaitFrom
         qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: Before "
+                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
+                      "/%s: Before "
                       "Rpc_WaitFrom Receiving message from other module:"
                       " arg2: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2);
         break;
     case 0x8208001A: // after Rpc_WaitFrom
-        qemu_log_mask(
-            LOG_UNIMP,
-            "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: After "
-            "Rpc_WaitFrom Receiving message from other module:"
-            " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64 " ool: 0x%02" PRIx64 " "
-            "method: 0x%02" PRIx64 "\n",
-            tid, tid_str, arg2, arg3, arg4, arg5);
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
+                      "/%s: After "
+                      "Rpc_WaitFrom Receiving message from other module:"
+                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
+                      " ool: 0x%02" PRIx64 " "
+                      "method: 0x%02" PRIx64 "\n",
+                      tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82080011: // before Rpc_ReturnWait
     case 0x82080012: // after Rpc_ReturnWait
-        qemu_log_mask(
-            LOG_UNIMP,
-            "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: %s "
-            "Rpc_ReturnWait Receiving message from other module:"
-            " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64 " ool: 0x%02" PRIx64 " "
-            "method: 0x%02" PRIx64 "\n",
-            tid, tid_str, (trace_id == 0x82080011) ? "Before" : "After", arg2,
-            arg3, arg4, arg5);
+        qemu_log_mask(LOG_UNIMP,
+                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: %s "
+                      "Rpc_ReturnWait Receiving message from other module:"
+                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
+                      " ool: 0x%02" PRIx64 " "
+                      "method: 0x%02" PRIx64 "\n",
+                      tid, tid_str,
+                      (trace_id == 0x82080011) ? "Before" : "After", arg2, arg3,
+                      arg4, arg5);
         break;
     case 0x82080014: // before Rpc_Return return response
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "Before Rpc_Return return response:"
-                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64 " ool: "
+                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
+                      " ool: "
                       "0x%02" PRIx64 " method: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x8208001D: // before Rpc_WaitNotify
         qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: Before "
+                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
+                      "/%s: Before "
                       "Rpc_WaitNotify:"
                       " Rpc_WaitNotify_arg2 != 0: Rpc_WaitNotify_arg1: "
                       "0x%02" PRIx64 "\n",
@@ -666,7 +680,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "_dispatch_thread_main__intr/SEPD interrupt "
                       "trace_id 0x%02" PRIx64 ":"
-                      " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64 " arg4: 0x%02" PRIx64 " "
+                      " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64
+                      " arg4: 0x%02" PRIx64 " "
                       "arg5: 0x%02" PRIx64 "\n",
                       tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
         break;
@@ -674,7 +689,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "SEP_Driver__Close:"
-                      " module_name_int: 0x%02" PRIx64 " fromto: 0x%02" PRIx64 " "
+                      " module_name_int: 0x%02" PRIx64 " fromto: 0x%02" PRIx64
+                      " "
                       "response_data0: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg5);
         break;
@@ -683,7 +699,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "SEP_Driver__SetPowerState:"
                       " function called: enable_powersave?: 0x%02" PRIx64 " "
-                      "is_powersave_enabled: 0x%02" PRIx64 " field_cc3: 0x%02" PRIx64 "\n",
+                      "is_powersave_enabled: 0x%02" PRIx64
+                      " field_cc3: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg4);
         break;
     case 0x82140031: // SEPD_thread_handler:
@@ -706,7 +723,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "AESS_message_received: before AESS_keywrap_cmd_0x02:"
-                      " data0_low: 0x%02" PRIx64 " data0_high: 0x%02" PRIx64 " data1_low: "
+                      " data0_low: 0x%02" PRIx64 " data0_high: 0x%02" PRIx64
+                      " data1_low: "
                       "0x%02" PRIx64 " data1_high: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg4, arg5);
         break;
@@ -728,14 +746,14 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
                       "SEP_Driver__Mailbox_Rx:"
                       " endpoint: 0x%02x tag: 0x%02x opcode: "
                       "0x%02x(%u) param: 0x%02x data: 0x%02x\n",
-                      tid, tid_str, m.endpoint, m.tag, m.opcode, m.opcode,
-                      m.param, m.data);
+                      tid, tid_str, m.ep, m.tag, m.op, m.op, m.param, m.data);
         break;
     case 0x82140328: // SEP_Driver__Mailbox_RxMessageQueue
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "SEP_Driver__Mailbox_RxMessageQueue:"
-                      " endpoint: 0x%02" PRIx64 " opcode: 0x%02" PRIx64 " arg4: "
+                      " endpoint: 0x%02" PRIx64 " opcode: 0x%02" PRIx64
+                      " arg4: "
                       "0x%02" PRIx64 " arg5: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg4, arg5);
         break;
@@ -743,7 +761,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "SEP_Driver__Mailbox_ReadMsgFetch:"
-                      " endpoint: 0x%02" PRIx64 " data: 0x%02" PRIx64 " data2: 0x%02" PRIx64 " "
+                      " endpoint: 0x%02" PRIx64 " data: 0x%02" PRIx64
+                      " data2: 0x%02" PRIx64 " "
                       "read_msg.data[0]: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg4, arg5);
         break;
@@ -768,7 +787,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "SEP_Driver__Mailbox_Tx:"
                       " function_13 returned True:  arg2: 0x%02" PRIx64 " "
-                      "arg3: 0x%02" PRIx64 " arg4: 0x%02" PRIx64 " arg5: 0x%02" PRIx64 "\n",
+                      "arg3: 0x%02" PRIx64 " arg4: 0x%02" PRIx64
+                      " arg5: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82140344: // SEP_Driver__Mailbox_TxStall
@@ -776,7 +796,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "SEP_Driver__Mailbox_TxStall:"
                       " function_13 returned False: arg2: 0x%02" PRIx64 " "
-                      "arg3: 0x%02" PRIx64 " arg4: 0x%02" PRIx64 " arg5: 0x%02" PRIx64 "\n",
+                      "arg3: 0x%02" PRIx64 " arg4: 0x%02" PRIx64
+                      " arg5: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82140348: // mod_ASC0_ASC1_function_message_received:
@@ -787,7 +808,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
                       "mod_ASC0_ASC1_function_message_received "
                       "SEP_Driver: Mailbox_OOL_%s:"
-                      " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64 " arg4: 0x%02" PRIx64 "\n",
+                      " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64
+                      " arg4: 0x%02" PRIx64 "\n",
                       tid, tid_str, (trace_id == 0x82140348) ? "In" : "Out",
                       arg2, arg3, arg4);
         break;
@@ -810,7 +832,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "PMGR_message_received:"
-                      " fromto: 0x%02" PRIx64 " data0: 0x%02" PRIx64 " data1: 0x%02" PRIx64 "\n",
+                      " fromto: 0x%02" PRIx64 " data0: 0x%02" PRIx64
+                      " data1: 0x%02" PRIx64 "\n",
                       tid, tid_str, arg2, arg3, arg4);
         break;
     case 0x82140968: // PMGR_enable_clock
@@ -824,7 +847,8 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         qemu_log_mask(LOG_UNIMP,
                       "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "Unknown trace_id 0x%02" PRIx64 ":"
-                      " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64 " arg4: 0x%02" PRIx64 " "
+                      " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64
+                      " arg4: 0x%02" PRIx64 " "
                       "arg5: 0x%02" PRIx64 "\n",
                       tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
         break;
@@ -1332,8 +1356,7 @@ static void key_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
         */
         qemu_log_mask(LOG_UNIMP,
                       "SEP KEY_BASE: Offset 0x" HWADDR_FMT_plx
-                      ": Execute Command/Storage Index: cmd 0x%" PRIx64
-                      "\n",
+                      ": Execute Command/Storage Index: cmd 0x%" PRIx64 "\n",
                       addr, data);
         goto jump_default;
     case 0x308 ... 0x344: // 0x40 bytes of output from TRNG
@@ -1456,10 +1479,12 @@ static void key_fcfg_reg_write(void *opaque, hwaddr addr, uint64_t data,
                       addr, data);
         if (data == 0xffff) {
             s->key_fcfg_offset_0x14_index = 0x0;
-            memset(s->key_fcfg_offset_0x14_values, 0, sizeof(s->key_fcfg_offset_0x14_values));
+            memset(s->key_fcfg_offset_0x14_values, 0,
+                   sizeof(s->key_fcfg_offset_0x14_values));
         }
         uint8_t index = s->key_fcfg_offset_0x14_index;
-        uint8_t index_limit = sizeof(s->key_fcfg_offset_0x14_values)/sizeof(s->key_fcfg_offset_0x14_values[0]);
+        uint8_t index_limit = sizeof(s->key_fcfg_offset_0x14_values) /
+                              sizeof(s->key_fcfg_offset_0x14_values[0]);
         index = (index < index_limit) ? index : 0;
         s->key_fcfg_offset_0x14_values[index] = data & 0xffff;
         s->key_fcfg_offset_0x14_index++;
@@ -1494,11 +1519,12 @@ static uint64_t key_fcfg_reg_read(void *opaque, hwaddr addr, unsigned size)
         // declaration is a C23 extension [-Wc23-extensions]
         key_fcfg_offset_0x14_index = s->key_fcfg_offset_0x14_index;
         key_fcfg_offset_0x14_index_limit =
-                                     sizeof(s->key_fcfg_offset_0x14_values)/
-                                     sizeof(s->key_fcfg_offset_0x14_values[0]);
-        key_fcfg_offset_0x14_index = (key_fcfg_offset_0x14_index <
-                                      key_fcfg_offset_0x14_index_limit)
-                                     ? key_fcfg_offset_0x14_index : 0;
+            sizeof(s->key_fcfg_offset_0x14_values) /
+            sizeof(s->key_fcfg_offset_0x14_values[0]);
+        key_fcfg_offset_0x14_index =
+            (key_fcfg_offset_0x14_index < key_fcfg_offset_0x14_index_limit) ?
+                key_fcfg_offset_0x14_index :
+                0;
         ret = ((uint32_t)key_fcfg_offset_0x14_index << 16) |
               s->key_fcfg_offset_0x14_values[key_fcfg_offset_0x14_index];
         qemu_log_mask(LOG_UNIMP,
@@ -1879,7 +1905,8 @@ static void xor_32bit_value(uint8_t *dest, uint32_t val, int size)
     }
 }
 
-static void aess_raise_interrupt(AppleAESSState *s) {
+static void aess_raise_interrupt(AppleAESSState *s)
+{
     MachineState *machine = MACHINE(qdev_get_machine());
     AppleSEPState *sep = APPLE_SEP(
         object_property_get_link(OBJECT(machine), "sep", &error_fatal));
@@ -1924,8 +1951,8 @@ static void aess_keywrap_uid(AppleAESSState *s, uint8_t *in, uint8_t *out,
                     0x8 / 4); // seed_bits are only for keywrap
     DBGLOG("%s: s->command: 0x%02x normalized_cmd: 0x%02x cipher_alg: %u; "
            "key_len: %lu; iterations: %u, seed_bits: 0x%02x, "
-           "reg_0x18_keydisable: 0x%02x\n", __func__, s->command,
-           normalized_cmd, cipher_alg, key_len,
+           "reg_0x18_keydisable: 0x%02x\n",
+           __func__, s->command, normalized_cmd, cipher_alg, key_len,
            s->reg_0x14_keywrap_iterations_counter, s->seed_bits,
            s->reg_0x18_keydisable);
     HEXDUMP("aess_keywrap_uid: used_key", used_key, sizeof(used_key));
@@ -2027,7 +2054,8 @@ static void aess_handle_cmd(AppleAESSState *s)
     bool keyselect_non_gid0 =
         SEP_AESS_CMD_FLAG_KEYSELECT_GID1_CUSTOM(s->command) != 0;
     bool keyselect_gid1 = (s->command & SEP_AESS_CMD_FLAG_KEYSELECT_GID1) != 0;
-    bool keyselect_custom = (s->command & SEP_AESS_CMD_FLAG_KEYSELECT_CUSTOM) != 0;
+    bool keyselect_custom =
+        (s->command & SEP_AESS_CMD_FLAG_KEYSELECT_CUSTOM) != 0;
     uint32_t normalized_cmd = SEP_AESS_CMD_WITHOUT_FLAGS(s->command);
     QCryptoCipherAlgo cipher_alg = get_aes_cipher_alg(s->command);
     size_t key_len = qcrypto_cipher_get_key_len(cipher_alg);
@@ -2248,7 +2276,8 @@ static void aess_handle_cmd(AppleAESSState *s)
              0x1) // sync/set key for command 0x206(0x201), 0x246(0x241),
                   // 0x208/0x288(0x281), 0x248/0x2c8(0x2c1)
     {
-        int custom_keywrap_index = aess_get_custom_keywrap_index(s->command & 0xff);
+        int custom_keywrap_index =
+            aess_get_custom_keywrap_index(s->command & 0xff);
         memcpy(s->custom_key_index[custom_keywrap_index], s->in_full,
                sizeof(s->custom_key_index[custom_keywrap_index]));
         xor_32bit_value(
@@ -2256,10 +2285,10 @@ static void aess_handle_cmd(AppleAESSState *s)
             0x20 /
                 4); // unset (real zero-key) != zero-key set (not real zero-key)
         s->custom_key_index_enabled[custom_keywrap_index] = true;
-        qemu_log_mask(
-            LOG_UNIMP,
-            "SEP AESS_BASE: %s: sync/set key command 0x%02x s->command 0x%02x\n",
-            __func__, normalized_cmd, s->command);
+        qemu_log_mask(LOG_UNIMP,
+                      "SEP AESS_BASE: %s: sync/set key command 0x%02x "
+                      "s->command 0x%02x\n",
+                      __func__, normalized_cmd, s->command);
     }
 #endif
 // TODO: other sync commands: 0x205(0x201), 0x204(0x281), 0x245(0x241),
@@ -2461,7 +2490,7 @@ static const MemoryRegionOps aess_base_reg_ops = {
 };
 
 static void aesh_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
-                               unsigned size)
+                                unsigned size)
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
@@ -2642,7 +2671,7 @@ static const MemoryRegionOps pka_base_reg_ops = {
 };
 
 static void pka_tmm_reg_write(void *opaque, hwaddr addr, uint64_t data,
-                               unsigned size)
+                              unsigned size)
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
@@ -2807,7 +2836,7 @@ static const MemoryRegionOps misc2_reg_ops = {
 };
 
 static void boot_monitor_reg_write(void *opaque, hwaddr addr, uint64_t data,
-                            unsigned size)
+                                   unsigned size)
 {
     AppleSEPState *s = APPLE_SEP(opaque);
 
@@ -2832,7 +2861,7 @@ static void boot_monitor_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case 0x44: // unknown0 address high
     case 0x48: // randomness low
     case 0x4c: // randomness high
-        //goto jump_default;
+               // goto jump_default;
     default:
         qemu_log_mask(LOG_UNIMP,
                       "SEP Boot Monitor: Unknown write at 0x" HWADDR_FMT_plx
@@ -2856,9 +2885,9 @@ static uint64_t boot_monitor_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x04: // some status flag, bit0
         goto jump_default;
     default:
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP Boot Monitor: Unknown read at 0x" HWADDR_FMT_plx "\n",
-                      addr);
+        qemu_log_mask(
+            LOG_UNIMP,
+            "SEP Boot Monitor: Unknown read at 0x" HWADDR_FMT_plx "\n", addr);
     jump_default:
         memcpy(&ret, &s->boot_monitor_regs[addr], size);
         break;
@@ -2997,7 +3026,7 @@ void enable_trace_buffer(AppleSEPState *s)
         sepos_phys_base = SEPOS_PHYS_BASE_T8015;
     } else if (s->chip_id >= 0x8020) {
 #ifdef SEP_USE_IOS14_OVERRIDE
-        //sepos_phys_base = SEPOS_PHYS_BASE_T8020_IOS14;
+        // sepos_phys_base = SEPOS_PHYS_BASE_T8020_IOS14;
         sepos_phys_base = SEPOS_PHYS_BASE_T8030_IOS14;
 #else
         sepos_phys_base = SEPOS_PHYS_BASE_T8020_IOS15;
@@ -3050,7 +3079,7 @@ void enable_trace_buffer(AppleSEPState *s)
     uint64_t bypass_offset = 0;
     if (s->chip_id >= 0x8020) {
 #ifdef SEP_USE_IOS14_OVERRIDE
-        //bypass_offset = 0x11bb0; // T8020 iOS14
+        // bypass_offset = 0x11bb0; // T8020 iOS14
         bypass_offset = 0x11b34; // T8030 iOS14
 #else
         bypass_offset = 0x12fb4; // T8020 iOS15
@@ -3086,10 +3115,10 @@ static void apple_sep_send_message(AppleSEPState *s, uint8_t ep, uint8_t tag,
 }
 
 static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
-                            unsigned size)
+                               unsigned size)
 {
     AppleSEPState *s = APPLE_SEP(opaque);
-    struct sep_message sep_msg = { 0 };
+    SEPMessage sep_msg = { 0 };
 
 #ifdef ENABLE_CPU_DUMP_STATE
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
@@ -3100,9 +3129,9 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
             0xf2e31133) // iBoot would send those requests. iOS warns about the
                         // responses, because it doesn't expect them.
         {
-            sep_msg.endpoint = 0xff;
+            sep_msg.ep = 0xff;
 
-            sep_msg.opcode = 3; // kOpCode_GenerateNonce
+            sep_msg.op = 3; // kOpCode_GenerateNonce
             sep_msg.tag = 0x67;
             ////sep_msg.opcode = 4; // kOpCode_ReportNonceWord
             // memcpy(msg0->data, sep_msg, 16);
@@ -3111,12 +3140,11 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
             // SEPROM_Opcode3/kOpCode_GenerateNonce", msg0);
             // apple_mbox_send_inbox_control_message(s->mbox, 0, sep_msg.raw);
             apple_sep_send_message(s, 0xff, 0x67, 3, 0x00, 0x00);
-            qemu_log_mask(
-                LOG_UNIMP,
-                "SEP Progress: Sent fake SEPROM_Opcode3/kOpCode_GenerateNonce\n");
+            qemu_log_mask(LOG_UNIMP, "SEP Progress: Sent fake "
+                                     "SEPROM_Opcode3/kOpCode_GenerateNonce\n");
 
 
-            sep_msg.opcode = 17; // Opcode 17
+            sep_msg.op = 17; // Opcode 17
             sep_msg.tag = 0x0;
             sep_msg.data = 0x8000; // SEPFW on iOS 14.0/14.4.2 for T8020, if I
                                    // found the correct data in Ghidra.
@@ -3124,7 +3152,8 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
             apple_sep_send_message(s, 0xff, 0x0, 17, 0x00, 0x8000);
             qemu_log_mask(LOG_UNIMP, "SEP MISC4: Sent fake SEPROM_Opcode17\n");
         }
-        if ((data == 0xFC4A2CAC || data == 0xeee6ba79) && (s->chip_id >= 0x8020)) // Enable Trace Buffer
+        if ((data == 0xFC4A2CAC || data == 0xeee6ba79) &&
+            (s->chip_id >= 0x8020)) // Enable Trace Buffer
         {
             // Only works for T8020, because the T8015 SEPOS is compressed.
 #ifdef SEP_ENABLE_TRACE_BUFFER
@@ -3144,7 +3173,7 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
                 phys_addr = 0x34015FD40ull; // T8015
             } else if (s->chip_id >= 0x8020) {
 #ifdef SEP_USE_IOS14_OVERRIDE
-                //phys_addr = 0x340736380ull; // T8020 iOS 14
+                // phys_addr = 0x340736380ull; // T8020 iOS 14
                 phys_addr = 0x3407ca380ull; // T8030 iOS 14
 #else
                 phys_addr = 0x34086e380ull; // T8020 iOS 15
@@ -3183,7 +3212,7 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
             AppleA7IOPMessage *msg = NULL;
             msg = apple_a7iop_inbox_peek(APPLE_A7IOP(s)->iop_mailbox);
             if (msg) {
-                memcpy(&sep_msg.raw, msg->data, 8);
+                memcpy(&sep_msg, msg->data, sizeof(sep_msg));
                 uint64_t shmbuf_base = (uint64_t)sep_msg.data << 12;
                 qemu_log_mask(LOG_UNIMP,
                               "%s: SHMBUF_TEST0: trace_data8:0x%" PRIx64 ": "
@@ -3191,9 +3220,8 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
                               ": ep=0x%02x, tag=0x%02x, opcode=0x%02x(%u), "
                               "param=0x%02x, data=0x%08x\n",
                               APPLE_A7IOP(s)->iop_mailbox->role, data,
-                              shmbuf_base, sep_msg.endpoint, sep_msg.tag,
-                              sep_msg.opcode, sep_msg.opcode, sep_msg.param,
-                              sep_msg.data);
+                              shmbuf_base, sep_msg.ep, sep_msg.tag, sep_msg.op,
+                              sep_msg.op, sep_msg.param, sep_msg.data);
                 int debug_trace_mmio_index = -1;
                 if (s->chip_id == 0x8015) {
                     debug_trace_mmio_index = 11;
@@ -3208,9 +3236,9 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
                         LOG_UNIMP,
                         "%s: SHMBUF_TEST1: tracbuf=0x" HWADDR_FMT_plx "\n",
                         APPLE_A7IOP(s)->iop_mailbox->role, tracebuf_mmio_addr);
-// if SEP_ENABLE_DEBUG_TRACE_MAPPING
-// TODO: T8020 isn't handled here anymore, but T8015 probably still should.
-// endif
+                    // if SEP_ENABLE_DEBUG_TRACE_MAPPING
+                    // TODO: T8020 isn't handled here anymore, but T8015
+                    // probably still should. endif
                 }
             }
         }
@@ -3358,48 +3386,13 @@ static const MemoryRegionOps progress_reg_ops = {
     .valid.unaligned = false,
 };
 
-static void apple_sep_cpu_reset_work(CPUState *cpu, run_on_cpu_data data);
-#if 0
-
-static void apple_sep_cpu_reset_work2(CPUState *cpu, run_on_cpu_data data)
-{
-    vaddr load_addr = (vaddr)data.host_ptr;
-    DBGLOG("apple_sep_cpu_reset_work2: before cpu_set_pc: base=0x" HWADDR_FMT_plx
-           "\n",
-           load_addr);
-    cpu_set_pc(cpu, load_addr);
-}
-#endif
-
-#if 1
 static void apple_sep_cpu_moni_jump(CPUState *cpu, run_on_cpu_data data)
 {
     vaddr load_addr = data.target_ptr;
-    DBGLOG("%s: before cpu_set_pc: base=0x" HWADDR_FMT_plx "\n", __func__, load_addr);
+    DBGLOG("%s: before cpu_set_pc: base=0x" HWADDR_FMT_plx "\n", __func__,
+           load_addr);
     cpu_set_pc(cpu, load_addr);
 }
-#endif
-
-#if 0
-static void apple_sep_cpu_moni_jump(CPUState *cpu, run_on_cpu_data data)
-{
-    // can raise an exception here "0x340005c0c: movi    v0.2d, #0x0" because of the reset
-    AppleSEPState *s = data.host_ptr;
-    vaddr load_addr = *(vaddr*)&s->boot_monitor_regs[0x20];
-    // "crn, crm, op0, op1, op2" instead of "p_op0, p_op1, p_crn, p_crm, p_op2"
-    //const ARMCPRegInfo *ri = get_arm_cp_reginfo(s->cpu->cp_regs, ENCODE_AA64_CP_REG(CP_REG_ARM64_SYSREG_CP, 15, 2, 3, 7, 0));
-    //assert(ri);
-    //vaddr local_SYS_ACC_PWR_DN_SAVE = read_raw_cp_reg(&s->cpu->env, ri);
-    //cpu_reset(cpu);
-    DBGLOG("%s: before cpu_set_pc: base=0x" HWADDR_FMT_plx "\n", __func__, load_addr);
-    cpu_set_pc(cpu, load_addr);
-    //write_raw_cp_reg(&s->cpu->env, ri, local_SYS_ACC_PWR_DN_SAVE); // is static
-    //raw_write(&s->cpu->env, ri, local_SYS_ACC_PWR_DN_SAVE);
-}
-#endif
-
-
-
 
 static void apple_sep_iop_start(AppleA7IOP *s)
 {
@@ -3417,26 +3410,13 @@ static void apple_sep_iop_start(AppleA7IOP *s)
     // Don't prevent two successive calls of this, it is actually intended,
     // once by seprom and once by sepfw.
     // rely on apple_a7iop_set_cpu_ctrl for "(cpu_ctrl & SEP_BOOT_MONITOR_RUN)"
-    if (sep->modern && load_addr != 0)
-    {
+    if (sep->modern && load_addr != 0) {
 #if 1
-        qemu_log_mask(LOG_UNIMP,
-                      "%s: have load_addr 0x" HWADDR_FMT_plx "\n",
+        qemu_log_mask(LOG_UNIMP, "%s: have load_addr 0x" HWADDR_FMT_plx "\n",
                       __func__, load_addr);
 #endif
-        //vaddr old_base = sep->base;
-        //sep->base = load_addr;
-        //cpu_reset(CPU(sep->cpu)); 
-        //run_on_cpu(CPU(sep->cpu), apple_sep_cpu_reset_work, RUN_ON_CPU_HOST_PTR(sep));
-        //async_safe_run_on_cpu(CPU(sep->cpu), apple_sep_cpu_reset_work, RUN_ON_CPU_HOST_PTR(sep));
-        //async_safe_run_on_cpu(CPU(sep->cpu), apple_sep_cpu_moni_jump, RUN_ON_CPU_HOST_PTR(sep));
-        async_safe_run_on_cpu(CPU(sep->cpu), apple_sep_cpu_moni_jump, RUN_ON_CPU_TARGET_PTR(load_addr));
-        //sep->base = old_base;
-        // HACK: because cpu_set_pc skips over the first instruction.
-        //ARM_CPU(sep->cpu)->env.xregs[1] = load_addr;
-        //cpu_pause(CPU(sep->cpu));
-        //cpu_set_pc(CPU(sep->cpu), load_addr);
-        //cpu_resume(CPU(sep->cpu));
+        async_safe_run_on_cpu(CPU(sep->cpu), apple_sep_cpu_moni_jump,
+                              RUN_ON_CPU_TARGET_PTR(load_addr));
     }
 }
 
@@ -3452,7 +3432,9 @@ static void apple_sep_iop_wakeup(AppleA7IOP *s)
                                       ~CPU_STATUS_IDLE);
 
     // TODO
+    qemu_log_mask(LOG_UNIMP, "%s: unimplemented", __func__);
 }
+
 static const AppleA7IOPOps apple_sep_iop_ops = {
     .start = apple_sep_iop_start,
     .wakeup = apple_sep_iop_wakeup,
@@ -3484,7 +3466,8 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     reg = (uint64_t *)prop->data;
 
     apple_a7iop_init(a7iop, "SEP", reg[1],
-                     modern ? APPLE_A7IOP_V4 : APPLE_A7IOP_V2, &apple_sep_iop_ops, NULL);
+                     modern ? APPLE_A7IOP_V4 : APPLE_A7IOP_V2,
+                     &apple_sep_iop_ops, NULL);
     s->base = base;
     s->modern = modern;
     s->chip_id = chip_id;
@@ -3505,7 +3488,8 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     }
 
     MemoryRegion *mr0 = g_new0(MemoryRegion, 1);
-    memory_region_init_alias(mr0, OBJECT(s), "sep_dma", ool_mr, 0, SEP_DMA_MAPPING_SIZE);
+    memory_region_init_alias(mr0, OBJECT(s), "sep_dma", ool_mr, 0,
+                             SEP_DMA_MAPPING_SIZE);
     if (modern) {
         s->cpu = ARM_CPU(apple_a13_cpu_create(NULL, g_strdup("sep-cpu"), cpu_id,
                                               0, -1, 'P'));
@@ -3519,7 +3503,8 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     if (s->chip_id >= 0x8020) {
         // hack to make SEP_ENABLE_OVERWRITE_SHMBUF_OBJECTS work properly
         MemoryRegion *mr1 = g_new0(MemoryRegion, 1);
-        memory_region_init_alias(mr1, OBJECT(s), "sep_shmbuf_hdr", ool_mr, s->shmbuf_base, 0x4000);
+        memory_region_init_alias(mr1, OBJECT(s), "sep_shmbuf_hdr", ool_mr,
+                                 s->shmbuf_base, 0x4000);
         memory_region_add_subregion(get_system_memory(), s->shmbuf_base, mr1);
     }
     object_property_set_uint(OBJECT(s->cpu), "rvbar", s->base & ~0xFFF, NULL);
@@ -3537,35 +3522,35 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     memory_region_init_io(&s->key_base_mr, OBJECT(dev), &key_base_reg_ops, s,
                           "sep.key_base", KEY_BASE_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->key_base_mr);
-    memory_region_init_io(&s->key_fcfg_mr, OBJECT(dev), &key_fcfg_reg_ops,
-                          s, "sep.key_fcfg", KEY_FCFG_REG_SIZE); // T8030
+    memory_region_init_io(&s->key_fcfg_mr, OBJECT(dev), &key_fcfg_reg_ops, s,
+                          "sep.key_fcfg", KEY_FCFG_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->key_fcfg_mr);
-    memory_region_init_io(&s->moni_base_mr, OBJECT(dev), &moni_base_reg_ops,
-                          s, "sep.moni_base", MONI_BASE_REG_SIZE); // T8030
+    memory_region_init_io(&s->moni_base_mr, OBJECT(dev), &moni_base_reg_ops, s,
+                          "sep.moni_base", MONI_BASE_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->moni_base_mr);
-    memory_region_init_io(&s->moni_thrm_mr, OBJECT(dev), &moni_thrm_reg_ops,
-                          s, "sep.moni_thrm", MONI_THRM_REG_SIZE); // T8030
+    memory_region_init_io(&s->moni_thrm_mr, OBJECT(dev), &moni_thrm_reg_ops, s,
+                          "sep.moni_thrm", MONI_THRM_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->moni_thrm_mr);
     // EISP_BASE T8020/T8030
-    memory_region_init_io(&s->eisp_base_mr, OBJECT(dev), &eisp_base_reg_ops,
-                          s, "sep.eisp_base", EISP_BASE_REG_SIZE);
+    memory_region_init_io(&s->eisp_base_mr, OBJECT(dev), &eisp_base_reg_ops, s,
+                          "sep.eisp_base", EISP_BASE_REG_SIZE);
     sysbus_init_mmio(sbd, &s->eisp_base_mr);
-    memory_region_init_io(&s->eisp_hmac_mr, OBJECT(dev), &eisp_hmac_reg_ops,
-                          s, "sep.eisp_hmac", EISP_HMAC_REG_SIZE); // T8030
+    memory_region_init_io(&s->eisp_hmac_mr, OBJECT(dev), &eisp_hmac_reg_ops, s,
+                          "sep.eisp_hmac", EISP_HMAC_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->eisp_hmac_mr);
     memory_region_init_io(&s->aess_base_mr, OBJECT(dev), &aess_base_reg_ops,
                           &s->aess_state, "sep.aess_base",
                           AESS_BASE_REG_SIZE); // AESS_BASE T8030
     sysbus_init_mmio(sbd, &s->aess_base_mr);
-    memory_region_init_io(&s->aesh_base_mr, OBJECT(dev), &aesh_base_reg_ops,
-                          s, "sep.aesh_base", AESH_BASE_REG_SIZE); // T8030
+    memory_region_init_io(&s->aesh_base_mr, OBJECT(dev), &aesh_base_reg_ops, s,
+                          "sep.aesh_base", AESH_BASE_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->aesh_base_mr);
     memory_region_init_io(&s->pka_base_mr, OBJECT(dev), &pka_base_reg_ops,
                           &s->pka_state, "sep.pka_base",
                           PKA_BASE_REG_SIZE); // PKA_BASE T8030
     sysbus_init_mmio(sbd, &s->pka_base_mr);
-    memory_region_init_io(&s->pka_tmm_mr, OBJECT(dev), &pka_tmm_reg_ops,
-                          s, "sep.pka_tmm", PKA_TMM_REG_SIZE); // T8030
+    memory_region_init_io(&s->pka_tmm_mr, OBJECT(dev), &pka_tmm_reg_ops, s,
+                          "sep.pka_tmm", PKA_TMM_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->pka_tmm_mr);
     memory_region_init_io(&s->misc0_mr, OBJECT(dev), &misc0_reg_ops, s,
                           "sep.misc0", MISC0_REG_SIZE);
@@ -3578,16 +3563,17 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
                           PROGRESS_REG_SIZE); // Encrypted progress counter?
     sysbus_init_mmio(sbd, &s->progress_mr);
     memory_region_init_io(&s->boot_monitor_mr, OBJECT(dev),
-                          &boot_monitor_reg_ops, s,
-                          "sep.boot_monitor", BOOT_MONITOR_REG_SIZE); // T8030
+                          &boot_monitor_reg_ops, s, "sep.boot_monitor",
+                          BOOT_MONITOR_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->boot_monitor_mr);
 #ifdef SEP_ENABLE_DEBUG_TRACE_MAPPING
     // TODO: Let's think about something for T8015
     memory_region_init_io(&s->debug_trace_mr, OBJECT(dev), &debug_trace_reg_ops,
                           s, "sep.debug_trace",
                           s->debug_trace_size); // Debug trace printing
-    memory_region_add_subregion(&APPLE_A13(s->cpu)->memory, s->shmbuf_base +
-                                s->trace_buffer_base_offset, &s->debug_trace_mr);
+    memory_region_add_subregion(&APPLE_A13(s->cpu)->memory,
+                                s->shmbuf_base + s->trace_buffer_base_offset,
+                                &s->debug_trace_mr);
 #endif
 
     DTBNode *child = dtb_get_node(node, "iop-sep-nub");
@@ -3806,7 +3792,8 @@ static void apple_sep_reset_hold(Object *obj, ResetType type)
         sc->parent_phases.hold(obj, type);
     }
     s->key_fcfg_offset_0x14_index = 0;
-    memset(s->key_fcfg_offset_0x14_values, 0, sizeof(s->key_fcfg_offset_0x14_values));
+    memset(s->key_fcfg_offset_0x14_values, 0,
+           sizeof(s->key_fcfg_offset_0x14_values));
     s->pmgr_fuse_changer_bit0_was_set = false;
     s->pmgr_fuse_changer_bit1_was_set = false;
     memset(s->pmgr_base_regs, 0, sizeof(s->pmgr_base_regs));
@@ -4251,7 +4238,7 @@ static void aes_keys_from_sp_key(struct AppleSSCState *ssc_state,
                                  uint8_t *aes_key_extractorkey)
 {
     // wrapping with "SP key"/"Spes"/"Lynx version 1 crypto" could be wrong.
-    uint8_t hmac_key[0x20] = {0};
+    uint8_t hmac_key[0x20] = { 0 };
     memcpy(hmac_key, ssc_state->slot_hmac_key[kbkdf_index], 0x20);
     HEXDUMP("aes_keys_from_sp_key: hmac_key", hmac_key, 0x20);
     kbkdf_generate_key(hmac_key, INFOSTR_AKE_MACKEY, prefix, aes_key_mackey,
@@ -4276,9 +4263,10 @@ static void do_response_prefix(uint8_t *request, uint8_t *response,
     response[3] = flags;
 }
 
-static void clear_ecc_scalar(struct ecc_scalar *ecc_key) {
+static void clear_ecc_scalar(struct ecc_scalar *ecc_key)
+{
     if (!buffer_is_zero(ecc_key, sizeof(struct ecc_scalar))) {
-        ecc_scalar_clear (ecc_key);
+        ecc_scalar_clear(ecc_key);
         memset(ecc_key, 0, sizeof(struct ecc_scalar));
     }
 }
@@ -4320,7 +4308,8 @@ static int answer_cmd_0x0_init1(struct AppleSSCState *ssc_state,
         "dddddddddddddddddddddddddddd%02x",
         kbkdf_index);
     // TODO: use priv_str = NULL here after the function has been reworked
-    // TODO: ASAN might show a (spurious?) __gmp_default_allocate leak here. already fixed?
+    // TODO: ASAN might show a (spurious?) __gmp_default_allocate leak here.
+    // already fixed?
     int err =
         generate_ec_priv(priv_str, &ssc_state->ecc_keys[kbkdf_index], &ecc_pub);
     output_ec_pub(&ecc_pub,
@@ -4495,12 +4484,13 @@ static int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
     }
-    int blk_offset =
-        (kbkdf_index_dataslot * CMD_METADATA_DATA_PAYLOAD_LENGTH *
-        SSC_REQUEST_MAX_COPIES) + (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
+    int blk_offset = (kbkdf_index_dataslot * CMD_METADATA_DATA_PAYLOAD_LENGTH *
+                      SSC_REQUEST_MAX_COPIES) +
+                     (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
     int key_offset =
         (KBKDF_KEY_KEY_FILE_OFFSET * CMD_METADATA_DATA_PAYLOAD_LENGTH *
-        SSC_REQUEST_MAX_COPIES) + (kbkdf_index_dataslot * KBKDF_KEY_KEY_LENGTH);
+         SSC_REQUEST_MAX_COPIES) +
+        (kbkdf_index_dataslot * KBKDF_KEY_KEY_LENGTH);
     DBGLOG("cmd_0x03_req: blk_offset: 0x%x\n", blk_offset);
     HEXDUMP("cmd_0x03_req: ssc_state->kbkdf_keys[kbkdf_index_key]",
             ssc_state->kbkdf_keys[kbkdf_index_key], KBKDF_CMAC_OUTPUT_LEN);
@@ -4688,10 +4678,9 @@ static int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
     }
-    int blk_offset =
-        (kbkdf_index_dataslot * CMD_METADATA_DATA_PAYLOAD_LENGTH *
-         SSC_REQUEST_MAX_COPIES) +
-        (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
+    int blk_offset = (kbkdf_index_dataslot * CMD_METADATA_DATA_PAYLOAD_LENGTH *
+                      SSC_REQUEST_MAX_COPIES) +
+                     (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
     int key_offset =
         (KBKDF_KEY_KEY_FILE_OFFSET * CMD_METADATA_DATA_PAYLOAD_LENGTH *
          SSC_REQUEST_MAX_COPIES) +
@@ -4735,7 +4724,7 @@ static int answer_cmd_0x7_init0(struct AppleSSCState *ssc_state,
     DBGLOG("%s: entered function\n", __func__);
 
     const char *priv_str = "cccccccccccccccccccccccccccccccccccccccccccccccc"
-                     "cccccccccccccccccccccccccccccccccccccccccccccccc";
+                           "cccccccccccccccccccccccccccccccccccccccccccccccc";
     int err = generate_ec_priv(priv_str, &ssc_state->ecc_key_main, &ecc_pub);
     do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
     uint8_t unknown0[0x06] = { 0x12, 0x34, 0x56, 0x78, 0x90, 0xab };
@@ -4803,8 +4792,8 @@ static uint8_t apple_ssc_rx(I2CSlave *i2c)
     if (ssc->resp_cur == 1) {
         uint8_t cmd = ssc->req_cmd[0];
         if (cmd > 0x09) {
-            qemu_log_mask(LOG_UNIMP,
-                          "%s: cmd %u: invalid command > 0x09", __func__, cmd);
+            qemu_log_mask(LOG_UNIMP, "%s: cmd %u: invalid command > 0x09",
+                          __func__, cmd);
             do_response_prefix(ssc->req_cmd, ssc->resp_cmd,
                                SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         } else if (ssc->req_cur != ssc_request_sizes[cmd]) {

@@ -49,7 +49,6 @@ static void apple_a7iop_mailbox_reg_write_v4(void *opaque, hwaddr addr,
 {
     AppleA7IOPMailbox *s;
     AppleA7IOPMessage *msg;
-    struct sep_message sep_msg = { 0 };
 
     s = APPLE_A7IOP_MAILBOX(opaque);
 
@@ -78,36 +77,9 @@ static void apple_a7iop_mailbox_reg_write_v4(void *opaque, hwaddr addr,
         if (addr + size == REG_IOP_SEND3 + 4) {
             msg = g_new0(AppleA7IOPMessage, 1);
             memcpy(msg->data, s->iop_send_reg, sizeof(msg->data));
-            if (!strncmp(s->role, "SEP", 3)) {
-                memcpy(&sep_msg.raw, msg->data, 8);
-                qemu_log_mask(LOG_UNIMP,
-                              "%s: REG_IOP_SEND3: ep=0x%02x, tag=0x%02x, "
-                              "opcode=0x%02x(%u), param=0x%02x, data=0x%08x\n",
-                              s->role, sep_msg.endpoint, sep_msg.tag,
-                              sep_msg.opcode, sep_msg.opcode, sep_msg.param,
-                              sep_msg.data);
-#if 1
-                if (sep_msg.endpoint == 0xfe) {
-                    L4InfoMessage l4_msg = { 0 };
-                    memcpy(&l4_msg, msg->data, 8);
-                    uint64_t shmbuf_addr = l4_msg.address << 12;
-                    uint64_t shmbuf_size =
-                        l4_msg.size << 12; // size << 12 is needed for L4
-                                           // messages, but not for OOL messages
-                    qemu_log_mask(LOG_UNIMP,
-                                  "%s: REG_IOP_SEND3: L4_INFO_MSG: ep=0x%02x, "
-                                  "tag=0x%02x, address=0x%" PRIx64
-                                  ", size=0x%" PRIx64 "\n",
-                                  s->role, sep_msg.endpoint, sep_msg.tag,
-                                  shmbuf_addr, shmbuf_size);
-                }
-#endif
-            }
             qemu_mutex_unlock(&s->lock);
             apple_a7iop_mailbox_send_iop(s, msg);
-            if (strncmp(s->role, "SMC", 3) != 0) {
-                IOP_LOG_MSG(s, "AP sent", msg);
-            }
+            IOP_LOG_MSG(s, "AP sent", msg);
         } else {
             qemu_mutex_unlock(&s->lock);
         }
@@ -124,15 +96,6 @@ static void apple_a7iop_mailbox_reg_write_v4(void *opaque, hwaddr addr,
         if (addr + size == REG_AP_SEND3 + 4) {
             msg = g_new0(AppleA7IOPMessage, 1);
             memcpy(msg->data, s->ap_send_reg, sizeof(msg->data));
-            if (!strncmp(s->role, "SEP", 3)) {
-                memcpy(&sep_msg.raw, msg->data, 8);
-                qemu_log_mask(LOG_UNIMP,
-                              "%s: REG_AP_SEND3: ep=0x%02x, tag=0x%02x, "
-                              "opcode=0x%02x(%u), param=0x%02x, data=0x%08x\n",
-                              s->role, sep_msg.endpoint, sep_msg.tag,
-                              sep_msg.opcode, sep_msg.opcode, sep_msg.param,
-                              sep_msg.data);
-            }
             qemu_mutex_unlock(&s->lock);
             apple_a7iop_mailbox_send_ap(s, msg);
             IOP_LOG_MSG(s, "IOP sent", msg);
@@ -153,7 +116,6 @@ static uint64_t apple_a7iop_mailbox_reg_read_v4(void *opaque, hwaddr addr,
 {
     AppleA7IOPMailbox *s;
     AppleA7IOPMessage *msg;
-    struct sep_message sep_msg = { 0 };
     uint64_t ret = 0;
 
     s = APPLE_A7IOP_MAILBOX(opaque);
@@ -174,17 +136,6 @@ static uint64_t apple_a7iop_mailbox_reg_read_v4(void *opaque, hwaddr addr,
             if (msg) {
                 memcpy(s->iop_recv_reg, msg->data, sizeof(s->iop_recv_reg));
                 IOP_LOG_MSG(s, "IOP received", msg);
-                if (!strncmp(s->role, "SEP", 3)) {
-                    memcpy(&sep_msg.raw, msg->data, 8);
-                    #if 0
-                    qemu_log_mask(
-                        LOG_UNIMP,
-                        "%s: REG_IOP_RECV0: ep=0x%02x, tag=0x%02x, "
-                        "opcode=0x%02x(%u), param=0x%02x, data=0x%08x\n",
-                        s->role, sep_msg.endpoint, sep_msg.tag, sep_msg.opcode,
-                        sep_msg.opcode, sep_msg.param, sep_msg.data);
-                    #endif
-                }
                 g_free(msg);
             } else {
                 memset(s->iop_recv_reg, 0, sizeof(s->iop_recv_reg));
@@ -207,18 +158,7 @@ static uint64_t apple_a7iop_mailbox_reg_read_v4(void *opaque, hwaddr addr,
         {
             if (msg) {
                 memcpy(s->ap_recv_reg, msg->data, sizeof(s->ap_recv_reg));
-                if (strncmp(s->role, "SMC", 3) != 0) {
-                    IOP_LOG_MSG(s, "AP received", msg);
-                }
-                if (!strncmp(s->role, "SEP", 3)) {
-                    memcpy(&sep_msg.raw, msg->data, 8);
-                    qemu_log_mask(
-                        LOG_UNIMP,
-                        "%s: REG_AP_RECV0: ep=0x%02x, tag=0x%02x, "
-                        "opcode=0x%02x(%u), param=0x%02x, data=0x%08x\n",
-                        s->role, sep_msg.endpoint, sep_msg.tag, sep_msg.opcode,
-                        sep_msg.opcode, sep_msg.param, sep_msg.data);
-                }
+                IOP_LOG_MSG(s, "AP received", msg);
                 g_free(msg);
             } else {
                 memset(s->ap_recv_reg, 0, sizeof(s->ap_recv_reg));

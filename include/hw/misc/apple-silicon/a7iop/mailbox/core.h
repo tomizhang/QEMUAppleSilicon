@@ -22,24 +22,9 @@ typedef struct AppleA7IOPMessage {
 } AppleA7IOPMessage;
 
 typedef struct AppleA7IOPInterruptStatusMessage {
-    union QEMU_PACKED {
-        uint32_t status;
-    };
+    uint32_t status;
     QTAILQ_ENTRY(AppleA7IOPInterruptStatusMessage) entry;
 } AppleA7IOPInterruptStatusMessage;
-
-struct QEMU_PACKED sep_message {
-    union {
-        struct QEMU_PACKED {
-            uint8_t             endpoint;
-            uint8_t             tag;
-            uint8_t             opcode;
-            uint8_t             param;
-            uint32_t            data;
-        };
-        uint64_t raw;
-    };
-};
 
 typedef struct {
     uint8_t ep;
@@ -83,7 +68,7 @@ struct AppleA7IOPMailbox {
     QEMUBH *bh;
     QTAILQ_HEAD(, AppleA7IOPMessage) inbox;
     QTAILQ_HEAD(, AppleA7IOPInterruptStatusMessage) interrupt_status;
-    size_t count;
+    uint32_t count;
     AppleA7IOPMailbox *iop_mailbox;
     AppleA7IOPMailbox *ap_mailbox;
     qemu_irq irqs[APPLE_A7IOP_IRQ_MAX];
@@ -101,11 +86,6 @@ struct AppleA7IOPMailbox {
     bool iop_empty;
     bool ap_nonempty;
     bool ap_empty;
-    uint64_t last_ool_in_size;
-    uint64_t last_ool_in_addr;
-    uint64_t last_ool_out_size;
-    uint64_t last_ool_out_addr;
-    int ool_overlap_priority;
 };
 
 void apple_a7iop_mailbox_update_irq_status(AppleA7IOPMailbox *s);
