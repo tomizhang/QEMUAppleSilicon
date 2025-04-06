@@ -1879,6 +1879,18 @@ static void xor_32bit_value(uint8_t *dest, uint32_t val, int size)
     }
 }
 
+static void aess_raise_interrupt(AppleAESSState *s) {
+    MachineState *machine = MACHINE(qdev_get_machine());
+    AppleSEPState *sep = APPLE_SEP(
+        object_property_get_link(OBJECT(machine), "sep", &error_fatal));
+    // bit1==interrupts_enabled; bit0==interrupt_will_activate ?
+    if ((s->interrupt_enabled & 0x3) != 0) {
+        s->interrupt_status |= 0x1;
+        apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox,
+                                          0x10005); // AESS
+    }
+}
+
 // TODO: This is 100% wrong, but it works anyhow/anyway.
 // Somewhen, I'll have to handle keyunwrap (if that exists) and PKA. For the PKA
 // ECDH command, reuse code from SSC.
@@ -1936,6 +1948,9 @@ static void aess_keywrap_uid(AppleAESSState *s, uint8_t *in, uint8_t *out,
     HEXDUMP("aess_keywrap_uid: out1", out, data_len);
     s->reg_0x14_keywrap_iterations_counter = 0;
     qcrypto_cipher_free(cipher);
+    // only enabled by driver_ops 0x4/0x1d (keywrap) if
+    // iterations_counter is over 10/0xa.
+    aess_raise_interrupt(s);
 }
 
 static int aess_get_custom_keywrap_index(uint32_t cmd)
@@ -2306,6 +2321,9 @@ static void aess_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
         }
         goto jump_default;
     case SEP_AESS_REGISTER_INTERRUPT_ENABLED: // Interrupt Enabled
+        // bit1 == maybe enable interrupt(s)
+        // bit0 == maybe activate interrupt when command is done ;
+        // ... used for keywrap with > 10/0xa iterations
         data &= 0x3;
         s->interrupt_enabled = data;
         goto jump_default;
@@ -2519,7 +2537,10 @@ static void pka_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
 #if 0
         s->status0 = data;
         if (s->status0 == 0x1) {
+            // maybe check interrupt status
             s->status_in0 = 1;
+        } else if (s->status0 == 0x4) {
+            // unknown
         }
 #endif
         goto jump_default;
@@ -2572,7 +2593,7 @@ static uint64_t pka_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
-    case 0x8: // maybe status_in0
+    case 0x8: // maybe status_in0/interrupt_status
 #if 0
         if (s->status0 == 0x1) {
             ret = 0x1;
