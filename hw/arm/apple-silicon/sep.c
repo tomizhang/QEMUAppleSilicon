@@ -1884,7 +1884,7 @@ static void aess_raise_interrupt(AppleAESSState *s) {
     AppleSEPState *sep = APPLE_SEP(
         object_property_get_link(OBJECT(machine), "sep", &error_fatal));
     // bit1==interrupts_enabled; bit0==interrupt_will_activate ?
-    if ((s->interrupt_enabled & 0x3) != 0) {
+    if ((s->interrupt_enabled & 0x3) == 0x3) {
         s->interrupt_status |= 0x1;
         apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox,
                                           0x10005); // AESS
