@@ -2561,14 +2561,28 @@ static void pka_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     switch (addr) {
     case 0x0: // maybe command
         // values: 0x4/0x8/0x10/0x20/0x40/0x80/0x100
+        if (data == 0x40) { // migrate data with PKA
+            apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000a); // ack first interrupt/0xa
+            //apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000b); // ack second interrupt/0xb
+            apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000c); // ack third interrupt/0xc
+        } else if (data == 0x80) { // MPKA_ECPUB_ATTEST
+            apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000a); // ack first interrupt/0xa
+            //apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000b); // ack second interrupt/0xb
+            apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000c); // ack third interrupt/0xc
+        }
         goto jump_default;
     case 0x4: // maybe status_out0
-#if 0
+#if 1
         s->status0 = data;
+        // maybe use & instead of ==
         if (s->status0 == 0x1) {
-            // maybe check interrupt status
+            // ack interrupt 0xa
             s->status_in0 = 1;
+        } else if (s->status0 == 0x2) {
+            // ack interrupt 0xb
+            // unknown
         } else if (s->status0 == 0x4) {
+            // ack interrupt 0xc
             // unknown
         }
 #endif
@@ -2623,12 +2637,14 @@ static uint64_t pka_base_reg_read(void *opaque, hwaddr addr, unsigned size)
 #endif
     switch (addr) {
     case 0x8: // maybe status_in0/interrupt_status
-#if 0
-        if (s->status0 == 0x1) {
-            ret = 0x1;
+#if 1
+        //if (s->status0 == 0x1)
+        if (s->status_in0 == 0x1)
+        {
+            ret = 0x1; // this means mod_PKA_read output ready
         }
 #endif
-#if 0
+#if 1
         ret = s->status_in0;
         if (s->status_in0 == 1) {
             s->status_in0 = 0;
@@ -2679,6 +2695,8 @@ static void pka_tmm_reg_write(void *opaque, hwaddr addr, uint64_t data,
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
+    case 0x818 ... 0x834: // some data
+        goto jump_default;
     default:
         memcpy(&s->pka_tmm_regs[addr], &data, size);
     jump_default:
