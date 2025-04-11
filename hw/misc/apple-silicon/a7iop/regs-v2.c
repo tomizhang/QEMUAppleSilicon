@@ -18,6 +18,7 @@
 #define KIC_GLB_CFG_TIMER_EN (1 << 1)
 #define REG_KIC_MAILBOX_EXT_SET (0xC00)
 #define REG_KIC_MAILBOX_EXT_CLR (0xC04)
+#define REG_IDLE_STATUS (0x4040)
 #define REG_KIC_TMR_CFG1 (0xC000)
 #define KIC_TMR_CFG_FSL_TIMER (0 << 4)
 #define KIC_TMR_CFG_FSL_SW (1 << 4)
