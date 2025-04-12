@@ -890,7 +890,8 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     // sep_bit30_current_value should stay zero on raw and only change current.
     int sep_bit30_current_value = 0;
     // chip_revision = 0x01;
-    chip_revision = 0x11;
+    //chip_revision = 0x11;
+    chip_revision = t8030_machine->chip_revision;
     // board_id = 0x4;
     board_id = t8030_machine->board_id;
     security_epoch = 0x1;
@@ -2475,7 +2476,8 @@ static void t8030_machine_init(MachineState *machine)
     child = dtb_get_node(t8030_machine->device_tree, "arm-io");
     g_assert_nonnull(child);
 
-    dtb_set_prop_u32(child, "chip-revision", 0x20);
+    t8030_machine->chip_revision = 0x20;
+    dtb_set_prop_u32(child, "chip-revision", t8030_machine->chip_revision);
 
     dtb_set_prop(child, "clock-frequencies", sizeof(t8030_clock_freq),
                  t8030_clock_freq);

@@ -110,7 +110,8 @@ typedef struct {
     uint32_t command; // 0x0
     uint32_t status0; // 0x4
     uint32_t status_in0; // 0x8
-    uint32_t img4out_dgst_clock; // 0x40
+    uint32_t img4out_dgst_locked; // 0x40
+    uint8_t img4out_dgst[32]; // 0x60
     uint8_t output0[32]; // 0x60 ; read_cmd_0x2
     uint8_t input0[0x80]; // 0x80 ; write_cmd_0x0 ; SMRK_pub ; 1024 bits ;
                           // measurement==0x34_bytes
@@ -120,9 +121,10 @@ typedef struct {
                              // status_in0 needs to be 0x1
     uint8_t input1[0x20a]; // 0x200 .. 0x40a (not inclusive) ; write_cmd_0x1 ;
                            // 4176 bits, maybe rsa input?
-    uint32_t chip_revision_clock; // 0x800
-    uint32_t cmd_0xd_answer; // 0x820 ; cmd_0xd
-    uint32_t chipid_ecid_misc_clock; // 0x840
+    uint32_t chip_revision_locked; // 0x800
+    uint32_t chip_revision; // 0x820 ; mod_PKA_read buffer_id 0xd asks for that
+    uint32_t ecid_chipid_misc_locked; // 0x840
+    uint32_t ecid_chipid_misc[5]; // 0x860
 } ApplePKAState;
 
 #define KBKDF_CMAC_OUTPUT_LEN 0x48

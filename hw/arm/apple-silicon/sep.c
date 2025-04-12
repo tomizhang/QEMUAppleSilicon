@@ -742,7 +742,7 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         memcpy((void *)&m + 0x04, &s->debug_trace_regs[offset + 0x90],
                sizeof(uint32_t));
         qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: (tid: 0x%05" PRIx64 "/%s): "
+                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
                       "SEP_Driver__Mailbox_Rx:"
                       " endpoint: 0x%02x tag: 0x%02x opcode: "
                       "0x%02x(%u) param: 0x%02x data: 0x%02x\n",
@@ -2587,28 +2587,31 @@ static void pka_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
         }
 #endif
         goto jump_default;
-    case 0x40: // img4out DGST clock
-        s->img4out_dgst_clock = data;
+    case 0x40: // img4out DGST locked
+        s->img4out_dgst_locked |= (data & 1);
         goto jump_default;
     case 0x60 ... 0x7c: // img4out DGST data
+        if (!s->img4out_dgst_locked) {
+            memcpy(&s->img4out_dgst[addr & 0x1f], &data, 4);
+        }
         goto jump_default;
     case 0x80 ... 0x9c: // some data
         goto jump_default;
-    case 0x800: // chip revision clock
-        s->chip_revision_clock = data;
+    case 0x800: // chip revision locked
+        s->chip_revision_locked |= (data & 1);
         goto jump_default;
     case 0x820: // chip revision data
+        if (!s->chip_revision_locked) {
+            s->chip_revision = data;
+        }
         goto jump_default;
-    case 0x840: // chipid ecid misc clock
-        s->chipid_ecid_misc_clock = data;
+    case 0x840: // ecid chipid misc locked
+        s->ecid_chipid_misc_locked |= (data & 1);
         goto jump_default;
-    case 0x860 ... 0x864: // ecid data
-        goto jump_default;
-    case 0x868: // unknown0 data
-        goto jump_default;
-    case 0x86c: // unknown1 data
-        goto jump_default;
-    case 0x870: // chipid data
+    case 0x860 ... 0x870: // ecid chipid misc data ; 0x860/0x864 ecid, 0x870 chipid
+        if (!s->ecid_chipid_misc_locked) {
+            memcpy(&s->ecid_chipid_misc[(addr & 0x1f) >> 2], &data, 4);
+        }
         goto jump_default;
     default:
         memcpy(&sep->pka_base_regs[addr], &data, size);
@@ -2651,14 +2654,24 @@ static uint64_t pka_base_reg_read(void *opaque, hwaddr addr, unsigned size)
         }
 #endif
         goto jump_default;
-    case 0x40: // img4out DGST clock
-        ret = s->img4out_dgst_clock;
+    case 0x40: // img4out DGST locked
+        ret = s->img4out_dgst_locked;
         goto jump_default;
-    case 0x800: // chip revision clock
-        ret = s->chip_revision_clock;
+    case 0x60 ... 0x7c: // img4out DGST data
+        memcpy(&ret, &s->img4out_dgst[addr & 0x1f], 4);
         goto jump_default;
-    case 0x840: // chipid ecid misc clock
-        ret = s->chipid_ecid_misc_clock;
+    case 0x800: // chip revision locked
+        ret = s->chip_revision_locked;
+        goto jump_default;
+    case 0x820: // chip revision data
+        ret = s->chip_revision;
+        goto jump_default;
+    case 0x840: // ecid chipid misc locked
+        ret = s->ecid_chipid_misc_locked;
+        goto jump_default;
+    case 0x860 ... 0x870: // ecid chipid misc data
+        memcpy(&ret, &s->ecid_chipid_misc[(addr & 0x1f) >> 2], 4);
+        //memcpy(&ret, &s->ecid_chipid_misc + (addr & 0x1f), 4);
         goto jump_default;
     default:
         memcpy(&ret, &sep->pka_base_regs[addr], size);
@@ -2696,6 +2709,7 @@ static void pka_tmm_reg_write(void *opaque, hwaddr addr, uint64_t data,
 #endif
     switch (addr) {
     case 0x818 ... 0x834: // some data
+        // correct?
         goto jump_default;
     default:
         memcpy(&s->pka_tmm_regs[addr], &data, size);
@@ -2719,6 +2733,9 @@ static uint64_t pka_tmm_reg_read(void *opaque, hwaddr addr, unsigned size)
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
+    case 0x818 ... 0x834:
+        // TODO
+        goto jump_default;
     default:
         memcpy(&ret, &s->pka_tmm_regs[addr], size);
     jump_default:
@@ -3776,11 +3793,20 @@ static void aess_reset(AppleAESSState *s)
 
 static void pka_reset(ApplePKAState *s)
 {
+    s->command = 0;
     s->status0 = 0;
     s->status_in0 = 0;
-    s->img4out_dgst_clock = 0;
-    s->chip_revision_clock = 0;
-    s->chipid_ecid_misc_clock = 0;
+    s->img4out_dgst_locked = 0;
+    s->chip_revision_locked = 0;
+    s->ecid_chipid_misc_locked = 0;
+    s->chip_revision = 0;
+    memset(s->img4out_dgst, 0, sizeof(s->img4out_dgst));
+    memset(s->output0, 0, sizeof(s->output0));
+    memset(s->input0, 0, sizeof(s->input0));
+    memset(s->public_key, 0, sizeof(s->public_key));
+    memset(s->attest_hash, 0, sizeof(s->attest_hash));
+    memset(s->input1, 0, sizeof(s->input1));
+    memset(s->ecid_chipid_misc, 0, sizeof(s->ecid_chipid_misc));
 }
 
 

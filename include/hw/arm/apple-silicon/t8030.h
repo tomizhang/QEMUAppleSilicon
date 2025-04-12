@@ -79,6 +79,7 @@ typedef struct {
     bool kaslr_off;
     bool force_dfu;
     uint32_t board_id;
+    uint32_t chip_revision;
 } T8030MachineState;
 
 #endif /* HW_ARM_APPLE_SILICON_T8030_H */
