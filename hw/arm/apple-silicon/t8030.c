@@ -125,8 +125,6 @@ static void t8030_create_s3c_uart(const T8030MachineState *t8030_machine,
 {
     DeviceState *dev;
     hwaddr base;
-    // first fetch the uart mmio address
-    int vector;
     DTBProp *prop;
     hwaddr *uart_offset;
     DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io/uart0");
@@ -146,9 +144,9 @@ static void t8030_create_s3c_uart(const T8030MachineState *t8030_machine,
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
 
-    vector = *(uint32_t *)prop->data + port;
-    dev = apple_uart_create(
-        base, 15, 0, chr, qdev_get_gpio_in(DEVICE(t8030_machine->aic), vector));
+    dev = apple_uart_create(base, 15, 0, chr,
+                            qdev_get_gpio_in(DEVICE(t8030_machine->aic),
+                                             lduw_le_p(prop->data) + port));
     g_assert_nonnull(dev);
     dev->id = g_strdup(name);
 }
@@ -157,10 +155,10 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
 {
     const uint32_t nop = cpu_to_le32(0xD503201F);
 
-    //! disable_kprintf_output = 0;
+    // disable_kprintf_output = 0;
     *(uint32_t *)vtop_slid(0xFFFFFFF0077142C8) = 0;
 
-    //! AppleSEPManager::_initTimeoutMultiplier 'sim' -> '  m'
+    // AppleSEPManager::_initTimeoutMultiplier 'sim' -> '  m'
     *(uint32_t *)vtop_slid(0xFFFFFFF008B569E0) = cpu_to_le32(0x52840408);
 
     // Disable AMX
