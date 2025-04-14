@@ -29,7 +29,7 @@
 #include "hw/arm/apple-silicon/mem.h"
 #include "hw/arm/apple-silicon/mt-spi.h"
 #include "hw/arm/apple-silicon/sart.h"
-#include "hw/arm/apple-silicon/sep-sim/core.h"
+#include "hw/arm/apple-silicon/sep-sim.h"
 #include "hw/arm/apple-silicon/sep.h"
 #include "hw/arm/apple-silicon/t8030-config.c.inc"
 #include "hw/arm/apple-silicon/t8030.h"
