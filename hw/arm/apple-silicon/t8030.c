@@ -29,7 +29,7 @@
 #include "hw/arm/apple-silicon/mem.h"
 #include "hw/arm/apple-silicon/mt-spi.h"
 #include "hw/arm/apple-silicon/sart.h"
-#include "hw/arm/apple-silicon/sep-sim.h"
+#include "hw/arm/apple-silicon/sep-sim/core.h"
 #include "hw/arm/apple-silicon/sep.h"
 #include "hw/arm/apple-silicon/t8030-config.c.inc"
 #include "hw/arm/apple-silicon/t8030.h"
@@ -878,8 +878,6 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
                       base + addr, base);
     }
 #endif
-    uint32_t chip_revision;
-    uint64_t board_id;
     uint64_t security_epoch; // On IMG4: Security Epoch ; On IMG3: Minimum
                              // Epoch, verified on SecureROM s5l8955xsi
     int current_prod = 1;
@@ -889,11 +887,6 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     int raw_secure_mode = 1;
     // sep_bit30_current_value should stay zero on raw and only change current.
     int sep_bit30_current_value = 0;
-    // chip_revision = 0x01;
-    //chip_revision = 0x11;
-    chip_revision = t8030_machine->chip_revision;
-    // board_id = 0x4;
-    board_id = t8030_machine->board_id;
     security_epoch = 0x1;
     // current_prod = raw_prod = current_secure_mode = raw_secure_mode = 0;
     switch (base + addr) {
@@ -944,8 +937,9 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         QEMU_FALLTHROUGH;
     case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO?
                      // AppleSEPROM-A12-D331pAP
-        return ((board_id >> 5) & 0x7) | ((security_epoch & 0x7f) << 5) |
-               sep_bit30_current_value | (1 << 31);
+        return ((t8030_machine->board_id >> 5) & 0x7) |
+               ((security_epoch & 0x7f) << 5) | sep_bit30_current_value |
+               (1 << 31);
         // (security epoch & 0x7F) << 5 ;; (sep_bit30 << 30)
         // for SEP | (1 << 31) for SEP and AP
     case 0x3D2BC020: // T8030 iBSS: FUN_19c07feac_return_value_causes_crash;
@@ -966,8 +960,8 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         // maybe 0x1c0 instead of 0x7 return ((chip_revision & 0x7) << 6) |
         // (((chip_revision & 0x70) >> 4) << 5) | (1 << 1); // LOW&HIGH NIBBLE
         // T8030, T8020 and AppleSEPROM-S4-S5-B1 // maybe 0x1c0 instead of 0x7
-        return ((chip_revision & 0x7) << 6) |
-               (((chip_revision & 0x70) >> 4) << 5) |
+        return ((t8030_machine->chip_revision & 0x7) << 6) |
+               (((t8030_machine->chip_revision & 0x70) >> 4) << 5) |
                (0 << 1); // LOW&HIGH NIBBLE T8030, T8020 and
                          // AppleSEPROM-S4-S5-B1 // maybe 0x1c0 instead of 0x7 ;
                          // bit1 being set causes kernel data abort
