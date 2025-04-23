@@ -686,6 +686,8 @@ config APPLE_SART
 
 config APPLE_SOC
     bool
+    default y
+    depends on TCG && ARM && AARCH64
     select EXYNOS4 # UART
     select OR_IRQ
     select UNIMP
