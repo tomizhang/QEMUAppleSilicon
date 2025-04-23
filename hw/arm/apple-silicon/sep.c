@@ -3649,19 +3649,19 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     object_property_add_child(OBJECT(machine), "sep_i2c", OBJECT(i2c));
     sysbus_mmio_map(i2c, 0, 0x241480000ull); // T8030
     sysbus_realize_and_unref(i2c, &error_fatal);
-    uint64_t eeprom0_size = 64 * KiB;
+    uint64_t nvram_size = 64 * KiB;
     if (s->chip_id >= 0x8020) {
-        eeprom0_size = 2 * KiB; // 0x800 bytes
+        nvram_size = 2 * KiB; // 0x800 bytes
     }
 
     DriveInfo *dinfo_eeprom = drive_get_by_index(IF_PFLASH, 0);
     g_assert_nonnull(dinfo_eeprom);
     BlockBackend *blk_eeprom = blk_by_legacy_dinfo(dinfo_eeprom);
     g_assert_nonnull(blk_eeprom);
-    I2CSlave *eeprom0 = at24c_eeprom_init_rom_blk(
-        APPLE_I2C(i2c)->bus, 0x51, eeprom0_size, NULL, 0, 2, blk_eeprom);
-    g_assert_nonnull(eeprom0);
-    s->eeprom0 = eeprom0;
+    I2CSlave *nvram = at24c_eeprom_init_rom_blk(
+        APPLE_I2C(i2c)->bus, 0x51, nvram_size, NULL, 0, 2, blk_eeprom);
+    g_assert_nonnull(nvram);
+    s->nvram = nvram;
     if (s->chip_id >= 0x8020) {
         DriveInfo *dinfo_ssc = drive_get_by_index(IF_PFLASH, 1);
         g_assert_nonnull(dinfo_ssc);

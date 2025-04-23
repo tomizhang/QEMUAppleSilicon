@@ -266,7 +266,7 @@ struct AppleSEPState {
     ApplePKAState pka_state;
     DeviceState *fiq_or;
     DeviceState *irq_or;
-    I2CSlave *eeprom0;
+    I2CSlave *nvram;
     AppleSSCState *ssc_state;
     hwaddr sep_fw_addr;
     uint64_t sep_fw_size;
