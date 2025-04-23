@@ -3450,7 +3450,7 @@ static void apple_sep_iop_start(AppleA7IOP *s)
     apple_a7iop_set_cpu_status(s, apple_a7iop_get_cpu_status(s) &
                                       ~CPU_STATUS_IDLE);
 
-    vaddr load_addr = *(vaddr *)&sep->boot_monitor_regs[0x20];
+    hwaddr load_addr = *(hwaddr *)&sep->boot_monitor_regs[0x20];
     // Don't prevent two successive calls of this, it is actually intended,
     // once by seprom and once by sepfw.
     // rely on apple_a7iop_set_cpu_ctrl for "(cpu_ctrl & SEP_BOOT_MONITOR_RUN)"
