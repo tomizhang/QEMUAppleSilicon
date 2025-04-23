@@ -2,7 +2,7 @@
 #include "hw/nvram/apple_nvram.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h"
-#include "sysemu/block-backend.h"
+#include "system/block-backend.h"
 #include <zlib.h>
 
 static inline uint8_t chrp_checksum(ChrpNvramPartHdr *header)

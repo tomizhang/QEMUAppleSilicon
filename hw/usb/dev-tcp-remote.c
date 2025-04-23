@@ -12,9 +12,9 @@
 #include "qemu/main-loop.h"
 #include "qemu/module.h"
 #include "qom/object.h"
-#include "sysemu/iothread.h"
 #include "dev-tcp-remote.h"
 #include "desc.h"
+#include "system/iothread.h"
 #include "tcp-usb.h"
 #include "trace.h"
 
@@ -669,10 +669,6 @@ out:
     }
 }
 
-static Property usb_tcp_remote_properties[] = {
-    DEFINE_PROP_END_OF_LIST(),
-};
-
 static void usb_tcp_remote_dev_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -691,7 +687,6 @@ static void usb_tcp_remote_dev_class_init(ObjectClass *klass, void *data)
 
     dc->desc = "QEMU USB Passthrough Device";
 
-    device_class_set_props(dc, usb_tcp_remote_properties);
 
     set_bit(DEVICE_CATEGORY_USB, dc->categories);
 }

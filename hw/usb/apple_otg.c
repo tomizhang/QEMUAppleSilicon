@@ -223,10 +223,6 @@ static int apple_otg_post_load(void *opaque, int version_id)
     return 0;
 }
 
-static Property apple_otg_properties[] = {
-    DEFINE_PROP_END_OF_LIST(),
-};
-
 static const VMStateDescription vmstate_apple_otg = {
     .name = "apple_otg",
     .post_load = apple_otg_post_load,
@@ -247,7 +243,6 @@ static void apple_otg_class_init(ObjectClass *klass, void *data)
     device_class_set_legacy_reset(dc, apple_otg_reset);
     dc->desc = "Apple Synopsys USB OTG Controller";
     dc->vmsd = &vmstate_apple_otg;
-    device_class_set_props(dc, apple_otg_properties);
 }
 
 static const TypeInfo apple_otg_info = {

@@ -7,7 +7,7 @@
 #include "qemu/log.h"
 #include "qemu/module.h"
 #include "qemu/queue.h"
-#include "sysemu/runstate.h"
+#include "system/runstate.h"
 
 #define TYPE_APPLE_SMC_IOP "apple.smc"
 OBJECT_DECLARE_TYPE(AppleSMCState, AppleSMCClass, APPLE_SMC_IOP)

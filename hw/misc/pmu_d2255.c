@@ -25,7 +25,7 @@
 #include "qemu/error-report.h"
 #include "qemu/log.h"
 #include "qemu/timer.h"
-#include "sysemu/sysemu.h"
+#include "system/system.h"
 
 // #define DEBUG_PMU_D2255
 

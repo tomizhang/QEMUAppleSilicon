@@ -25,7 +25,6 @@
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/i2c/i2c.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
-#include "hw/nvram/eeprom_at24c.h"
 #include "hw/sysbus.h"
 #include "qemu/typedefs.h"
 #include "qom/object.h"
@@ -267,7 +266,7 @@ struct AppleSEPState {
     ApplePKAState pka_state;
     DeviceState *fiq_or;
     DeviceState *irq_or;
-    EEPROMState *eeprom0;
+    I2CSlave *eeprom0;
     AppleSSCState *ssc_state;
     hwaddr sep_fw_addr;
     uint64_t sep_fw_size;

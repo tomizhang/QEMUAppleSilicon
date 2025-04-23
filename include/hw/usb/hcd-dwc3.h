@@ -28,7 +28,7 @@
 #include "hw/register.h"
 #include "hw/usb/hcd-xhci-sysbus.h"
 #include "qemu/queue.h"
-#include "sysemu/dma.h"
+#include "system/dma.h"
 
 #define DWC3_SIZE 0x10000
 #define DWC3_MMIO_SIZE 0x10000

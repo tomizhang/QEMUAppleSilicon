@@ -47,9 +47,9 @@
 #include "qemu/error-report.h"
 #include "qemu/guest-random.h"
 #include "qemu/units.h"
-#include "sysemu/reset.h"
-#include "sysemu/runstate.h"
-#include "sysemu/sysemu.h"
+#include "system/reset.h"
+#include "system/runstate.h"
+#include "system/system.h"
 #include "target/arm/arm-powerctl.h"
 
 #define S8000_SPI0_IRQ 188
@@ -341,7 +341,8 @@ static void s8000_memory_setup(MachineState *machine)
     info->dram_base = S8000_DRAM_BASE;
     info->dram_size = S8000_DRAM_SIZE;
 
-    nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
+    nvram =
+        APPLE_NVRAM(object_resolve_path_at(NULL, "/machine/peripheral/nvram"));
     if (!nvram) {
         error_setg(&error_abort, "Failed to find NVRAM device");
         return;
@@ -1476,10 +1477,10 @@ static void s8000_machine_class_init(ObjectClass *klass, void *data)
     mc->init = s8000_machine_init;
     mc->reset = s8000_machine_reset;
     mc->max_cpus = A9_MAX_CPU;
-    mc->no_sdcard = 1;
-    mc->no_floppy = 1;
-    mc->no_cdrom = 1;
-    mc->no_parallel = 1;
+    mc->auto_create_sdcard = false;
+    mc->no_floppy = true;
+    mc->no_cdrom = true;
+    mc->no_parallel = true;
     mc->default_cpu_type = TYPE_APPLE_A9;
     mc->minimum_page_bits = 14;
     mc->default_ram_size = S8000_DRAM_SIZE;

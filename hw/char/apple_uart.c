@@ -624,12 +624,11 @@ static void apple_uart_realize(DeviceState *dev, Error **errp)
                              NULL, true);
 }
 
-static Property apple_uart_properties[] = {
+static const Property apple_uart_properties[] = {
     DEFINE_PROP_CHR("chardev", AppleUartState, chr),
     DEFINE_PROP_UINT32("channel", AppleUartState, channel, 0),
     DEFINE_PROP_UINT32("rx-size", AppleUartState, rx_fifo_size, 15),
     DEFINE_PROP_UINT32("tx-size", AppleUartState, tx_fifo_size, 15),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void apple_uart_class_init(ObjectClass *klass, void *data)

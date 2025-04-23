@@ -23,8 +23,8 @@
 #include "qemu/memalign.h"
 #include "trace.h"
 #include "qed.h"
-#include "sysemu/block-backend.h"
-#include "qapi/qmp/qdict.h"
+#include "system/block-backend.h"
+#include "qobject/qdict.h"
 #include "qapi/qobject-input-visitor.h"
 #include "qapi/qapi-visit-block-core.h"
 

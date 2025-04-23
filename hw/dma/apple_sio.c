@@ -7,7 +7,7 @@
 #include "qemu/iov.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
-#include "sysemu/dma.h"
+#include "system/dma.h"
 
 // #define DEBUG_SIO
 

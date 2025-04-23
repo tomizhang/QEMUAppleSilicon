@@ -29,9 +29,9 @@
 #include "qemu/lockable.h"
 #include "qemu/log.h"
 #include "qemu/main-loop.h"
-#include "sysemu/dma.h"
 #include "art.h"
 #include "libtasn1.h"
+#include "system/dma.h"
 
 typedef enum {
     SEP_STATUS_SLEEPING = 0,

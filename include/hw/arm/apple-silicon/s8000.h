@@ -28,7 +28,7 @@
 #include "hw/boards.h"
 #include "hw/cpu/cluster.h"
 #include "hw/sysbus.h"
-#include "sysemu/kvm.h"
+#include "system/kvm.h"
 
 #define TYPE_S8000 "s8000"
 

@@ -297,11 +297,10 @@ static void adbe_v2_realize(DeviceState *dev, Error **errp)
     qemu_console_resize(s->console, s->width, s->height);
 }
 
-static Property adbe_v2_props[] = {
+static const Property adbe_v2_props[] = {
     // iPhone 4/4S
     DEFINE_PROP_UINT32("width", ADBEV2, width, 640),
     DEFINE_PROP_UINT32("height", ADBEV2, height, 960),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void adbe_v2_class_init(ObjectClass *klass, void *data)

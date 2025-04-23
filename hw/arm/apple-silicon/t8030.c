@@ -58,9 +58,9 @@
 #include "qemu/guest-random.h"
 #include "qemu/log.h"
 #include "qemu/units.h"
-#include "sysemu/reset.h"
-#include "sysemu/runstate.h"
-#include "sysemu/sysemu.h"
+#include "system/reset.h"
+#include "system/runstate.h"
+#include "system/system.h"
 
 #define T8030_SROM_BASE (0x100000000)
 #define T8030_SROM_SIZE (0x80000)
@@ -707,7 +707,8 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
 #endif // for T8030 SEPROM
     }
 
-    nvram = APPLE_NVRAM(qdev_find_recursive(sysbus_get_default(), "nvram"));
+    nvram =
+        APPLE_NVRAM(object_resolve_path_at(NULL, "/machine/peripheral/nvram"));
     if (nvram == NULL) {
         error_setg(&error_abort, "Failed to find NVRAM device");
         return;
@@ -2779,10 +2780,10 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
     mc->init = t8030_machine_init;
     mc->reset = t8030_machine_reset;
     mc->max_cpus = A13_MAX_CPU + 1;
-    mc->no_sdcard = 1;
-    mc->no_floppy = 1;
-    mc->no_cdrom = 1;
-    mc->no_parallel = 1;
+    mc->auto_create_sdcard = false;
+    mc->no_floppy = true;
+    mc->no_cdrom = true;
+    mc->no_parallel = true;
     mc->default_cpu_type = TYPE_APPLE_A13;
     mc->minimum_page_bits = 14;
     mc->default_ram_size = 4 * GiB;

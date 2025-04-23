@@ -27,7 +27,7 @@
 #include "hw/arm/apple-silicon/boot.h"
 #include "hw/boards.h"
 #include "hw/sysbus.h"
-#include "sysemu/kvm.h"
+#include "system/kvm.h"
 
 #define TYPE_T8030 "t8030"
 

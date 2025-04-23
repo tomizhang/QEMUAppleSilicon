@@ -26,11 +26,11 @@
 #include "hw/resettable.h"
 #include "qemu/error-report.h"
 #include "qom/object.h"
-#include "sysemu/dma.h"
 #include "ui/console.h"
 #include "ui/pixel_ops.h"
 #include "framebuffer.h"
 #include "pixman.h"
+#include "system/dma.h"
 
 // #define DEBUG_DISP
 
@@ -666,10 +666,9 @@ static void adp_v4_realize(DeviceState *dev, Error **errp)
     qemu_console_resize(s->console, s->width, s->height);
 }
 
-static Property adp_v4_props[] = {
+static const Property adp_v4_props[] = {
     DEFINE_PROP_UINT32("width", AppleDisplayPipeV4State, width, 828),
     DEFINE_PROP_UINT32("height", AppleDisplayPipeV4State, height, 1792),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void adp_v4_class_init(ObjectClass *klass, void *data)

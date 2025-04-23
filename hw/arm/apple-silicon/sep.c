@@ -25,7 +25,6 @@
 #include "exec/address-spaces.h"
 #include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/a9.h"
-#include "hw/arm/apple-silicon/mem.h"
 #include "hw/arm/apple-silicon/sep.h"
 #include "hw/boards.h"
 #include "hw/core/cpu.h"
@@ -34,6 +33,7 @@
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/misc/apple-silicon/a7iop/private.h"
+#include "hw/nvram/eeprom_at24c.h"
 #include "hw/or-irq.h"
 #include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
@@ -44,8 +44,6 @@
 #include "qemu/log.h"
 #include "qemu/units.h"
 #include "qom/object.h"
-#include "sysemu/block-backend-global-state.h"
-#include "sysemu/block-backend-io.h"
 #include "nettle/ccm.h"
 #include "nettle/cmac.h"
 #include "nettle/ecc-curve.h"
@@ -54,7 +52,8 @@
 #include "nettle/hkdf.h"
 #include "nettle/hmac.h"
 #include "nettle/knuth-lfib.h"
-#include "target/arm/cpregs.h"
+#include "system/block-backend-global-state.h"
+#include "system/block-backend-io.h"
 #include "trace.h"
 #include <nettle/macros.h>
 #include <nettle/memxor.h>
@@ -2562,13 +2561,23 @@ static void pka_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case 0x0: // maybe command
         // values: 0x4/0x8/0x10/0x20/0x40/0x80/0x100
         if (data == 0x40) { // migrate data with PKA
-            apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000a); // ack first interrupt/0xa
-            //apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000b); // ack second interrupt/0xb
-            apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000c); // ack third interrupt/0xc
+            apple_a7iop_interrupt_status_push(
+                APPLE_A7IOP(sep)->iop_mailbox,
+                0x1000a); // ack first interrupt/0xa
+            // apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox,
+            // 0x1000b); // ack second interrupt/0xb
+            apple_a7iop_interrupt_status_push(
+                APPLE_A7IOP(sep)->iop_mailbox,
+                0x1000c); // ack third interrupt/0xc
         } else if (data == 0x80) { // MPKA_ECPUB_ATTEST
-            apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000a); // ack first interrupt/0xa
-            //apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000b); // ack second interrupt/0xb
-            apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox, 0x1000c); // ack third interrupt/0xc
+            apple_a7iop_interrupt_status_push(
+                APPLE_A7IOP(sep)->iop_mailbox,
+                0x1000a); // ack first interrupt/0xa
+            // apple_a7iop_interrupt_status_push(APPLE_A7IOP(sep)->iop_mailbox,
+            // 0x1000b); // ack second interrupt/0xb
+            apple_a7iop_interrupt_status_push(
+                APPLE_A7IOP(sep)->iop_mailbox,
+                0x1000c); // ack third interrupt/0xc
         }
         goto jump_default;
     case 0x4: // maybe status_out0
@@ -2608,7 +2617,8 @@ static void pka_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case 0x840: // ecid chipid misc locked
         s->ecid_chipid_misc_locked |= (data & 1);
         goto jump_default;
-    case 0x860 ... 0x870: // ecid chipid misc data ; 0x860/0x864 ecid, 0x870 chipid
+    case 0x860 ... 0x870: // ecid chipid misc data ; 0x860/0x864 ecid, 0x870
+                          // chipid
         if (!s->ecid_chipid_misc_locked) {
             memcpy(&s->ecid_chipid_misc[(addr & 0x1f) >> 2], &data, 4);
         }
@@ -2641,9 +2651,8 @@ static uint64_t pka_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     switch (addr) {
     case 0x8: // maybe status_in0/interrupt_status
 #if 1
-        //if (s->status0 == 0x1)
-        if (s->status_in0 == 0x1)
-        {
+              // if (s->status0 == 0x1)
+        if (s->status_in0 == 0x1) {
             ret = 0x1; // this means mod_PKA_read output ready
         }
 #endif
@@ -2671,7 +2680,7 @@ static uint64_t pka_base_reg_read(void *opaque, hwaddr addr, unsigned size)
         goto jump_default;
     case 0x860 ... 0x870: // ecid chipid misc data
         memcpy(&ret, &s->ecid_chipid_misc[(addr & 0x1f) >> 2], 4);
-        //memcpy(&ret, &s->ecid_chipid_misc + (addr & 0x1f), 4);
+        // memcpy(&ret, &s->ecid_chipid_misc + (addr & 0x1f), 4);
         goto jump_default;
     default:
         memcpy(&ret, &sep->pka_base_regs[addr], size);
@@ -3687,23 +3696,23 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     g_assert_nonnull(dinfo_eeprom);
     BlockBackend *blk_eeprom = blk_by_legacy_dinfo(dinfo_eeprom);
     g_assert_nonnull(blk_eeprom);
-    EEPROMState *eeprom0 = AT24C_EE(
-        at24c_eeprom_init_rom_blk(APPLE_I2C(i2c)->bus, 0x51, eeprom0_size,
-                                  eeprom0_init, eeprom0_size, 2, blk_eeprom));
-    g_assert_nonnull(eeprom0);
-#if 0
-    if (buffer_is_zero(&eeprom0->mem[0 << 8], 0x100)) {
-        // not needed when memcmp_validstrs14 is patched
-        memcpy(&eeprom0->mem[0 << 8], &eeprom0_init[0 << 8], 0x100);
-        memcpy(&eeprom0->mem[1 << 8], &eeprom0_init[1 << 8], 0x100);
-        memcpy(&eeprom0->mem[2 << 8], &eeprom0_init[2 << 8], 0x100);
-        if (eeprom0->blk) {
-            blk_pwrite(eeprom0->blk, 0 << 8, 0x100, &eeprom0_init[0 << 8], 0);
-            blk_pwrite(eeprom0->blk, 1 << 8, 0x100, &eeprom0_init[1 << 8], 0);
-            blk_pwrite(eeprom0->blk, 2 << 8, 0x100, &eeprom0_init[2 << 8], 0);
-        }
+    int ret =
+        blk_set_perm(blk_eeprom, BLK_PERM_CONSISTENT_READ | BLK_PERM_WRITE,
+                     BLK_PERM_ALL, &error_fatal);
+    if (ret < 0) {
+        error_setg(&error_abort, "Error setting EEPROM0 permissions: %s",
+                   strerror(-ret));
+        return NULL;
     }
-#endif
+    ret = blk_pwrite(blk_eeprom, 0, eeprom0_size, eeprom0_init, 0);
+    if (ret < 0) {
+        error_setg(&error_abort, "Error while writing to EEPROM0: %s",
+                   strerror(-ret));
+        return NULL;
+    }
+    I2CSlave *eeprom0 = at24c_eeprom_init_rom_blk(
+        APPLE_I2C(i2c)->bus, 0x51, eeprom0_size, NULL, 0, 2, blk_eeprom);
+    g_assert_nonnull(eeprom0);
     s->eeprom0 = eeprom0;
     if (s->chip_id >= 0x8020) {
         DriveInfo *dinfo_ssc = drive_get_by_index(IF_PFLASH, 1);
@@ -4943,9 +4952,8 @@ AppleSSCState *apple_ssc_create(MachineState *machine, uint8_t addr)
     return ssc;
 }
 
-static Property apple_ssc_props[] = {
+static const Property apple_ssc_props[] = {
     DEFINE_PROP_DRIVE("drive", AppleSSCState, blk),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void apple_ssc_class_init(ObjectClass *klass, void *data)

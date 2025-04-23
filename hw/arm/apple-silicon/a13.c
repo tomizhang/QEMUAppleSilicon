@@ -33,8 +33,8 @@
 #include "qemu/log.h"
 #include "qemu/queue.h"
 #include "qemu/timer.h"
-#include "sysemu/reset.h"
 #include "arm-powerctl.h"
+#include "system/reset.h"
 #include "target/arm/cpregs.h"
 
 #define VMSTATE_A13_CPREG(name) \
@@ -43,27 +43,37 @@
 #define VMSTATE_A13_CLUSTER_CPREG(name) \
     VMSTATE_UINT64(A13_CPREG_VAR_NAME(name), AppleA13Cluster)
 
-#define A13_CPREG_DEF(p_name, p_op0, p_op1, p_crn, p_crm, p_op2, p_access,     \
-                      p_reset)                                                 \
-    {                                                                          \
-        .cp = CP_REG_ARM64_SYSREG_CP, .name = #p_name, .opc0 = p_op0,          \
-        .crn = p_crn, .crm = p_crm, .opc1 = p_op1, .opc2 = p_op2,              \
-        .access = p_access, .resetvalue = p_reset, .state = ARM_CP_STATE_AA64, \
-        .type = ARM_CP_OVERRIDE,                                               \
-        .fieldoffset = offsetof(AppleA13State, A13_CPREG_VAR_NAME(p_name)) -   \
-                       offsetof(ARMCPU, env)                                   \
-    }
+#define A13_CPREG_DEF(p_name, p_op0, p_op1, p_crn, p_crm, p_op2, p_access, \
+                      p_reset)                                             \
+    { .cp = CP_REG_ARM64_SYSREG_CP,                                        \
+      .name = #p_name,                                                     \
+      .opc0 = p_op0,                                                       \
+      .crn = p_crn,                                                        \
+      .crm = p_crm,                                                        \
+      .opc1 = p_op1,                                                       \
+      .opc2 = p_op2,                                                       \
+      .access = p_access,                                                  \
+      .resetvalue = p_reset,                                               \
+      .state = ARM_CP_STATE_AA64,                                          \
+      .type = ARM_CP_OVERRIDE,                                             \
+      .fieldoffset = offsetof(AppleA13State, A13_CPREG_VAR_NAME(p_name)) - \
+                     offsetof(ARMCPU, env) }
 
-#define A13_CLUSTER_CPREG_DEF(p_name, p_op0, p_op1, p_crn, p_crm, p_op2,     \
-                              p_access)                                      \
-    {                                                                        \
-        .cp = CP_REG_ARM64_SYSREG_CP, .name = #p_name, .opc0 = p_op0,        \
-        .crn = p_crn, .crm = p_crm, .opc1 = p_op1, .opc2 = p_op2,            \
-        .access = p_access, .type = ARM_CP_IO, .state = ARM_CP_STATE_AA64,   \
-        .readfn = apple_a13_cluster_cpreg_read,                              \
-        .writefn = apple_a13_cluster_cpreg_write,                            \
-        .fieldoffset = offsetof(AppleA13Cluster, A13_CPREG_VAR_NAME(p_name)) \
-    }
+#define A13_CLUSTER_CPREG_DEF(p_name, p_op0, p_op1, p_crn, p_crm, p_op2, \
+                              p_access)                                  \
+    { .cp = CP_REG_ARM64_SYSREG_CP,                                      \
+      .name = #p_name,                                                   \
+      .opc0 = p_op0,                                                     \
+      .crn = p_crn,                                                      \
+      .crm = p_crm,                                                      \
+      .opc1 = p_op1,                                                     \
+      .opc2 = p_op2,                                                     \
+      .access = p_access,                                                \
+      .type = ARM_CP_IO,                                                 \
+      .state = ARM_CP_STATE_AA64,                                        \
+      .readfn = apple_a13_cluster_cpreg_read,                            \
+      .writefn = apple_a13_cluster_cpreg_write,                          \
+      .fieldoffset = offsetof(AppleA13Cluster, A13_CPREG_VAR_NAME(p_name)) }
 
 #define IPI_SR_SRC_CPU_SHIFT 8
 #define IPI_SR_SRC_CPU_WIDTH 8
@@ -511,7 +521,9 @@ static const ARMCPRegInfo apple_a13_cp_reginfo_tcg[] = {
     A13_CPREG_DEF(ARM64_REG_HID14, 3, 0, 15, 15, 0, PL1_RW, 0),
     A13_CPREG_DEF(ARM64_REG_HID16, 3, 0, 15, 15, 2, PL1_RW, 0),
     A13_CPREG_DEF(ARM64_REG_LSU_ERR_STS, 3, 3, 15, 0, 0, PL1_RW, 0),
-    A13_CPREG_DEF(ARM64_REG_LSU_ERR_STS_, 3, 3, 15, 2, 0, PL1_RW, 0), // this one is supposed to be ARM64_REG_LSU_ERR_STS according to a gist file.
+    A13_CPREG_DEF(ARM64_REG_LSU_ERR_STS_, 3, 3, 15, 2, 0, PL1_RW,
+                  0), // this one is supposed to be ARM64_REG_LSU_ERR_STS
+                      // according to a gist file.
     A13_CPREG_DEF(ARM64_REG_FED_ERR_STS, 3, 4, 15, 0, 2, PL1_RW, 0),
     A13_CPREG_DEF(ARM64_REG_LLC_ERR_STS, 3, 3, 15, 8, 0, PL1_RW, 0),
     A13_CPREG_DEF(ARM64_REG_LLC_ERR_INF, 3, 3, 15, 10, 0, PL1_RW, 0),
@@ -789,13 +801,8 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
     return tcpu;
 }
 
-static Property apple_a13_properties[] = {
-    DEFINE_PROP_END_OF_LIST(),
-};
-
-static Property apple_a13_cluster_properties[] = {
+static const Property apple_a13_cluster_properties[] = {
     DEFINE_PROP_UINT32("cluster-type", AppleA13Cluster, cluster_type, 0),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static const VMStateDescription vmstate_apple_a13 = {
@@ -882,7 +889,6 @@ static void apple_a13_class_init(ObjectClass *klass, void *data)
     dc->desc = "Apple A13 CPU";
     dc->vmsd = &vmstate_apple_a13;
     set_bit(DEVICE_CATEGORY_CPU, dc->categories);
-    device_class_set_props(dc, apple_a13_properties);
 }
 
 static void apple_a13_cluster_class_init(ObjectClass *klass, void *data)

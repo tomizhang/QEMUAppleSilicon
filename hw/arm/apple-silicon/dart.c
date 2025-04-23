@@ -7,10 +7,10 @@
 #include "migration/vmstate.h"
 #include "monitor/hmp-target.h"
 #include "monitor/monitor.h"
-#include "qapi/qmp/qdict.h"
 #include "qemu/bitops.h"
 #include "qemu/module.h"
-#include "sysemu/dma.h"
+#include "qobject/qdict.h"
+#include "system/dma.h"
 
 // #define DEBUG_DART
 

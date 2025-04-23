@@ -143,10 +143,6 @@ static int apple_typec_post_load(void *opaque, int version_id)
     return 0;
 }
 
-static Property apple_typec_properties[] = {
-    DEFINE_PROP_END_OF_LIST(),
-};
-
 static const VMStateDescription vmstate_apple_typec = {
     .name = "apple_typec",
     .post_load = apple_typec_post_load,
@@ -164,7 +160,6 @@ static void apple_typec_class_init(ObjectClass *klass, void *data)
     device_class_set_legacy_reset(dc, apple_typec_reset);
     dc->desc = "Apple Type C USB PHY";
     dc->vmsd = &vmstate_apple_typec;
-    device_class_set_props(dc, apple_typec_properties);
 }
 
 static const TypeInfo apple_typec_info = {

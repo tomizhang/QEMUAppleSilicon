@@ -1,4 +1,5 @@
 #include "qemu/osdep.h"
+#include "exec/cputlb.h"
 #include "exec/exec-all.h"
 #include "hw/arm/apple-silicon/a13_gxf.h"
 #include "qapi/error.h"
@@ -12,7 +13,7 @@ static CPAccessResult access_gxf(CPUARMState *env, const ARMCPRegInfo *ri,
     if (arm_is_guarded(env)) {
         return CP_ACCESS_OK;
     }
-    return CP_ACCESS_TRAP;
+    return CP_ACCESS_TRAP_EL1;
 }
 
 static uint64_t tpidr_el1_read(CPUARMState *env, const ARMCPRegInfo *ri)

@@ -33,15 +33,22 @@
 #define VMSTATE_A9_CPREG(name) \
     VMSTATE_UINT64(A9_CPREG_VAR_NAME(name), AppleA9State)
 
-#define A9_CPREG_DEF(p_name, p_op0, p_op1, p_crn, p_crm, p_op2, p_access,      \
-                     p_reset)                                                  \
-    {                                                                          \
-        .cp = CP_REG_ARM64_SYSREG_CP, .name = #p_name, .opc0 = p_op0,          \
-        .crn = p_crn, .crm = p_crm, .opc1 = p_op1, .opc2 = p_op2,              \
-        .access = p_access, .resetvalue = p_reset, .state = ARM_CP_STATE_AA64, \
-        .type = ARM_CP_OVERRIDE,                                               \
-        .fieldoffset = offsetof(AppleA9State, A9_CPREG_VAR_NAME(p_name)) -     \
-                       offsetof(ARMCPU, env),                                  \
+#define A9_CPREG_DEF(p_name, p_op0, p_op1, p_crn, p_crm, p_op2, p_access,  \
+                     p_reset)                                              \
+    {                                                                      \
+        .cp = CP_REG_ARM64_SYSREG_CP,                                      \
+        .name = #p_name,                                                   \
+        .opc0 = p_op0,                                                     \
+        .crn = p_crn,                                                      \
+        .crm = p_crm,                                                      \
+        .opc1 = p_op1,                                                     \
+        .opc2 = p_op2,                                                     \
+        .access = p_access,                                                \
+        .resetvalue = p_reset,                                             \
+        .state = ARM_CP_STATE_AA64,                                        \
+        .type = ARM_CP_OVERRIDE,                                           \
+        .fieldoffset = offsetof(AppleA9State, A9_CPREG_VAR_NAME(p_name)) - \
+                       offsetof(ARMCPU, env),                              \
     }
 
 inline bool apple_a9_cpu_is_sleep(AppleA9State *tcpu)
@@ -255,10 +262,6 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
     return tcpu;
 }
 
-static Property apple_a9_properties[] = {
-    DEFINE_PROP_END_OF_LIST(),
-};
-
 static const VMStateDescription vmstate_apple_a9 = {
     .name = "apple_a9",
     .version_id = 1,
@@ -294,7 +297,6 @@ static void apple_a9_class_init(ObjectClass *klass, void *data)
     dc->desc = "Apple A9 CPU";
     dc->vmsd = &vmstate_apple_a9;
     set_bit(DEVICE_CATEGORY_CPU, dc->categories);
-    device_class_set_props(dc, apple_a9_properties);
 }
 
 static const TypeInfo apple_a9_info = {

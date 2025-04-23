@@ -7,7 +7,7 @@
 #include "hw/sysbus.h"
 #include "qemu/iov.h"
 #include "qom/object.h"
-#include "sysemu/dma.h"
+#include "system/dma.h"
 
 #define TYPE_APPLE_SIO "apple.sio"
 OBJECT_DECLARE_TYPE(AppleSIOState, AppleSIOClass, APPLE_SIO)
