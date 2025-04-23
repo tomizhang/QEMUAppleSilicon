@@ -238,7 +238,7 @@ static void fsl_imx8mp_init(Object *obj)
 
     for (i = 0; i < FSL_IMX8MP_NUM_USBS; i++) {
         g_autofree char *name = g_strdup_printf("usb%d", i);
-        object_initialize_child(obj, name, &s->usb[i], TYPE_USB_DWC3);
+        object_initialize_child(obj, name, &s->usb[i], TYPE_DWC3_USB);
     }
 
     for (i = 0; i < FSL_IMX8MP_NUM_ECSPIS; i++) {

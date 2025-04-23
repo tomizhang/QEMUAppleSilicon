@@ -442,7 +442,7 @@ static void xlnx_zynqmp_init(Object *obj)
                             &s->qspi_irq_orgate, TYPE_OR_IRQ);
 
     for (i = 0; i < XLNX_ZYNQMP_NUM_USB; i++) {
-        object_initialize_child(obj, "usb[*]", &s->usb[i], TYPE_USB_DWC3);
+        object_initialize_child(obj, "usb[*]", &s->usb[i], TYPE_DWC3_USB);
     }
 }
 

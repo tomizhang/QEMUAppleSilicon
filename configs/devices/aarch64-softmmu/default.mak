@@ -5,9 +5,9 @@ include ../arm-softmmu/default.mak
 
 # These are selected by default when TCG is enabled, uncomment them to
 # keep out of the build.
-CONFIG_XLNX_ZYNQMP_ARM=n
-CONFIG_XLNX_VERSAL=n
-CONFIG_SBSA_REF=n
-CONFIG_NPCM8XX=n
+# CONFIG_XLNX_ZYNQMP_ARM=n
+# CONFIG_XLNX_VERSAL=n
+# CONFIG_SBSA_REF=n
+# CONFIG_NPCM8XX=n
 CONFIG_VMAPPLE=n
 CONFIG_APPLE_SOC=y
