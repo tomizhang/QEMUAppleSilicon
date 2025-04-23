@@ -3653,63 +3653,11 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     if (s->chip_id >= 0x8020) {
         eeprom0_size = 2 * KiB; // 0x800 bytes
     }
-    uint8_t *eeprom0_init = g_malloc0(eeprom0_size);
-    memset(eeprom0_init, 0x00, eeprom0_size);
 
-    typedef struct QEMU_PACKED {
-        uint8_t valid_amnm;
-        uint8_t amnm[0x30];
-        uint8_t valid_snon;
-        uint8_t snon[0x14];
-    } amnm_snon_entry_t;
-    amnm_snon_entry_t amnm_snon_entry = { 0 };
-    g_assert_cmphex(sizeof(amnm_snon_entry), ==,
-                    0x46); // g_assert_cmphex or g_assert_cmpuint?
-    uint8_t data0_in[0x10] = { 0 };
-    uint8_t data1_in[0x46] = { 0 };
-    uint8_t data2_in[0x8] = { 0 };
-    memset(data0_in, 0xaa, sizeof(data0_in));
-    memset(data1_in, 0xbb, sizeof(data1_in));
-    memset(data2_in, 0xcc, sizeof(data2_in));
-    uint8_t amnm[0x30] = { 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
-                           0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
-                           0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
-                           0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
-                           0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef,
-                           0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef };
-    uint8_t snon[0x14] = { 0xfe, 0xed, 0xfa, 0xce, 0xfe, 0xed, 0xfa,
-                           0xce, 0xfe, 0xed, 0xfa, 0xce, 0xfe, 0xed,
-                           0xfa, 0xce, 0xfe, 0xed, 0xfa, 0xce };
-    amnm_snon_entry.valid_amnm = 1;
-    memcpy(amnm_snon_entry.amnm, amnm, sizeof(amnm));
-    amnm_snon_entry.valid_snon = 1;
-    memcpy(amnm_snon_entry.snon, snon, sizeof(snon));
-    memcpy(data1_in, (uint8_t *)&amnm_snon_entry, sizeof(amnm_snon_entry));
-    create_eeprom_entry(0x0, 0x0, 0x0, 0x01, 0x20, data0_in,
-                        eeprom0_init); // hmac-check, reuse key for later ;
-                                       // handler_xART_0x65_0x7540
-    create_eeprom_entry(0x1, 0x0, 0x1, 0x02, 0x56, data1_in,
-                        eeprom0_init); // amnm and snon
-    create_eeprom_entry(0x2, 0x0, 0x2, 0x03, 0x18, data2_in,
-                        eeprom0_init); // put data into wrapper2
     DriveInfo *dinfo_eeprom = drive_get_by_index(IF_PFLASH, 0);
     g_assert_nonnull(dinfo_eeprom);
     BlockBackend *blk_eeprom = blk_by_legacy_dinfo(dinfo_eeprom);
     g_assert_nonnull(blk_eeprom);
-    int ret =
-        blk_set_perm(blk_eeprom, BLK_PERM_CONSISTENT_READ | BLK_PERM_WRITE,
-                     BLK_PERM_ALL, &error_fatal);
-    if (ret < 0) {
-        error_setg(&error_abort, "Error setting EEPROM0 permissions: %s",
-                   strerror(-ret));
-        return NULL;
-    }
-    ret = blk_pwrite(blk_eeprom, 0, eeprom0_size, eeprom0_init, 0);
-    if (ret < 0) {
-        error_setg(&error_abort, "Error while writing to EEPROM0: %s",
-                   strerror(-ret));
-        return NULL;
-    }
     I2CSlave *eeprom0 = at24c_eeprom_init_rom_blk(
         APPLE_I2C(i2c)->bus, 0x51, eeprom0_size, NULL, 0, 2, blk_eeprom);
     g_assert_nonnull(eeprom0);
