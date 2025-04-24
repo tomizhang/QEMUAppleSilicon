@@ -908,12 +908,35 @@ static const MemoryRegionOps debug_trace_reg_ops = {
 #define REG_TRNG_FIFO_OUTPUT_BASE (0x00)
 #define REG_TRNG_FIFO_OUTPUT_END (0x0C)
 #define REG_TRNG_STATUS (0x10)
-#define TRNG_STATUS_FILLED BIT(0)
-#define TRNG_STATUS_UNKNOWN0 BIT(8)
-#define REG_TRNG_CONFIG (0x14)
-#define TRNG_CONFIG_INTERRUPTS_ENABLED BIT(10)
-#define TRNG_CONFIG_ENABLED BIT(19)
-#define TRNG_CONFIG_PERSONALISED BIT(20)
+#define TRNG_STATUS_READY BIT(0)
+#define TRNG_STATUS_SHUTDOWN_OVFL BIT(1)
+#define TRNG_STATUS_STUCK BIT(2)
+#define TRNG_STATUS_NOISE_FAIL BIT(3)
+#define TRNG_STATUS_RUN_FAIL BIT(4)
+#define TRNG_STATUS_LONG_RUN_FAIL BIT(5)
+#define TRNG_STATUS_POKER_FAIL BIT(6)
+#define TRNG_STATUS_MONOBIT_FAIL BIT(7)
+#define TRNG_STATUS_TEST_READY BIT(8)
+#define TRNG_STATUS_STUCK_NRBG BIT(9)
+#define TRNG_STATUS_REPCNT_FAIL BIT(13)
+#define TRNG_STATUS_APROP_FAIL BIT(13)
+#define TRNG_STATUS_TEST_STUCK BIT(13)
+#define TRNG_STATUS_NEED_CLOCK BIT(31)
+#define REG_TRNG_CONTROL (0x14)
+#define TRNG_CONTROL_STUCK_NRBG_MASK BIT(10)
+#define TRNG_CONTROL_ENABLED BIT(10)
+#define TRNG_CONTROL_DRBG_ENABLED BIT(12)
+#define TRNG_CONTROL_REP_CNT_FAIL_MASK BIT(13)
+#define TRNG_CONTROL_APROP_FAIL_MASK BIT(14)
+#define TRNG_CONTROL_RESEED BIT(15)
+#define TRNG_CONTROL_REQ_DATA BIT(16)
+#define TRNG_CONTROL_REQ_HOLD BIT(17)
+#define TRNG_CONTROL_DATA_BLOCKS(v) (((v) >> 20) & 0xFFF)
+#define REG_TRNG_CONFIG (0x18)
+#define TRNG_CONFIG_NOISE_BLOCKS(v) ((v) & 0xFF)
+#define TRNG_CONFIG_SAMPLE_DIV(v) (((v) >> 8) & 0xF)
+#define TRNG_CONFIG_READ_TIMEOUT(v) (((v) >> 12) & 0xF)
+#define TRNG_CONFIG_SAMPLE_CYCLES(v) (((v) >> 16) & 0xFFFF)
 #define REG_TRNG_AES_KEY_BASE (0x40)
 #define REG_TRNG_AES_KEY_END (0x5C)
 #define REG_TRNG_ECID_LOW (0x60)
@@ -927,7 +950,7 @@ static void trng_regs_reg_write(void *opaque, hwaddr addr, uint64_t data,
     MachineState *machine = MACHINE(qdev_get_machine());
     AppleSEPState *sep;
     AppleTRNGState *s;
-    uint32_t interrupts_enabled;
+    uint32_t enabled;
 
     sep = APPLE_SEP(
         object_property_get_link(OBJECT(machine), "sep", &error_fatal));
@@ -965,31 +988,24 @@ static void trng_regs_reg_write(void *opaque, hwaddr addr, uint64_t data,
         }
         break;
     case REG_TRNG_STATUS:
-        interrupts_enabled = (s->config & TRNG_CONFIG_INTERRUPTS_ENABLED) != 0;
-        uint32_t filled = (data & TRNG_STATUS_FILLED) != 0;
-        if (filled && (s->offset_0x70 & 0xc0) == 0) {
+        enabled = (s->config & TRNG_CONTROL_ENABLED) != 0;
+        if ((data & TRNG_STATUS_READY) != 0 && (s->offset_0x70 & 0xC0) == 0) {
             qcrypto_random_bytes(s->fifo, sizeof(s->fifo), NULL);
-            // memset(s->fifo, 0xaa, sizeof(s->fifo));
-            // memset(s->fifo, 0xbb, sizeof(s->fifo));
         }
         break;
-    case REG_TRNG_CONFIG: {
-        uint32_t old_interrupts_enabled =
-            (s->config & TRNG_CONFIG_INTERRUPTS_ENABLED) != 0;
+    case REG_TRNG_CONTROL: {
+        uint32_t old_enabled = (s->config & TRNG_CONTROL_ENABLED) != 0;
         s->config = (uint32_t)data;
-        qemu_log_mask(
-            LOG_UNIMP,
-            "TRNG_REGS: REG_TRNG_CONFIG/OFFSET_0x14 write at 0x" HWADDR_FMT_plx
-            " of value 0x%" PRIx64 "\n",
-            addr, data);
-        interrupts_enabled = (data & TRNG_CONFIG_INTERRUPTS_ENABLED) != 0;
+        qemu_log_mask(LOG_UNIMP,
+                      "TRNG_REGS: REG_TRNG_CONTROL write at 0x" HWADDR_FMT_plx
+                      " of value 0x%" PRIx64 "\n",
+                      addr, data);
+        enabled = (data & TRNG_CONTROL_ENABLED) != 0;
 
-        if (!old_interrupts_enabled && interrupts_enabled) {
-            s->config |= TRNG_CONFIG_ENABLED;
+        if (!old_enabled && enabled) {
             apple_a7iop_interrupt_status_push(a7iop->iop_mailbox,
                                               0x10003); // TRNG
         }
-        s->config |= TRNG_CONFIG_ENABLED;
         break;
     }
     case REG_TRNG_AES_KEY_BASE ... REG_TRNG_AES_KEY_END:
@@ -1076,9 +1092,8 @@ static uint64_t trng_regs_reg_read(void *opaque, hwaddr addr, unsigned size)
 #endif
 
     s = (AppleTRNGState *)opaque;
-    uint32_t interrupts_enabled =
-        (s->config & TRNG_CONFIG_INTERRUPTS_ENABLED) != 0;
 
+    uint32_t enabled = (s->config & TRNG_CONTROL_ENABLED) != 0;
     switch (addr) {
     case REG_TRNG_FIFO_OUTPUT_BASE ... REG_TRNG_FIFO_OUTPUT_END:
         memcpy(&ret, s->fifo + (addr - REG_TRNG_FIFO_OUTPUT_BASE), size);
@@ -1088,13 +1103,11 @@ static uint64_t trng_regs_reg_read(void *opaque, hwaddr addr, unsigned size)
         break;
         break;
     case REG_TRNG_STATUS:
-        // ret = TRNG_STATUS_FILLED;
-        ret = TRNG_STATUS_FILLED | TRNG_STATUS_UNKNOWN0;
+        ret = TRNG_STATUS_READY | TRNG_STATUS_TEST_READY;
         break;
-    case REG_TRNG_CONFIG:
+    case REG_TRNG_CONTROL:
         ret = s->config;
-        // ret = TRNG_CONFIG_PERSONALISED;
-        if (interrupts_enabled) {
+        if (enabled) {
             apple_a7iop_interrupt_status_push(a7iop->iop_mailbox,
                                               0x10003); // TRNG
         }
