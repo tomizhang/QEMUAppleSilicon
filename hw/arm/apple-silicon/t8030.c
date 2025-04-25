@@ -537,7 +537,7 @@ static void t8030_rtkit_mem_setup(T8030MachineState *t8030_machine,
     segranges[0].size = text_size;
     segranges[0].flag = 0x1;
 
-    segranges[1].phys = segranges[0].phys + T8030_SIO_TEXT_SIZE;
+    segranges[1].phys = segranges[0].phys + text_size;
     segranges[1].virt = segranges[0].virt + text_size;
     segranges[1].remap = segranges[1].phys;
     segranges[1].size = data_size;
