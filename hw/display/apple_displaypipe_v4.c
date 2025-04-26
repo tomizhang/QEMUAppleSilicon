@@ -390,15 +390,18 @@ static void adp_v4_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case GP_BLOCK_BASE_FOR(0)... GP_BLOCK_END_FOR(0): {
         adp_v4_gp_reg_write(&s->generic_pipe[0], addr - GP_BLOCK_BASE_FOR(0),
                             data);
+        adp_v4_update_disp_image(s);
         break;
     }
     case GP_BLOCK_BASE_FOR(1)... GP_BLOCK_END_FOR(1): {
         adp_v4_gp_reg_write(&s->generic_pipe[1], addr - GP_BLOCK_BASE_FOR(1),
                             data);
+        adp_v4_update_disp_image(s);
         break;
     }
     case BLEND_BLOCK_BASE ...(BLEND_BLOCK_BASE + BLEND_BLOCK_SIZE): {
         adp_v4_blend_reg_write(&s->blend_unit, addr - BLEND_BLOCK_BASE, data);
+        adp_v4_update_disp_image(s);
         break;
     }
     default: {
@@ -407,7 +410,6 @@ static void adp_v4_reg_write(void *opaque, hwaddr addr, uint64_t data,
         break;
     }
     }
-    adp_v4_update_disp_image(s);
 }
 
 static uint64_t adp_v4_reg_read(void *opaque, hwaddr addr, const unsigned size)
