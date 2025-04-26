@@ -307,7 +307,6 @@ static void adp_v4_gp_reset(ADPV4GenPipeState *s, size_t index,
     s->dma_as = dma_as;
     s->disp_width = disp_width;
     s->disp_height = disp_height;
-    s->dirty = true;
 }
 
 static void adp_v4_blend_reg_write(ADPV4BlendUnitState *s, uint64_t addr,
@@ -687,13 +686,14 @@ static void adp_v4_update_disp_image_bh(void *opaque)
                                0, 0, 0, 0, 0, 0, layer_1_gp->width,
                                layer_1_gp->height);
 
-        layer_0_gp->dirty = false;
-        layer_1_gp->dirty = false;
         pixman_image_unref(layer_0_img);
         pixman_image_unref(layer_1_img);
 
         memory_region_set_dirty(&s->vram, 0,
                                 s->height * s->width * sizeof(uint32_t));
+
+        layer_0_gp->dirty = false;
+        layer_1_gp->dirty = false;
     }
 
     s->blend_unit.dirty = false;
