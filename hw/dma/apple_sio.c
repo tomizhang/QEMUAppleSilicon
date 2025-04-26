@@ -150,7 +150,7 @@ static void apple_sio_dma_writeback(AppleSIOState *s, AppleSIODMAEndpoint *ep)
     m.tag = ep->tag;
     m.data = ep->actual_length;
     apple_sio_unmap_dma(s, ep);
-    apple_rtkit_send_user_msg(rtk, 0, m.raw);
+    apple_rtkit_send_user_msg(rtk, EP_CONTROL, m.raw);
 }
 
 int apple_sio_dma_read(AppleSIODMAEndpoint *ep, void *buffer, size_t len)
@@ -213,7 +213,7 @@ static void apple_sio_control(AppleSIOState *s, AppleSIODMAEndpoint *ep,
     default:
         break;
     }
-    apple_rtkit_send_user_msg(rtk, 0, reply.raw);
+    apple_rtkit_send_user_msg(rtk, EP_CONTROL, reply.raw);
 };
 
 static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep, sio_msg m)
@@ -288,7 +288,7 @@ static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep, sio_msg m)
         reply.op = OP_ERROR;
         break;
     }
-    apple_rtkit_send_user_msg(rtk, 0, reply.raw);
+    apple_rtkit_send_user_msg(rtk, EP_CONTROL, reply.raw);
 };
 
 static void apple_sio_handle_endpoint(void *opaque, uint32_t ep, uint64_t msg)
@@ -399,7 +399,7 @@ SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
     reg = (uint64_t *)prop->data;
 
     apple_rtkit_init(rtk, NULL, "SIO", reg[1], version, protocol_version, NULL);
-    apple_rtkit_register_user_ep(rtk, 0, s, apple_sio_handle_endpoint);
+    apple_rtkit_register_user_ep(rtk, EP_CONTROL, s, apple_sio_handle_endpoint);
 
     memory_region_init_io(&s->ascv2_iomem, OBJECT(dev), &ascv2_core_reg_ops, s,
                           TYPE_APPLE_SIO ".ascv2-core-reg", reg[3]);
