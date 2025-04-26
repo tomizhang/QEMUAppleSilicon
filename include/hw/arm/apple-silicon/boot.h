@@ -252,13 +252,15 @@ typedef struct {
     char macos_version[EMBEDDED_PANIC_HEADER_OSVERSION_LEN];
 } QEMU_PACKED AppleEmbeddedPanicHeader;
 
+#define IOP_SEGMENT_RANGE_NEEDS_BACKUP BIT(2)
+
 typedef struct {
     uint64_t phys;
     uint64_t virt;
     uint64_t remap;
     uint32_t size;
-    uint32_t flag;
-} QEMU_PACKED AppleIopSegmentRange;
+    uint32_t flags;
+} AppleIOPSegmentRange;
 
 #define XNU_MAX_NVRAM_SIZE (0xFFFF * 0x10)
 #define XNU_BNCH_SIZE (32)
