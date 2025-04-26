@@ -46,12 +46,12 @@ typedef struct {
     uint16_t buf_height;
     uint8_t *buf;
     bool dirty;
-} ADPGenPipeState;
+} ADPV4GenPipeState;
 
 typedef struct {
     uint32_t layer_config[ADP_V4_LAYER_COUNT];
     bool dirty;
-} ADPBlendUnitState;
+} ADPV4BlendUnitState;
 
 struct AppleDisplayPipeV4State {
     /*< private >*/
@@ -69,9 +69,10 @@ struct AppleDisplayPipeV4State {
     MemoryRegionSection vram_section;
     qemu_irq irqs[9];
     uint32_t int_status;
-    ADPGenPipeState generic_pipe[ADP_V4_LAYER_COUNT];
-    ADPBlendUnitState blend_unit;
+    ADPV4GenPipeState generic_pipe[ADP_V4_LAYER_COUNT];
+    ADPV4BlendUnitState blend_unit;
     QemuConsole *console;
+    QEMUBH *update_disp_image_bh;
     bool invalidated;
 };
 

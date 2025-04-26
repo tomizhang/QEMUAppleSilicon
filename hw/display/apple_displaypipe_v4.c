@@ -141,12 +141,12 @@
 #define REG_BLEND_GAMMA_TABLE_B (0x202C)
 // #define REG_BLEND_?? (0x3034)
 
-static void adp_update_irqs(AppleDisplayPipeV4State *s)
+static void adp_v4_update_irqs(AppleDisplayPipeV4State *s)
 {
     qemu_set_irq(s->irqs[0], (s->int_status & CONTROL_INT_STATUS_VBLANK) != 0);
 }
 
-static pixman_format_code_t adp_gp_fmt_to_pixman(ADPGenPipeState *s)
+static pixman_format_code_t adp_v4_gp_fmt_to_pixman(ADPV4GenPipeState *s)
 {
     if ((s->pixel_format & GP_PIXEL_FORMAT_BGRA) == GP_PIXEL_FORMAT_BGRA) {
         ADP_INFO("[gp%zu] Pixel Format is BGRA (0x%X).", s->index,
@@ -164,7 +164,7 @@ static pixman_format_code_t adp_gp_fmt_to_pixman(ADPGenPipeState *s)
     }
 }
 
-static uint8_t *adp_gp_read(ADPGenPipeState *s)
+static uint8_t *adp_v4_gp_read(ADPV4GenPipeState *s)
 {
     uint8_t *buf;
 
@@ -202,7 +202,8 @@ static uint8_t *adp_gp_read(ADPGenPipeState *s)
     return buf;
 }
 
-static void adp_gp_reg_write(ADPGenPipeState *s, hwaddr addr, uint64_t data)
+static void adp_v4_gp_reg_write(ADPV4GenPipeState *s, hwaddr addr,
+                                uint64_t data)
 {
     switch (addr) {
     case REG_GP_CONFIG_CONTROL: {
@@ -210,7 +211,7 @@ static void adp_gp_reg_write(ADPGenPipeState *s, hwaddr addr, uint64_t data)
         s->config_control = (uint32_t)data;
         if (s->config_control & GP_CONFIG_CONTROL_RUN) {
             g_free(s->buf);
-            s->buf = adp_gp_read(s);
+            s->buf = adp_v4_gp_read(s);
             s->dirty = true;
         }
         break;
@@ -255,7 +256,7 @@ static void adp_gp_reg_write(ADPGenPipeState *s, hwaddr addr, uint64_t data)
     }
 }
 
-static uint32_t adp_gp_reg_read(ADPGenPipeState *s, hwaddr addr)
+static uint32_t adp_v4_gp_reg_read(ADPV4GenPipeState *s, hwaddr addr)
 {
     switch (addr) {
     case REG_GP_CONFIG_CONTROL: {
@@ -296,12 +297,11 @@ static uint32_t adp_gp_reg_read(ADPGenPipeState *s, hwaddr addr)
     }
 }
 
-static void adp_gp_reset(ADPGenPipeState *s, size_t index, AddressSpace *dma_as,
-                         uint16_t disp_width, uint16_t disp_height)
+static void adp_v4_gp_reset(ADPV4GenPipeState *s, size_t index,
+                            AddressSpace *dma_as, uint16_t disp_width,
+                            uint16_t disp_height)
 {
-    if (s->buf != NULL) {
-        g_free(s->buf);
-    }
+    g_free(s->buf);
     memset(s, 0, sizeof(*s));
     s->index = index;
     s->dma_as = dma_as;
@@ -310,8 +310,8 @@ static void adp_gp_reset(ADPGenPipeState *s, size_t index, AddressSpace *dma_as,
     s->dirty = true;
 }
 
-static void adp_blend_reg_write(ADPBlendUnitState *s, uint64_t addr,
-                                uint64_t data)
+static void adp_v4_blend_reg_write(ADPV4BlendUnitState *s, uint64_t addr,
+                                   uint64_t data)
 {
     switch (addr) {
     case REG_BLEND_LAYER_0_CONFIG: {
@@ -334,7 +334,7 @@ static void adp_blend_reg_write(ADPBlendUnitState *s, uint64_t addr,
     }
 }
 
-static uint64_t adp_blend_reg_read(ADPBlendUnitState *s, uint64_t addr)
+static uint64_t adp_v4_blend_reg_read(ADPV4BlendUnitState *s, uint64_t addr)
 {
     switch (addr) {
     case REG_BLEND_LAYER_0_CONFIG: {
@@ -353,13 +353,23 @@ static uint64_t adp_blend_reg_read(ADPBlendUnitState *s, uint64_t addr)
     }
 }
 
-static void adp_blend_reset(ADPBlendUnitState *s)
+static void adp_v4_blend_reset(ADPV4BlendUnitState *s)
 {
     memset(s, 0, sizeof(*s));
 }
 
-static void adp_reg_write(void *opaque, hwaddr addr, uint64_t data,
-                          unsigned size)
+static void adp_v4_update_disp_image(AppleDisplayPipeV4State *s)
+{
+    if (!s->blend_unit.dirty && !s->generic_pipe[0].dirty &&
+        !s->generic_pipe[1].dirty) {
+        return;
+    }
+
+    qemu_bh_schedule(s->update_disp_image_bh);
+}
+
+static void adp_v4_reg_write(void *opaque, hwaddr addr, uint64_t data,
+                             unsigned size)
 {
     AppleDisplayPipeV4State *s;
 
@@ -374,21 +384,21 @@ static void adp_reg_write(void *opaque, hwaddr addr, uint64_t data,
     switch (addr) {
     case REG_CONTROL_INT_STATUS: {
         s->int_status &= ~(uint32_t)data;
-        adp_update_irqs(s);
+        adp_v4_update_irqs(s);
         break;
     }
     case GP_BLOCK_BASE_FOR(0)... GP_BLOCK_END_FOR(0): {
-        adp_gp_reg_write(&s->generic_pipe[0], addr - GP_BLOCK_BASE_FOR(0),
-                         data);
+        adp_v4_gp_reg_write(&s->generic_pipe[0], addr - GP_BLOCK_BASE_FOR(0),
+                            data);
         break;
     }
     case GP_BLOCK_BASE_FOR(1)... GP_BLOCK_END_FOR(1): {
-        adp_gp_reg_write(&s->generic_pipe[1], addr - GP_BLOCK_BASE_FOR(1),
-                         data);
+        adp_v4_gp_reg_write(&s->generic_pipe[1], addr - GP_BLOCK_BASE_FOR(1),
+                            data);
         break;
     }
     case BLEND_BLOCK_BASE ...(BLEND_BLOCK_BASE + BLEND_BLOCK_SIZE): {
-        adp_blend_reg_write(&s->blend_unit, addr - BLEND_BLOCK_BASE, data);
+        adp_v4_blend_reg_write(&s->blend_unit, addr - BLEND_BLOCK_BASE, data);
         break;
     }
     default: {
@@ -397,9 +407,10 @@ static void adp_reg_write(void *opaque, hwaddr addr, uint64_t data,
         break;
     }
     }
+    adp_v4_update_disp_image(s);
 }
 
-static uint64_t adp_reg_read(void *opaque, hwaddr addr, const unsigned size)
+static uint64_t adp_v4_reg_read(void *opaque, hwaddr addr, const unsigned size)
 {
     AppleDisplayPipeV4State *s;
 
@@ -425,15 +436,15 @@ static uint64_t adp_reg_read(void *opaque, hwaddr addr, const unsigned size)
         return s->int_status;
     }
     case GP_BLOCK_BASE_FOR(0)... GP_BLOCK_END_FOR(0): {
-        return adp_gp_reg_read(&s->generic_pipe[0],
-                               addr - GP_BLOCK_BASE_FOR(0));
+        return adp_v4_gp_reg_read(&s->generic_pipe[0],
+                                  addr - GP_BLOCK_BASE_FOR(0));
     }
     case GP_BLOCK_BASE_FOR(1)... GP_BLOCK_END_FOR(1): {
-        return adp_gp_reg_read(&s->generic_pipe[1],
-                               addr - GP_BLOCK_BASE_FOR(1));
+        return adp_v4_gp_reg_read(&s->generic_pipe[1],
+                                  addr - GP_BLOCK_BASE_FOR(1));
     }
     case BLEND_BLOCK_BASE ...(BLEND_BLOCK_BASE + BLEND_BLOCK_SIZE): {
-        return adp_blend_reg_read(&s->blend_unit, addr - BLEND_BLOCK_BASE);
+        return adp_v4_blend_reg_read(&s->blend_unit, addr - BLEND_BLOCK_BASE);
     }
     default: {
         ADP_INFO("[disp] Unknown @ 0x" HWADDR_FMT_plx " -> 0x" HWADDR_FMT_plx,
@@ -443,9 +454,9 @@ static uint64_t adp_reg_read(void *opaque, hwaddr addr, const unsigned size)
     }
 }
 
-static const MemoryRegionOps adp_reg_ops = {
-    .write = adp_reg_write,
-    .read = adp_reg_read,
+static const MemoryRegionOps adp_v4_reg_ops = {
+    .write = adp_v4_reg_write,
+    .read = adp_v4_reg_read,
     .endianness = DEVICE_NATIVE_ENDIAN,
     .impl.min_access_size = 4,
     .impl.max_access_size = 4,
@@ -454,8 +465,8 @@ static const MemoryRegionOps adp_reg_ops = {
     .valid.unaligned = false,
 };
 
-static void adp_draw_row(void *opaque, uint8_t *dest, const uint8_t *src,
-                         int width, int dest_pitch)
+static void adp_v4_draw_row(void *opaque, uint8_t *dest, const uint8_t *src,
+                            int width, int dest_pitch)
 {
     while (width--) {
         uint32_t colour = ldl_le_p(src);
@@ -474,6 +485,36 @@ static void adp_v4_invalidate(void *opaque)
     s->invalidated = true;
 }
 
+static void adp_v4_gfx_update(void *opaque)
+{
+    AppleDisplayPipeV4State *s = APPLE_DISPLAY_PIPE_V4(opaque);
+    DisplaySurface *surface = qemu_console_surface(s->console);
+
+    int stride = s->width * sizeof(uint32_t);
+    int first = 0, last = 0;
+
+    if (s->invalidated) {
+        framebuffer_update_memory_section(&s->vram_section, &s->vram, 0,
+                                          s->height, stride);
+        s->invalidated = false;
+    }
+
+    framebuffer_update_display(surface, &s->vram_section, s->width, s->height,
+                               stride, stride, 0, 0, adp_v4_draw_row, s, &first,
+                               &last);
+    if (first >= 0) {
+        dpy_gfx_update(s->console, 0, first, s->width, last - first + 1);
+    }
+
+    s->int_status |= CONTROL_INT_STATUS_VBLANK;
+    adp_v4_update_irqs(s);
+}
+
+static const GraphicHwOps adp_v4_ops = {
+    .invalidate = adp_v4_invalidate,
+    .gfx_update = adp_v4_gfx_update,
+};
+
 static void adp_v4_blit_rect_black(AppleDisplayPipeV4State *s, uint16_t width,
                                    uint16_t height)
 {
@@ -488,151 +529,6 @@ static void adp_v4_blit_rect_black(AppleDisplayPipeV4State *s, uint16_t width,
     }
 }
 
-// TODO: Where is the destination X and Y?
-static void adp_v4_update_disp_image(AppleDisplayPipeV4State *s)
-{
-    ADPGenPipeState *layer_0_pipe;
-    ADPGenPipeState *layer_1_pipe;
-    uint8_t layer_0_blend_mode;
-    uint8_t layer_1_blend_mode;
-    size_t i;
-    hwaddr off;
-    pixman_format_code_t layer_0_fmt;
-    pixman_format_code_t layer_1_fmt;
-    pixman_image_t *layer_0_image;
-    pixman_image_t *layer_1_image;
-
-    QEMU_LOCK_GUARD(&s->lock);
-
-    if (!s->blend_unit.dirty && !s->generic_pipe[0].dirty &&
-        !s->generic_pipe[1].dirty) {
-        return;
-    }
-
-    layer_0_pipe = &s->generic_pipe[BLEND_LAYER_CONFIG_PIPE(
-        s->blend_unit.layer_config[0])];
-    layer_1_pipe = &s->generic_pipe[BLEND_LAYER_CONFIG_PIPE(
-        s->blend_unit.layer_config[1])];
-    layer_0_blend_mode = BLEND_LAYER_CONFIG_MODE(s->blend_unit.layer_config[0]);
-    layer_1_blend_mode = BLEND_LAYER_CONFIG_MODE(s->blend_unit.layer_config[1]);
-
-    // Display is empty.
-    if ((layer_0_blend_mode == BLEND_MODE_NONE &&
-         layer_1_blend_mode == BLEND_MODE_NONE) ||
-        ((layer_0_pipe->width == 0 || layer_0_pipe->height == 0) &&
-         (layer_1_pipe->width == 0 || layer_1_pipe->height == 0))) {
-        adp_v4_blit_rect_black(s, s->width, s->height);
-        return;
-    }
-
-    if (layer_1_blend_mode == BLEND_MODE_BYPASS ||
-        (layer_1_blend_mode != BLEND_MODE_NONE &&
-         layer_0_blend_mode == BLEND_MODE_NONE)) {
-        if (layer_1_pipe->base == 0 || layer_1_pipe->end == 0) {
-            adp_v4_blit_rect_black(s, layer_1_pipe->width,
-                                   layer_1_pipe->height);
-            layer_1_pipe->dirty = false;
-        } else {
-            g_assert_nonnull(layer_1_pipe->buf);
-            for (i = 0; i < layer_1_pipe->buf_height; i += 1) {
-                off = i * s->width * sizeof(uint32_t);
-                memcpy(memory_region_get_ram_ptr(&s->vram) + off,
-                       layer_1_pipe->buf + i * layer_1_pipe->stride,
-                       layer_1_pipe->buf_width * sizeof(uint32_t));
-                memory_region_set_dirty(
-                    &s->vram, off, layer_1_pipe->buf_width * sizeof(uint32_t));
-            }
-        }
-    } else if (layer_0_blend_mode == BLEND_MODE_BYPASS ||
-               (layer_0_blend_mode != BLEND_MODE_NONE &&
-                layer_1_blend_mode == BLEND_MODE_NONE)) {
-        if (layer_0_pipe->base == 0 || layer_0_pipe->end == 0) {
-            adp_v4_blit_rect_black(s, layer_0_pipe->width,
-                                   layer_0_pipe->height);
-        } else {
-            g_assert_nonnull(layer_0_pipe->buf);
-            for (i = 0; i < layer_0_pipe->buf_height; i += 1) {
-                off = i * s->width * sizeof(uint32_t);
-                memcpy(memory_region_get_ram_ptr(&s->vram) + off,
-                       layer_0_pipe->buf + i * layer_0_pipe->stride,
-                       layer_0_pipe->buf_width * sizeof(uint32_t));
-                memory_region_set_dirty(
-                    &s->vram, off, layer_0_pipe->buf_width * sizeof(uint32_t));
-            }
-        }
-        layer_0_pipe->dirty = false;
-    } else {
-        g_assert(layer_0_pipe != layer_1_pipe);
-
-        g_assert_nonnull(layer_0_pipe->buf);
-        layer_0_fmt = adp_gp_fmt_to_pixman(layer_0_pipe);
-        g_assert_cmphex(layer_0_fmt, !=, 0);
-        layer_0_image = pixman_image_create_bits(
-            layer_0_fmt, layer_0_pipe->buf_width, layer_0_pipe->buf_height,
-            (uint32_t *)layer_0_pipe->buf, layer_0_pipe->stride);
-        g_assert_nonnull(layer_0_image);
-
-        g_assert_nonnull(layer_1_pipe->buf);
-        layer_1_fmt = adp_gp_fmt_to_pixman(layer_1_pipe);
-        g_assert_cmphex(layer_1_fmt, !=, 0);
-        layer_1_image = pixman_image_create_bits(
-            layer_1_fmt, layer_1_pipe->buf_width, layer_1_pipe->buf_height,
-            (uint32_t *)layer_1_pipe->buf, layer_1_pipe->stride);
-        g_assert_nonnull(layer_1_image);
-
-        adp_v4_blit_rect_black(s, s->width, s->height);
-
-        pixman_image_composite(PIXMAN_OP_OVER, layer_0_image, NULL,
-                               s->disp_image, 0, 0, 0, 0, 0, 0,
-                               layer_0_pipe->width, layer_0_pipe->height);
-        pixman_image_composite(PIXMAN_OP_OVER, layer_1_image, NULL,
-                               s->disp_image, 0, 0, 0, 0, 0, 0,
-                               layer_1_pipe->width, layer_1_pipe->height);
-
-        layer_0_pipe->dirty = false;
-        layer_1_pipe->dirty = false;
-        pixman_image_unref(layer_0_image);
-        pixman_image_unref(layer_1_image);
-
-        memory_region_set_dirty(&s->vram, 0,
-                                s->height * s->width * sizeof(uint32_t));
-    }
-
-    s->blend_unit.dirty = false;
-}
-
-static void adp_v4_gfx_update(void *opaque)
-{
-    AppleDisplayPipeV4State *s = APPLE_DISPLAY_PIPE_V4(opaque);
-    DisplaySurface *surface = qemu_console_surface(s->console);
-
-    int stride = s->width * sizeof(uint32_t);
-    int first = 0, last = 0;
-
-    adp_v4_update_disp_image(s);
-
-    if (s->invalidated) {
-        framebuffer_update_memory_section(&s->vram_section, &s->vram, 0,
-                                          s->height, stride);
-        s->invalidated = false;
-    }
-
-    framebuffer_update_display(surface, &s->vram_section, s->width, s->height,
-                               stride, stride, 0, 0, adp_draw_row, s, &first,
-                               &last);
-    if (first >= 0) {
-        dpy_gfx_update(s->console, 0, first, s->width, last - first + 1);
-    }
-
-    s->int_status |= CONTROL_INT_STATUS_VBLANK;
-    adp_update_irqs(s);
-}
-
-static const GraphicHwOps adp_v4_ops = {
-    .invalidate = adp_v4_invalidate,
-    .gfx_update = adp_v4_gfx_update,
-};
-
 static void adp_v4_reset_hold(Object *obj, ResetType type)
 {
     AppleDisplayPipeV4State *s = APPLE_DISPLAY_PIPE_V4(obj);
@@ -642,7 +538,7 @@ static void adp_v4_reset_hold(Object *obj, ResetType type)
     s->invalidated = true;
 
     s->int_status = 0;
-    adp_update_irqs(s);
+    adp_v4_update_irqs(s);
 
     qemu_pixman_image_unref(s->disp_image);
     s->disp_image = pixman_image_create_bits(
@@ -650,10 +546,11 @@ static void adp_v4_reset_hold(Object *obj, ResetType type)
         (uint32_t *)memory_region_get_ram_ptr(&s->vram),
         s->width * sizeof(uint32_t));
 
-    adp_gp_reset(&s->generic_pipe[0], 0, &s->dma_as, s->width, s->height);
-    adp_gp_reset(&s->generic_pipe[1], 1, &s->dma_as, s->width, s->height);
+    adp_v4_gp_reset(&s->generic_pipe[0], 0, &s->dma_as, s->width, s->height);
+    adp_v4_gp_reset(&s->generic_pipe[1], 1, &s->dma_as, s->width, s->height);
+    adp_v4_blend_reset(&s->blend_unit);
 
-    adp_blend_reset(&s->blend_unit);
+    adp_v4_blit_rect_black(s, s->width, s->height);
 }
 
 static void adp_v4_realize(DeviceState *dev, Error **errp)
@@ -697,6 +594,109 @@ static void adp_v4_register_types(void)
 
 type_init(adp_v4_register_types);
 
+// TODO: Where is the destination X and Y?
+static void adp_v4_update_disp_image_bh(void *opaque)
+{
+    AppleDisplayPipeV4State *s;
+    ADPV4GenPipeState *layer_0_gp;
+    ADPV4GenPipeState *layer_1_gp;
+    uint8_t layer_0_blend;
+    uint8_t layer_1_blend;
+    size_t i;
+    hwaddr off;
+    pixman_format_code_t layer_0_fmt;
+    pixman_format_code_t layer_1_fmt;
+    pixman_image_t *layer_0_img;
+    pixman_image_t *layer_1_img;
+
+    s = APPLE_DISPLAY_PIPE_V4(opaque);
+
+    QEMU_LOCK_GUARD(&s->lock);
+
+    layer_0_gp = &s->generic_pipe[BLEND_LAYER_CONFIG_PIPE(
+        s->blend_unit.layer_config[0])];
+    layer_1_gp = &s->generic_pipe[BLEND_LAYER_CONFIG_PIPE(
+        s->blend_unit.layer_config[1])];
+    layer_0_blend = BLEND_LAYER_CONFIG_MODE(s->blend_unit.layer_config[0]);
+    layer_1_blend = BLEND_LAYER_CONFIG_MODE(s->blend_unit.layer_config[1]);
+
+    if ((layer_0_blend == BLEND_MODE_NONE &&
+         layer_1_blend == BLEND_MODE_NONE) ||
+        ((layer_0_gp->width == 0 || layer_0_gp->height == 0) &&
+         (layer_1_gp->width == 0 || layer_1_gp->height == 0))) {
+        return;
+    }
+
+    if (layer_1_blend == BLEND_MODE_BYPASS ||
+        (layer_1_blend != BLEND_MODE_NONE &&
+         layer_0_blend == BLEND_MODE_NONE)) {
+        if (layer_1_gp->base != 0 && layer_1_gp->end != 0) {
+            g_assert_nonnull(layer_1_gp->buf);
+            for (i = 0; i < layer_1_gp->buf_height; i += 1) {
+                off = i * s->width * sizeof(uint32_t);
+                memcpy(memory_region_get_ram_ptr(&s->vram) + off,
+                       layer_1_gp->buf + i * layer_1_gp->stride,
+                       layer_1_gp->buf_width * sizeof(uint32_t));
+                memory_region_set_dirty(
+                    &s->vram, off, layer_1_gp->buf_width * sizeof(uint32_t));
+            }
+        }
+        layer_1_gp->dirty = false;
+    } else if (layer_0_blend == BLEND_MODE_BYPASS ||
+               (layer_0_blend != BLEND_MODE_NONE &&
+                layer_1_blend == BLEND_MODE_NONE)) {
+        if (layer_0_gp->base != 0 && layer_0_gp->end != 0) {
+            g_assert_nonnull(layer_0_gp->buf);
+            for (i = 0; i < layer_0_gp->buf_height; i += 1) {
+                off = i * s->width * sizeof(uint32_t);
+                memcpy(memory_region_get_ram_ptr(&s->vram) + off,
+                       layer_0_gp->buf + i * layer_0_gp->stride,
+                       layer_0_gp->buf_width * sizeof(uint32_t));
+                memory_region_set_dirty(
+                    &s->vram, off, layer_0_gp->buf_width * sizeof(uint32_t));
+            }
+        }
+        layer_0_gp->dirty = false;
+    } else {
+        g_assert(layer_0_gp != layer_1_gp);
+
+        g_assert_nonnull(layer_0_gp->buf);
+        layer_0_fmt = adp_v4_gp_fmt_to_pixman(layer_0_gp);
+        g_assert_cmphex(layer_0_fmt, !=, 0);
+        layer_0_img = pixman_image_create_bits(
+            layer_0_fmt, layer_0_gp->buf_width, layer_0_gp->buf_height,
+            (uint32_t *)layer_0_gp->buf, layer_0_gp->stride);
+        g_assert_nonnull(layer_0_img);
+
+        g_assert_nonnull(layer_1_gp->buf);
+        layer_1_fmt = adp_v4_gp_fmt_to_pixman(layer_1_gp);
+        g_assert_cmphex(layer_1_fmt, !=, 0);
+        layer_1_img = pixman_image_create_bits(
+            layer_1_fmt, layer_1_gp->buf_width, layer_1_gp->buf_height,
+            (uint32_t *)layer_1_gp->buf, layer_1_gp->stride);
+        g_assert_nonnull(layer_1_img);
+
+        adp_v4_blit_rect_black(s, s->width, s->height);
+
+        pixman_image_composite(PIXMAN_OP_OVER, layer_0_img, NULL, s->disp_image,
+                               0, 0, 0, 0, 0, 0, layer_0_gp->width,
+                               layer_0_gp->height);
+        pixman_image_composite(PIXMAN_OP_OVER, layer_1_img, NULL, s->disp_image,
+                               0, 0, 0, 0, 0, 0, layer_1_gp->width,
+                               layer_1_gp->height);
+
+        layer_0_gp->dirty = false;
+        layer_1_gp->dirty = false;
+        pixman_image_unref(layer_0_img);
+        pixman_image_unref(layer_1_img);
+
+        memory_region_set_dirty(&s->vram, 0,
+                                s->height * s->width * sizeof(uint32_t));
+    }
+
+    s->blend_unit.dirty = false;
+}
+
 static uint32_t adp_timing_info[] = { 0x33C, 0x90, 0x1, 0x1,
                                       0x700, 0x1,  0x1, 0x1 };
 
@@ -715,6 +715,8 @@ AppleDisplayPipeV4State *adp_v4_create(DTBNode *node)
 
     qemu_mutex_init(&s->lock);
 
+    s->update_disp_image_bh = qemu_bh_new(adp_v4_update_disp_image_bh, s);
+
     dtb_set_prop(node, "display-target", 15, "DisplayTarget5");
     dtb_set_prop(node, "display-timing-info", sizeof(adp_timing_info),
                  adp_timing_info);
@@ -725,7 +727,7 @@ AppleDisplayPipeV4State *adp_v4_create(DTBNode *node)
     prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
     reg = (uint64_t *)prop->data;
-    memory_region_init_io(&s->up_regs, OBJECT(sbd), &adp_reg_ops, sbd,
+    memory_region_init_io(&s->up_regs, OBJECT(sbd), &adp_v4_reg_ops, sbd,
                           "up.regs", reg[1]);
     sysbus_init_mmio(sbd, &s->up_regs);
     object_property_add_const_link(OBJECT(sbd), "up.regs", OBJECT(&s->up_regs));
