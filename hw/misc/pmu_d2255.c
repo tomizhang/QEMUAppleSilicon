@@ -214,9 +214,9 @@ static uint8_t pmu_d2255_rx(I2CSlave *i2c)
         return 0x00;
     }
 
-    if (s->address + 1 > sizeof(s->reg)) {
-        qemu_log_mask(LOG_GUEST_ERROR, "PMU D2255: 0x%X -> 0x%X is INVALID.\n",
-                      s->address, s->reg[s->address]);
+    if (s->address >= sizeof(s->reg)) {
+        qemu_log_mask(LOG_GUEST_ERROR, "PMU D2255: offset 0x%X is INVALID.\n",
+                      s->address);
         return 0x00;
     }
 
@@ -276,7 +276,7 @@ static int pmu_d2255_tx(I2CSlave *i2c, uint8_t data)
             return -1;
         }
 
-        if (s->address + 1 > sizeof(s->reg)) {
+        if (s->address >= sizeof(s->reg)) {
             qemu_log_mask(LOG_GUEST_ERROR,
                           "PMU D2255: 0x%X <- 0x%X is INVALID.\n", s->address,
                           data);
@@ -286,7 +286,7 @@ static int pmu_d2255_tx(I2CSlave *i2c, uint8_t data)
 #ifdef DEBUG_PMU_D2255
         info_report("PMU D2255: 0x%X <- 0x%X.", s->address, data);
 #endif
-        s->reg[s->address++] = data;
+        s->reg[s->address] = data;
 
         switch (s->address) {
         case REG_DIALOG_RTC_CONTROL:
@@ -297,6 +297,8 @@ static int pmu_d2255_tx(I2CSlave *i2c, uint8_t data)
         default:
             break;
         }
+
+        s->address += 1;
         break;
     }
     return 0;
