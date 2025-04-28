@@ -203,7 +203,7 @@ void apple_a7iop_mailbox_send_ap(AppleA7IOPMailbox *s, AppleA7IOPMessage *msg)
     WITH_QEMU_LOCK_GUARD(&s->lock)
     {
         if (!s->ap_dir_en) {
-            qemu_log_mask(LOG_GUEST_ERROR, "%s %s direction not enabled.\n",
+            qemu_log_mask(LOG_GUEST_ERROR, "%s: %s direction not enabled.\n",
                           __FUNCTION__, s->role);
             return;
         }
@@ -221,7 +221,7 @@ void apple_a7iop_mailbox_send_iop(AppleA7IOPMailbox *s, AppleA7IOPMessage *msg)
     WITH_QEMU_LOCK_GUARD(&s->lock)
     {
         if (!s->iop_dir_en) {
-            qemu_log_mask(LOG_GUEST_ERROR, "%s %s direction not enabled.\n",
+            qemu_log_mask(LOG_GUEST_ERROR, "%s: %s direction not enabled.\n",
                           __FUNCTION__, s->role);
             return;
         }
@@ -251,7 +251,7 @@ static AppleA7IOPMessage *apple_a7iop_mailbox_recv(AppleA7IOPMailbox *s)
     msg = QTAILQ_FIRST(&s->inbox);
     if (!msg) {
         s->underflow = true;
-        qemu_log_mask(LOG_GUEST_ERROR, "%s %s underflowed.\n", __FUNCTION__,
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: %s underflowed.\n", __FUNCTION__,
                       s->role);
         apple_a7iop_mailbox_update_irq(s);
         return NULL;
@@ -272,7 +272,7 @@ AppleA7IOPMessage *apple_a7iop_mailbox_recv_iop(AppleA7IOPMailbox *s)
     WITH_QEMU_LOCK_GUARD(&s->lock)
     {
         if (!s->iop_dir_en) {
-            qemu_log_mask(LOG_GUEST_ERROR, "%s %s direction not enabled.\n",
+            qemu_log_mask(LOG_GUEST_ERROR, "%s: %s direction not enabled.\n",
                           __FUNCTION__, s->role);
             return NULL;
         }
@@ -293,7 +293,7 @@ AppleA7IOPMessage *apple_a7iop_mailbox_recv_ap(AppleA7IOPMailbox *s)
     WITH_QEMU_LOCK_GUARD(&s->lock)
     {
         if (!s->ap_dir_en) {
-            qemu_log_mask(LOG_GUEST_ERROR, "%s %s direction not enabled.\n",
+            qemu_log_mask(LOG_GUEST_ERROR, "%s: %s direction not enabled.\n",
                           __FUNCTION__, s->role);
             return NULL;
         }
