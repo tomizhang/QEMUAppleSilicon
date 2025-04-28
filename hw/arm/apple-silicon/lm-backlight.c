@@ -20,6 +20,7 @@
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/lm-backlight.h"
 #include "hw/i2c/i2c.h"
+#include "migration/vmstate.h"
 
 struct AppleLMBacklightState {
     /*< private >*/
@@ -38,16 +39,29 @@ static int apple_lm_backlight_tx(I2CSlave *i2c, uint8_t data)
     return 0;
 }
 
+static const VMStateDescription apple_lm_backlight_vmstate = {
+    .name = "Apple LM Backlight",
+    .version_id = 0,
+    .minimum_version_id = 0,
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_I2C_SLAVE(i2c, AppleLMBacklightState),
+            VMSTATE_END_OF_LIST(),
+        },
+};
+
 static void apple_lm_backlight_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     I2CSlaveClass *c = I2C_SLAVE_CLASS(klass);
 
-    c->recv = apple_lm_backlight_rx;
-    c->send = apple_lm_backlight_tx;
     dc->desc = "Apple LM Backlight";
+    dc->vmsd = &apple_lm_backlight_vmstate;
     dc->user_creatable = false;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
+
+    c->recv = apple_lm_backlight_rx;
+    c->send = apple_lm_backlight_tx;
 }
 
 static const TypeInfo apple_lm_backlight_type_info = {
