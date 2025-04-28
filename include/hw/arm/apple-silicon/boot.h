@@ -21,6 +21,10 @@
 #define ENABLE_SEP
 #define ENABLE_SEP_SECURITY
 
+#if defined(ENABLE_SEP_SECURITY) && !defined(ENABLE_SEP)
+#error "SEP Security cannot be enabled without SEP"
+#endif
+
 #include "qemu/osdep.h"
 #include "exec/hwaddr.h"
 #include "hw/arm/apple-silicon/dtb.h"
