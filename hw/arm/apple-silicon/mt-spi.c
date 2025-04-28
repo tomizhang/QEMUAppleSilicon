@@ -22,6 +22,7 @@
 #include "hw/arm/apple-silicon/mt-spi.h"
 #include "hw/irq.h"
 #include "hw/ssi/ssi.h"
+#include "migration/vmstate.h"
 #include "qemu/crc16.h"
 #include "qemu/error-report.h"
 #include "qemu/lockable.h"
@@ -31,22 +32,21 @@
 
 typedef struct AppleMTSPIBuffer {
     uint8_t *data;
-    size_t capacity;
-    size_t len;
-    size_t read_pos;
+    uint32_t capacity;
+    uint32_t len;
+    uint32_t read_pos;
 } AppleMTSPIBuffer;
 
 typedef struct AppleMTSPILLPacket {
     AppleMTSPIBuffer buf;
-    QTAILQ_ENTRY(AppleMTSPILLPacket) entry;
     uint8_t type;
+    QTAILQ_ENTRY(AppleMTSPILLPacket) entry;
 } AppleMTSPILLPacket;
 
 struct AppleMTSPIState {
     SSIPeripheral parent_obj;
 
     QemuMutex lock;
-    QemuInputHandlerState *input_state;
     /// IRQ of the Multi Touch Controller is Active Low.
     /// qemu_irq_raise means IRQ inactive,
     /// qemu_irq_lower means IRQ active.
@@ -58,13 +58,13 @@ struct AppleMTSPIState {
     uint8_t frame;
     QEMUTimer *timer;
     QEMUTimer *end_timer;
-    int x;
-    int y;
-    int prev_x;
-    int prev_y;
+    int32_t x;
+    int32_t y;
+    int32_t prev_x;
+    int32_t prev_y;
     uint32_t prev_ts;
-    int btn_state;
-    int prev_btn_state;
+    int32_t btn_state;
+    int32_t prev_btn_state;
 };
 
 // HBPP Command:
@@ -918,6 +918,55 @@ static void apple_mt_spi_realize(SSIPeripheral *dev, Error **errp)
                                  "Apple Multitouch HID SPI");
 }
 
+static const VMStateDescription vmstate_apple_mt_spi_buffer = {
+    .name = "Apple MT SPI Buffer",
+    .fields =
+        (VMStateField[]){
+            VMSTATE_VBUFFER_UINT32(data, AppleMTSPIBuffer, 0, NULL, capacity),
+            VMSTATE_UINT32(len, AppleMTSPIBuffer),
+            VMSTATE_UINT32(read_pos, AppleMTSPIBuffer),
+            VMSTATE_END_OF_LIST(),
+        },
+};
+
+static const VMStateDescription vmstate_apple_mt_spi_ll_packet = {
+    .name = "Apple MT SPI LL Packet",
+    .fields =
+        (VMStateField[]){
+            VMSTATE_STRUCT(buf, AppleMTSPILLPacket, 0,
+                           vmstate_apple_mt_spi_buffer, AppleMTSPIBuffer),
+            VMSTATE_UINT8(type, AppleMTSPILLPacket),
+            VMSTATE_END_OF_LIST(),
+        },
+};
+
+static const VMStateDescription vmstate_apple_mt_spi = {
+    .name = "Apple MT SPI State",
+    .fields =
+        (VMStateField[]){
+            VMSTATE_STRUCT(tx, AppleMTSPIState, 0, vmstate_apple_mt_spi_buffer,
+                           AppleMTSPIBuffer),
+            VMSTATE_STRUCT(rx, AppleMTSPIState, 0, vmstate_apple_mt_spi_buffer,
+                           AppleMTSPIBuffer),
+            VMSTATE_STRUCT(pending_hbpp, AppleMTSPIState, 0,
+                           vmstate_apple_mt_spi_buffer, AppleMTSPIBuffer),
+            VMSTATE_QTAILQ_V(pending_fw, AppleMTSPIState, 0,
+                             vmstate_apple_mt_spi_ll_packet, AppleMTSPILLPacket,
+                             entry),
+            VMSTATE_UINT8(frame, AppleMTSPIState),
+            VMSTATE_TIMER_PTR(timer, AppleMTSPIState),
+            VMSTATE_TIMER_PTR(end_timer, AppleMTSPIState),
+            VMSTATE_INT32(x, AppleMTSPIState),
+            VMSTATE_INT32(y, AppleMTSPIState),
+            VMSTATE_INT32(prev_x, AppleMTSPIState),
+            VMSTATE_INT32(prev_y, AppleMTSPIState),
+            VMSTATE_UINT32(prev_ts, AppleMTSPIState),
+            VMSTATE_INT32(btn_state, AppleMTSPIState),
+            VMSTATE_INT32(prev_btn_state, AppleMTSPIState),
+            VMSTATE_END_OF_LIST(),
+        },
+};
+
 static void apple_mt_spi_class_init(ObjectClass *klass, void *data)
 {
     ResettableClass *rc = RESETTABLE_CLASS(klass);
@@ -926,11 +975,12 @@ static void apple_mt_spi_class_init(ObjectClass *klass, void *data)
 
     rc->phases.hold = apple_mt_spi_reset_hold;
 
+    dc->user_creatable = false;
+    dc->vmsd = &vmstate_apple_mt_spi;
+    set_bit(DEVICE_CATEGORY_INPUT, dc->categories);
+
     k->realize = apple_mt_spi_realize;
     k->transfer = apple_mt_spi_transfer;
-
-    dc->user_creatable = false;
-    set_bit(DEVICE_CATEGORY_INPUT, dc->categories);
 }
 
 static void apple_mt_instance_init(Object *obj)
