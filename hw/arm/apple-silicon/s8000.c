@@ -22,6 +22,7 @@
 #include "exec/address-spaces.h"
 #include "exec/memory.h"
 #include "hw/arm/apple-silicon/a9.h"
+#include "hw/arm/apple-silicon/lm-backlight.h"
 #include "hw/arm/apple-silicon/mem.h"
 #include "hw/arm/apple-silicon/s8000-config.c.inc"
 #include "hw/arm/apple-silicon/s8000.h"
@@ -1091,6 +1092,33 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
     sysbus_realize_and_unref(sbd, &error_fatal);
 }
 
+static void s8000_create_backlight(S8000MachineState *s8000_machine)
+{
+    DTBNode *child;
+    DTBProp *prop;
+    AppleI2CState *i2c;
+
+    child = dtb_get_node(s8000_machine->device_tree, "arm-io/i2c0/lm3539");
+    g_assert_nonnull(child);
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    i2c = APPLE_I2C(
+        object_property_get_link(OBJECT(s8000_machine), "i2c0", &error_fatal));
+    i2c_slave_create_simple(i2c->bus, TYPE_APPLE_LM_BACKLIGHT,
+                            *(uint32_t *)prop->data);
+
+    child = dtb_get_node(s8000_machine->device_tree, "arm-io/i2c2/lm3539-1");
+    g_assert_nonnull(child);
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    i2c = APPLE_I2C(
+        object_property_get_link(OBJECT(s8000_machine), "i2c2", &error_fatal));
+    i2c_slave_create_simple(i2c->bus, TYPE_APPLE_LM_BACKLIGHT,
+                            *(uint32_t *)prop->data);
+}
+
 static void s8000_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 {
     S8000MachineState *s8000_machine;
@@ -1289,6 +1317,8 @@ static void s8000_machine_init(MachineState *machine)
     s8000_create_pmu(s8000_machine);
 
     s8000_display_create(s8000_machine);
+
+    s8000_create_backlight(s8000_machine);
 
     s8000_machine->init_done_notifier.notify = s8000_machine_init_done;
     qemu_add_machine_init_done_notifier(&s8000_machine->init_done_notifier);
