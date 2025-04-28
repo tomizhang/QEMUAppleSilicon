@@ -120,7 +120,7 @@ static gboolean iop_rollcall(gpointer key, gpointer value, gpointer data)
         mgmt_msg.rollcall.epBlock = d->last_block;
         mgmt_msg.rollcall.epEnded = false;
         msg = apple_rtkit_construct_msg(EP_MANAGEMENT, mgmt_msg.raw);
-        QTAILQ_INSERT_TAIL(&s->rollcall, msg, entry);
+        QTAILQ_INSERT_TAIL(&s->rollcall, msg, next);
         d->mask = 0;
     }
     d->last_block = ep / EP_USER_START;
@@ -140,7 +140,7 @@ static void iop_start_rollcall(AppleRTKit *s)
     data.s = s;
     while (!QTAILQ_EMPTY(&s->rollcall)) {
         msg = QTAILQ_FIRST(&s->rollcall);
-        QTAILQ_REMOVE(&s->rollcall, msg, entry);
+        QTAILQ_REMOVE(&s->rollcall, msg, next);
         g_free(msg);
     }
     s->ep0_status = EP0_WAIT_ROLLCALL;
@@ -150,10 +150,10 @@ static void iop_start_rollcall(AppleRTKit *s)
     mgmt_msg.rollcall.epBlock = data.last_block;
     mgmt_msg.rollcall.epEnded = true;
     msg = apple_rtkit_construct_msg(EP_MANAGEMENT, mgmt_msg.raw);
-    QTAILQ_INSERT_TAIL(&s->rollcall, msg, entry);
+    QTAILQ_INSERT_TAIL(&s->rollcall, msg, next);
 
     msg = QTAILQ_FIRST(&s->rollcall);
-    QTAILQ_REMOVE(&s->rollcall, msg, entry);
+    QTAILQ_REMOVE(&s->rollcall, msg, next);
     apple_a7iop_send_ap(a7iop, msg);
 }
 
@@ -225,7 +225,7 @@ static void apple_rtkit_handle_mgmt_msg(void *opaque, uint32_t ep,
             apple_rtkit_send_msg(s, ep, m.raw);
         } else {
             AppleA7IOPMessage *m2 = QTAILQ_FIRST(&s->rollcall);
-            QTAILQ_REMOVE(&s->rollcall, m2, entry);
+            QTAILQ_REMOVE(&s->rollcall, m2, next);
             apple_a7iop_send_ap(a7iop, m2);
         }
         break;
@@ -378,7 +378,7 @@ static void apple_rtkit_reset(Object *obj, ResetType type)
 
     while (!QTAILQ_EMPTY(&s->rollcall)) {
         msg = QTAILQ_FIRST(&s->rollcall);
-        QTAILQ_REMOVE(&s->rollcall, msg, entry);
+        QTAILQ_REMOVE(&s->rollcall, msg, next);
         g_free(msg);
     }
 }

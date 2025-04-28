@@ -18,7 +18,7 @@ typedef struct AppleA7IOPMessage {
             uint32_t flags;
         };
     };
-    QTAILQ_ENTRY(AppleA7IOPMessage) entry;
+    QTAILQ_ENTRY(AppleA7IOPMessage) next;
 } AppleA7IOPMessage;
 
 typedef struct AppleA7IOPInterruptStatusMessage {

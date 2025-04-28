@@ -39,7 +39,7 @@ static int apple_lm_backlight_tx(I2CSlave *i2c, uint8_t data)
     return 0;
 }
 
-static const VMStateDescription apple_lm_backlight_vmstate = {
+static const VMStateDescription vmstate_apple_lm_backlight = {
     .name = "Apple LM Backlight",
     .version_id = 0,
     .minimum_version_id = 0,
@@ -56,7 +56,7 @@ static void apple_lm_backlight_class_init(ObjectClass *klass, void *data)
     I2CSlaveClass *c = I2C_SLAVE_CLASS(klass);
 
     dc->desc = "Apple LM Backlight";
-    dc->vmsd = &apple_lm_backlight_vmstate;
+    dc->vmsd = &vmstate_apple_lm_backlight;
     dc->user_creatable = false;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
 

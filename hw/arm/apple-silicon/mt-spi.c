@@ -40,7 +40,7 @@ typedef struct AppleMTSPIBuffer {
 typedef struct AppleMTSPILLPacket {
     AppleMTSPIBuffer buf;
     uint8_t type;
-    QTAILQ_ENTRY(AppleMTSPILLPacket) entry;
+    QTAILQ_ENTRY(AppleMTSPILLPacket) next;
 } AppleMTSPILLPacket;
 
 struct AppleMTSPIState {
@@ -318,7 +318,7 @@ static void apple_mt_spi_reset_unlocked(AppleMTSPIState *s, ResetType type)
 
     while (!QTAILQ_EMPTY(&s->pending_fw)) {
         packet = QTAILQ_FIRST(&s->pending_fw);
-        QTAILQ_REMOVE(&s->pending_fw, packet, entry);
+        QTAILQ_REMOVE(&s->pending_fw, packet, next);
         apple_mt_spi_buf_free(&packet->buf);
         g_free(packet);
     }
@@ -625,7 +625,7 @@ static void apple_mt_spi_handle_get_feature(AppleMTSPIState *s)
         break;
     }
     apple_mt_spi_buf_push_crc16(&packet->buf);
-    QTAILQ_INSERT_TAIL(&s->pending_fw, packet, entry);
+    QTAILQ_INSERT_TAIL(&s->pending_fw, packet, next);
 }
 
 static void apple_mt_spi_handle_set_feature(AppleMTSPIState *s)
@@ -644,7 +644,7 @@ static void apple_mt_spi_handle_set_feature(AppleMTSPIState *s)
                               HID_CONTROL_PACKET_SET_OUTPUT_REPORT, report_id,
                               HID_PACKET_STATUS_SUCCESS, frame_number, 0, 0);
     apple_mt_spi_buf_push_crc16(&packet->buf);
-    QTAILQ_INSERT_TAIL(&s->pending_fw, packet, entry);
+    QTAILQ_INSERT_TAIL(&s->pending_fw, packet, next);
 }
 
 static void apple_mt_spi_handle_control(AppleMTSPIState *s)
@@ -685,7 +685,7 @@ static void apple_mt_spi_handle_fw_packet(AppleMTSPIState *s)
             apple_mt_spi_buf_append(&buf, &packet->buf);
             apple_mt_spi_pad_ll_packet(&buf);
             apple_mt_spi_buf_push_crc16(&buf);
-            QTAILQ_REMOVE(&s->pending_fw, packet, entry);
+            QTAILQ_REMOVE(&s->pending_fw, packet, next);
             g_free(packet);
             packet = NULL;
         }
@@ -832,7 +832,7 @@ static void apple_mt_spi_send_path_update(AppleMTSPIState *s,
 
     apple_mt_spi_buf_push_crc16(&packet->buf);
 
-    QTAILQ_INSERT_TAIL(&s->pending_fw, packet, entry);
+    QTAILQ_INSERT_TAIL(&s->pending_fw, packet, next);
     qemu_irq_lower(s->irq);
 
     s->frame = !s->frame;
@@ -952,7 +952,7 @@ static const VMStateDescription vmstate_apple_mt_spi = {
                            vmstate_apple_mt_spi_buffer, AppleMTSPIBuffer),
             VMSTATE_QTAILQ_V(pending_fw, AppleMTSPIState, 0,
                              vmstate_apple_mt_spi_ll_packet, AppleMTSPILLPacket,
-                             entry),
+                             next),
             VMSTATE_UINT8(frame, AppleMTSPIState),
             VMSTATE_TIMER_PTR(timer, AppleMTSPIState),
             VMSTATE_TIMER_PTR(end_timer, AppleMTSPIState),

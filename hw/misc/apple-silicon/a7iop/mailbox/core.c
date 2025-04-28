@@ -189,7 +189,7 @@ static void apple_a7iop_mailbox_send(AppleA7IOPMailbox *s,
     QEMU_LOCK_GUARD(&s->lock);
     trace_apple_a7iop_mailbox_send(s->role, msg->endpoint, msg->data[0],
                                    msg->data[1]);
-    QTAILQ_INSERT_TAIL(&s->inbox, msg, entry);
+    QTAILQ_INSERT_TAIL(&s->inbox, msg, next);
     s->count++;
     apple_a7iop_mailbox_update_irq(s);
 
@@ -256,7 +256,7 @@ static AppleA7IOPMessage *apple_a7iop_mailbox_recv(AppleA7IOPMailbox *s)
         apple_a7iop_mailbox_update_irq(s);
         return NULL;
     }
-    QTAILQ_REMOVE(&s->inbox, msg, entry);
+    QTAILQ_REMOVE(&s->inbox, msg, next);
     msg->flags |= CTRL_COUNT(s->count);
     trace_apple_a7iop_mailbox_recv(s->role, msg->endpoint, msg->data[0],
                                    msg->data[1]);
@@ -478,7 +478,7 @@ static void apple_a7iop_mailbox_reset(DeviceState *dev)
 
     while (!QTAILQ_EMPTY(&s->inbox)) {
         msg = QTAILQ_FIRST(&s->inbox);
-        QTAILQ_REMOVE(&s->inbox, msg, entry);
+        QTAILQ_REMOVE(&s->inbox, msg, next);
         g_free(msg);
     }
     while (!QTAILQ_EMPTY(&s->interrupt_status)) {
@@ -521,7 +521,7 @@ static const VMStateDescription vmstate_apple_a7iop_mailbox = {
         (VMStateField[]){
             VMSTATE_QTAILQ_V(inbox, AppleA7IOPMailbox, 0,
                              vmstate_apple_a7iop_message, AppleA7IOPMessage,
-                             entry),
+                             next),
             VMSTATE_QTAILQ_V(interrupt_status, AppleA7IOPMailbox, 0,
                              vmstate_apple_a7iop_int_status_message,
                              AppleA7IOPInterruptStatusMessage, entry),
