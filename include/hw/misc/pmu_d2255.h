@@ -27,30 +27,4 @@
 #define TYPE_PMU_D2255 "pmu-d2255"
 OBJECT_DECLARE_SIMPLE_TYPE(PMUD2255State, PMU_D2255);
 
-enum PMUOpState {
-    PMU_OP_STATE_NONE,
-    PMU_OP_STATE_RECV,
-    PMU_OP_STATE_SEND,
-};
-
-enum PMUAddrState {
-    PMU_ADDR_UPPER,
-    PMU_ADDR_LOWER,
-    PMU_ADDR_RECEIVED,
-};
-
-struct PMUD2255State {
-    /*< private >*/
-    I2CSlave i2c;
-
-    uint8_t reg[0x8800];
-    QEMUTimer *timer;
-    qemu_irq irq;
-    uint32_t tick_period;
-    uint64_t rtc_offset;
-    enum PMUOpState op_state;
-    uint16_t address;
-    enum PMUAddrState address_state;
-};
-
 #endif
