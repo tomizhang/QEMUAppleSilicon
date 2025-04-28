@@ -203,9 +203,8 @@ static uint8_t pmu_d2255_rx(I2CSlave *i2c)
     s = PMU_D2255(i2c);
 
     if (s->op_state != PMU_OP_STATE_RECV) {
-        qemu_log_mask(
-            LOG_GUEST_ERROR,
-            "PMU D2255: RX attempted with but transaction is not recv.\n");
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "PMU D2255: RX attempted but transaction is not recv.\n");
         return 0x00;
     }
 
@@ -248,9 +247,8 @@ static int pmu_d2255_tx(I2CSlave *i2c, uint8_t data)
     s = PMU_D2255(i2c);
 
     if (s->op_state != PMU_OP_STATE_SEND) {
-        qemu_log_mask(
-            LOG_GUEST_ERROR,
-            "PMU D2255: TX attempted with but transaction is not send.\n");
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "PMU D2255: TX attempted but transaction is not send.\n");
         return 0x00;
     }
 
