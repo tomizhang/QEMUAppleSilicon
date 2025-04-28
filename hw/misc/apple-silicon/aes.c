@@ -285,12 +285,17 @@ static bool aes_process_command(AppleAESState *s, AESCommand *cmd)
         }
         qcrypto_cipher_setiv(s->keys[key_ctx].cipher, s->iv[iv_ctx], 16, &errp);
 
+        int res;
         if (s->keys[key_ctx].encrypt) {
-            qcrypto_cipher_encrypt(s->keys[key_ctx].cipher, buffer, buffer, len,
-                                   &errp);
+            res = qcrypto_cipher_encrypt(s->keys[key_ctx].cipher, buffer,
+                                         buffer, len, &errp);
         } else {
-            qcrypto_cipher_decrypt(s->keys[key_ctx].cipher, buffer, buffer, len,
-                                   &errp);
+            res = qcrypto_cipher_decrypt(s->keys[key_ctx].cipher, buffer,
+                                         buffer, len, &errp);
+        }
+        if (res != 0) {
+            fprintf(stderr, "AES %scryption failed, res = %s\n",
+                    s->keys[key_ctx].encrypt ? "en" : "de", strerror(-res));
         }
         qcrypto_cipher_getiv(s->keys[key_ctx].cipher, s->iv[iv_ctx], 16, &errp);
         dma_memory_write(&s->dma_as, dest_addr, buffer, len,
