@@ -280,6 +280,9 @@ static uint32_t dtb_get_placeholder_size(DTBProp *prop, const char *name)
         }
 
         if (strncmp(token, "syscfg/", 7) == 0) {
+            if (strlen(token) < 12 || token[11] != '/') {
+                continue;
+            }
             len = g_ascii_strtoull(token + 8 + 4, NULL, 0);
             if (len == 0) {
                 continue;
