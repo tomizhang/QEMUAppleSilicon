@@ -684,7 +684,7 @@ static void s8000_create_nvme(S8000MachineState *s8000_machine)
     g_assert_nonnull(prop);
     reg = (uint64_t *)prop->data;
 
-    sysbus_mmio_map(nvme, 0, s8000_machine->soc_base_pa + reg[0]);
+    sysbus_mmio_map(nvme, 0, reg[0]);
 
     object_property_add_child(OBJECT(s8000_machine), "nvme", OBJECT(nvme));
 
