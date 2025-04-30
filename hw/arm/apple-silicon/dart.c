@@ -15,9 +15,9 @@
 // #define DEBUG_DART
 
 #ifdef DEBUG_DART
-#define DPRINTF(fmt, ...)                    \
-    do {                                     \
-        printf("dart: " fmt, ##__VA_ARGS__); \
+#define DPRINTF(fmt, ...)                             \
+    do {                                              \
+        fprintf(stderr, "dart: " fmt, ##__VA_ARGS__); \
     } while (0)
 #else
 #define DPRINTF(fmt, ...) \
@@ -220,14 +220,10 @@ static void base_reg_write(void *opaque, hwaddr addr, uint64_t data,
 {
     AppleDARTInstance *o = (AppleDARTInstance *)opaque;
     AppleDARTState *s = o->s;
-    uint32_t orig;
     uint32_t val = data;
-    bool iflg = 0;
     DPRINTF("%s[%d]: (%s) %s @ 0x" HWADDR_FMT_plx " value: 0x" HWADDR_FMT_plx
             "\n",
             s->name, o->id, dart_instance_name[o->type], __func__, addr, data);
-
-    orig = o->base_reg[addr >> 2];
 
     if (o->type == DART_DART) {
         switch (addr) {
@@ -266,15 +262,12 @@ static void base_reg_write(void *opaque, hwaddr addr, uint64_t data,
             }
             break;
         case DART_ERROR_STATUS:
-            val = orig & (~val);
-            iflg = 1;
-            break;
+            val = o->error_status & (~val);
+            apple_dart_update_irq(s);
+            return;
         }
     }
     o->base_reg[addr >> 2] = val;
-    if (iflg) {
-        apple_dart_update_irq(s);
-    }
 }
 
 static uint64_t base_reg_read(void *opaque, hwaddr addr, unsigned size)
@@ -287,9 +280,10 @@ static uint64_t base_reg_read(void *opaque, hwaddr addr, unsigned size)
         switch (addr) {
         case DART_TLB_OP:
             return qatomic_read(&o->tlb_op);
+        case DART_ERROR_STATUS:
+            return o->error_status;
         default:
             return o->base_reg[addr >> 2];
-            break;
         }
     }
     return 0;
@@ -563,25 +557,25 @@ AppleDARTState *apple_dart_create(DTBNode *node)
     }
 
     prop = dtb_find_prop(node, "sids");
-    if (prop && prop->length >= 4) {
+    if (prop != NULL && prop->length >= 4) {
         s->sids = ldl_le_p(prop->data);
     } else {
         s->sids = 0xFFFF;
     }
 
     prop = dtb_find_prop(node, "bypass");
-    if (prop && prop->length >= 4) {
+    if (prop != NULL && prop->length >= 4) {
         s->bypass = ldl_le_p(prop->data);
     }
 
     prop = dtb_find_prop(node, "bypass-address");
-    if (prop && prop->length >= 8) {
+    if (prop != NULL && prop->length >= 8) {
         s->bypass_address = ldq_le_p(prop->data);
     }
 
     prop = dtb_find_prop(node, "instance");
     g_assert_nonnull(prop);
-    g_assert_cmpuint((prop->length / 12) * 12, ==, prop->length);
+    g_assert_cmpuint(prop->length % 12, ==, 0);
     instance = (uint32_t *)prop->data;
 
     prop = dtb_find_prop(node, "reg");
