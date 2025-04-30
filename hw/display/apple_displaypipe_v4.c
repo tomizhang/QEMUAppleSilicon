@@ -26,7 +26,6 @@
 #include "hw/resettable.h"
 #include "migration/vmstate.h"
 #include "qemu/log.h"
-#include "qemu/typedefs.h"
 #include "qom/object.h"
 #include "ui/console.h"
 #include "ui/pixel_ops.h"
@@ -232,7 +231,6 @@ static uint8_t *adp_v4_gp_read(ADPV4GenPipeState *s)
     if (s->buf_height == 0 || s->buf_width == 0 || s->stride == 0) {
         qemu_log_mask(
             LOG_GUEST_ERROR,
-
             "[gp%d] Dropping frame as width, height or stride is zero.",
             s->index);
         return NULL;
@@ -529,10 +527,9 @@ static void adp_v4_invalidate(void *opaque)
 {
     AppleDisplayPipeV4State *s = APPLE_DISPLAY_PIPE_V4(opaque);
 
-    WITH_QEMU_LOCK_GUARD(&s->lock)
-    {
-        s->invalidated = true;
-    }
+    QEMU_LOCK_GUARD(&s->lock);
+
+    s->invalidated = true;
 }
 
 static void adp_v4_gfx_update(void *opaque)
@@ -592,34 +589,30 @@ static void adp_v4_reset_hold(Object *obj, ResetType type)
 {
     AppleDisplayPipeV4State *s = APPLE_DISPLAY_PIPE_V4(obj);
 
-    WITH_QEMU_LOCK_GUARD(&s->lock)
-    {
-        s->invalidated = true;
-        s->int_status = 0;
+    QEMU_LOCK_GUARD(&s->lock);
 
-        adp_v4_update_irqs(s);
+    s->invalidated = true;
+    s->int_status = 0;
 
-        adp_v4_update_disp_image_ptr(s);
+    adp_v4_update_irqs(s);
 
-        adp_v4_gp_reset(&s->generic_pipe[0], 0, &s->dma_as, s->width,
-                        s->height);
-        adp_v4_gp_reset(&s->generic_pipe[1], 1, &s->dma_as, s->width,
-                        s->height);
-        adp_v4_blend_reset(&s->blend_unit);
+    adp_v4_update_disp_image_ptr(s);
 
-        adp_v4_blit_rect_black(s, s->width, s->height);
-    }
+    adp_v4_gp_reset(&s->generic_pipe[0], 0, &s->dma_as, s->width, s->height);
+    adp_v4_gp_reset(&s->generic_pipe[1], 1, &s->dma_as, s->width, s->height);
+    adp_v4_blend_reset(&s->blend_unit);
+
+    adp_v4_blit_rect_black(s, s->width, s->height);
 }
 
 static void adp_v4_realize(DeviceState *dev, Error **errp)
 {
     AppleDisplayPipeV4State *s = APPLE_DISPLAY_PIPE_V4(dev);
 
-    WITH_QEMU_LOCK_GUARD(&s->lock)
-    {
-        s->console = graphic_console_init(dev, 0, &adp_v4_ops, s);
-        qemu_console_resize(s->console, s->width, s->height);
-    }
+    QEMU_LOCK_GUARD(&s->lock);
+
+    s->console = graphic_console_init(dev, 0, &adp_v4_ops, s);
+    qemu_console_resize(s->console, s->width, s->height);
 }
 
 static const Property adp_v4_props[] = {

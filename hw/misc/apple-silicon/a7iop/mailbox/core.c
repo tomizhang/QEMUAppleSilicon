@@ -245,11 +245,13 @@ static AppleA7IOPMessage *apple_a7iop_mailbox_recv(AppleA7IOPMailbox *s)
     AppleA7IOPMessage *msg;
 
     QEMU_LOCK_GUARD(&s->lock);
+
     if (s->underflow) {
         return NULL;
     }
+
     msg = QTAILQ_FIRST(&s->inbox);
-    if (!msg) {
+    if (msg == NULL) {
         s->underflow = true;
         qemu_log_mask(LOG_GUEST_ERROR, "%s: %s underflowed.\n", __FUNCTION__,
                       s->role);
@@ -279,10 +281,12 @@ AppleA7IOPMessage *apple_a7iop_mailbox_recv_iop(AppleA7IOPMailbox *s)
     }
 
     msg = apple_a7iop_mailbox_recv(s->iop_mailbox);
+
     WITH_QEMU_LOCK_GUARD(&s->lock)
     {
         apple_a7iop_mailbox_update_irq(s);
     }
+
     return msg;
 }
 
@@ -300,22 +304,26 @@ AppleA7IOPMessage *apple_a7iop_mailbox_recv_ap(AppleA7IOPMailbox *s)
     }
 
     msg = apple_a7iop_mailbox_recv(s->ap_mailbox);
+
     WITH_QEMU_LOCK_GUARD(&s->lock)
     {
         apple_a7iop_mailbox_update_irq(s);
     }
+
     return msg;
 }
 
 uint32_t apple_a7iop_mailbox_get_int_mask(AppleA7IOPMailbox *s)
 {
     QEMU_LOCK_GUARD(&s->lock);
+
     return s->int_mask;
 }
 
 void apple_a7iop_mailbox_set_int_mask(AppleA7IOPMailbox *s, uint32_t value)
 {
     QEMU_LOCK_GUARD(&s->lock);
+
     s->int_mask |= value;
     apple_a7iop_mailbox_update_irq(s);
 }
@@ -323,16 +331,17 @@ void apple_a7iop_mailbox_set_int_mask(AppleA7IOPMailbox *s, uint32_t value)
 void apple_a7iop_mailbox_clear_int_mask(AppleA7IOPMailbox *s, uint32_t value)
 {
     QEMU_LOCK_GUARD(&s->lock);
+
     s->int_mask &= ~value;
     apple_a7iop_mailbox_update_irq(s);
 }
 
 static inline uint32_t apple_a7iop_mailbox_ctrl(AppleA7IOPMailbox *s)
 {
-    QEMU_LOCK_GUARD(&s->lock);
     if (s->underflow) {
         return CTRL_UNDERFLOW(s->underflow);
     }
+
     return CTRL_FULL(s->count >= MAX_MESSAGE_COUNT) |
            CTRL_EMPTY(QTAILQ_EMPTY(&s->inbox)) |
            CTRL_COUNT(MIN(s->count, MAX_MESSAGE_COUNT));
@@ -340,45 +349,40 @@ static inline uint32_t apple_a7iop_mailbox_ctrl(AppleA7IOPMailbox *s)
 
 uint32_t apple_a7iop_mailbox_get_iop_ctrl(AppleA7IOPMailbox *s)
 {
-    uint32_t val;
+    QEMU_LOCK_GUARD(&s->lock);
 
-    WITH_QEMU_LOCK_GUARD(&s->lock)
-    {
-        val = CTRL_ENABLE(s->iop_dir_en);
-    }
-    val |= apple_a7iop_mailbox_ctrl(s->iop_mailbox);
-    return val;
+    return CTRL_ENABLE(s->iop_dir_en) |
+           apple_a7iop_mailbox_ctrl(s->iop_mailbox);
 }
 
 void apple_a7iop_mailbox_set_iop_ctrl(AppleA7IOPMailbox *s, uint32_t value)
 {
     QEMU_LOCK_GUARD(&s->lock);
+
     s->iop_dir_en = (value & CTRL_ENABLE_MASK) != 0;
 }
 
 uint32_t apple_a7iop_mailbox_get_ap_ctrl(AppleA7IOPMailbox *s)
 {
-    uint32_t val;
+    QEMU_LOCK_GUARD(&s->lock);
 
-    WITH_QEMU_LOCK_GUARD(&s->lock)
-    {
-        val = CTRL_ENABLE(s->ap_dir_en);
-    }
-    val |= apple_a7iop_mailbox_ctrl(s->ap_mailbox);
-    return val;
+    return CTRL_ENABLE(s->ap_dir_en) | apple_a7iop_mailbox_ctrl(s->ap_mailbox);
 }
 
 void apple_a7iop_mailbox_set_ap_ctrl(AppleA7IOPMailbox *s, uint32_t value)
 {
     QEMU_LOCK_GUARD(&s->lock);
+
     s->ap_dir_en = (value & CTRL_ENABLE_MASK) != 0;
 }
 
 void apple_a7iop_interrupt_status_push(AppleA7IOPMailbox *s, uint32_t status)
 {
+    AppleA7IOPInterruptStatusMessage *msg;
+
     QEMU_LOCK_GUARD(&s->lock);
-    AppleA7IOPInterruptStatusMessage *msg =
-        g_new0(struct AppleA7IOPInterruptStatusMessage, 1);
+
+    msg = g_new0(struct AppleA7IOPInterruptStatusMessage, 1);
     msg->status = status;
     QTAILQ_INSERT_TAIL(&s->interrupt_status, msg, entry);
     apple_a7iop_mailbox_update_irq(s);
@@ -387,11 +391,13 @@ void apple_a7iop_interrupt_status_push(AppleA7IOPMailbox *s, uint32_t status)
 uint32_t apple_a7iop_interrupt_status_pop(AppleA7IOPMailbox *s)
 {
     uint32_t ret = 0;
-    AppleA7IOPInterruptStatusMessage *msg = NULL;
-    AppleA7IOPInterruptStatusMessage *lowest_msg = NULL;
+    AppleA7IOPInterruptStatusMessage *msg;
+    AppleA7IOPInterruptStatusMessage *lowest_msg;
+
+    lowest_msg = NULL;
     QTAILQ_FOREACH (msg, &s->interrupt_status, entry) {
         if (is_interrupt_enabled(s, msg->status)) {
-            if (!lowest_msg || (msg->status < lowest_msg->status)) {
+            if (lowest_msg == NULL || (msg->status < lowest_msg->status)) {
                 lowest_msg = msg;
             }
         }
@@ -428,6 +434,7 @@ AppleA7IOPMailbox *apple_a7iop_mailbox_new(const char *role,
     dev = qdev_new(TYPE_APPLE_A7IOP_MAILBOX);
     sbd = SYS_BUS_DEVICE(dev);
     s = APPLE_A7IOP_MAILBOX(dev);
+
     s->role = g_strdup(role);
     s->iop_mailbox = iop_mailbox ? iop_mailbox : s;
     s->ap_mailbox = ap_mailbox ? ap_mailbox : s;

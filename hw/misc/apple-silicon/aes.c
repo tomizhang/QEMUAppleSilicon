@@ -142,16 +142,15 @@ static void aes_update_command_fifo_status(AppleAESState *s)
 
 static void aes_empty_fifo(AppleAESState *s)
 {
-    WITH_QEMU_LOCK_GUARD(&s->queue_mutex)
-    {
-        while (!QTAILQ_EMPTY(&s->queue)) {
-            AESCommand *cmd = QTAILQ_FIRST(&s->queue);
-            QTAILQ_REMOVE(&s->queue, cmd, entry);
-            g_free(cmd);
-        }
-        s->reg.command_fifo_status.level = 0;
-        aes_update_command_fifo_status(s);
+    QEMU_LOCK_GUARD(&s->queue_mutex);
+
+    while (!QTAILQ_EMPTY(&s->queue)) {
+        AESCommand *cmd = QTAILQ_FIRST(&s->queue);
+        QTAILQ_REMOVE(&s->queue, cmd, entry);
+        g_free(cmd);
     }
+    s->reg.command_fifo_status.level = 0;
+    aes_update_command_fifo_status(s);
 }
 
 static void aes_start(AppleAESState *s)
