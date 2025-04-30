@@ -587,7 +587,6 @@ AppleDARTState *apple_dart_create(DTBNode *node)
 
     reg = (uint64_t *)prop->data;
 
-
     for (i = 0; i < prop->length / 16; i++) {
         AppleDARTInstance *o = &s->instances[i];
         s->num_instances++;
@@ -596,6 +595,7 @@ AppleDARTState *apple_dart_create(DTBNode *node)
         memory_region_init_io(&o->iomem, OBJECT(dev), &base_reg_ops, o,
                               TYPE_APPLE_DART ".reg", reg[i * 2 + 1]);
         sysbus_init_mmio(sbd, &o->iomem);
+        qemu_mutex_init(&o->mutex);
 
         switch (*instance) {
         case 'DART': {
@@ -612,8 +612,6 @@ AppleDARTState *apple_dart_create(DTBNode *node)
                         o->iommus[j], sizeof(AppleDARTIOMMUMemoryRegion),
                         TYPE_APPLE_DART_IOMMU_MEMORY_REGION, OBJECT(s), name,
                         1ULL << DART_MAX_VA_BITS);
-
-                    qemu_mutex_init(&o->mutex);
                 }
             }
             break;
