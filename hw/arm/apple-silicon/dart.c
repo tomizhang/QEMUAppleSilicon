@@ -564,17 +564,19 @@ AppleDARTState *apple_dart_create(DTBNode *node)
 
     prop = dtb_find_prop(node, "sids");
     if (prop && prop->length >= 4) {
-        s->sids = *(uint32_t *)prop->data;
+        s->sids = ldl_le_p(prop->data);
+    } else {
+        s->sids = 0xFFFF;
     }
 
     prop = dtb_find_prop(node, "bypass");
     if (prop && prop->length >= 4) {
-        s->bypass = *(uint32_t *)prop->data;
+        s->bypass = ldl_le_p(prop->data);
     }
 
     prop = dtb_find_prop(node, "bypass-address");
     if (prop && prop->length >= 8) {
-        s->bypass_address = *(uint64_t *)prop->data;
+        s->bypass_address = ldq_le_p(prop->data);
     }
 
     prop = dtb_find_prop(node, "instance");
