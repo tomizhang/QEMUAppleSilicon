@@ -1409,7 +1409,7 @@ static void t8030_amcc_setup(T8030MachineState *t8030_machine)
 }
 
 static void t8030_create_dart(T8030MachineState *t8030_machine,
-                              const char *name)
+                              const char *name, bool absolute_mmio)
 {
     AppleDARTState *dart = NULL;
     DTBProp *prop;
@@ -1422,8 +1422,7 @@ static void t8030_create_dart(T8030MachineState *t8030_machine,
     g_assert_nonnull(child);
 
     child = dtb_get_node(child, name);
-    if (!child)
-        return;
+    g_assert_nonnull(child);
 
     dart = apple_dart_create(child);
     g_assert_nonnull(dart);
@@ -1436,7 +1435,8 @@ static void t8030_create_dart(T8030MachineState *t8030_machine,
 
     for (i = 0; i < prop->length / 16; i++) {
         sysbus_mmio_map(SYS_BUS_DEVICE(dart), i,
-                        t8030_machine->soc_base_pa + reg[i * 2]);
+                        (absolute_mmio ? 0 : t8030_machine->soc_base_pa) +
+                            reg[i * 2]);
     }
 
     prop = dtb_find_prop(child, "interrupts");
@@ -2559,10 +2559,10 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_i2c(t8030_machine, "smc-i2c0");
     t8030_create_i2c(t8030_machine, "smc-i2c1");
 
-    t8030_create_dart(t8030_machine, "dart-usb");
-    t8030_create_dart(t8030_machine, "dart-sio");
-    t8030_create_dart(t8030_machine, "dart-disp0");
-    t8030_create_dart(t8030_machine, "dart-sep");
+    t8030_create_dart(t8030_machine, "dart-usb", false);
+    t8030_create_dart(t8030_machine, "dart-sio", false);
+    t8030_create_dart(t8030_machine, "dart-disp0", false);
+    t8030_create_dart(t8030_machine, "dart-sep", false);
     t8030_create_usb(t8030_machine);
 
     t8030_create_wdt(t8030_machine);

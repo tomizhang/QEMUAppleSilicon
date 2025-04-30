@@ -54,7 +54,7 @@ static const char *KEEP_COMP[] = {
     "biosensor,pearl\0$",
 #endif
     "buttons\0$",
-    // "dart,s8000\0dart,s5l8960x\0$",
+    "dart,s8000\0dart,s5l8960x\0$",
     "dart,t8020\0$",
     "disp0,t8030\0$",
     "gen-mt-decider\0$",

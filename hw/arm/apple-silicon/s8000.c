@@ -22,6 +22,7 @@
 #include "exec/address-spaces.h"
 #include "exec/memory.h"
 #include "hw/arm/apple-silicon/a9.h"
+#include "hw/arm/apple-silicon/dart.h"
 #include "hw/arm/apple-silicon/lm-backlight.h"
 #include "hw/arm/apple-silicon/mem.h"
 #include "hw/arm/apple-silicon/s8000-config.c.inc"
@@ -666,6 +667,55 @@ static void s8000_pmgr_setup(S8000MachineState *s8000_machine)
                  s8000_voltage_states1);
 }
 
+static void s8000_create_dart(S8000MachineState *s8000_machine,
+                              const char *name, bool absolute_mmio)
+{
+    AppleDARTState *dart = NULL;
+    DTBProp *prop;
+    uint64_t *reg;
+    uint32_t *ints;
+    int i;
+    DTBNode *child;
+
+    child = dtb_get_node(s8000_machine->device_tree, "arm-io");
+    g_assert_nonnull(child);
+
+    child = dtb_get_node(child, name);
+    g_assert_nonnull(child);
+
+    dart = apple_dart_create(child);
+    g_assert_nonnull(dart);
+    object_property_add_child(OBJECT(s8000_machine), name, OBJECT(dart));
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+
+    reg = (uint64_t *)prop->data;
+
+    for (i = 0; i < prop->length / 16; i++) {
+        sysbus_mmio_map(SYS_BUS_DEVICE(dart), i,
+                        (absolute_mmio ? 0 : s8000_machine->soc_base_pa) +
+                            reg[i * 2]);
+    }
+
+    prop = dtb_find_prop(child, "interrupts");
+    g_assert_nonnull(prop);
+    ints = (uint32_t *)prop->data;
+
+    // if there's SMMU there are two indices, 2nd being the SMMU,
+    // the code below should be brought back if SMMU is ever implemented
+    //
+    // for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
+    //     sysbus_connect_irq(
+    //         SYS_BUS_DEVICE(dart), i,
+    //         qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[i]));
+    // }
+    sysbus_connect_irq(SYS_BUS_DEVICE(dart), 0,
+                       qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[0]));
+
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(dart), &error_fatal);
+}
+
 static void s8000_create_nvme(S8000MachineState *s8000_machine)
 {
     uint32_t *ints;
@@ -1033,8 +1083,6 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
     child = dtb_get_node(s8000_machine->device_tree, "arm-io/disp0");
     g_assert_nonnull(child);
 
-    dtb_remove_prop_named(child, "iommu-parent");
-
     s = adbe_v2_create(child);
     sbd = SYS_BUS_DEVICE(s);
     s8000_machine->video.base_addr = S8000_DISPLAY_BASE;
@@ -1069,18 +1117,20 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
             sbd, i, qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[i]));
     }
 
-    // AppleDARTState *dart = APPLE_DART(
-    //     object_property_get_link(OBJECT(machine), "dart-disp0",
-    //     &error_fatal));
-    // g_assert_nonnull(dart);
-    // child = find_dtb_node(s8000_machine->device_tree,
-    // "arm-io/dart-disp0/mapper-disp0"); g_assert_nonnull(child); prop =
-    // find_dtb_prop(child, "reg"); g_assert_nonnull(prop); s->dma_mr =
-    //     MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->value));
-    // g_assert_nonnull(s->dma_mr);
-    // g_assert_nonnull(object_property_add_const_link(OBJECT(sbd), "dma_mr",
-    //                                         OBJECT(s->dma_mr)));
-    // address_space_init(&s->dma_as, s->dma_mr, "disp0.dma");
+    AppleDARTState *dart = APPLE_DART(
+        object_property_get_link(OBJECT(machine), "dart-disp0", &error_fatal));
+    g_assert_nonnull(dart);
+    child = dtb_get_node(s8000_machine->device_tree,
+                         "arm-io/dart-disp0/mapper-disp0");
+    g_assert_nonnull(child);
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    s->dma_mr =
+        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->data));
+    g_assert_nonnull(s->dma_mr);
+    g_assert_nonnull(object_property_add_const_link(OBJECT(sbd), "dma_mr",
+                                                    OBJECT(s->dma_mr)));
+    address_space_init(&s->dma_as, s->dma_mr, "disp0.dma");
 
     memory_region_init_ram(&s->vram, OBJECT(sbd), "vram", S8000_DISPLAY_SIZE,
                            &error_fatal);
@@ -1291,6 +1341,8 @@ static void s8000_machine_init(MachineState *machine)
     s8000_create_s3c_uart(s8000_machine, serial_hd(0));
 
     s8000_pmgr_setup(s8000_machine);
+
+    s8000_create_dart(s8000_machine, "dart-disp0", false);
 
     s8000_create_nvme(s8000_machine);
 
