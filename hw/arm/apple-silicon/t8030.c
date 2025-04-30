@@ -283,7 +283,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
 {
     MachineState *machine = MACHINE(t8030_machine);
     MachoHeader64 *hdr = t8030_machine->kernel;
-    MemoryRegion *sysmem = t8030_machine->sysmem;
+    MemoryRegion *sysmem = t8030_machine->sys_mem;
     AddressSpace *nsas = &address_space_memory;
     hwaddr virt_low;
     hwaddr virt_end;
@@ -292,7 +292,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     hwaddr phys_ptr;
     hwaddr amcc_lower;
     hwaddr amcc_upper;
-    AppleBootInfo *info = &t8030_machine->bootinfo;
+    AppleBootInfo *info = &t8030_machine->boot_info;
     hwaddr last_base;
     MachoSegmentCommand64 *last_seg;
     hwaddr text_base;
@@ -388,7 +388,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     macho_setup_bootargs(
         "BootArgs", nsas, sysmem, info->kern_boot_args_addr, g_virt_base,
         g_phys_base, mem_size, info->top_of_kernel_data_pa, dtb_va,
-        info->device_tree_size, t8030_machine->video_args, cmdline);
+        info->device_tree_size, &t8030_machine->video_args, cmdline);
     g_virt_base = virt_low;
 }
 
@@ -397,7 +397,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
 {
     MachineState *machine = MACHINE(t8030_machine);
     MachoHeader64 *hdr = t8030_machine->kernel;
-    MemoryRegion *sysmem = t8030_machine->sysmem;
+    MemoryRegion *sysmem = t8030_machine->sys_mem;
     AddressSpace *nsas = &address_space_memory;
     hwaddr virt_low;
     hwaddr virt_end;
@@ -406,7 +406,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     hwaddr phys_ptr;
     hwaddr amcc_lower;
     hwaddr amcc_upper;
-    AppleBootInfo *info = &t8030_machine->bootinfo;
+    AppleBootInfo *info = &t8030_machine->boot_info;
     uint64_t extradata_size;
     uint64_t l2_remaining;
     MachoSegmentCommand64 *prelink_info_seg;
@@ -512,7 +512,7 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     macho_setup_bootargs(
         "BootArgs", nsas, sysmem, info->kern_boot_args_addr, g_virt_base,
         g_phys_base, mem_size, info->top_of_kernel_data_pa, dtb_va,
-        info->device_tree_size, t8030_machine->video_args, cmdline);
+        info->device_tree_size, &t8030_machine->video_args, cmdline);
     g_virt_base = virt_low;
 }
 
@@ -579,7 +579,7 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     }
 
     machine = MACHINE(t8030_machine);
-    info = &t8030_machine->bootinfo;
+    info = &t8030_machine->boot_info;
     memory_map = dtb_get_node(t8030_machine->device_tree, "/chosen/memory-map");
     nsas = &address_space_memory;
 
@@ -807,15 +807,10 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         vram_reg[1] = T8030_DISPLAY_SIZE;
         dtb_set_prop(vram, "reg", sizeof(vram_reg), &vram_reg);
         t8030_machine->video_args.base_addr = vram_reg[0];
-        AppleDisplayPipeV4State *display =
+        adp_v4_update_vram_mapping(
             APPLE_DISPLAY_PIPE_V4(object_property_get_link(
-                OBJECT(t8030_machine), "disp0", &error_abort));
-        if (memory_region_is_mapped(&display->vram)) {
-            memory_region_del_subregion(t8030_machine->sysmem, &display->vram);
-        }
-        memory_region_add_subregion_overlap(t8030_machine->sysmem,
-                                            t8030_machine->video_args.base_addr,
-                                            &display->vram, 1);
+                OBJECT(t8030_machine), "disp0", &error_abort)),
+            t8030_machine->sys_mem, vram_reg[0]);
     }
 
     hdr = t8030_machine->kernel;
@@ -1112,7 +1107,7 @@ static uint64_t amcc_reg_read(void *opaque, hwaddr addr, unsigned size)
     T8030MachineState *t8030_machine = T8030_MACHINE(opaque);
     uint64_t result = 0;
     uint64_t base =
-        t8030_machine->bootinfo.top_of_kernel_data_pa - T8030_DRAM_BASE;
+        t8030_machine->boot_info.top_of_kernel_data_pa - T8030_DRAM_BASE;
     uint64_t amcc_size = 0xf000000;
     switch (addr) {
     case 0x6A0:
@@ -1184,7 +1179,7 @@ static void t8030_cluster_realize(T8030MachineState *t8030_machine)
     for (int i = 0; i < A13_MAX_CLUSTER; i++) {
         qdev_realize(DEVICE(&t8030_machine->clusters[i]), NULL, &error_fatal);
         if (t8030_machine->clusters[i].base) {
-            memory_region_add_subregion(t8030_machine->sysmem,
+            memory_region_add_subregion(t8030_machine->sys_mem,
                                         t8030_machine->clusters[i].base,
                                         &t8030_machine->clusters[i].mr);
         }
@@ -1290,7 +1285,7 @@ static void t8030_pmgr_setup(T8030MachineState *t8030_machine)
             memory_region_init_io(mem, OBJECT(t8030_machine), &pmgr_reg_ops,
                                   t8030_machine, "pmgr-reg", reg[i + 1]);
         }
-        memory_region_add_subregion(t8030_machine->sysmem,
+        memory_region_add_subregion(t8030_machine->sys_mem,
                                     reg[i] + reg[i + 1] <
                                             t8030_machine->soc_size ?
                                         t8030_machine->soc_base_pa + reg[i] :
@@ -1304,7 +1299,7 @@ static void t8030_pmgr_setup(T8030MachineState *t8030_machine)
         snprintf(name, 32, "pmp-reg");
         memory_region_init_io(mem, OBJECT(t8030_machine), &pmgr_unk_reg_ops,
                               (void *)0x3BC00000, name, 0x60000);
-        memory_region_add_subregion(t8030_machine->sysmem,
+        memory_region_add_subregion(t8030_machine->sys_mem,
                                     t8030_machine->soc_base_pa + 0x3BC00000,
                                     mem);
     }
@@ -1404,7 +1399,7 @@ static void t8030_amcc_setup(T8030MachineState *t8030_machine)
     memory_region_init_io(&t8030_machine->amcc, OBJECT(t8030_machine),
                           &amcc_reg_ops, t8030_machine, "amcc",
                           T8030_AMCC_SIZE);
-    memory_region_add_subregion(t8030_machine->sysmem, T8030_AMCC_BASE,
+    memory_region_add_subregion(t8030_machine->sys_mem, T8030_AMCC_BASE,
                                 &t8030_machine->amcc);
 }
 
@@ -1892,7 +1887,7 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
     g_assert_nonnull(prop);
     smc_region_size = *(uint64_t *)prop->data;
 
-    allocate_ram(t8030_machine->sysmem, "SMC_REGION0", smc_region_base,
+    allocate_ram(t8030_machine->sys_mem, "SMC_REGION0", smc_region_base,
                  smc_region_size, 0);
 
     segranges[0].phys = smc_region_base + T8030_SMC_SRAM_SIZE;
@@ -2070,7 +2065,6 @@ static void t8030_create_misc(T8030MachineState *t8030_machine)
 static void t8030_create_display(T8030MachineState *t8030_machine)
 {
     MachineState *machine;
-    AppleDisplayPipeV4State *s;
     SysBusDevice *sbd;
     DTBNode *child;
     uint64_t *reg;
@@ -2078,14 +2072,22 @@ static void t8030_create_display(T8030MachineState *t8030_machine)
 
     machine = MACHINE(t8030_machine);
 
+    AppleDARTState *dart = APPLE_DART(object_property_get_link(
+        OBJECT(t8030_machine), "dart-disp0", &error_fatal));
+    g_assert_nonnull(dart);
+    child = dtb_get_node(t8030_machine->device_tree,
+                         "arm-io/dart-disp0/mapper-disp0");
+    g_assert_nonnull(child);
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+
     child = dtb_get_node(t8030_machine->device_tree, "arm-io/disp0");
 
-    s = adp_v4_create(child);
-    sbd = SYS_BUS_DEVICE(s);
+    sbd = adp_v4_create(
+        child,
+        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->data)),
+        &t8030_machine->video_args, T8030_DISPLAY_SIZE);
 
-    t8030_machine->video_args.row_bytes = s->width * 4;
-    t8030_machine->video_args.width = s->width;
-    t8030_machine->video_args.height = s->height;
     t8030_machine->video_args.depth = 32 | ((2 - 1) << 16);
     t8030_machine->video_args.display =
         !xnu_contains_boot_arg(machine->kernel_cmdline, "-s", false) &&
@@ -2106,24 +2108,6 @@ static void t8030_create_display(T8030MachineState *t8030_machine)
             sbd, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
 
-    AppleDARTState *dart = APPLE_DART(object_property_get_link(
-        OBJECT(t8030_machine), "dart-disp0", &error_fatal));
-    g_assert_nonnull(dart);
-    child = dtb_get_node(t8030_machine->device_tree,
-                         "arm-io/dart-disp0/mapper-disp0");
-    g_assert_nonnull(child);
-    prop = dtb_find_prop(child, "reg");
-    g_assert_nonnull(prop);
-    s->dma_mr =
-        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->data));
-    g_assert_nonnull(s->dma_mr);
-    g_assert_nonnull(object_property_add_const_link(OBJECT(sbd), "dma_mr",
-                                                    OBJECT(s->dma_mr)));
-    address_space_init(&s->dma_as, s->dma_mr, "disp0.dma");
-
-    memory_region_init_ram(&s->vram, OBJECT(sbd), "vram", T8030_DISPLAY_SIZE,
-                           &error_fatal);
-    object_property_add_const_link(OBJECT(sbd), "vram", OBJECT(&s->vram));
     object_property_add_child(OBJECT(t8030_machine), "disp0", OBJECT(sbd));
 
     sysbus_realize_and_unref(sbd, &error_fatal);
@@ -2320,8 +2304,8 @@ static void t8030_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 
     t8030_machine = data.host_ptr;
     cpu_reset(cpu);
-    ARM_CPU(cpu)->env.xregs[0] = t8030_machine->bootinfo.kern_boot_args_addr;
-    cpu_set_pc(cpu, t8030_machine->bootinfo.kern_entry);
+    ARM_CPU(cpu)->env.xregs[0] = t8030_machine->boot_info.kern_boot_args_addr;
+    cpu_set_pc(cpu, t8030_machine->boot_info.kern_entry);
 }
 
 static void t8030_cpu_reset(T8030MachineState *t8030_machine)
@@ -2340,7 +2324,7 @@ static void t8030_cpu_reset(T8030MachineState *t8030_machine)
             continue;
         }
         object_property_set_uint(OBJECT(cpu), "rvbar",
-                                 t8030_machine->bootinfo.kern_entry & ~0xFFF,
+                                 t8030_machine->boot_info.kern_entry & ~0xFFF,
                                  &error_abort);
         object_property_set_uint(OBJECT(cpu), "pauth-mlo", m_lo, &error_abort);
         object_property_set_uint(OBJECT(cpu), "pauth-mhi", m_hi, &error_abort);
@@ -2408,24 +2392,24 @@ static void t8030_machine_init(MachineState *machine)
         return;
     }
 
-    t8030_machine->sysmem = get_system_memory();
-    allocate_ram(t8030_machine->sysmem, "SROM", T8030_SROM_BASE,
+    t8030_machine->sys_mem = get_system_memory();
+    allocate_ram(t8030_machine->sys_mem, "SROM", T8030_SROM_BASE,
                  T8030_SROM_SIZE, 0);
-    allocate_ram(t8030_machine->sysmem, "SRAM", T8030_SRAM_BASE,
+    allocate_ram(t8030_machine->sys_mem, "SRAM", T8030_SRAM_BASE,
                  T8030_SRAM_SIZE, 0);
-    allocate_ram(t8030_machine->sysmem, "DRAM", T8030_DRAM_BASE,
+    allocate_ram(t8030_machine->sys_mem, "DRAM", T8030_DRAM_BASE,
                  machine->maxram_size, 0);
     if (t8030_machine->seprom_filename) {
-        allocate_ram(t8030_machine->sysmem, "SEPROM", T8030_SEPROM_BASE,
+        allocate_ram(t8030_machine->sys_mem, "SEPROM", T8030_SEPROM_BASE,
                      T8030_SEPROM_SIZE, 0);
-        allocate_ram(t8030_machine->sysmem, "DRAM_30", 0x300000000ULL,
+        allocate_ram(t8030_machine->sys_mem, "DRAM_30", 0x300000000ULL,
                      0x8000000ULL, 0); // 0x4000000 is too low
-        allocate_ram(t8030_machine->sysmem, "DRAM_34", 0x340000000ULL,
+        allocate_ram(t8030_machine->sys_mem, "DRAM_34", 0x340000000ULL,
                      0x2000000ULL, 0); // 0x1000000 is too low
     }
     if (t8030_machine->sep_fw_filename) {
-        allocate_ram(t8030_machine->sysmem, "SEPFW_", 0x0, SEP_DMA_MAPPING_SIZE,
-                     0);
+        allocate_ram(t8030_machine->sys_mem, "SEPFW_", 0x0,
+                     SEP_DMA_MAPPING_SIZE, 0);
     }
 
     hdr = macho_load_file(machine->kernel_filename, NULL);
@@ -2466,7 +2450,7 @@ static void t8030_machine_init(MachineState *machine)
     t8030_machine->device_tree = load_dtb_from_file(machine->dtb);
     t8030_machine->trustcache =
         load_trustcache_from_file(t8030_machine->trustcache_filename,
-                                  &t8030_machine->bootinfo.trustcache_size);
+                                  &t8030_machine->boot_info.trustcache_size);
     dtb_set_prop_u32(t8030_machine->device_tree, "clock-frequency", 24000000);
     child = dtb_get_node(t8030_machine->device_tree, "arm-io");
     g_assert_nonnull(child);
@@ -2704,8 +2688,6 @@ static char *t8030_get_boot_mode(Object *obj, Error **errp)
         return g_strdup("enter_recovery");
     case kBootModeExitRecovery:
         return g_strdup("exit_recovery");
-    case kBootModeAuto:
-        QEMU_FALLTHROUGH;
     default:
         return g_strdup("auto");
     }

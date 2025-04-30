@@ -20,62 +20,18 @@
 #define APPLE_DISPLAYPIPE_V4_H
 
 #include "qemu/osdep.h"
+#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/sysbus.h"
 #include "qom/object.h"
-#include "ui/console.h"
 
 #define TYPE_APPLE_DISPLAY_PIPE_V4 "apple-display-pipe-v4"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleDisplayPipeV4State, APPLE_DISPLAY_PIPE_V4);
 
-#define ADP_V4_LAYER_COUNT (2)
+SysBusDevice *adp_v4_create(DTBNode *node, MemoryRegion *dma_mr,
+                            AppleVideoArgs *video_args, hwaddr vram_size);
 
-typedef struct {
-    size_t index;
-    AddressSpace *dma_as;
-    uint16_t disp_width;
-    uint16_t disp_height;
-    uint32_t config_control;
-    uint32_t pixel_format;
-    uint16_t width;
-    uint16_t height;
-    uint32_t base;
-    uint32_t end;
-    uint32_t stride;
-    uint16_t buf_width;
-    uint16_t buf_height;
-    uint8_t *buf;
-    bool dirty;
-} ADPV4GenPipeState;
-
-typedef struct {
-    uint32_t layer_config[ADP_V4_LAYER_COUNT];
-    bool dirty;
-} ADPV4BlendUnitState;
-
-struct AppleDisplayPipeV4State {
-    /*< private >*/
-    SysBusDevice parent_obj;
-
-    /*< public >*/
-    QemuMutex lock;
-    uint32_t width;
-    uint32_t height;
-    pixman_image_t *disp_image;
-    MemoryRegion up_regs;
-    MemoryRegion vram;
-    MemoryRegion *dma_mr;
-    AddressSpace dma_as;
-    MemoryRegionSection vram_section;
-    qemu_irq irqs[9];
-    uint32_t int_status;
-    ADPV4GenPipeState generic_pipe[ADP_V4_LAYER_COUNT];
-    ADPV4BlendUnitState blend_unit;
-    QemuConsole *console;
-    QEMUBH *update_disp_image_bh;
-    bool invalidated;
-};
-
-AppleDisplayPipeV4State *adp_v4_create(DTBNode *node);
+void adp_v4_update_vram_mapping(AppleDisplayPipeV4State *s, MemoryRegion *mr,
+                                hwaddr base);
 
 #endif /* APPLE_DISPLAYPIPE_V4_H */

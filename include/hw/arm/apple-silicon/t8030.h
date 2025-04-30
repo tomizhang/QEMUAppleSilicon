@@ -56,11 +56,11 @@ typedef struct {
     AppleA13State *cpus[A13_MAX_CPU];
     AppleA13Cluster clusters[A13_MAX_CLUSTER];
     SysBusDevice *aic;
-    MemoryRegion *sysmem;
+    MemoryRegion *sys_mem;
     MachoHeader64 *kernel;
     DTBNode *device_tree;
     uint8_t *trustcache;
-    AppleBootInfo bootinfo;
+    AppleBootInfo boot_info;
     AppleVideoArgs video_args;
     char *trustcache_filename;
     char *ticket_filename;
