@@ -3266,9 +3266,8 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
 #if 1
         // if (data == 0x6A5D128D && (s->chip_id == 0x8015))
         if (data == 0x6A5D128D) {
-            AppleA7IOPMessage *msg = NULL;
-            msg = apple_a7iop_inbox_peek(APPLE_A7IOP(s)->iop_mailbox);
-            if (msg) {
+            AppleA7IOPMessage *msg = apple_a7iop_inbox_peek(APPLE_A7IOP(s)->iop_mailbox);
+            if (msg != NULL) {
                 memcpy(&sep_msg, msg->data, sizeof(sep_msg));
                 uint64_t shmbuf_base = (uint64_t)sep_msg.data << 12;
                 qemu_log_mask(LOG_UNIMP,
