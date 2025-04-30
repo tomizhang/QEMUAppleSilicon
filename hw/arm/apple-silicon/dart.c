@@ -576,7 +576,7 @@ AppleDARTState *apple_dart_create(DTBNode *node)
     prop = dtb_find_prop(node, "instance");
     if (prop == NULL) {
         prop = dtb_find_prop(node, "smmu-present");
-        if (prop == NULL || ldl_le_p(prop->data) == 1) {
+        if (prop == NULL || ldl_le_p(prop->data) != 1) {
             instance = (uint32_t *)"TRADDART\0\0\0";
         } else {
             instance = (uint32_t *)"TRADDART\0\0\0\0UMMSSMMU\0\0\0";
