@@ -241,18 +241,21 @@ DTBProp *dtb_set_prop_null(DTBNode *node, const char *name)
     return dtb_set_prop(node, name, 0, NULL);
 }
 
-DTBProp *dtb_set_prop_u32(DTBNode *node, const char *name, const uint32_t val)
+DTBProp *dtb_set_prop_u32(DTBNode *node, const char *name, uint32_t val)
 {
+    val = cpu_to_le32(val);
     return dtb_set_prop(node, name, sizeof(val), &val);
 }
 
-DTBProp *dtb_set_prop_u64(DTBNode *node, const char *name, const uint64_t val)
+DTBProp *dtb_set_prop_u64(DTBNode *node, const char *name, uint64_t val)
 {
+    val = cpu_to_le64(val);
     return dtb_set_prop(node, name, sizeof(val), &val);
 }
 
-DTBProp *dtb_set_prop_hwaddr(DTBNode *node, const char *name, const hwaddr val)
+DTBProp *dtb_set_prop_hwaddr(DTBNode *node, const char *name, hwaddr val)
 {
+    val = cpu_to_le64(val);
     return dtb_set_prop(node, name, sizeof(val), &val);
 }
 

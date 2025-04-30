@@ -47,9 +47,9 @@ bool dtb_remove_prop_named(DTBNode *node, const char *name);
 DTBProp *dtb_set_prop(DTBNode *n, const char *name, uint32_t size,
                       const void *val);
 DTBProp *dtb_set_prop_null(DTBNode *node, const char *name);
-DTBProp *dtb_set_prop_u32(DTBNode *node, const char *name, const uint32_t val);
-DTBProp *dtb_set_prop_u64(DTBNode *node, const char *name, const uint64_t val);
-DTBProp *dtb_set_prop_hwaddr(DTBNode *node, const char *name, const hwaddr val);
+DTBProp *dtb_set_prop_u32(DTBNode *node, const char *name, uint32_t val);
+DTBProp *dtb_set_prop_u64(DTBNode *node, const char *name, uint64_t val);
+DTBProp *dtb_set_prop_hwaddr(DTBNode *node, const char *name, hwaddr val);
 DTBNode *dtb_get_node(DTBNode *n, const char *path);
 uint64_t dtb_get_serialised_node_size(DTBNode *node);
 DTBProp *dtb_find_prop(DTBNode *node, const char *name);
