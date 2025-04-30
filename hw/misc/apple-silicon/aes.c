@@ -443,19 +443,12 @@ static void aes_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
     switch (addr) {
     case REG_AES_VERSION:
-        QEMU_FALLTHROUGH;
     case REG_AES_STATUS:
-        QEMU_FALLTHROUGH;
     case REG_AES_KEY_ID:
-        QEMU_FALLTHROUGH;
     case REG_AES_AXI_STATUS:
-        QEMU_FALLTHROUGH;
     case REG_AES_COMMAND_FIFO_STATUS:
-        QEMU_FALLTHROUGH;
     case REG_AES_COMMAND_FIFO_COUNT:
-        QEMU_FALLTHROUGH;
     case REG_AES_FLAG_COMMAND:
-        QEMU_FALLTHROUGH;
     case REG_AES_SKG_KEY:
         nowrite = true;
         val = old;
@@ -493,7 +486,6 @@ static void aes_reg_write(void *opaque, hwaddr addr, uint64_t data,
         val = old;
         break;
     case REG_AES_COMMAND_FIFO_S8000:
-        QEMU_FALLTHROUGH;
     case REG_AES_COMMAND_FIFO:
         if (s->data_len > s->data_read) {
             s->data[s->data_read] = val;
@@ -628,9 +620,7 @@ static uint64_t aes_reg_read(void *opaque, hwaddr addr, unsigned size)
 
     switch (addr) {
     case REG_AES_INT_STATUS:
-        QEMU_FALLTHROUGH;
     case REG_AES_COMMAND_FIFO_STATUS:
-        QEMU_FALLTHROUGH;
     case REG_AES_FLAG_COMMAND:
         val = qatomic_read(mmio);
         break;
