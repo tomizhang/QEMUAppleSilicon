@@ -24,7 +24,6 @@
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/sysbus.h"
-#include "qemu/typedefs.h"
 #include "qom/object.h"
 
 #define TYPE_APPLE_SEP_SIM "apple-sep-sim"

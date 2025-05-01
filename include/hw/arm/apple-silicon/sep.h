@@ -26,7 +26,6 @@
 #include "hw/i2c/i2c.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/sysbus.h"
-#include "qemu/typedefs.h"
 #include "qom/object.h"
 #include "cpu-qom.h"
 #include "nettle/drbg-ctr.h"

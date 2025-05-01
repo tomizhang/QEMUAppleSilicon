@@ -6,7 +6,6 @@
 #include "qemu/bitops.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
-#include "qemu/typedefs.h"
 
 #define GPIO_MAX_PIN_NR (512)
 #define GPIO_MAX_INT_GRP_NR (0x7)
