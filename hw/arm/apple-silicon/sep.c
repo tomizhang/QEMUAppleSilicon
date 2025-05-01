@@ -3640,7 +3640,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     DeviceState *gpio = NULL;
     uint32_t sep_gpio_pins = 0x4;
     uint32_t sep_gpio_int_groups = 0x1;
-    gpio = apple_gpio_create((char *)"sep_gpio", 0x10000, sep_gpio_pins,
+    gpio = apple_gpio_create("sep_gpio", 0x10000, sep_gpio_pins,
                              sep_gpio_int_groups);
     g_assert_nonnull(gpio);
     sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x2414c0000ull); // T8030

@@ -27,7 +27,7 @@ struct AppleGPIOState {
     uint32_t npl;
 };
 
-DeviceState *apple_gpio_create(char *name, uint64_t mmio_size,
+DeviceState *apple_gpio_create(const char *name, uint64_t mmio_size,
                                uint32_t gpio_pins, uint32_t gpio_int_groups);
 DeviceState *apple_gpio_create_from_node(DTBNode *node);
 #endif

@@ -363,7 +363,7 @@ static const MemoryRegionOps gpio_reg_ops = {
     .valid.unaligned = false,
 };
 
-DeviceState *apple_gpio_create(char *name, uint64_t mmio_size,
+DeviceState *apple_gpio_create(const char *name, uint64_t mmio_size,
                                uint32_t gpio_pins, uint32_t gpio_int_groups)
 {
     int i;
