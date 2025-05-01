@@ -8,11 +8,6 @@
 #define TYPE_APPLE_GPIO "apple.gpio"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleGPIOState, APPLE_GPIO)
 
-typedef struct {
-    uint32_t value;
-    bool interrupted;
-} AppleGPIOPinState;
-
 struct AppleGPIOState {
     SysBusDevice parent_obj;
     MemoryRegion *iomem;
