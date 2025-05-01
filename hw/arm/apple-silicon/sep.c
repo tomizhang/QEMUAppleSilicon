@@ -3497,10 +3497,6 @@ static const AppleA7IOPOps apple_sep_iop_ops = {
     .wakeup = apple_sep_iop_wakeup,
 };
 
-void create_eeprom_entry(uint32_t eeprom_index, uint32_t unkn0,
-                         uint32_t counter, uint8_t type, uint8_t length,
-                         uint8_t *data_in, uint8_t *eeprom_out);
-
 AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
                                 uint32_t cpu_id, uint32_t build_version,
                                 bool modern, uint32_t chip_id)
@@ -3860,71 +3856,6 @@ static void apple_sep_register_types(void)
 }
 
 type_init(apple_sep_register_types);
-
-
-void create_eeprom_entry(uint32_t eeprom_index, uint32_t unkn0,
-                         uint32_t counter, uint8_t type, uint8_t length,
-                         uint8_t *data_in, uint8_t *eeprom_out)
-{
-    g_assert_true(qcrypto_hmac_supports(QCRYPTO_HASH_ALGO_SHA256));
-
-    typedef struct QEMU_PACKED {
-        uint32_t unkn0; // 0x00 ;; ignored? ;; maybe needs to be increasing.
-        uint32_t counter; // 0x04 ;; value offset 0x00-0x03
-        uint8_t type; // 0x08 ;; <= 0x3 ;; value offset 0x04
-        uint8_t length; // 0x09 ;; value offset 0x05 ;; 0x20 == wrapper0/0x1 ;;
-                        // 0x56 == wrapper1/0x2 ;; 0x18 == wrapper2/0x3
-        uint16_t unkn4_zero0; // 0x0a ;; needs to be zero?
-        uint16_t crc16_entry; // 0x0c ;; value offset 0x06-0x07
-        uint16_t crc16_header; // 0x0e ;; crcmod's crc-ccitt-false
-    } eeprom_entry_t;
-    eeprom_entry_t eeprom_entry = { 0 };
-    g_assert_cmphex(sizeof(eeprom_entry), ==, 0x10);
-    eeprom_entry.unkn0 = unkn0;
-    eeprom_entry.counter = counter;
-    eeprom_entry.type = type;
-    eeprom_entry.length = length;
-    eeprom_entry.unkn4_zero0 = 0x00;
-
-    uint32_t entry_length_without_hmac = eeprom_entry.length - 0x10;
-    uint8_t aess_out_for_key[32] = { 0 };
-    uint8_t hmac_in[0x57] = { 0 };
-    QCryptoHmac *hmac = NULL;
-    uint8_t *result = NULL;
-    size_t resultlen = 0;
-    int ret = 0;
-
-    hmac = qcrypto_hmac_new(QCRYPTO_HASH_ALGO_SHA256,
-                            (const uint8_t *)aess_out_for_key,
-                            sizeof(aess_out_for_key), &error_fatal);
-    g_assert_nonnull(hmac);
-
-    hmac_in[0] = eeprom_entry.type;
-    memcpy(&hmac_in[1], data_in, entry_length_without_hmac);
-    ret = qcrypto_hmac_bytes(hmac, (const char *)hmac_in,
-                             entry_length_without_hmac + 1, &result, &resultlen,
-                             &error_fatal);
-    g_assert_cmpuint(ret, ==, 0);
-
-    uint32_t eeprom_offset = eeprom_index << 8;
-    memset(&eeprom_out[eeprom_offset + 0x40], 0x00, eeprom_entry.length);
-    memcpy(&eeprom_out[eeprom_offset + 0x40 + 0x00], data_in,
-           entry_length_without_hmac); // plain data
-    memcpy(&eeprom_out[eeprom_offset + 0x40 + entry_length_without_hmac],
-           result, 0x10); // data from HMAC-SHA256: 0x01 + plain value
-
-    eeprom_entry.crc16_entry = crc_ccitt_false(
-        0xffff, &eeprom_out[eeprom_offset + 0x40], eeprom_entry.length);
-    eeprom_entry.crc16_header =
-        crc_ccitt_false(0xffff, (uint8_t *)&eeprom_entry, 0xe);
-
-    memcpy(&eeprom_out[eeprom_offset], (uint8_t *)&eeprom_entry,
-           sizeof(eeprom_entry));
-
-    qcrypto_hmac_free(hmac);
-
-    g_free(result);
-}
 
 static int apple_ssc_event(I2CSlave *s, enum i2c_event event)
 {
