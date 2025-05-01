@@ -785,8 +785,8 @@ static const VMStateDescription vmstate_apple_aes_command = {
         (VMStateField[]){
             VMSTATE_UINT32(command, AESCommand),
             VMSTATE_UINT32(data_len, AESCommand),
-            VMSTATE_VARRAY_UINT32(data, AESCommand, data_len, 1,
-                                  vmstate_info_uint32, uint32_t),
+            VMSTATE_VARRAY_UINT32_ALLOC(data, AESCommand, data_len, 1,
+                                        vmstate_info_uint32, uint32_t),
             VMSTATE_END_OF_LIST(),
         }
 };
