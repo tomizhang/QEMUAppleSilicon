@@ -160,7 +160,7 @@ int apple_sio_dma_read(AppleSIODMAEndpoint *ep, void *buffer, size_t len)
     if (!ep->mapped) {
         return 0;
     }
-    assert(ep->dir == DMA_DIRECTION_TO_DEVICE);
+    g_assert_cmpuint(ep->dir, ==, DMA_DIRECTION_TO_DEVICE);
     xlen = qemu_iovec_to_buf(&ep->iov, ep->actual_length, buffer, len);
     ep->actual_length += xlen;
     if (ep->actual_length >= ep->iov.size) {
@@ -176,7 +176,7 @@ int apple_sio_dma_write(AppleSIODMAEndpoint *ep, void *buffer, size_t len)
     if (!ep->mapped) {
         return 0;
     }
-    assert(ep->dir == DMA_DIRECTION_FROM_DEVICE);
+    g_assert_cmpuint(ep->dir, ==, DMA_DIRECTION_FROM_DEVICE);
     xlen = qemu_iovec_from_buf(&ep->iov, ep->actual_length, buffer, len);
     ep->actual_length += xlen;
     if (ep->actual_length >= ep->iov.size) {
@@ -425,7 +425,7 @@ static void apple_sio_realize(DeviceState *dev, Error **errp)
     obj = object_property_get_link(OBJECT(dev), "dma-mr", &error_abort);
 
     s->dma_mr = MEMORY_REGION(obj);
-    assert(s->dma_mr);
+    g_assert_nonnull(s->dma_mr);
     address_space_init(&s->dma_as, s->dma_mr, "sio.dma-as");
 
     for (int i = 0; i < SIO_NUM_EPS; i++) {

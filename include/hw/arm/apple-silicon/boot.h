@@ -182,7 +182,15 @@ typedef struct {
     uint64_t row_bytes;
     uint64_t width;
     uint64_t height;
-    uint64_t depth;
+    union {
+        struct {
+            uint8_t depth : 8;
+            uint8_t rotate : 8;
+            uint8_t scale : 8;
+            uint8_t boot_rotate : 8;
+        };
+        uint64_t raw;
+    } depth;
 } AppleVideoArgs;
 
 typedef struct {
@@ -198,6 +206,8 @@ typedef struct {
     uint64_t kern_text_section_off;
     uint8_t random_bytes[0x10];
 } AppleMonitorBootArgs;
+
+#define BOOT_FLAGS_DARK_BOOT BIT(0)
 
 typedef struct {
     uint16_t revision;

@@ -2088,7 +2088,6 @@ static void t8030_create_display(T8030MachineState *t8030_machine)
         MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->data)),
         &t8030_machine->video_args, T8030_DISPLAY_SIZE);
 
-    t8030_machine->video_args.depth = 32 | ((2 - 1) << 16);
     t8030_machine->video_args.display =
         !xnu_contains_boot_arg(machine->kernel_cmdline, "-s", false) &&
         !xnu_contains_boot_arg(machine->kernel_cmdline, "-v", false);

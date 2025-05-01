@@ -173,7 +173,7 @@ static void apple_ans_start(void *opaque)
     config |= 0x0002 | 0x0004; /* memory | bus */
     pci_default_write_config(PCI_DEVICE(&s->nvme), PCI_COMMAND, config, 4);
     s->started = true;
-    assert(PCI_DEVICE(&s->nvme)->bus_master_enable_region.enabled);
+    g_assert_true(PCI_DEVICE(&s->nvme)->bus_master_enable_region.enabled);
 }
 
 static void apple_ans_ep_handler(void *opaque, uint32_t ep, uint64_t msg)

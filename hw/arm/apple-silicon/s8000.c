@@ -1086,15 +1086,14 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
     s = adbe_v2_create(child);
     sbd = SYS_BUS_DEVICE(s);
     s8000_machine->video.base_addr = S8000_DISPLAY_BASE;
-    s8000_machine->video.row_bytes = s->width * 4;
+    s8000_machine->video.row_bytes = s->width * sizeof(uint32_t);
     s8000_machine->video.width = s->width;
     s8000_machine->video.height = s->height;
-    s8000_machine->video.depth = 32 | ((2 - 1) << 16);
-    s8000_machine->video.display = 1;
-    if (xnu_contains_boot_arg(machine->kernel_cmdline, "-s", false) ||
-        xnu_contains_boot_arg(machine->kernel_cmdline, "-v", false)) {
-        s8000_machine->video.display = 0;
-    }
+    s8000_machine->video.depth.depth = sizeof(uint32_t) * 8;
+    s8000_machine->video.depth.rotate = 1;
+    s8000_machine->video.display =
+        !xnu_contains_boot_arg(machine->kernel_cmdline, "-s", false) &&
+        !xnu_contains_boot_arg(machine->kernel_cmdline, "-v", false);
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);

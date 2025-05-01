@@ -383,7 +383,7 @@ DeviceState *apple_custom_gpio_create(char *name, uint64_t mmio_size,
     sysbus_init_mmio(sbd, s->iomem);
 
     s->pin_count = gpio_pins;
-    assert(s->pin_count < GPIO_MAX_PIN_NR);
+    g_assert_cmpuint(s->pin_count, <, GPIO_MAX_PIN_NR);
     qdev_init_gpio_in(dev, apple_gpio_set, s->pin_count);
 
     s->out = g_new(qemu_irq, s->pin_count);
@@ -422,7 +422,7 @@ DeviceState *apple_gpio_create(DTBNode *node)
 
     prop = dtb_find_prop(node, "#gpio-pins");
     s->pin_count = *(uint32_t *)prop->data;
-    assert(s->pin_count < GPIO_MAX_PIN_NR);
+    g_assert_cmpuint(s->pin_count, <, GPIO_MAX_PIN_NR);
     qdev_init_gpio_in(dev, apple_gpio_set, s->pin_count);
 
     s->out = g_new(qemu_irq, s->pin_count);

@@ -202,7 +202,8 @@ static void apple_spmi_queue_reg_write(void *opaque, hwaddr addr, uint64_t data,
                 return;
             }
             if (s->data == NULL && len) {
-                assert(opc == SPMI_CMD_EXT_READ || opc == SPMI_CMD_EXT_READL);
+                g_assert_true(opc == SPMI_CMD_EXT_READ ||
+                              opc == SPMI_CMD_EXT_READL);
                 g_autofree uint32_t *data2 = g_malloc0(len + 3);
                 int count = spmi_recv(s->bus, (uint8_t *)data2, len);
                 uint8_t ack = 0;
@@ -570,7 +571,7 @@ SysBusDevice *apple_spmi_create(DTBNode *node)
     }
 
     /* XXX: There is a register overlapping issue (STS and ENAB) with reg v0 */
-    assert(s->reg_vers != 0);
+    g_assert_cmpuint(s->reg_vers, !=, 0);
 
     prop = dtb_find_prop(node, "AAPL,phandle");
 
@@ -582,7 +583,7 @@ SysBusDevice *apple_spmi_create(DTBNode *node)
 
     prop = dtb_find_prop(node, "interrupt-parent");
     /* The first interrupt in list (response) should be self-wired */
-    assert(*(uint32_t *)prop->data == phandle);
+    g_assert_cmpuint(*(uint32_t *)prop->data, ==, phandle);
 
     return sbd;
 }

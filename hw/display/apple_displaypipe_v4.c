@@ -766,7 +766,7 @@ static void adp_v4_update_disp_image_bh(void *opaque)
         }
         layer_0_gp->dirty = false;
     } else {
-        g_assert(layer_0_gp != layer_1_gp);
+        g_assert_false(layer_0_gp == layer_1_gp);
 
         g_assert_nonnull(layer_0_gp->buf);
         layer_0_fmt = adp_v4_gp_fmt_to_pixman(layer_0_gp);
@@ -829,6 +829,8 @@ SysBusDevice *adp_v4_create(DTBNode *node, MemoryRegion *dma_mr,
     video_args->row_bytes = s->width * sizeof(uint32_t);
     video_args->width = s->width;
     video_args->height = s->height;
+    video_args->depth.depth = sizeof(uint32_t) * 8;
+    video_args->depth.rotate = 1;
 
     memory_region_init_ram(&s->vram, OBJECT(sbd), "vram", vram_size,
                            &error_fatal);

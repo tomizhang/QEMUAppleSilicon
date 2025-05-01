@@ -515,7 +515,7 @@ static void apple_aic_realize(DeviceState *dev, struct Error **errp)
 
     qdev_init_gpio_in(dev, apple_aic_set_irq, s->numIRQ);
 
-    assert(s->numCPU > 0);
+    g_assert_cmpuint(s->numCPU, !=, 0);
 
     s->eir_mask = g_new0(uint32_t, s->numEIR);
     s->eir_dest = g_new0(uint32_t, s->numIRQ);
