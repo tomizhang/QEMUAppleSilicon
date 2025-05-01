@@ -761,7 +761,7 @@ static void s8000_create_gpio(S8000MachineState *s8000_machine,
 
     child = dtb_get_node(child, name);
     g_assert_nonnull(child);
-    gpio = apple_gpio_create(child);
+    gpio = apple_gpio_create_from_node(child);
     g_assert_nonnull(gpio);
     object_property_add_child(OBJECT(s8000_machine), name, OBJECT(gpio));
 

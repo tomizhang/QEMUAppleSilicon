@@ -363,9 +363,8 @@ static const MemoryRegionOps gpio_reg_ops = {
     .valid.unaligned = false,
 };
 
-DeviceState *apple_custom_gpio_create(char *name, uint64_t mmio_size,
-                                      uint32_t gpio_pins,
-                                      uint32_t gpio_int_groups)
+DeviceState *apple_gpio_create(char *name, uint64_t mmio_size,
+                               uint32_t gpio_pins, uint32_t gpio_int_groups)
 {
     int i;
     DeviceState *dev;
@@ -399,52 +398,38 @@ DeviceState *apple_custom_gpio_create(char *name, uint64_t mmio_size,
     return dev;
 }
 
-DeviceState *apple_gpio_create(DTBNode *node)
+DeviceState *apple_gpio_create_from_node(DTBNode *node)
 {
-    int i;
-    uint64_t mmio_size;
-    DeviceState *dev;
-    SysBusDevice *sbd;
-    AppleGPIOState *s;
+    DTBProp *reg;
+    DTBProp *name;
+    DTBProp *pins;
+    DTBProp *int_groups;
 
-    dev = qdev_new(TYPE_APPLE_GPIO);
-    sbd = SYS_BUS_DEVICE(dev);
-    s = APPLE_GPIO(dev);
+    g_assert_nonnull(node);
 
-    s->iomem = g_new(MemoryRegion, 1);
-    DTBProp *prop = dtb_find_prop(node, "reg");
-    mmio_size = ((hwaddr *)prop->data)[1];
-    prop = dtb_find_prop(node, "name");
-    dev->id = g_strdup((const char *)prop->data);
-    memory_region_init_io(s->iomem, OBJECT(dev), &gpio_reg_ops, s,
-                          (const char *)prop->data, mmio_size);
-    sysbus_init_mmio(sbd, s->iomem);
+    reg = dtb_find_prop(node, "reg");
+    g_assert_nonnull(reg);
+    name = dtb_find_prop(node, "name");
+    g_assert_nonnull(name);
+    pins = dtb_find_prop(node, "#gpio-pins");
+    g_assert_nonnull(pins);
+    int_groups = dtb_find_prop(node, "#gpio-int-groups");
+    g_assert_nonnull(int_groups);
 
-    prop = dtb_find_prop(node, "#gpio-pins");
-    s->pin_count = *(uint32_t *)prop->data;
-    g_assert_cmpuint(s->pin_count, <, GPIO_MAX_PIN_NR);
-    qdev_init_gpio_in(dev, apple_gpio_set, s->pin_count);
-
-    s->out = g_new(qemu_irq, s->pin_count);
-    qdev_init_gpio_out(dev, s->out, s->pin_count);
-
-    prop = dtb_find_prop(node, "#gpio-int-groups");
-    s->irq_group_count = *(uint32_t *)prop->data;
-    s->irqs = g_new(qemu_irq, s->irq_group_count);
-
-    for (i = 0; i < s->irq_group_count; i++) {
-        sysbus_init_irq(sbd, &s->irqs[i]);
-    }
-
-    return dev;
+    return apple_gpio_create((char *)name->data,
+                             ldq_le_p(reg->data + sizeof(uint64_t)),
+                             ldl_le_p(pins->data), ldl_le_p(int_groups->data));
 }
 
 static void apple_gpio_class_init(ObjectClass *klass, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(klass);
+    DeviceClass *dc;
+
+    dc = DEVICE_CLASS(klass);
+
+    dc->desc = "Apple General Purpose Input/Output Controller";
     dc->realize = apple_gpio_realize;
     device_class_set_legacy_reset(dc, apple_gpio_reset);
-    dc->desc = "Apple General Purpose Input/Output Controller";
 }
 
 static const TypeInfo apple_gpio_info = {

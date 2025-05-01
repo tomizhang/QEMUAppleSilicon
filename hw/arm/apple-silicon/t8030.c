@@ -1530,7 +1530,7 @@ static void t8030_create_gpio(T8030MachineState *t8030_machine,
 
     child = dtb_get_node(child, name);
     g_assert_nonnull(child);
-    gpio = apple_gpio_create(child);
+    gpio = apple_gpio_create_from_node(child);
     g_assert_nonnull(gpio);
     object_property_add_child(OBJECT(t8030_machine), name, OBJECT(gpio));
 

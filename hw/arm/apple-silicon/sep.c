@@ -3266,7 +3266,8 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
 #if 1
         // if (data == 0x6A5D128D && (s->chip_id == 0x8015))
         if (data == 0x6A5D128D) {
-            AppleA7IOPMessage *msg = apple_a7iop_inbox_peek(APPLE_A7IOP(s)->iop_mailbox);
+            AppleA7IOPMessage *msg =
+                apple_a7iop_inbox_peek(APPLE_A7IOP(s)->iop_mailbox);
             if (msg != NULL) {
                 memcpy(&sep_msg, msg->data, sizeof(sep_msg));
                 uint64_t shmbuf_base = (uint64_t)sep_msg.data << 12;
@@ -3639,8 +3640,8 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     DeviceState *gpio = NULL;
     uint32_t sep_gpio_pins = 0x4;
     uint32_t sep_gpio_int_groups = 0x1;
-    gpio = apple_custom_gpio_create((char *)"sep_gpio", 0x10000, sep_gpio_pins,
-                                    sep_gpio_int_groups);
+    gpio = apple_gpio_create((char *)"sep_gpio", 0x10000, sep_gpio_pins,
+                             sep_gpio_int_groups);
     g_assert_nonnull(gpio);
     sysbus_mmio_map(SYS_BUS_DEVICE(gpio), 0, 0x2414c0000ull); // T8030
     s->aess_state.chip_id = s->chip_id;
