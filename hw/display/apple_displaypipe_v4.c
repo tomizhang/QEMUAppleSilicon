@@ -810,7 +810,7 @@ static uint32_t adp_timing_info[] = { 0x33C, 0x90, 0x1, 0x1,
                                       0x700, 0x1,  0x1, 0x1 };
 
 SysBusDevice *adp_v4_create(DTBNode *node, MemoryRegion *dma_mr,
-                            AppleVideoArgs *video_args, hwaddr vram_size)
+                            AppleVideoArgs *video_args, uint64_t vram_size)
 {
     DeviceState *dev;
     SysBusDevice *sbd;

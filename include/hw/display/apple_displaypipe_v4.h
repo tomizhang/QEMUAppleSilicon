@@ -29,7 +29,7 @@
 OBJECT_DECLARE_SIMPLE_TYPE(AppleDisplayPipeV4State, APPLE_DISPLAY_PIPE_V4);
 
 SysBusDevice *adp_v4_create(DTBNode *node, MemoryRegion *dma_mr,
-                            AppleVideoArgs *video_args, hwaddr vram_size);
+                            AppleVideoArgs *video_args, uint64_t vram_size);
 
 void adp_v4_update_vram_mapping(AppleDisplayPipeV4State *s, MemoryRegion *mr,
                                 hwaddr base);
