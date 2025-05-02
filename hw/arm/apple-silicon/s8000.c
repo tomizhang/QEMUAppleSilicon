@@ -31,7 +31,7 @@
 #include "hw/arm/apple-silicon/xnu_pf.h"
 #include "hw/arm/exynos4210.h"
 #include "hw/block/apple_nvme_mmu.h"
-#include "hw/display/adbe_v2.h"
+#include "hw/display/apple_displaypipe_v2.h"
 #include "hw/gpio/apple_gpio.h"
 #include "hw/i2c/apple_i2c.h"
 #include "hw/intc/apple_aic.h"
@@ -1072,7 +1072,7 @@ static void s8000_create_pmu(S8000MachineState *s8000_machine)
 static void s8000_display_create(S8000MachineState *s8000_machine)
 {
     MachineState *machine;
-    ADBEV2 *s;
+    AppleDisplayPipeV2State *s;
     SysBusDevice *sbd;
     DTBNode *child;
     uint64_t *reg;
@@ -1083,7 +1083,7 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
     child = dtb_get_node(s8000_machine->device_tree, "arm-io/disp0");
     g_assert_nonnull(child);
 
-    s = adbe_v2_create(child);
+    s = adp_v2_create(child);
     sbd = SYS_BUS_DEVICE(s);
     s8000_machine->video.base_addr = S8000_DISPLAY_BASE;
     s8000_machine->video.row_bytes = s->width * sizeof(uint32_t);

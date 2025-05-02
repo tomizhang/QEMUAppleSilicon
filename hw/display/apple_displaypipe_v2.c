@@ -1,5 +1,5 @@
 /*
- * Apple Display Back End V2 Controller.
+ * Apple Display Pipe V2 Controller.
  *
  * Copyright (c) 2023-2025 Visual Ehrmanntraut.
  *
@@ -18,7 +18,7 @@
  */
 
 #include "qemu/osdep.h"
-#include "hw/display/adbe_v2.h"
+#include "hw/display/apple_displaypipe_v2.h"
 #include "hw/qdev-properties.h"
 #include "qemu/log.h"
 #include "qom/object.h"
@@ -42,7 +42,7 @@
 static void frontend_write(void *opaque, hwaddr addr, uint64_t data,
                            unsigned size)
 {
-    ADBEV2 *s = ADBE_V2(opaque);
+    AppleDisplayPipeV2State *s = APPLE_DISPLAY_PIPE_V2(opaque);
 
     switch (addr) {
     default:
@@ -55,7 +55,7 @@ static void frontend_write(void *opaque, hwaddr addr, uint64_t data,
 
 static uint64_t frontend_read(void *opaque, hwaddr addr, unsigned size)
 {
-    ADBEV2 *s = ADBE_V2(opaque);
+    AppleDisplayPipeV2State *s = APPLE_DISPLAY_PIPE_V2(opaque);
 
     switch (addr) {
     case REG_SPDS_VERSION:
@@ -82,7 +82,7 @@ static const MemoryRegionOps frontend_reg_ops = {
 static void backend_write(void *opaque, hwaddr addr, uint64_t data,
                           unsigned size)
 {
-    ADBEV2 *s = ADBE_V2(opaque);
+    AppleDisplayPipeV2State *s = APPLE_DISPLAY_PIPE_V2(opaque);
 
     switch (addr) {
     case REG_DBE_VFTG_CTRL:
@@ -115,7 +115,7 @@ static void backend_write(void *opaque, hwaddr addr, uint64_t data,
 
 static uint64_t backend_read(void *opaque, hwaddr addr, unsigned size)
 {
-    ADBEV2 *s = ADBE_V2(opaque);
+    AppleDisplayPipeV2State *s = APPLE_DISPLAY_PIPE_V2(opaque);
 
     switch (addr) {
     case REG_DBE_VFTG_CTRL:
@@ -198,18 +198,18 @@ static const MemoryRegionOps dummy_reg_ops = {
     .valid.unaligned = false,
 };
 
-ADBEV2 *adbe_v2_create(DTBNode *node)
+AppleDisplayPipeV2State *adp_v2_create(DTBNode *node)
 {
     DeviceState *dev;
     SysBusDevice *sbd;
-    ADBEV2 *s;
+    AppleDisplayPipeV2State *s;
     DTBProp *prop;
     uint64_t *reg;
     MemoryRegion *mr;
 
-    dev = qdev_new(TYPE_ADBE_V2);
+    dev = qdev_new(TYPE_APPLE_DISPLAY_PIPE_V2);
     sbd = SYS_BUS_DEVICE(dev);
-    s = ADBE_V2(sbd);
+    s = APPLE_DISPLAY_PIPE_V2(sbd);
 
     dtb_set_prop_u32(node, "dot-pitch", 326);
 
@@ -218,26 +218,25 @@ ADBEV2 *adbe_v2_create(DTBNode *node)
     reg = (uint64_t *)prop->data;
     mr = g_new0(MemoryRegion, 5);
     memory_region_init_io(mr, OBJECT(sbd), &frontend_reg_ops, sbd,
-                          "adbe.frontend", reg[1]);
+                          "adp.frontend", reg[1]);
     memory_region_init_io(&s->backend_regs, OBJECT(sbd), &backend_reg_ops, sbd,
-                          "adbe.backend", reg[3]);
-    memory_region_init_io(mr + 1, OBJECT(sbd), &dummy_reg_ops, sbd, "adbe.aap",
+                          "adp.backend", reg[3]);
+    memory_region_init_io(mr + 1, OBJECT(sbd), &dummy_reg_ops, sbd, "adp.aap",
                           reg[5]);
     memory_region_init_io(mr + 2, OBJECT(sbd), &dummy_reg_ops, sbd,
-                          "adbe.pixel-bl", reg[7]);
+                          "adp.pixel-bl", reg[7]);
     memory_region_init_io(mr + 3, OBJECT(sbd), &dummy_reg_ops, sbd,
-                          "adbe.dither", reg[9]);
-    memory_region_init_io(mr + 4, OBJECT(sbd), &dummy_reg_ops, sbd, "adbe.prc",
+                          "adp.dither", reg[9]);
+    memory_region_init_io(mr + 4, OBJECT(sbd), &dummy_reg_ops, sbd, "adp.prc",
                           reg[11]);
 
-    object_property_add_const_link(OBJECT(sbd), "adbe.frontend", OBJECT(mr));
-    object_property_add_const_link(OBJECT(sbd), "adbe.backend",
+    object_property_add_const_link(OBJECT(sbd), "adp.frontend", OBJECT(mr));
+    object_property_add_const_link(OBJECT(sbd), "adp.backend",
                                    OBJECT(&s->backend_regs));
-    object_property_add_const_link(OBJECT(sbd), "adbe.aap", OBJECT(mr + 1));
-    object_property_add_const_link(OBJECT(sbd), "adbe.pixel-bl",
-                                   OBJECT(mr + 2));
-    object_property_add_const_link(OBJECT(sbd), "adbe.dither", OBJECT(mr + 3));
-    object_property_add_const_link(OBJECT(sbd), "adbe.prc", OBJECT(mr + 4));
+    object_property_add_const_link(OBJECT(sbd), "adp.aap", OBJECT(mr + 1));
+    object_property_add_const_link(OBJECT(sbd), "adp.pixel-bl", OBJECT(mr + 2));
+    object_property_add_const_link(OBJECT(sbd), "adp.dither", OBJECT(mr + 3));
+    object_property_add_const_link(OBJECT(sbd), "adp.prc", OBJECT(mr + 4));
 
     sysbus_init_mmio(sbd, mr);
     sysbus_init_mmio(sbd, &s->backend_regs);
@@ -249,8 +248,8 @@ ADBEV2 *adbe_v2_create(DTBNode *node)
     return s;
 }
 
-static void adbe_v2_draw_row(void *opaque, uint8_t *dest, const uint8_t *src,
-                             int width, int dest_pitch)
+static void adp_v2_draw_row(void *opaque, uint8_t *dest, const uint8_t *src,
+                            int width, int dest_pitch)
 {
     while (width--) {
         uint32_t colour = ldl_le_p(src);
@@ -260,9 +259,9 @@ static void adbe_v2_draw_row(void *opaque, uint8_t *dest, const uint8_t *src,
     }
 }
 
-static void adbe_v2_gfx_update(void *opaque)
+static void adp_v2_gfx_update(void *opaque)
 {
-    ADBEV2 *s = ADBE_V2(opaque);
+    AppleDisplayPipeV2State *s = APPLE_DISPLAY_PIPE_V2(opaque);
     DisplaySurface *surface = qemu_console_surface(s->console);
 
     int stride = s->width * sizeof(uint32_t);
@@ -274,54 +273,54 @@ static void adbe_v2_gfx_update(void *opaque)
                                           s->height, stride);
     }
     framebuffer_update_display(surface, &s->vram_section, s->width, s->height,
-                               stride, stride, 0, 0, adbe_v2_draw_row, s,
-                               &first, &last);
+                               stride, stride, 0, 0, adp_v2_draw_row, s, &first,
+                               &last);
     if (first >= 0) {
         dpy_gfx_update(s->console, 0, first, s->width, last - first + 1);
     }
 }
 
-static const GraphicHwOps adbe_v2_ops = {
-    .gfx_update = adbe_v2_gfx_update,
+static const GraphicHwOps adp_v2_ops = {
+    .gfx_update = adp_v2_gfx_update,
 };
 
-static void adbe_v2_realize(DeviceState *dev, Error **errp)
+static void adp_v2_realize(DeviceState *dev, Error **errp)
 {
-    ADBEV2 *s = ADBE_V2(dev);
+    AppleDisplayPipeV2State *s = APPLE_DISPLAY_PIPE_V2(dev);
 
     memset(&s->dbe_state, 0, sizeof(s->dbe_state));
     s->dbe_state.vftg_ctl =
         DBE_VFTG_CTRL_VFTG_ENABLE | DBE_VFTG_CTRL_VFTG_STATUS |
         DBE_VFTG_CTRL_UPDATE_ENABLE_TIMING | DBE_VFTG_CTRL_UPDATE_REQ_TIMING;
-    s->console = graphic_console_init(dev, 0, &adbe_v2_ops, s);
+    s->console = graphic_console_init(dev, 0, &adp_v2_ops, s);
     qemu_console_resize(s->console, s->width, s->height);
 }
 
-static const Property adbe_v2_props[] = {
+static const Property adp_v2_props[] = {
     // iPhone 4/4S
-    DEFINE_PROP_UINT32("width", ADBEV2, width, 640),
-    DEFINE_PROP_UINT32("height", ADBEV2, height, 960),
+    DEFINE_PROP_UINT32("width", AppleDisplayPipeV2State, width, 640),
+    DEFINE_PROP_UINT32("height", AppleDisplayPipeV2State, height, 960),
 };
 
-static void adbe_v2_class_init(ObjectClass *klass, void *data)
+static void adp_v2_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
-    device_class_set_props(dc, adbe_v2_props);
-    dc->realize = adbe_v2_realize;
+    device_class_set_props(dc, adp_v2_props);
+    dc->realize = adp_v2_realize;
 }
 
-static const TypeInfo adbe_v2_type_info = {
-    .name = TYPE_ADBE_V2,
+static const TypeInfo adp_v2_type_info = {
+    .name = TYPE_APPLE_DISPLAY_PIPE_V2,
     .parent = TYPE_SYS_BUS_DEVICE,
-    .instance_size = sizeof(ADBEV2),
-    .class_init = adbe_v2_class_init,
+    .instance_size = sizeof(AppleDisplayPipeV2State),
+    .class_init = adp_v2_class_init,
 };
 
-static void adbe_v2_register_types(void)
+static void adp_v2_register_types(void)
 {
-    type_register_static(&adbe_v2_type_info);
+    type_register_static(&adp_v2_type_info);
 }
 
-type_init(adbe_v2_register_types);
+type_init(adp_v2_register_types);

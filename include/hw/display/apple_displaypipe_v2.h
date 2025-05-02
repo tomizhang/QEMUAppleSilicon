@@ -1,5 +1,5 @@
 /*
- * Apple Display Back End V2 Controller.
+ * Apple Display Pipe V2 Controller.
  *
  * Copyright (c) 2023-2025 Visual Ehrmanntraut.
  *
@@ -26,20 +26,22 @@
 #include "qom/object.h"
 #include "ui/console.h"
 
-#define TYPE_ADBE_V2 "adbe-v2"
-OBJECT_DECLARE_SIMPLE_TYPE(ADBEV2, ADBE_V2);
+#define TYPE_APPLE_DISPLAY_PIPE_V2 "apple-display-pipe-v2"
+OBJECT_DECLARE_SIMPLE_TYPE(AppleDisplayPipeV2State, APPLE_DISPLAY_PIPE_V2);
 
 typedef struct {
     uint32_t vftg_ctl;
     uint32_t const_colour;
 } DisplayBackEndState;
 
-struct ADBEV2 {
+struct AppleDisplayPipeV2State {
     /*< private >*/
     SysBusDevice parent_obj;
 
-    uint32_t width, height;
-    MemoryRegion backend_regs, vram;
+    uint32_t width;
+    uint32_t height;
+    MemoryRegion backend_regs;
+    MemoryRegion vram;
     MemoryRegion *dma_mr;
     AddressSpace dma_as;
     MemoryRegionSection vram_section;
@@ -49,6 +51,6 @@ struct ADBEV2 {
     QemuConsole *console;
 };
 
-ADBEV2 *adbe_v2_create(DTBNode *node);
+AppleDisplayPipeV2State *adp_v2_create(DTBNode *node);
 
 #endif /* HW_DISPLAY_ADBE_V2_H */
