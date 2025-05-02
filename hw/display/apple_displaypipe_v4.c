@@ -23,14 +23,10 @@
 #include "hw/display/apple_displaypipe_v4.h"
 #include "hw/irq.h"
 #include "hw/qdev-properties.h"
-#include "hw/resettable.h"
 #include "migration/vmstate.h"
 #include "qemu/log.h"
-#include "qom/object.h"
 #include "ui/console.h"
-#include "ui/pixel_ops.h"
 #include "framebuffer.h"
-#include "pixman.h"
 #include "system/dma.h"
 
 // #define DEBUG_DISP
