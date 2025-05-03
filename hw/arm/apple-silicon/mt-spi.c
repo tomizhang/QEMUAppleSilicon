@@ -919,10 +919,11 @@ static void apple_mt_spi_realize(SSIPeripheral *dev, Error **errp)
 }
 
 static const VMStateDescription vmstate_apple_mt_spi_buffer = {
-    .name = "Apple MT SPI Buffer",
+    .name = "AppleMTSPIBuffer",
     .fields =
-        (VMStateField[]){
-            VMSTATE_VBUFFER_UINT32(data, AppleMTSPIBuffer, 0, NULL, capacity),
+        (const VMStateField[]){
+            VMSTATE_VBUFFER_ALLOC_UINT32(data, AppleMTSPIBuffer, 0, NULL,
+                                         capacity),
             VMSTATE_UINT32(len, AppleMTSPIBuffer),
             VMSTATE_UINT32(read_pos, AppleMTSPIBuffer),
             VMSTATE_END_OF_LIST(),
@@ -930,9 +931,9 @@ static const VMStateDescription vmstate_apple_mt_spi_buffer = {
 };
 
 static const VMStateDescription vmstate_apple_mt_spi_ll_packet = {
-    .name = "Apple MT SPI LL Packet",
+    .name = "AppleMTSPILLPacket",
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_STRUCT(buf, AppleMTSPILLPacket, 0,
                            vmstate_apple_mt_spi_buffer, AppleMTSPIBuffer),
             VMSTATE_UINT8(type, AppleMTSPILLPacket),
@@ -941,9 +942,9 @@ static const VMStateDescription vmstate_apple_mt_spi_ll_packet = {
 };
 
 static const VMStateDescription vmstate_apple_mt_spi = {
-    .name = "Apple MT SPI State",
+    .name = "AppleMTSPIState",
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_STRUCT(tx, AppleMTSPIState, 0, vmstate_apple_mt_spi_buffer,
                            AppleMTSPIBuffer),
             VMSTATE_STRUCT(rx, AppleMTSPIState, 0, vmstate_apple_mt_spi_buffer,
