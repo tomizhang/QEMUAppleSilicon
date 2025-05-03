@@ -2354,8 +2354,8 @@ static void t8030_machine_reset(MachineState *machine, ResetType type)
         memset(pmgr_unk_e4000, 0, sizeof(pmgr_unk_e4000));
     }
     t8030_cpu_reset(t8030_machine);
-    gpio =
-        DEVICE(object_property_get_link(OBJECT(machine), "gpio", &error_fatal));
+    gpio = DEVICE(
+        object_property_get_link(OBJECT(t8030_machine), "gpio", &error_fatal));
 
     qemu_set_irq(qdev_get_gpio_in(gpio, T8030_GPIO_FORCE_DFU),
                  t8030_machine->force_dfu);

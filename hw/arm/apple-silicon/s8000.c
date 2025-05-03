@@ -1079,8 +1079,8 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
 
     machine = MACHINE(s8000_machine);
 
-    AppleDARTState *dart = APPLE_DART(
-        object_property_get_link(OBJECT(machine), "dart-disp0", &error_fatal));
+    AppleDARTState *dart = APPLE_DART(object_property_get_link(
+        OBJECT(s8000_machine), "dart-disp0", &error_fatal));
     g_assert_nonnull(dart);
     child = dtb_get_node(s8000_machine->device_tree,
                          "arm-io/dart-disp0/mapper-disp0");
@@ -1123,7 +1123,7 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
     adp_v2_update_vram_mapping(APPLE_DISPLAY_PIPE_V2(sbd),
                                s8000_machine->sys_mem,
                                s8000_machine->video_args.base_addr);
-    object_property_add_child(OBJECT(machine), "disp0", OBJECT(sbd));
+    object_property_add_child(OBJECT(s8000_machine), "disp0", OBJECT(sbd));
 
     sysbus_realize_and_unref(sbd, &error_fatal);
 }
@@ -1199,8 +1199,8 @@ static void s8000_machine_reset(MachineState *machine, ResetType type)
 
     apple_a9_reset(s8000_machine);
 
-    gpio =
-        DEVICE(object_property_get_link(OBJECT(machine), "gpio", &error_fatal));
+    gpio = DEVICE(
+        object_property_get_link(OBJECT(s8000_machine), "gpio", &error_fatal));
 
     qemu_set_irq(qdev_get_gpio_in(gpio, S8000_GPIO_FORCE_DFU),
                  s8000_machine->force_dfu);
