@@ -104,7 +104,6 @@ void apple_a7iop_init(AppleA7IOP *s, const char *role, uint64_t mmio_size,
         apple_a7iop_init_mmio_v4(s, mmio_size);
         break;
     }
-    s->version = version;
 
     sysbus_pass_irq(sbd, SYS_BUS_DEVICE(s->ap_mailbox));
 

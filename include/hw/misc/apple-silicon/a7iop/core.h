@@ -22,7 +22,6 @@ struct AppleA7IOP {
     SysBusDevice parent_obj;
 
     /*< public >*/
-    AppleA7IOPVersion version;
     const char *role;
     MemoryRegion mmio;
     const AppleA7IOPOps *ops;
