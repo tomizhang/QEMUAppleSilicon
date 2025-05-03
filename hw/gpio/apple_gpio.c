@@ -416,16 +416,11 @@ DeviceState *apple_gpio_create_from_node(DTBNode *node)
 }
 
 static const VMStateDescription vmstate_apple_gpio = {
-    .name = "Apple General Purpose Input/Output Controller State",
+    .name = "AppleGPIOState",
     .version_id = 0,
     .minimum_version_id = 0,
     .fields =
         (const VMStateField[]){
-            VMSTATE_UINT32(pin_count, AppleGPIOState),
-            VMSTATE_UINT32(irq_group_count, AppleGPIOState),
-            VMSTATE_UINT32(int_config_len, AppleGPIOState),
-            VMSTATE_UINT32(int_config_len, AppleGPIOState),
-            VMSTATE_UINT32(in_len, AppleGPIOState),
             VMSTATE_UINT32(npl, AppleGPIOState),
             VMSTATE_VARRAY_UINT32_ALLOC(gpio_cfg, AppleGPIOState, pin_count, 0,
                                         vmstate_info_uint32, uint32_t),
