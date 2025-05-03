@@ -507,7 +507,7 @@ static void apple_a7iop_mailbox_reset(DeviceState *dev)
 static const VMStateDescription vmstate_apple_a7iop_message = {
     .name = "Apple A7IOP Message State",
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT64_ARRAY(data, AppleA7IOPMessage, 2),
             VMSTATE_END_OF_LIST(),
         }
@@ -516,7 +516,7 @@ static const VMStateDescription vmstate_apple_a7iop_message = {
 static const VMStateDescription vmstate_apple_a7iop_int_status_message = {
     .name = "Apple A7IOP Interrupt Status Message State",
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT32(status, AppleA7IOPInterruptStatusMessage),
             VMSTATE_END_OF_LIST(),
         }

@@ -584,7 +584,7 @@ static const VMStateDescription vmstate_apple_aic_cpu = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT32(cpu_id, AppleAICCPU),
             VMSTATE_UINT32(pendingIPI, AppleAICCPU),
             VMSTATE_UINT32(deferredIPI, AppleAICCPU),
@@ -598,7 +598,7 @@ static const VMStateDescription vmstate_apple_aic = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT32(numEIR, AppleAICState),
             VMSTATE_UINT32(numIRQ, AppleAICState),
             VMSTATE_UINT32(numCPU, AppleAICState),

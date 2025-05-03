@@ -267,7 +267,7 @@ static const VMStateDescription vmstate_apple_a9 = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_A9_CPREG(HID11),       VMSTATE_A9_CPREG(HID3),
             VMSTATE_A9_CPREG(HID4),        VMSTATE_A9_CPREG(HID5),
             VMSTATE_A9_CPREG(HID7),        VMSTATE_A9_CPREG(HID8),

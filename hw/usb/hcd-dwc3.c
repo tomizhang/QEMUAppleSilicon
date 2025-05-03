@@ -1747,20 +1747,26 @@ static const VMStateDescription vmstate_dwc3_event_ring = {
     .name = "dwc3/event_ring",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]){ VMSTATE_UINT32(size, DWC3EventRing),
-                                VMSTATE_UINT32(head, DWC3EventRing),
-                                VMSTATE_UINT32(count, DWC3EventRing),
-                                VMSTATE_END_OF_LIST() },
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_UINT32(size, DWC3EventRing),
+            VMSTATE_UINT32(head, DWC3EventRing),
+            VMSTATE_UINT32(count, DWC3EventRing),
+            VMSTATE_END_OF_LIST(),
+        },
 };
 
 static const VMStateDescription vmstate_dwc3_trb = {
     .name = "dwc3/trb",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]){ VMSTATE_UINT64(bp, DWC3TRB),
-                                VMSTATE_UINT64(addr, DWC3TRB),
-                                VMSTATE_UINT32(ctrl, DWC3TRB),
-                                VMSTATE_END_OF_LIST() },
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_UINT64(bp, DWC3TRB),
+            VMSTATE_UINT64(addr, DWC3TRB),
+            VMSTATE_UINT32(ctrl, DWC3TRB),
+            VMSTATE_END_OF_LIST(),
+        },
 };
 
 static const VMStateDescription vmstate_dwc3_buffer_desc = {
@@ -1768,47 +1774,53 @@ static const VMStateDescription vmstate_dwc3_buffer_desc = {
     .version_id = 1,
     .minimum_version_id = 1,
     .pre_save = dwc3_buffer_desc_pre_save,
-    .fields = (VMStateField[]){ VMSTATE_INT32(epid, DWC3BufferDesc),
-                                VMSTATE_UINT32(count, DWC3BufferDesc),
-                                VMSTATE_UINT32(length, DWC3BufferDesc),
-                                VMSTATE_UINT32(actual_length, DWC3BufferDesc),
-                                VMSTATE_UINT32(dir, DWC3BufferDesc),
-                                VMSTATE_BOOL(ended, DWC3BufferDesc),
-                                VMSTATE_STRUCT_VARRAY_POINTER_UINT32(
-                                    trbs, DWC3BufferDesc, count,
-                                    vmstate_dwc3_trb, DWC3TRB),
-                                VMSTATE_END_OF_LIST() },
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_INT32(epid, DWC3BufferDesc),
+            VMSTATE_UINT32(count, DWC3BufferDesc),
+            VMSTATE_UINT32(length, DWC3BufferDesc),
+            VMSTATE_UINT32(actual_length, DWC3BufferDesc),
+            VMSTATE_UINT32(dir, DWC3BufferDesc),
+            VMSTATE_BOOL(ended, DWC3BufferDesc),
+            VMSTATE_STRUCT_VARRAY_POINTER_UINT32(trbs, DWC3BufferDesc, count,
+                                                 vmstate_dwc3_trb, DWC3TRB),
+            VMSTATE_END_OF_LIST(),
+        },
 };
 
 static const VMStateDescription vmstate_dwc3_transfer = {
     .name = "dwc3/transfer",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]){ VMSTATE_UINT64(tdaddr, DWC3Transfer),
-                                VMSTATE_INT32(epid, DWC3Transfer),
-                                VMSTATE_UINT32(count, DWC3Transfer),
-                                VMSTATE_UINT32(rsc_idx, DWC3Transfer),
-                                VMSTATE_QTAILQ_V(buffers, DWC3Transfer, 1,
-                                                 vmstate_dwc3_buffer_desc,
-                                                 DWC3BufferDesc, queue),
-                                VMSTATE_END_OF_LIST() },
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_UINT64(tdaddr, DWC3Transfer),
+            VMSTATE_INT32(epid, DWC3Transfer),
+            VMSTATE_UINT32(count, DWC3Transfer),
+            VMSTATE_UINT32(rsc_idx, DWC3Transfer),
+            VMSTATE_QTAILQ_V(buffers, DWC3Transfer, 1, vmstate_dwc3_buffer_desc,
+                             DWC3BufferDesc, queue),
+            VMSTATE_END_OF_LIST(),
+        },
 };
 
 static const VMStateDescription vmstate_dwc3_endpoint = {
     .name = "dwc3/endpoint",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (VMStateField[]){ VMSTATE_UINT32(epnum, DWC3Endpoint),
-                                VMSTATE_UINT32(intrnum, DWC3Endpoint),
-                                VMSTATE_UINT32(event_en, DWC3Endpoint),
-                                VMSTATE_UINT32(xfer_resource_idx, DWC3Endpoint),
-                                VMSTATE_UINT8(dseqnum, DWC3Endpoint),
-                                VMSTATE_BOOL(stalled, DWC3Endpoint),
-                                VMSTATE_BOOL(not_ready, DWC3Endpoint),
-                                VMSTATE_STRUCT_POINTER(xfer, DWC3Endpoint,
-                                                       vmstate_dwc3_transfer,
-                                                       DWC3Transfer),
-                                VMSTATE_END_OF_LIST() },
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_UINT32(epnum, DWC3Endpoint),
+            VMSTATE_UINT32(intrnum, DWC3Endpoint),
+            VMSTATE_UINT32(event_en, DWC3Endpoint),
+            VMSTATE_UINT32(xfer_resource_idx, DWC3Endpoint),
+            VMSTATE_UINT8(dseqnum, DWC3Endpoint),
+            VMSTATE_BOOL(stalled, DWC3Endpoint),
+            VMSTATE_BOOL(not_ready, DWC3Endpoint),
+            VMSTATE_STRUCT_POINTER(xfer, DWC3Endpoint, vmstate_dwc3_transfer,
+                                   DWC3Transfer),
+            VMSTATE_END_OF_LIST(),
+        },
 };
 
 static const VMStateDescription vmstate_usb_dwc3 = {
@@ -1816,7 +1828,7 @@ static const VMStateDescription vmstate_usb_dwc3 = {
     .version_id = 1,
     .post_load = usb_dwc3_post_load,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT32_ARRAY(glbreg, DWC3State,
                                  DWC3_GLBREG_SIZE / sizeof(uint32_t)),
             VMSTATE_UINT32_ARRAY(dreg, DWC3State,
@@ -1828,7 +1840,8 @@ static const VMStateDescription vmstate_usb_dwc3 = {
                                  vmstate_dwc3_endpoint, DWC3Endpoint),
             VMSTATE_STRUCT_ARRAY(intrs, DWC3State, DWC3_NUM_INTRS, 1,
                                  vmstate_dwc3_event_ring, DWC3EventRing),
-            VMSTATE_END_OF_LIST() }
+            VMSTATE_END_OF_LIST(),
+        }
 };
 
 static void dwc3_usb_device_class_initfn(ObjectClass *klass, void *data)

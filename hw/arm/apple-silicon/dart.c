@@ -752,7 +752,7 @@ static const VMStateDescription vmstate_apple_dart_instance = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT32_ARRAY(base_reg, AppleDARTInstance,
                                  0x4000 / sizeof(uint32_t)),
             VMSTATE_END_OF_LIST(),
@@ -765,7 +765,7 @@ static const VMStateDescription vmstate_apple_dart = {
     .minimum_version_id = 1,
     .priority = MIG_PRI_IOMMU,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_STRUCT_ARRAY(instances, AppleDARTState, DART_MAX_INSTANCE,
                                  1, vmstate_apple_dart_instance,
                                  AppleDARTInstance),

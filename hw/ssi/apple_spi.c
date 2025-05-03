@@ -501,7 +501,7 @@ static const VMStateDescription vmstate_apple_spi = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT32_ARRAY(regs, AppleSPIState, APPLE_SPI_MMIO_SIZE >> 2),
             VMSTATE_FIFO32(rx_fifo, AppleSPIState),
             VMSTATE_FIFO32(tx_fifo, AppleSPIState),

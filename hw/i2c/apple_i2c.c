@@ -312,7 +312,7 @@ static const VMStateDescription vmstate_apple_i2c = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT8_ARRAY(reg, AppleI2CState, APPLE_I2C_MMIO_SIZE),
             VMSTATE_FIFO8(rx_fifo, AppleI2CState),
             VMSTATE_BOOL(last_irq, AppleI2CState),

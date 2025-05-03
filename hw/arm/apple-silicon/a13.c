@@ -810,7 +810,7 @@ static const VMStateDescription vmstate_apple_a13 = {
     .version_id = 1,
     .minimum_version_id = 1,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_A13_CPREG(ARM64_REG_EHID3),
             VMSTATE_A13_CPREG(ARM64_REG_EHID4),
             VMSTATE_A13_CPREG(ARM64_REG_EHID10),
@@ -860,7 +860,7 @@ static const VMStateDescription vmstate_apple_a13_cluster = {
     .pre_save = apple_a13_cluster_pre_save,
     .post_load = apple_a13_cluster_post_load,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT32_2DARRAY(deferredIPI, AppleA13Cluster, A13_MAX_CPU,
                                    A13_MAX_CPU),
             VMSTATE_UINT32_2DARRAY(noWakeIPI, AppleA13Cluster, A13_MAX_CPU,

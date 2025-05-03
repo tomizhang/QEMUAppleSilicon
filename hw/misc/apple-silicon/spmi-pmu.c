@@ -229,7 +229,7 @@ DeviceState *apple_spmi_pmu_create(DTBNode *node)
 static const VMStateDescription vmstate_apple_spmi_pmu = {
     .name = "apple_spmi_pmu",
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT64(tick_offset, AppleSPMIPMUState),
             VMSTATE_UINT64(rtc_offset, AppleSPMIPMUState),
             VMSTATE_UINT16(addr, AppleSPMIPMUState),

@@ -552,7 +552,7 @@ static const VMStateDescription vmstate_apple_uart = {
     .minimum_version_id = 1,
     .post_load = apple_uart_post_load,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_FIFO8(rx, AppleUartState),
             VMSTATE_UINT32_ARRAY(reg, AppleUartState,
                                  APPLE_UART_REGS_MEM_SIZE / sizeof(uint32_t)),

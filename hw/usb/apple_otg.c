@@ -227,7 +227,7 @@ static const VMStateDescription vmstate_apple_otg = {
     .name = "apple_otg",
     .post_load = apple_otg_post_load,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT8_ARRAY(phy_reg, AppleOTGState, 0x20),
             VMSTATE_UINT8_ARRAY(usbctl_reg, AppleOTGState, 0x1000),
             VMSTATE_UINT8_ARRAY(widget_reg, AppleOTGState, 0x100),

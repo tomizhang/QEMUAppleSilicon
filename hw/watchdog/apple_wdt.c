@@ -290,7 +290,7 @@ SysBusDevice *apple_wdt_create(DTBNode *node)
 static const VMStateDescription vmstate_apple_wdt = {
     .name = "apple_wdt",
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_TIMER_PTR(timer, AppleWDTState),
             VMSTATE_UINT64(cnt_period_ns, AppleWDTState),
             VMSTATE_UINT64(cntfrq_hz, AppleWDTState),

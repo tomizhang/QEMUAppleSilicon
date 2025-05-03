@@ -149,7 +149,7 @@ static const VMStateDescription vmstate_apple_typec = {
     .name = "apple_typec",
     .post_load = apple_typec_post_load,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT8_ARRAY(phy_reg, AppleTypeCState, 0x100),
             VMSTATE_END_OF_LIST(),
         }

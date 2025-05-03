@@ -295,7 +295,7 @@ static const VMStateDescription vmstate_apple_ans = {
     .name = "apple_ans",
     .post_load = apple_ans_post_load,
     .fields =
-        (VMStateField[]){
+        (const VMStateField[]){
             VMSTATE_UINT32(nvme_interrupt_idx, AppleANSState),
             VMSTATE_BOOL(started, AppleANSState),
             VMSTATE_END_OF_LIST(),
