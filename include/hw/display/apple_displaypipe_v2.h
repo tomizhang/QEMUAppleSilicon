@@ -21,36 +21,16 @@
 #define HW_DISPLAY_ADBE_V2_H
 
 #include "qemu/osdep.h"
+#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/sysbus.h"
-#include "qom/object.h"
-#include "ui/console.h"
 
 #define TYPE_APPLE_DISPLAY_PIPE_V2 "apple-display-pipe-v2"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleDisplayPipeV2State, APPLE_DISPLAY_PIPE_V2);
 
-typedef struct {
-    uint32_t vftg_ctl;
-    uint32_t const_colour;
-} DisplayBackEndState;
-
-struct AppleDisplayPipeV2State {
-    /*< private >*/
-    SysBusDevice parent_obj;
-
-    uint32_t width;
-    uint32_t height;
-    MemoryRegion backend_regs;
-    MemoryRegion vram;
-    MemoryRegion *dma_mr;
-    AddressSpace dma_as;
-    MemoryRegionSection vram_section;
-    qemu_irq irqs[9];
-
-    DisplayBackEndState dbe_state;
-    QemuConsole *console;
-};
-
-AppleDisplayPipeV2State *adp_v2_create(DTBNode *node);
+SysBusDevice *adp_v2_create(DTBNode *node, MemoryRegion *dma_mr,
+                            AppleVideoArgs *video_args, uint64_t vram_size);
+void adp_v2_update_vram_mapping(AppleDisplayPipeV2State *s, MemoryRegion *mr,
+                                hwaddr base);
 
 #endif /* HW_DISPLAY_ADBE_V2_H */

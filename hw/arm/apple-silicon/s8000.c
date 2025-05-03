@@ -209,14 +209,14 @@ static void s8000_load_classic_kc(S8000MachineState *s8000_machine,
 {
     MachineState *machine = MACHINE(s8000_machine);
     MachoHeader64 *hdr = s8000_machine->kernel;
-    MemoryRegion *sysmem = s8000_machine->sysmem;
+    MemoryRegion *sysmem = s8000_machine->sys_mem;
     AddressSpace *nsas = &address_space_memory;
     hwaddr virt_low;
     hwaddr virt_end;
     hwaddr dtb_va;
     hwaddr top_of_kernel_data_pa;
     hwaddr phys_ptr;
-    AppleBootInfo *info = &s8000_machine->bootinfo;
+    AppleBootInfo *info = &s8000_machine->boot_info;
     hwaddr text_base;
     hwaddr prelink_text_base;
     DTBNode *memory_map =
@@ -294,7 +294,7 @@ static void s8000_load_classic_kc(S8000MachineState *s8000_machine,
     macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,
                          g_virt_base, g_phys_base, S8000_KERNEL_REGION_SIZE,
                          top_of_kernel_data_pa, dtb_va, info->device_tree_size,
-                         &s8000_machine->video, cmdline);
+                         &s8000_machine->video_args, cmdline);
     g_virt_base = virt_low;
 
     macho_highest_lowest(s8000_machine->secure_monitor, &tz1_virt_low,
@@ -308,26 +308,26 @@ static void s8000_load_classic_kc(S8000MachineState *s8000_machine,
     g_assert_nonnull(sas);
     hwaddr tz1_entry =
         arm_load_macho(s8000_machine->secure_monitor, sas,
-                       s8000_machine->sysmem, NULL, S8000_TZ1_BASE, 0);
+                       s8000_machine->sys_mem, NULL, S8000_TZ1_BASE, 0);
     info_report("TrustZone 1 entry: " TARGET_FMT_lx, tz1_entry);
     hwaddr tz1_boot_args_pa =
         S8000_TZ1_BASE + (S8000_TZ1_SIZE - sizeof(AppleMonitorBootArgs));
     info_report("TrustZone 1 boot args address: " TARGET_FMT_lx,
                 tz1_boot_args_pa);
     apple_monitor_setup_boot_args(
-        "TZ1_BOOTARGS", sas, s8000_machine->sysmem, tz1_boot_args_pa,
+        "TZ1_BOOTARGS", sas, s8000_machine->sys_mem, tz1_boot_args_pa,
         tz1_virt_low, S8000_TZ1_BASE, S8000_TZ1_SIZE,
-        s8000_machine->bootinfo.kern_boot_args_addr,
-        s8000_machine->bootinfo.kern_entry, g_phys_base, g_phys_slide,
+        s8000_machine->boot_info.kern_boot_args_addr,
+        s8000_machine->boot_info.kern_entry, g_phys_base, g_phys_slide,
         g_virt_slide, info->kern_text_off);
-    s8000_machine->bootinfo.tz1_entry = tz1_entry;
-    s8000_machine->bootinfo.tz1_boot_args_pa = tz1_boot_args_pa;
+    s8000_machine->boot_info.tz1_entry = tz1_entry;
+    s8000_machine->boot_info.tz1_boot_args_pa = tz1_boot_args_pa;
 }
 
 static void s8000_memory_setup(MachineState *machine)
 {
     S8000MachineState *s8000_machine = S8000_MACHINE(machine);
-    AppleBootInfo *info = &s8000_machine->bootinfo;
+    AppleBootInfo *info = &s8000_machine->boot_info;
     AppleNvramState *nvram;
     char *cmdline;
     MachoHeader64 *hdr;
@@ -656,7 +656,7 @@ static void s8000_pmgr_setup(S8000MachineState *s8000_machine)
                                   (void *)reg[i], name, reg[i + 1]);
         }
         memory_region_add_subregion_overlap(
-            s8000_machine->sysmem,
+            s8000_machine->sys_mem,
             reg[i] + reg[i + 1] < s8000_machine->soc_size ?
                 s8000_machine->soc_base_pa + reg[i] :
                 reg[i],
@@ -993,7 +993,7 @@ static void s8000_create_aes(S8000MachineState *s8000_machine)
                        qdev_get_gpio_in(DEVICE(s8000_machine->aic), *ints));
 
     g_assert_nonnull(object_property_add_const_link(
-        OBJECT(aes), "dma-mr", OBJECT(s8000_machine->sysmem)));
+        OBJECT(aes), "dma-mr", OBJECT(s8000_machine->sys_mem)));
 
     sysbus_realize_and_unref(aes, &error_fatal);
 }
@@ -1034,7 +1034,7 @@ static void s8000_create_sep(S8000MachineState *s8000_machine)
     }
 
     g_assert_nonnull(object_property_add_const_link(
-        OBJECT(s8000_machine->sep), "dma-mr", OBJECT(s8000_machine->sysmem)));
+        OBJECT(s8000_machine->sep), "dma-mr", OBJECT(s8000_machine->sys_mem)));
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(s8000_machine->sep), &error_fatal);
 }
@@ -1072,7 +1072,6 @@ static void s8000_create_pmu(S8000MachineState *s8000_machine)
 static void s8000_display_create(S8000MachineState *s8000_machine)
 {
     MachineState *machine;
-    AppleDisplayPipeV2State *s;
     SysBusDevice *sbd;
     DTBNode *child;
     uint64_t *reg;
@@ -1080,18 +1079,24 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
 
     machine = MACHINE(s8000_machine);
 
+    AppleDARTState *dart = APPLE_DART(
+        object_property_get_link(OBJECT(machine), "dart-disp0", &error_fatal));
+    g_assert_nonnull(dart);
+    child = dtb_get_node(s8000_machine->device_tree,
+                         "arm-io/dart-disp0/mapper-disp0");
+    g_assert_nonnull(child);
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+
     child = dtb_get_node(s8000_machine->device_tree, "arm-io/disp0");
     g_assert_nonnull(child);
 
-    s = adp_v2_create(child);
-    sbd = SYS_BUS_DEVICE(s);
-    s8000_machine->video.base_addr = S8000_DISPLAY_BASE;
-    s8000_machine->video.row_bytes = s->width * sizeof(uint32_t);
-    s8000_machine->video.width = s->width;
-    s8000_machine->video.height = s->height;
-    s8000_machine->video.depth.depth = sizeof(uint32_t) * 8;
-    s8000_machine->video.depth.rotate = 1;
-    s8000_machine->video.display =
+    sbd = adp_v2_create(
+        child,
+        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->data)),
+        &s8000_machine->video_args, S8000_DISPLAY_SIZE);
+    s8000_machine->video_args.base_addr = S8000_DISPLAY_BASE;
+    s8000_machine->video_args.display =
         !xnu_contains_boot_arg(machine->kernel_cmdline, "-s", false) &&
         !xnu_contains_boot_arg(machine->kernel_cmdline, "-v", false);
 
@@ -1111,31 +1116,13 @@ static void s8000_display_create(S8000MachineState *s8000_machine)
     uint32_t *ints = (uint32_t *)prop->data;
 
     for (size_t i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        sysbus_init_irq(sbd, &s->irqs[i]);
         sysbus_connect_irq(
             sbd, i, qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[i]));
     }
 
-    AppleDARTState *dart = APPLE_DART(
-        object_property_get_link(OBJECT(machine), "dart-disp0", &error_fatal));
-    g_assert_nonnull(dart);
-    child = dtb_get_node(s8000_machine->device_tree,
-                         "arm-io/dart-disp0/mapper-disp0");
-    g_assert_nonnull(child);
-    prop = dtb_find_prop(child, "reg");
-    g_assert_nonnull(prop);
-    s->dma_mr =
-        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->data));
-    g_assert_nonnull(s->dma_mr);
-    g_assert_nonnull(object_property_add_const_link(OBJECT(sbd), "dma_mr",
-                                                    OBJECT(s->dma_mr)));
-    address_space_init(&s->dma_as, s->dma_mr, "disp0.dma");
-
-    memory_region_init_ram(&s->vram, OBJECT(sbd), "vram", S8000_DISPLAY_SIZE,
-                           &error_fatal);
-    memory_region_add_subregion_overlap(
-        s8000_machine->sysmem, s8000_machine->video.base_addr, &s->vram, 1);
-    object_property_add_const_link(OBJECT(sbd), "vram", OBJECT(&s->vram));
+    adp_v2_update_vram_mapping(APPLE_DISPLAY_PIPE_V2(sbd),
+                               s8000_machine->sys_mem,
+                               s8000_machine->video_args.base_addr);
     object_property_add_child(OBJECT(machine), "disp0", OBJECT(sbd));
 
     sysbus_realize_and_unref(sbd, &error_fatal);
@@ -1174,8 +1161,8 @@ static void s8000_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 
     s8000_machine = data.host_ptr;
     cpu_reset(cpu);
-    ARM_CPU(cpu)->env.xregs[0] = s8000_machine->bootinfo.tz1_boot_args_pa;
-    cpu_set_pc(cpu, s8000_machine->bootinfo.tz1_entry);
+    ARM_CPU(cpu)->env.xregs[0] = s8000_machine->boot_info.tz1_boot_args_pa;
+    cpu_set_pc(cpu, s8000_machine->boot_info.tz1_entry);
 }
 
 static void apple_a9_reset(S8000MachineState *s8000_machine)
@@ -1237,18 +1224,18 @@ static void s8000_machine_init(MachineState *machine)
     uint64_t kernel_low, kernel_high;
     uint8_t buffer[0x40];
 
-    s8000_machine->sysmem = get_system_memory();
-    allocate_ram(s8000_machine->sysmem, "SRAM", S8000_SRAM_BASE,
+    s8000_machine->sys_mem = get_system_memory();
+    allocate_ram(s8000_machine->sys_mem, "SRAM", S8000_SRAM_BASE,
                  S8000_SRAM_SIZE, 0);
-    allocate_ram(s8000_machine->sysmem, "DRAM", S8000_DRAM_BASE,
+    allocate_ram(s8000_machine->sys_mem, "DRAM", S8000_DRAM_BASE,
                  S8000_DRAM_SIZE, 0);
-    allocate_ram(s8000_machine->sysmem, "SEPROM", S8000_SEPROM_BASE,
+    allocate_ram(s8000_machine->sys_mem, "SEPROM", S8000_SEPROM_BASE,
                  S8000_SEPROM_SIZE, 0);
     MemoryRegion *mr = g_new0(MemoryRegion, 1);
     memory_region_init_alias(mr, OBJECT(s8000_machine), "s8000.seprom.alias",
-                             s8000_machine->sysmem, S8000_SEPROM_BASE,
+                             s8000_machine->sys_mem, S8000_SEPROM_BASE,
                              S8000_SEPROM_SIZE);
-    memory_region_add_subregion_overlap(s8000_machine->sysmem, 0, mr, 1);
+    memory_region_add_subregion_overlap(s8000_machine->sys_mem, 0, mr, 1);
 
     hdr = macho_load_file(machine->kernel_filename, &secure_monitor);
     g_assert_nonnull(hdr);
@@ -1273,7 +1260,7 @@ static void s8000_machine_init(MachineState *machine)
     s8000_machine->device_tree = load_dtb_from_file(machine->dtb);
     s8000_machine->trustcache =
         load_trustcache_from_file(s8000_machine->trustcache_filename,
-                                  &s8000_machine->bootinfo.trustcache_size);
+                                  &s8000_machine->boot_info.trustcache_size);
     dtb_set_prop_u32(s8000_machine->device_tree, "clock-frequency", 24000000);
     child = dtb_get_node(s8000_machine->device_tree, "arm-io");
     g_assert_nonnull(child);

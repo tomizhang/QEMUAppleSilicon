@@ -20,11 +20,32 @@
 #include "qemu/osdep.h"
 #include "hw/display/apple_displaypipe_v2.h"
 #include "hw/qdev-properties.h"
+#include "migration/vmstate.h"
 #include "qemu/log.h"
-#include "qom/object.h"
 #include "ui/console.h"
-#include "ui/pixel_ops.h"
 #include "framebuffer.h"
+
+typedef struct {
+    uint32_t vftg_ctl;
+    uint32_t const_colour;
+} DisplayBackEndState;
+
+struct AppleDisplayPipeV2State {
+    /*< private >*/
+    SysBusDevice parent_obj;
+
+    uint32_t width;
+    uint32_t height;
+    MemoryRegion backend_regs;
+    MemoryRegion vram;
+    MemoryRegion *dma_mr;
+    AddressSpace dma_as;
+    MemoryRegionSection vram_section;
+    qemu_irq irqs[9];
+
+    DisplayBackEndState dbe_state;
+    QemuConsole *console;
+};
 
 #define REG_SPDS_VERSION (0x1014)
 
@@ -198,56 +219,6 @@ static const MemoryRegionOps dummy_reg_ops = {
     .valid.unaligned = false,
 };
 
-AppleDisplayPipeV2State *adp_v2_create(DTBNode *node)
-{
-    DeviceState *dev;
-    SysBusDevice *sbd;
-    AppleDisplayPipeV2State *s;
-    DTBProp *prop;
-    uint64_t *reg;
-    MemoryRegion *mr;
-
-    dev = qdev_new(TYPE_APPLE_DISPLAY_PIPE_V2);
-    sbd = SYS_BUS_DEVICE(dev);
-    s = APPLE_DISPLAY_PIPE_V2(sbd);
-
-    dtb_set_prop_u32(node, "dot-pitch", 326);
-
-    prop = dtb_find_prop(node, "reg");
-    g_assert_nonnull(prop);
-    reg = (uint64_t *)prop->data;
-    mr = g_new0(MemoryRegion, 5);
-    memory_region_init_io(mr, OBJECT(sbd), &frontend_reg_ops, sbd,
-                          "adp.frontend", reg[1]);
-    memory_region_init_io(&s->backend_regs, OBJECT(sbd), &backend_reg_ops, sbd,
-                          "adp.backend", reg[3]);
-    memory_region_init_io(mr + 1, OBJECT(sbd), &dummy_reg_ops, sbd, "adp.aap",
-                          reg[5]);
-    memory_region_init_io(mr + 2, OBJECT(sbd), &dummy_reg_ops, sbd,
-                          "adp.pixel-bl", reg[7]);
-    memory_region_init_io(mr + 3, OBJECT(sbd), &dummy_reg_ops, sbd,
-                          "adp.dither", reg[9]);
-    memory_region_init_io(mr + 4, OBJECT(sbd), &dummy_reg_ops, sbd, "adp.prc",
-                          reg[11]);
-
-    object_property_add_const_link(OBJECT(sbd), "adp.frontend", OBJECT(mr));
-    object_property_add_const_link(OBJECT(sbd), "adp.backend",
-                                   OBJECT(&s->backend_regs));
-    object_property_add_const_link(OBJECT(sbd), "adp.aap", OBJECT(mr + 1));
-    object_property_add_const_link(OBJECT(sbd), "adp.pixel-bl", OBJECT(mr + 2));
-    object_property_add_const_link(OBJECT(sbd), "adp.dither", OBJECT(mr + 3));
-    object_property_add_const_link(OBJECT(sbd), "adp.prc", OBJECT(mr + 4));
-
-    sysbus_init_mmio(sbd, mr);
-    sysbus_init_mmio(sbd, &s->backend_regs);
-    sysbus_init_mmio(sbd, mr + 1);
-    sysbus_init_mmio(sbd, mr + 2);
-    sysbus_init_mmio(sbd, mr + 3);
-    sysbus_init_mmio(sbd, mr + 4);
-
-    return s;
-}
-
 static void adp_v2_draw_row(void *opaque, uint8_t *dest, const uint8_t *src,
                             int width, int dest_pitch)
 {
@@ -302,13 +273,40 @@ static const Property adp_v2_props[] = {
     DEFINE_PROP_UINT32("height", AppleDisplayPipeV2State, height, 960),
 };
 
+static const VMStateDescription vmstate_adp_v2_dbe = {
+    .name = "Apple Display Pipe V2 Back End State",
+    .version_id = 0,
+    .minimum_version_id = 0,
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_UINT32(vftg_ctl, DisplayBackEndState),
+            VMSTATE_UINT32(const_colour, DisplayBackEndState),
+            VMSTATE_END_OF_LIST(),
+        },
+};
+
+static const VMStateDescription vmstate_adp_v2 = {
+    .name = "Apple Display Pipe V2 State",
+    .version_id = 0,
+    .minimum_version_id = 0,
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_UINT32(width, AppleDisplayPipeV2State),
+            VMSTATE_UINT32(height, AppleDisplayPipeV2State),
+            VMSTATE_STRUCT(dbe_state, AppleDisplayPipeV2State, 0,
+                           vmstate_adp_v2_dbe, DisplayBackEndState),
+            VMSTATE_END_OF_LIST(),
+        },
+};
+
 static void adp_v2_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
-    device_class_set_props(dc, adp_v2_props);
     dc->realize = adp_v2_realize;
+    dc->vmsd = &vmstate_adp_v2;
+    device_class_set_props(dc, adp_v2_props);
+    set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
 }
 
 static const TypeInfo adp_v2_type_info = {
@@ -324,3 +322,90 @@ static void adp_v2_register_types(void)
 }
 
 type_init(adp_v2_register_types);
+
+SysBusDevice *adp_v2_create(DTBNode *node, MemoryRegion *dma_mr,
+                            AppleVideoArgs *video_args, uint64_t vram_size)
+{
+    DeviceState *dev;
+    SysBusDevice *sbd;
+    AppleDisplayPipeV2State *s;
+    DTBProp *prop;
+    uint64_t *reg;
+    MemoryRegion *mr;
+
+    g_assert_nonnull(node);
+    g_assert_nonnull(dma_mr);
+    g_assert_nonnull(video_args);
+
+    dev = qdev_new(TYPE_APPLE_DISPLAY_PIPE_V2);
+    sbd = SYS_BUS_DEVICE(dev);
+    s = APPLE_DISPLAY_PIPE_V2(dev);
+
+    video_args->row_bytes = s->width * sizeof(uint32_t);
+    video_args->width = s->width;
+    video_args->height = s->height;
+    video_args->depth.depth = sizeof(uint32_t) * 8;
+    video_args->depth.rotate = 1;
+
+    s->dma_mr = dma_mr;
+
+    g_assert_nonnull(
+        object_property_add_const_link(OBJECT(s), "dma_mr", OBJECT(dma_mr)));
+    address_space_init(&s->dma_as, dma_mr, "disp0.dma");
+
+    memory_region_init_ram(&s->vram, OBJECT(s), "vram", vram_size,
+                           &error_fatal);
+    object_property_add_const_link(OBJECT(s), "vram", OBJECT(&s->vram));
+
+    dtb_set_prop_u32(node, "dot-pitch", 326);
+
+    prop = dtb_find_prop(node, "reg");
+    g_assert_nonnull(prop);
+    reg = (uint64_t *)prop->data;
+    mr = g_new0(MemoryRegion, 5);
+    memory_region_init_io(mr, OBJECT(s), &frontend_reg_ops, s, "adp.frontend",
+                          reg[1]);
+    memory_region_init_io(&s->backend_regs, OBJECT(s), &backend_reg_ops, s,
+                          "adp.backend", reg[3]);
+    memory_region_init_io(mr + 1, OBJECT(s), &dummy_reg_ops, s, "adp.aap",
+                          reg[5]);
+    memory_region_init_io(mr + 2, OBJECT(s), &dummy_reg_ops, s, "adp.pixel-bl",
+                          reg[7]);
+    memory_region_init_io(mr + 3, OBJECT(s), &dummy_reg_ops, s, "adp.dither",
+                          reg[9]);
+    memory_region_init_io(mr + 4, OBJECT(s), &dummy_reg_ops, s, "adp.prc",
+                          reg[11]);
+
+    object_property_add_const_link(OBJECT(s), "adp.frontend", OBJECT(mr));
+    object_property_add_const_link(OBJECT(s), "adp.backend",
+                                   OBJECT(&s->backend_regs));
+    object_property_add_const_link(OBJECT(s), "adp.aap", OBJECT(mr + 1));
+    object_property_add_const_link(OBJECT(s), "adp.pixel-bl", OBJECT(mr + 2));
+    object_property_add_const_link(OBJECT(s), "adp.dither", OBJECT(mr + 3));
+    object_property_add_const_link(OBJECT(s), "adp.prc", OBJECT(mr + 4));
+
+    sysbus_init_mmio(sbd, mr);
+    sysbus_init_mmio(sbd, &s->backend_regs);
+    sysbus_init_mmio(sbd, mr + 1);
+    sysbus_init_mmio(sbd, mr + 2);
+    sysbus_init_mmio(sbd, mr + 3);
+    sysbus_init_mmio(sbd, mr + 4);
+
+    prop = dtb_find_prop(node, "interrupts");
+    g_assert_nonnull(prop);
+
+    for (size_t i = 0; i < prop->length / sizeof(uint32_t); i++) {
+        sysbus_init_irq(sbd, &s->irqs[i]);
+    }
+
+    return sbd;
+}
+
+void adp_v2_update_vram_mapping(AppleDisplayPipeV2State *s, MemoryRegion *mr,
+                                hwaddr base)
+{
+    if (memory_region_is_mapped(&s->vram)) {
+        memory_region_del_subregion(mr, &s->vram);
+    }
+    memory_region_add_subregion_overlap(mr, base, &s->vram, 1);
+}

@@ -58,13 +58,13 @@ typedef struct {
     CPUClusterState cluster;
     SysBusDevice *aic;
     SysBusDevice *sep;
-    MemoryRegion *sysmem;
+    MemoryRegion *sys_mem;
     MachoHeader64 *kernel;
     MachoHeader64 *secure_monitor;
     uint8_t *trustcache;
     DTBNode *device_tree;
-    AppleBootInfo bootinfo;
-    AppleVideoArgs video;
+    AppleBootInfo boot_info;
+    AppleVideoArgs video_args;
     char *trustcache_filename;
     char *ticket_filename;
     char *seprom_filename;
