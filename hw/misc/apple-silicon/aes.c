@@ -781,6 +781,8 @@ static int apple_aes_post_load(void *opaque, int version_id)
 
 static const VMStateDescription vmstate_apple_aes_command = {
     .name = "apple_aes_command",
+    .version_id = 0,
+    .minimum_version_id = 0,
     .fields =
         (const VMStateField[]){
             VMSTATE_UINT32(command, AESCommand),
@@ -793,6 +795,8 @@ static const VMStateDescription vmstate_apple_aes_command = {
 
 static const VMStateDescription vmstate_apple_aes_key = {
     .name = "apple_aes_key",
+    .version_id = 0,
+    .minimum_version_id = 0,
     .post_load = apple_aes_key_post_load,
     .fields =
         (const VMStateField[]){
@@ -812,6 +816,8 @@ static const VMStateDescription vmstate_apple_aes_key = {
 
 static const VMStateDescription vmstate_apple_aes = {
     .name = "apple_aes",
+    .version_id = 0,
+    .minimum_version_id = 0,
     .pre_save = apple_aes_pre_save,
     .post_load = apple_aes_post_load,
     .fields =

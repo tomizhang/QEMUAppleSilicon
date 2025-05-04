@@ -147,6 +147,8 @@ static int apple_typec_post_load(void *opaque, int version_id)
 
 static const VMStateDescription vmstate_apple_typec = {
     .name = "apple_typec",
+    .version_id = 0,
+    .minimum_version_id = 0,
     .post_load = apple_typec_post_load,
     .fields =
         (const VMStateField[]){

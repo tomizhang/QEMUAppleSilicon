@@ -4,22 +4,22 @@
 #include "qemu/osdep.h"
 #include "hw/misc/apple-silicon/a7iop/base.h"
 #include "hw/sysbus.h"
+#include "migration/vmstate.h"
 #include "qemu/queue.h"
 
 #define TYPE_APPLE_A7IOP_MAILBOX "apple-a7iop-mailbox"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleA7IOPMailbox, APPLE_A7IOP_MAILBOX)
 
 typedef struct AppleA7IOPMessage {
-    union QEMU_PACKED {
-        uint64_t data[2];
-        struct QEMU_PACKED {
-            uint64_t msg;
-            uint32_t endpoint;
-            uint32_t flags;
-        };
-    };
+    uint8_t data[16];
     QTAILQ_ENTRY(AppleA7IOPMessage) next;
 } AppleA7IOPMessage;
+
+extern const VMStateDescription vmstate_apple_a7iop_message;
+
+#define VMSTATE_APPLE_A7IOP_MESSAGE(_field, _state)                  \
+    VMSTATE_QTAILQ_V(_field, _state, 0, vmstate_apple_a7iop_message, \
+                     AppleA7IOPMessage, next)
 
 typedef struct AppleA7IOPInterruptStatusMessage {
     uint32_t status;

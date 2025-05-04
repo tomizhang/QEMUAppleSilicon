@@ -590,6 +590,8 @@ SysBusDevice *apple_spmi_create(DTBNode *node)
 
 static const VMStateDescription vmstate_apple_spmi = {
     .name = "apple_spmi",
+    .version_id = 0,
+    .minimum_version_id = 0,
     .fields =
         (const VMStateField[]){
             VMSTATE_FIFO32(resp_fifo, AppleSPMIState),

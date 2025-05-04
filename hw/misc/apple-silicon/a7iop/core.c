@@ -145,6 +145,7 @@ static void apple_a7iop_class_init(ObjectClass *oc, void *data)
     DeviceClass *dc;
 
     dc = DEVICE_CLASS(oc);
+
     device_class_set_legacy_reset(dc, apple_a7iop_reset);
     dc->realize = apple_a7iop_realize;
     dc->unrealize = apple_a7iop_unrealize;
@@ -165,3 +166,15 @@ static void apple_a7iop_register_types(void)
 }
 
 type_init(apple_a7iop_register_types);
+
+const VMStateDescription vmstate_apple_a7iop = {
+    .name = "AppleA7IOP",
+    .version_id = 0,
+    .minimum_version_id = 0,
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_UINT32(cpu_status, AppleA7IOP),
+            VMSTATE_UINT32(cpu_ctrl, AppleA7IOP),
+            VMSTATE_END_OF_LIST(),
+        },
+};

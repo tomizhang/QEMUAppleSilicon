@@ -920,6 +920,8 @@ static void apple_mt_spi_realize(SSIPeripheral *dev, Error **errp)
 
 static const VMStateDescription vmstate_apple_mt_spi_buffer = {
     .name = "AppleMTSPIBuffer",
+    .version_id = 0,
+    .minimum_version_id = 0,
     .fields =
         (const VMStateField[]){
             VMSTATE_VBUFFER_ALLOC_UINT32(data, AppleMTSPIBuffer, 0, NULL,
@@ -932,6 +934,8 @@ static const VMStateDescription vmstate_apple_mt_spi_buffer = {
 
 static const VMStateDescription vmstate_apple_mt_spi_ll_packet = {
     .name = "AppleMTSPILLPacket",
+    .version_id = 0,
+    .minimum_version_id = 0,
     .fields =
         (const VMStateField[]){
             VMSTATE_STRUCT(buf, AppleMTSPILLPacket, 0,
@@ -943,6 +947,8 @@ static const VMStateDescription vmstate_apple_mt_spi_ll_packet = {
 
 static const VMStateDescription vmstate_apple_mt_spi = {
     .name = "AppleMTSPIState",
+    .version_id = 0,
+    .minimum_version_id = 0,
     .fields =
         (const VMStateField[]){
             VMSTATE_STRUCT(tx, AppleMTSPIState, 0, vmstate_apple_mt_spi_buffer,

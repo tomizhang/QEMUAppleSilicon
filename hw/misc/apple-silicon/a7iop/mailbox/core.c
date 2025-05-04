@@ -187,8 +187,7 @@ static void apple_a7iop_mailbox_send(AppleA7IOPMailbox *s,
     g_assert_nonnull(msg);
 
     QEMU_LOCK_GUARD(&s->lock);
-    trace_apple_a7iop_mailbox_send(s->role, msg->endpoint, msg->data[0],
-                                   msg->data[1]);
+    trace_apple_a7iop_mailbox_send(s->role, msg->data[0], msg->data[1]);
     QTAILQ_INSERT_TAIL(&s->inbox, msg, next);
     s->count++;
     apple_a7iop_mailbox_update_irq(s);
@@ -259,9 +258,8 @@ static AppleA7IOPMessage *apple_a7iop_mailbox_recv(AppleA7IOPMailbox *s)
         return NULL;
     }
     QTAILQ_REMOVE(&s->inbox, msg, next);
-    msg->flags |= CTRL_COUNT(s->count);
-    trace_apple_a7iop_mailbox_recv(s->role, msg->endpoint, msg->data[0],
-                                   msg->data[1]);
+    stl_le_p(msg->data + 0xC, ldl_le_p(msg->data + 0xC) | CTRL_COUNT(s->count));
+    trace_apple_a7iop_mailbox_recv(s->role, msg->data[0], msg->data[1]);
     s->count--;
     apple_a7iop_mailbox_update_irq(s);
     return msg;
@@ -504,17 +502,21 @@ static void apple_a7iop_mailbox_reset(DeviceState *dev)
     apple_a7iop_mailbox_update_irq(s);
 }
 
-static const VMStateDescription vmstate_apple_a7iop_message = {
+const VMStateDescription vmstate_apple_a7iop_message = {
     .name = "Apple A7IOP Message State",
+    .version_id = 0,
+    .minimum_version_id = 0,
     .fields =
         (const VMStateField[]){
-            VMSTATE_UINT64_ARRAY(data, AppleA7IOPMessage, 2),
+            VMSTATE_UINT8_ARRAY(data, AppleA7IOPMessage, 16),
             VMSTATE_END_OF_LIST(),
         }
 };
 
 static const VMStateDescription vmstate_apple_a7iop_int_status_message = {
     .name = "Apple A7IOP Interrupt Status Message State",
+    .version_id = 0,
+    .minimum_version_id = 0,
     .fields =
         (const VMStateField[]){
             VMSTATE_UINT32(status, AppleA7IOPInterruptStatusMessage),
@@ -524,11 +526,11 @@ static const VMStateDescription vmstate_apple_a7iop_int_status_message = {
 
 static const VMStateDescription vmstate_apple_a7iop_mailbox = {
     .name = "Apple A7IOP Mailbox State",
+    .version_id = 0,
+    .minimum_version_id = 0,
     .fields =
-        (VMStateField[]){
-            VMSTATE_QTAILQ_V(inbox, AppleA7IOPMailbox, 0,
-                             vmstate_apple_a7iop_message, AppleA7IOPMessage,
-                             next),
+        (const VMStateField[]){
+            VMSTATE_APPLE_A7IOP_MESSAGE(inbox, AppleA7IOPMailbox),
             VMSTATE_QTAILQ_V(interrupt_status, AppleA7IOPMailbox, 0,
                              vmstate_apple_a7iop_int_status_message,
                              AppleA7IOPInterruptStatusMessage, entry),

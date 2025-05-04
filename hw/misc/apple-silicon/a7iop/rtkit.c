@@ -7,29 +7,44 @@
 #include "qemu/main-loop.h"
 #include "trace.h"
 
-#define MSG_HELLO 1
-#define MSG_HELLO_ACK 2
-#define MSG_TYPE_PING 3
-#define MSG_TYPE_PING_ACK 4
-#define MSG_TYPE_EPSTART 5
-#define MSG_TYPE_SET_IOP_PSTATE 6
+const VMStateDescription vmstate_apple_rtkit = {
+    .name = "AppleRTKit",
+    .version_id = 0,
+    .minimum_version_id = 0,
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_UINT8(ep0_status, AppleRTKit),
+            VMSTATE_UINT32(protocol_version, AppleRTKit),
+            VMSTATE_APPLE_A7IOP_MESSAGE(rollcall, AppleRTKit),
+            VMSTATE_END_OF_LIST(),
+        },
+};
+
+#define MSG_HELLO (1)
+#define MSG_HELLO_ACK (2)
+#define MSG_TYPE_PING (3)
+#define MSG_TYPE_PING_ACK (4)
+#define MSG_TYPE_EPSTART (5)
+#define MSG_TYPE_SET_IOP_PSTATE (6)
 #define MSG_GET_PSTATE(_x) ((_x) & 0xFFF) // TODO: Investigate this
-#define PSTATE_SLPNOMEM 0x0
-#define PSTATE_WAIT_VR 0x201
-#define PSTATE_PWRGATE 0x202
-#define PSTATE_ON 0x220
-#define MSG_TYPE_SET_AP_PSTATE_ACK 7
-#define MSG_TYPE_ROLLCALL 8
-#define MSG_TYPE_SET_AP_PSTATE 11
+#define PSTATE_SLPNOMEM (0x0)
+#define PSTATE_WAIT_VR (0x201)
+#define PSTATE_PWRGATE (0x202)
+#define PSTATE_ON (0x220)
+#define MSG_TYPE_SET_AP_PSTATE_ACK (7)
+#define MSG_TYPE_ROLLCALL (8)
+#define MSG_TYPE_SET_AP_PSTATE (11)
 
 static inline AppleA7IOPMessage *apple_rtkit_construct_msg(uint32_t ep,
                                                            uint64_t data)
 {
     AppleA7IOPMessage *msg;
+    AppleRTKitMessage *rtk_msg;
 
     msg = g_new0(AppleA7IOPMessage, 1);
-    msg->endpoint = ep;
-    msg->msg = data;
+    rtk_msg = (AppleRTKitMessage *)msg->data;
+    rtk_msg->endpoint = ep;
+    rtk_msg->msg = data;
 
     return msg;
 }
@@ -48,7 +63,7 @@ void apple_rtkit_send_control_msg(AppleRTKit *s, uint32_t ep, uint64_t data)
 
 void apple_rtkit_send_user_msg(AppleRTKit *s, uint32_t ep, uint64_t data)
 {
-    g_assert_cmpuint(ep, <, 224);
+    g_assert_cmpuint(ep, <, 256 - EP_USER_START);
     apple_rtkit_send_msg(s, ep + EP_USER_START, data);
 }
 
@@ -297,6 +312,7 @@ static void apple_rtkit_bh(void *opaque)
     AppleA7IOP *a7iop;
     AppleRTKitEPData *data;
     AppleA7IOPMessage *msg;
+    AppleRTKitMessage *rtk_msg;
 
     s = APPLE_RTKIT(opaque);
     a7iop = APPLE_A7IOP(opaque);
@@ -304,12 +320,13 @@ static void apple_rtkit_bh(void *opaque)
     QEMU_LOCK_GUARD(&s->lock);
     while (!apple_a7iop_mailbox_is_empty(a7iop->iop_mailbox)) {
         msg = apple_a7iop_recv_iop(a7iop);
-        data = g_tree_lookup(s->endpoints, GUINT_TO_POINTER(msg->endpoint));
+        rtk_msg = (AppleRTKitMessage *)msg->data;
+        data = g_tree_lookup(s->endpoints, GUINT_TO_POINTER(rtk_msg->endpoint));
         if (data && data->handler) {
             data->handler(data->opaque,
-                          data->user ? msg->endpoint - EP_USER_START :
-                                       msg->endpoint,
-                          msg->msg);
+                          data->user ? rtk_msg->endpoint - EP_USER_START :
+                                       rtk_msg->endpoint,
+                          rtk_msg->msg);
         }
         g_free(msg);
     }

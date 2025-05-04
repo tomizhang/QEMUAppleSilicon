@@ -8,52 +8,56 @@
 #define TYPE_APPLE_RTKIT "apple-rtkit"
 OBJECT_DECLARE_TYPE(AppleRTKit, AppleRTKitClass, APPLE_RTKIT)
 
-#define EP_MANAGEMENT 0
-#define EP_CRASHLOG 1
-#define EP_USER_START 32
+#define EP_MANAGEMENT (0)
+#define EP_CRASHLOG (1)
+#define EP_USER_START (32)
 
-typedef enum {
-    EP0_IDLE,
-    EP0_WAIT_HELLO,
-    EP0_WAIT_ROLLCALL,
-    EP0_DONE,
-} AppleRTKitEP0State;
+#define EP0_IDLE (0)
+#define EP0_WAIT_HELLO (1)
+#define EP0_WAIT_ROLLCALL (2)
+#define EP0_DONE (3)
 
-typedef struct QEMU_PACKED {
-    union {
-        uint64_t raw;
-        struct QEMU_PACKED {
-            union {
-                struct QEMU_PACKED {
-                    uint16_t major;
-                    uint16_t minor;
-                } hello;
-                struct QEMU_PACKED {
-                    uint32_t seg;
-                    uint16_t timestamp;
-                } ping;
-                struct QEMU_PACKED {
-                    uint32_t state;
-                    uint32_t ep;
-                } epstart;
-                struct QEMU_PACKED {
-                    uint32_t state;
-                } power;
-                struct QEMU_PACKED {
-                    uint32_t epMask;
-                    /* bit x -> endpoint ((epBlock * 32) + x) */
-                    uint8_t epBlock : 6;
-                    uint16_t unk38 : 13;
-                    uint8_t epEnded : 1;
-                } rollcall;
-            };
+typedef struct AppleRTKitMessage {
+    struct QEMU_PACKED {
+        uint64_t msg;
+        uint32_t endpoint;
+        uint32_t flags;
+    };
+} AppleRTKitMessage;
+
+typedef union {
+    uint64_t raw;
+    struct {
+        union {
+            struct {
+                uint16_t major;
+                uint16_t minor;
+            } hello;
+            struct {
+                uint32_t seg;
+                uint16_t timestamp;
+            } ping;
+            struct {
+                uint32_t state;
+                uint32_t ep;
+            } epstart;
+            struct {
+                uint32_t state;
+            } power;
+            struct {
+                uint32_t epMask;
+                /* bit x -> endpoint ((epBlock * 32) + x) */
+                uint8_t epBlock : 6;
+                uint16_t unk38 : 13;
+                uint8_t epEnded : 1;
+            } rollcall;
         };
-        struct QEMU_PACKED {
-            uint32_t field_0;
-            uint16_t field_32;
-            uint8_t field_48 : 4;
-            uint8_t type : 4;
-        };
+    };
+    struct {
+        uint32_t field_0;
+        uint16_t field_32;
+        uint8_t field_48 : 4;
+        uint8_t type : 4;
     };
 } AppleRTKitManagementMessage;
 
@@ -92,7 +96,7 @@ struct AppleRTKit {
     const AppleRTKitOps *ops;
     QemuMutex lock;
     void *opaque;
-    AppleRTKitEP0State ep0_status;
+    uint8_t ep0_status;
     uint32_t protocol_version;
     GTree *endpoints;
     QTAILQ_HEAD(, AppleA7IOPMessage) rollcall;
