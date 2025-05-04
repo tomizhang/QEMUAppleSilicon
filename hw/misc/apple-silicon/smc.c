@@ -30,45 +30,45 @@ OBJECT_DECLARE_TYPE(AppleSMCState, AppleSMCClass, APPLE_SMC_IOP)
 #define SMC_MAKE_KEY_TYPE(A, B, C, D) SMC_MAKE_IDENTIFIER((A), (B), (C), (D))
 
 enum {
-    SmcKeyTypeFlag = SMC_MAKE_KEY_TYPE('f', 'l', 'a', 'g'),
-    SmcKeyTypeHex = SMC_MAKE_KEY_TYPE('h', 'e', 'x', '_'),
-    SmcKeyTypeSint8 = SMC_MAKE_KEY_TYPE('s', 'i', '8', ' '),
-    SmcKeyTypeSint16 = SMC_MAKE_KEY_TYPE('s', 'i', '1', '6'),
-    SmcKeyTypeSint32 = SMC_MAKE_KEY_TYPE('s', 'i', '3', '2'),
-    SmcKeyTypeSint64 = SMC_MAKE_KEY_TYPE('s', 'i', '6', '4'),
-    SmcKeyTypeUint8 = SMC_MAKE_KEY_TYPE('u', 'i', '8', ' '),
-    SmcKeyTypeUint16 = SMC_MAKE_KEY_TYPE('u', 'i', '1', '6'),
-    SmcKeyTypeUint32 = SMC_MAKE_KEY_TYPE('u', 'i', '3', '2'),
-    SmcKeyTypeUint64 = SMC_MAKE_KEY_TYPE('u', 'i', '6', '4'),
-    SmcKeyTypeSp78 = SMC_MAKE_KEY_TYPE('S', 'p', '7', '8'),
-    SmcKeyTypeClh = SMC_MAKE_KEY_TYPE('{', 'c', 'l', 'h'),
-    SmcKeyTypeIoft = SMC_MAKE_KEY_TYPE('i', 'o', 'f', 't'),
-    SmcKeyTypeFlt = SMC_MAKE_KEY_TYPE('f', 'l', 't', ' '),
+    SMCKeyTypeFlag = SMC_MAKE_KEY_TYPE('f', 'l', 'a', 'g'),
+    SMCKeyTypeHex = SMC_MAKE_KEY_TYPE('h', 'e', 'x', '_'),
+    SMCKeyTypeSInt8 = SMC_MAKE_KEY_TYPE('s', 'i', '8', ' '),
+    SMCKeyTypeSInt16 = SMC_MAKE_KEY_TYPE('s', 'i', '1', '6'),
+    SMCKeyTypeSInt32 = SMC_MAKE_KEY_TYPE('s', 'i', '3', '2'),
+    SMCKeyTypeSInt64 = SMC_MAKE_KEY_TYPE('s', 'i', '6', '4'),
+    SMCKeyTypeUInt8 = SMC_MAKE_KEY_TYPE('u', 'i', '8', ' '),
+    SMCKeyTypeUInt16 = SMC_MAKE_KEY_TYPE('u', 'i', '1', '6'),
+    SMCKeyTypeUInt32 = SMC_MAKE_KEY_TYPE('u', 'i', '3', '2'),
+    SMCKeyTypeUInt64 = SMC_MAKE_KEY_TYPE('u', 'i', '6', '4'),
+    SMCKeyTypeSP78 = SMC_MAKE_KEY_TYPE('S', 'p', '7', '8'),
+    SMCKeyTypeClh = SMC_MAKE_KEY_TYPE('{', 'c', 'l', 'h'),
+    SMCKeyTypeIOFT = SMC_MAKE_KEY_TYPE('i', 'o', 'f', 't'),
+    SMCKeyTypeFLT = SMC_MAKE_KEY_TYPE('f', 'l', 't', ' '),
 };
 
 enum {
-    SmcKeyNKEY = SMC_MAKE_IDENTIFIER('#', 'K', 'E', 'Y'),
-    SmcKeyCLKH = SMC_MAKE_IDENTIFIER('C', 'L', 'K', 'H'),
-    SmcKeyRGEN = SMC_MAKE_IDENTIFIER('R', 'G', 'E', 'N'),
-    SmcKeyMBSE = SMC_MAKE_IDENTIFIER('M', 'B', 'S', 'E'),
-    SmcKeyLGPB = SMC_MAKE_IDENTIFIER('L', 'G', 'P', 'B'),
-    SmcKeyLGPE = SMC_MAKE_IDENTIFIER('L', 'G', 'P', 'E'),
-    SmcKeyNESN = SMC_MAKE_IDENTIFIER('N', 'E', 'S', 'N'),
-    SmcKeyADC_ = SMC_MAKE_IDENTIFIER('a', 'D', 'C', '#'),
-    SmcKeyAC_N = SMC_MAKE_IDENTIFIER('A', 'C', '-', 'N'),
-    SmcKeyBNCB = SMC_MAKE_IDENTIFIER('B', 'N', 'C', 'B'),
-    SmcKeyTG0B = SMC_MAKE_IDENTIFIER('T', 'G', '0', 'B'),
-    SmcKeyTG0V = SMC_MAKE_IDENTIFIER('T', 'G', '0', 'V'),
-    SmcKeyTP1A = SMC_MAKE_IDENTIFIER('T', 'P', '1', 'A'),
-    SmcKeyTP2C = SMC_MAKE_IDENTIFIER('T', 'P', '2', 'C'),
-    SmcKeyTP3R = SMC_MAKE_IDENTIFIER('T', 'P', '3', 'R'),
-    SmcKeyTP4H = SMC_MAKE_IDENTIFIER('T', 'P', '4', 'H'),
-    SmcKeyTP5d = SMC_MAKE_IDENTIFIER('T', 'P', '5', 'd'),
-    SmcKeyTP0Z = SMC_MAKE_IDENTIFIER('T', 'P', '0', 'Z'),
-    SmcKeyB0AP = SMC_MAKE_IDENTIFIER('B', '0', 'A', 'P'),
+    SMCKeyNKEY = SMC_MAKE_IDENTIFIER('#', 'K', 'E', 'Y'),
+    SMCKeyCLKH = SMC_MAKE_IDENTIFIER('C', 'L', 'K', 'H'),
+    SMCKeyRGEN = SMC_MAKE_IDENTIFIER('R', 'G', 'E', 'N'),
+    SMCKeyMBSE = SMC_MAKE_IDENTIFIER('M', 'B', 'S', 'E'),
+    SMCKeyLGPB = SMC_MAKE_IDENTIFIER('L', 'G', 'P', 'B'),
+    SMCKeyLGPE = SMC_MAKE_IDENTIFIER('L', 'G', 'P', 'E'),
+    SMCKeyNESN = SMC_MAKE_IDENTIFIER('N', 'E', 'S', 'N'),
+    SMCKeyADC_ = SMC_MAKE_IDENTIFIER('a', 'D', 'C', '#'),
+    SMCKeyAC_N = SMC_MAKE_IDENTIFIER('A', 'C', '-', 'N'),
+    SMCKeyBNCB = SMC_MAKE_IDENTIFIER('B', 'N', 'C', 'B'),
+    SMCKeyTG0B = SMC_MAKE_IDENTIFIER('T', 'G', '0', 'B'),
+    SMCKeyTG0V = SMC_MAKE_IDENTIFIER('T', 'G', '0', 'V'),
+    SMCKeyTP1A = SMC_MAKE_IDENTIFIER('T', 'P', '1', 'A'),
+    SMCKeyTP2C = SMC_MAKE_IDENTIFIER('T', 'P', '2', 'C'),
+    SMCKeyTP3R = SMC_MAKE_IDENTIFIER('T', 'P', '3', 'R'),
+    SMCKeyTP4H = SMC_MAKE_IDENTIFIER('T', 'P', '4', 'H'),
+    SMCKeyTP5d = SMC_MAKE_IDENTIFIER('T', 'P', '5', 'd'),
+    SMCKeyTP0Z = SMC_MAKE_IDENTIFIER('T', 'P', '0', 'Z'),
+    SMCKeyB0AP = SMC_MAKE_IDENTIFIER('B', '0', 'A', 'P'),
 };
 
-enum smc_command {
+enum SMCCommand {
     SMC_READ_KEY = 0x10,
     SMC_WRITE_KEY = 0x11,
     SMC_GET_KEY_BY_INDEX = 0x12,
@@ -78,7 +78,7 @@ enum smc_command {
     SMC_READ_KEY_PAYLOAD = 0x20
 };
 
-enum smc_result {
+enum SMCResult {
     kSMCSuccess = 0,
     kSMCError = 1,
     kSMCCommCollision = 0x80,
@@ -101,7 +101,7 @@ enum smc_result {
     kSMCSMBAccessError = 0xCC,
 };
 
-enum smc_notify_type {
+enum SMCNotifyType {
     kSMCSystemStateNotify = 'p',
     kSMCPowerStateNotify = 'q',
     kSMCHIDEventNotify = 'r',
@@ -109,57 +109,57 @@ enum smc_notify_type {
     kSMCGGFwUpdateNotify = 't',
 };
 
-enum smc_notify {
+enum SMCNotify {
     kSMCNotifySMCPanicDone = 0xA,
     kSMCNotifySMCPanicProgress = 0x22,
 };
 
 #define kSMCKeyEndpoint 0
 
-struct QEMU_PACKED key_message {
+typedef struct QEMU_PACKED {
     uint8_t cmd;
-    uint8_t ui8TagAndId;
+    uint8_t ui8_tag_and_id;
     uint8_t length;
     uint8_t payload_length;
     uint32_t key;
-};
+} KeyMessage;
 
-typedef struct QEMU_PACKED key_response {
+typedef struct QEMU_PACKED {
     union {
         struct {
             uint8_t status;
-            uint8_t ui8TagAndId;
+            uint8_t ui8_tag_and_id;
             uint8_t length;
             uint8_t unk3;
             uint8_t response[4];
         };
         uint64_t raw;
     };
-} key_response;
+} KeyResponse;
 
-typedef struct QEMU_PACKED smc_key_info {
+typedef struct QEMU_PACKED {
     uint8_t size;
     uint32_t type;
     uint8_t attr;
-} smc_key_info;
+} SMCKeyInfo;
 
-enum smc_attr {
+enum SMCAttr {
     SMC_ATTR_LITTLE_ENDIAN = (1 << 2),
 };
 
-typedef struct smc_key smc_key;
+typedef struct SMCKey SMCKey;
 
-typedef uint8_t (*KeyReader)(AppleSMCState *s, smc_key *k, void *payload,
+typedef uint8_t (*KeyReader)(AppleSMCState *s, SMCKey *k, void *payload,
                              uint8_t length);
-typedef uint8_t (*KeyWriter)(AppleSMCState *s, smc_key *k, void *payload,
+typedef uint8_t (*KeyWriter)(AppleSMCState *s, SMCKey *k, void *payload,
                              uint8_t length);
 
-struct smc_key {
+struct SMCKey {
     uint32_t key;
-    smc_key_info info;
+    SMCKeyInfo info;
     void *data;
 
-    QTAILQ_ENTRY(smc_key) entry;
+    QTAILQ_ENTRY(SMCKey) entry;
     KeyReader read;
     KeyWriter write;
 };
@@ -176,15 +176,15 @@ struct AppleSMCState {
     AppleRTKit parent_obj;
 
     MemoryRegion *iomems[3];
-    QTAILQ_HEAD(, smc_key) keys;
+    QTAILQ_HEAD(, SMCKey) keys;
     uint32_t key_count;
     uint64_t sram_addr;
     uint8_t sram[0x4000];
 };
 
-static smc_key *smc_get_key(AppleSMCState *s, uint32_t key)
+static SMCKey *smc_get_key(AppleSMCState *s, uint32_t key)
 {
-    smc_key *d;
+    SMCKey *d;
     QTAILQ_FOREACH (d, &s->keys, entry) {
         if (d->key == key) {
             return d;
@@ -193,86 +193,88 @@ static smc_key *smc_get_key(AppleSMCState *s, uint32_t key)
     return NULL;
 }
 
-static smc_key *smc_create_key(AppleSMCState *s, uint32_t key, uint32_t size,
-                               uint32_t type, uint32_t attr, void *data)
+static SMCKey *smc_create_key(AppleSMCState *s, uint32_t key, uint32_t size,
+                              uint32_t type, uint32_t attr, void *data)
 {
-    smc_key *k = smc_get_key(s, key);
-    if (!k) {
-        k = g_new0(smc_key, 1);
-        QTAILQ_INSERT_TAIL(&s->keys, k, entry);
-        s->key_count++;
-    }
+    SMCKey *k;
+
+    g_assert_null(smc_get_key(s, key));
+
+    k = g_new0(SMCKey, 1);
+    QTAILQ_INSERT_TAIL(&s->keys, k, entry);
+    s->key_count++;
     k->key = key;
     k->info.size = size;
     k->info.type = type;
     k->info.attr = attr;
-    k->data = g_realloc(k->data, size);
-    memcpy(k->data, data, size);
+    k->data = g_malloc(size);
+    if (data == NULL) {
+        memset(k->data, 0, size);
+    } else {
+        memcpy(k->data, data, size);
+    }
+
     return k;
 }
 
-static smc_key *smc_create_key_func(AppleSMCState *s, uint32_t key,
-                                    uint32_t size, uint32_t type, uint32_t attr,
-                                    KeyReader reader, KeyWriter writer)
+static SMCKey *smc_create_key_func(AppleSMCState *s, uint32_t key,
+                                   uint32_t size, uint32_t type, uint32_t attr,
+                                   KeyReader reader, KeyWriter writer)
 {
-    smc_key *k = smc_get_key(s, key);
-    if (!k) {
-        k = g_new0(smc_key, 1);
-        QTAILQ_INSERT_TAIL(&s->keys, k, entry);
-        s->key_count++;
-    }
-    k->key = key;
-    k->info.size = size;
-    k->info.type = type;
-    k->info.attr = attr;
-    k->data = g_realloc(k->data, size);
+    SMCKey *k;
+
+    k = smc_create_key(s, key, size, type, attr, NULL);
+
     k->read = reader;
     k->write = writer;
+
     return k;
 }
 
-static smc_key *smc_set_key(AppleSMCState *s, uint32_t key, uint32_t size,
-                            void *data)
+static uint8_t smc_set_key(AppleSMCState *s, uint32_t key, uint32_t size,
+                           void *data)
 {
-    smc_key *k = smc_get_key(s, key);
-    if (!k) {
-        k = g_new0(smc_key, 1);
-        QTAILQ_INSERT_TAIL(&s->keys, k, entry);
-        s->key_count++;
+    SMCKey *k;
+
+    k = smc_get_key(s, key);
+
+    if (k == NULL) {
+        return kSMCKeyNotFound;
     }
-    k->key = key;
+
     k->info.size = size;
-    k->data = g_realloc(k->data, size);
+    g_free(k->data);
+    k->data = g_malloc(size);
     memcpy(k->data, data, size);
-    return k;
+
+    return kSMCSuccess;
 }
 
-static uint8_t smc_key_reject_read(AppleSMCState *s, smc_key *k, void *payload,
+static uint8_t smc_key_reject_read(AppleSMCState *s, SMCKey *k, void *payload,
                                    uint8_t length)
 {
     return kSMCKeyNotReadable;
 }
 
-static uint8_t smc_key_reject_write(AppleSMCState *s, smc_key *k, void *payload,
+static uint8_t smc_key_reject_write(AppleSMCState *s, SMCKey *k, void *payload,
                                     uint8_t length)
 {
     return kSMCKeyNotWritable;
 }
 
-static uint8_t G_GNUC_UNUSED smc_key_noop_read(AppleSMCState *s, smc_key *k,
+static uint8_t G_GNUC_UNUSED smc_key_noop_read(AppleSMCState *s, SMCKey *k,
                                                void *payload, uint8_t length)
 {
     return kSMCSuccess;
 }
 
-static uint8_t G_GNUC_UNUSED smc_key_copy_write(AppleSMCState *s, smc_key *k,
+static uint8_t G_GNUC_UNUSED smc_key_copy_write(AppleSMCState *s, SMCKey *k,
                                                 void *payload, uint8_t length)
 {
-    smc_set_key(s, k->key, length, payload);
-    return kSMCSuccess;
+    return smc_set_key(s, k->key, length, payload);
 }
 
-static uint8_t smc_key_count_read(AppleSMCState *s, smc_key *k, void *payload,
+static uint8_t smc_key_count_read(AppleSMCState *s, SMCKey *k, void *payload,
                                   uint8_t length)
 {
     k->info.size = 4;
@@ -281,17 +283,19 @@ static uint8_t smc_key_count_read(AppleSMCState *s, smc_key *k, void *payload,
     return kSMCSuccess;
 }
 
-static uint8_t smc_key_mbse_write(AppleSMCState *s, smc_key *k, void *payload,
+static uint8_t smc_key_mbse_write(AppleSMCState *s, SMCKey *k, void *payload,
                                   uint8_t length)
 {
     AppleRTKit *rtk;
     uint32_t value;
 
-    rtk = APPLE_RTKIT(s);
-    if (!payload || length != k->info.size) {
+    if (payload == NULL || length != k->info.size) {
         return kSMCBadArgumentError;
     }
+
+    rtk = APPLE_RTKIT(s);
     value = *(uint32_t *)payload;
+
     switch (value) {
     case SMC_MAKE_IDENTIFIER('o', 'f', 'f', 'w'):
     case SMC_MAKE_IDENTIFIER('o', 'f', 'f', '1'):
@@ -306,7 +310,7 @@ static uint8_t smc_key_mbse_write(AppleSMCState *s, smc_key *k, void *payload,
     case SMC_MAKE_IDENTIFIER('s', 'l', 'p', 'w'):
         return kSMCSuccess;
     case SMC_MAKE_IDENTIFIER('p', 'a', 'n', 'b'): {
-        key_response r = { 0 };
+        KeyResponse r = { 0 };
         r.status = SMC_NOTIFICATION;
         r.response[2] = kSMCNotifySMCPanicProgress;
         r.response[3] = kSMCSystemStateNotify;
@@ -314,7 +318,7 @@ static uint8_t smc_key_mbse_write(AppleSMCState *s, smc_key *k, void *payload,
         return kSMCSuccess;
     }
     case SMC_MAKE_IDENTIFIER('p', 'a', 'n', 'e'): {
-        key_response r = { 0 };
+        KeyResponse r = { 0 };
         r.status = SMC_NOTIFICATION;
         r.response[2] = kSMCNotifySMCPanicDone;
         r.response[3] = kSMCSystemStateNotify;
@@ -326,23 +330,21 @@ static uint8_t smc_key_mbse_write(AppleSMCState *s, smc_key *k, void *payload,
     }
 }
 
-static uint8_t smc_key_lgpb_write(AppleSMCState *s, smc_key *k, void *payload,
+static uint8_t smc_key_lgpb_write(AppleSMCState *s, SMCKey *k, void *payload,
                                   uint8_t length)
 {
     /* fprintf(stderr, "LGPB: payload: 0x%x\n", *(uint8_t *)payload); */
-    smc_set_key(s, k->key, length, payload);
-    return kSMCSuccess;
+    return smc_set_key(s, k->key, length, payload);
 }
 
-static uint8_t smc_key_lgpe_write(AppleSMCState *s, smc_key *k, void *payload,
+static uint8_t smc_key_lgpe_write(AppleSMCState *s, SMCKey *k, void *payload,
                                   uint8_t length)
 {
     /* fprintf(stderr, "LGPE: payload: 0x%x\n", *(uint8_t *)payload); */
-    smc_set_key(s, k->key, length, payload);
-    return kSMCSuccess;
+    return smc_set_key(s, k->key, length, payload);
 }
 
-static uint8_t smc_key_nesn_write(AppleSMCState *s, smc_key *k, void *payload,
+static uint8_t smc_key_nesn_write(AppleSMCState *s, SMCKey *k, void *payload,
                                   uint8_t length)
 {
 #if 0
@@ -350,8 +352,7 @@ static uint8_t smc_key_nesn_write(AppleSMCState *s, smc_key *k, void *payload,
     uint8_t *p = (uint8_t *)payload;
     fprintf(stderr, "NESN: payload: 0x%x\n", *(uint32_t *)payload);
 #endif
-    smc_set_key(s, k->key, length, payload);
-    return kSMCSuccess;
+    return smc_set_key(s, k->key, length, payload);
 }
 
 static void apple_smc_handle_key_endpoint(void *opaque, uint32_t ep,
@@ -359,12 +360,16 @@ static void apple_smc_handle_key_endpoint(void *opaque, uint32_t ep,
 {
     AppleRTKit *rtk;
     AppleSMCState *s;
-    struct key_message *kmsg;
+    KeyMessage *kmsg;
+    KeyResponse r;
 
     s = APPLE_SMC_IOP(opaque);
     rtk = APPLE_RTKIT(opaque);
-    kmsg = (struct key_message *)&msg;
+    kmsg = (KeyMessage *)&msg;
+
+    memset(&r, 0, sizeof(r));
     SMC_LOG_MSG(ep, msg);
+
     switch (kmsg->cmd) {
     case SMC_GET_SRAM_ADDR: {
         apple_rtkit_send_user_msg(rtk, ep, s->sram_addr);
@@ -372,12 +377,11 @@ static void apple_smc_handle_key_endpoint(void *opaque, uint32_t ep,
     }
     case SMC_READ_KEY:
     case SMC_READ_KEY_PAYLOAD: {
-        key_response r = { 0 };
-        smc_key *k = smc_get_key(s, kmsg->key);
-        if (!k) {
+        SMCKey *k = smc_get_key(s, kmsg->key);
+        if (k == NULL) {
             r.status = kSMCKeyNotFound;
         } else {
-            if (k->read) {
+            if (k->read != NULL) {
                 r.status = k->read(s, k, s->sram, kmsg->payload_length);
             }
             if (r.status == kSMCSuccess) {
@@ -390,61 +394,60 @@ static void apple_smc_handle_key_endpoint(void *opaque, uint32_t ep,
                 r.status = kSMCSuccess;
             }
         }
-        r.ui8TagAndId = kmsg->ui8TagAndId;
+        r.ui8_tag_and_id = kmsg->ui8_tag_and_id;
         apple_rtkit_send_user_msg(rtk, ep, r.raw);
         break;
     }
     case SMC_WRITE_KEY: {
-        smc_key *k = smc_get_key(s, kmsg->key);
-        key_response r = { 0 };
-        if (k && k->write) {
-            r.status = k->write(s, k, s->sram, kmsg->length);
+        SMCKey *k = smc_get_key(s, kmsg->key);
+        if (k == NULL) {
+            r.status = kSMCKeyNotFound;
         } else {
-            smc_set_key(s, kmsg->key, kmsg->length, s->sram);
-            r.status = kSMCSuccess;
+            if (k->write != NULL) {
+                r.status = k->write(s, k, s->sram, kmsg->length);
+            } else {
+                r.status = smc_set_key(s, kmsg->key, kmsg->length, s->sram);
+            }
+            r.length = kmsg->length;
         }
-        r.ui8TagAndId = kmsg->ui8TagAndId;
-        r.length = kmsg->length;
+        r.ui8_tag_and_id = kmsg->ui8_tag_and_id;
         apple_rtkit_send_user_msg(rtk, ep, r.raw);
         break;
     }
     case SMC_GET_KEY_BY_INDEX: {
-        key_response r = { 0 };
         uint32_t idx = kmsg->key;
-        smc_key *k = QTAILQ_FIRST(&s->keys);
+        SMCKey *k = QTAILQ_FIRST(&s->keys);
 
         for (int i = 0; i < idx && k; i++) {
             k = QTAILQ_NEXT(k, entry);
         }
 
-        if (!k) {
+        if (k == NULL) {
             r.status = kSMCKeyIndexRangeError;
         } else {
             r.status = kSMCSuccess;
             memcpy(r.response, &k->key, 4);
             bswap32s((uint32_t *)r.response);
         }
-        r.ui8TagAndId = kmsg->ui8TagAndId;
+        r.ui8_tag_and_id = kmsg->ui8_tag_and_id;
         apple_rtkit_send_user_msg(rtk, ep, r.raw);
         break;
     }
     case SMC_GET_KEY_INFO: {
-        smc_key *k = smc_get_key(s, kmsg->key);
-        key_response r = { 0 };
-        if (!k) {
+        SMCKey *k = smc_get_key(s, kmsg->key);
+        if (k == NULL) {
             r.status = kSMCKeyNotFound;
         } else {
             memcpy(s->sram, &k->info, sizeof(k->info));
             r.status = kSMCSuccess;
         }
-        r.ui8TagAndId = kmsg->ui8TagAndId;
+        r.ui8_tag_and_id = kmsg->ui8_tag_and_id;
         apple_rtkit_send_user_msg(rtk, ep, r.raw);
         break;
     }
     default: {
-        key_response r = { 0 };
         r.status = kSMCBadCommand;
-        r.ui8TagAndId = kmsg->ui8TagAndId;
+        r.ui8_tag_and_id = kmsg->ui8_tag_and_id;
         apple_rtkit_send_user_msg(rtk, ep, r.raw);
         fprintf(stderr, "SMC: Unknown SMC Command: 0x%02x\n", kmsg->cmd);
         break;
@@ -534,85 +537,87 @@ SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
 
 static void apple_smc_realize(DeviceState *dev, Error **errp)
 {
-    AppleSMCState *s = APPLE_SMC_IOP(dev);
-    AppleSMCClass *sc = APPLE_SMC_IOP_GET_CLASS(dev);
-
-    if (sc->parent_realize) {
-        sc->parent_realize(dev, errp);
-    }
-
+    AppleSMCState *s;
+    AppleSMCClass *sc;
     uint8_t data[8] = { 0x00, 0x00, 0x70, 0x80, 0x00, 0x01, 0x19, 0x40 };
     uint64_t value;
 
-    smc_create_key_func(s, SmcKeyNKEY, 4, SmcKeyTypeUint32,
+    s = APPLE_SMC_IOP(dev);
+    sc = APPLE_SMC_IOP_GET_CLASS(dev);
+
+    if (sc->parent_realize != NULL) {
+        sc->parent_realize(dev, errp);
+    }
+
+    smc_create_key_func(s, SMCKeyNKEY, 4, SMCKeyTypeUInt32,
                         SMC_ATTR_LITTLE_ENDIAN, &smc_key_count_read,
                         &smc_key_reject_write);
 
-    smc_create_key(s, SmcKeyCLKH, 8, SmcKeyTypeClh, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key(s, SMCKeyCLKH, 8, SMCKeyTypeClh, SMC_ATTR_LITTLE_ENDIAN,
                    data);
 
     data[0] = 3;
-    smc_create_key(s, SmcKeyRGEN, 1, SmcKeyTypeUint8, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key(s, SMCKeyRGEN, 1, SMCKeyTypeUInt8, SMC_ATTR_LITTLE_ENDIAN,
                    data);
 
     value = 0;
-    smc_create_key(s, SmcKeyADC_, 4, SmcKeyTypeUint32, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key(s, SMCKeyADC_, 4, SMCKeyTypeUInt32, SMC_ATTR_LITTLE_ENDIAN,
                    &value);
 
-    smc_create_key_func(s, SmcKeyMBSE, 4, SmcKeyTypeHex, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key_func(s, SMCKeyMBSE, 4, SMCKeyTypeHex, SMC_ATTR_LITTLE_ENDIAN,
                         &smc_key_reject_read, &smc_key_mbse_write);
 
-    smc_create_key_func(s, SmcKeyLGPB, 1, SmcKeyTypeFlag,
+    smc_create_key_func(s, SMCKeyLGPB, 1, SMCKeyTypeFlag,
                         SMC_ATTR_LITTLE_ENDIAN, NULL, &smc_key_lgpb_write);
-    smc_create_key_func(s, SmcKeyLGPE, 1, SmcKeyTypeFlag,
+    smc_create_key_func(s, SMCKeyLGPE, 1, SMCKeyTypeFlag,
                         SMC_ATTR_LITTLE_ENDIAN, NULL, &smc_key_lgpe_write);
-    smc_create_key_func(s, SmcKeyNESN, 4, SmcKeyTypeHex, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key_func(s, SMCKeyNESN, 4, SMCKeyTypeHex, SMC_ATTR_LITTLE_ENDIAN,
                         &smc_key_reject_read, &smc_key_nesn_write);
 
     value = 1;
-    smc_create_key(s, SmcKeyAC_N, 1, SmcKeyTypeUint8, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key(s, SMCKeyAC_N, 1, SMCKeyTypeUInt8, SMC_ATTR_LITTLE_ENDIAN,
                    &value);
     value = 0;
     smc_create_key(s, SMC_MAKE_IDENTIFIER('C', 'H', 'A', 'I'), 4,
-                   SmcKeyTypeUint32, SMC_ATTR_LITTLE_ENDIAN, &value);
-    smc_create_key(s, SmcKeyTG0B, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+                   SMCKeyTypeUInt32, SMC_ATTR_LITTLE_ENDIAN, &value);
+    smc_create_key(s, SMCKeyTG0B, 8, SMCKeyTypeIOFT, SMC_ATTR_LITTLE_ENDIAN,
                    &value);
-    smc_create_key(s, SmcKeyTG0V, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key(s, SMCKeyTG0V, 8, SMCKeyTypeIOFT, SMC_ATTR_LITTLE_ENDIAN,
                    &value);
-    smc_create_key(s, SmcKeyTP1A, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key(s, SMCKeyTP1A, 8, SMCKeyTypeIOFT, SMC_ATTR_LITTLE_ENDIAN,
                    &value);
-    smc_create_key(s, SmcKeyTP2C, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key(s, SMCKeyTP2C, 8, SMCKeyTypeIOFT, SMC_ATTR_LITTLE_ENDIAN,
                    &value);
     for (char i = '1'; i <= '5'; i++) {
         smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'P', i, 'd'), 8,
-                       SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN, &value);
+                       SMCKeyTypeIOFT, SMC_ATTR_LITTLE_ENDIAN, &value);
     }
-    smc_create_key(s, SmcKeyTP3R, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key(s, SMCKeyTP3R, 8, SMCKeyTypeIOFT, SMC_ATTR_LITTLE_ENDIAN,
                    &value);
-    smc_create_key(s, SmcKeyTP4H, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key(s, SMCKeyTP4H, 8, SMCKeyTypeIOFT, SMC_ATTR_LITTLE_ENDIAN,
                    &value);
-    smc_create_key(s, SmcKeyTP0Z, 8, SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key(s, SMCKeyTP0Z, 8, SMCKeyTypeIOFT, SMC_ATTR_LITTLE_ENDIAN,
                    &value);
-    smc_create_key(s, SmcKeyB0AP, 4, SmcKeyTypeSint32, SMC_ATTR_LITTLE_ENDIAN,
+    smc_create_key(s, SMCKeyB0AP, 4, SMCKeyTypeSInt32, SMC_ATTR_LITTLE_ENDIAN,
                    &value);
     for (char i = '0'; i <= '2'; i++) {
         smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'h', i, 'a'), 8,
-                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+                       SMCKeyTypeFLT, SMC_ATTR_LITTLE_ENDIAN, &value);
         smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'h', i, 'f'), 8,
-                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+                       SMCKeyTypeFLT, SMC_ATTR_LITTLE_ENDIAN, &value);
         smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'h', i, 'x'), 8,
-                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+                       SMCKeyTypeFLT, SMC_ATTR_LITTLE_ENDIAN, &value);
         smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'c', i, 'a'), 8,
-                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+                       SMCKeyTypeFLT, SMC_ATTR_LITTLE_ENDIAN, &value);
         smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'c', i, 'f'), 8,
-                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+                       SMCKeyTypeFLT, SMC_ATTR_LITTLE_ENDIAN, &value);
         smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'c', i, 'x'), 8,
-                       SmcKeyTypeFlt, SMC_ATTR_LITTLE_ENDIAN, &value);
+                       SMCKeyTypeFLT, SMC_ATTR_LITTLE_ENDIAN, &value);
     }
     smc_create_key(s, SMC_MAKE_IDENTIFIER('D', '0', 'V', 'R'), 2,
-                   SmcKeyTypeUint16, SMC_ATTR_LITTLE_ENDIAN, &value);
+                   SMCKeyTypeUInt16, SMC_ATTR_LITTLE_ENDIAN, &value);
     smc_create_key(s, SMC_MAKE_IDENTIFIER('T', 'V', '0', 's'), 8,
-                   SmcKeyTypeIoft, SMC_ATTR_LITTLE_ENDIAN, &value);
+                   SMCKeyTypeIOFT, SMC_ATTR_LITTLE_ENDIAN, &value);
 }
 
 static void apple_smc_class_init(ObjectClass *klass, void *data)
