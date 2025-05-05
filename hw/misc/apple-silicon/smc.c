@@ -158,10 +158,9 @@ struct SMCKey {
     uint32_t key;
     SMCKeyInfo info;
     void *data;
-
-    QTAILQ_ENTRY(SMCKey) entry;
     KeyReader read;
     KeyWriter write;
+    QTAILQ_ENTRY(SMCKey) entry;
 };
 
 struct AppleSMCClass {

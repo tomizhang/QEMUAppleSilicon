@@ -20,12 +20,12 @@
 #define SART_MAX_VA_BITS 42
 #define SART_NUM_REGIONS 16
 
-typedef struct AppleSARTIOMMUMemoryRegion {
+struct AppleSARTIOMMUMemoryRegion {
     IOMMUMemoryRegion parent_obj;
     AppleSARTState *s;
-} AppleSARTIOMMUMemoryRegion;
+};
 
-typedef struct AppleSARTRegion {
+typedef struct {
     uint64_t addr;
     uint64_t size;
     uint32_t flags;

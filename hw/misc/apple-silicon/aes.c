@@ -24,7 +24,7 @@ typedef struct AESCommand {
     QTAILQ_ENTRY(AESCommand) entry;
 } AESCommand;
 
-typedef struct AESKey {
+typedef struct {
     QCryptoCipher *cipher;
     key_select_t select;
     QCryptoCipherAlgo algo;

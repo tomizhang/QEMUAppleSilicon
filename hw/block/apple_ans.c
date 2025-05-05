@@ -45,12 +45,6 @@ OBJECT_DECLARE_SIMPLE_TYPE(AppleANSState, APPLE_ANS)
 #define NVME_APPLE_MODESEL 0x1304
 #define NVME_APPLE_VENDOR_REG_SIZE (0x60000)
 
-typedef struct QEMU_PACKED {
-    uint32_t NSID;
-    uint32_t NSType;
-    uint32_t numBlocks;
-} NVMeCreateNamespacesEntryStruct;
-
 struct AppleANSState {
     PCIExpressHost parent_obj;
     MemoryRegion iomems[4];
@@ -216,11 +210,11 @@ SysBusDevice *apple_ans_create(DTBNode *node, AppleA7IOPVersion version,
     apple_rtkit_register_user_ep(s->rtk, 0, s, apple_ans_ep_handler);
     sysbus_init_mmio(sbd, sysbus_mmio_get_region(SYS_BUS_DEVICE(s->rtk), 0));
 
-    memory_region_init_io(&s->iomems[1], OBJECT(dev), &ascv2_core_reg_ops, s,
+    memory_region_init_io(&s->iomems[1], OBJECT(s), &ascv2_core_reg_ops, s,
                           TYPE_APPLE_ANS ".ascv2-core-reg", reg[3]);
     sysbus_init_mmio(sbd, &s->iomems[1]);
 
-    memory_region_init_io(&s->iomems[2], OBJECT(dev), &iop_autoboot_reg_ops, s,
+    memory_region_init_io(&s->iomems[2], OBJECT(s), &iop_autoboot_reg_ops, s,
                           TYPE_APPLE_ANS ".iop-autoboot-reg", reg[5]);
     sysbus_init_mmio(sbd, &s->iomems[2]);
 
@@ -233,7 +227,7 @@ SysBusDevice *apple_ans_create(DTBNode *node, AppleA7IOPVersion version,
     dtb_set_prop_u32(child, "pre-loaded", 1);
     dtb_set_prop_u32(child, "running", 1);
 
-    object_initialize_child(OBJECT(dev), "nvme", &s->nvme, TYPE_NVME);
+    object_initialize_child(OBJECT(s), "nvme", &s->nvme, TYPE_NVME);
 
     object_property_set_str(OBJECT(&s->nvme), "serial", "ChefKiss-ANS",
                             &error_fatal);
@@ -254,10 +248,10 @@ SysBusDevice *apple_ans_create(DTBNode *node, AppleA7IOPVersion version,
                                      pci_swizzle_map_irq_fn, s, &s->io_mmio,
                                      &s->io_ioport, 0, 4, TYPE_PCIE_BUS);
 
-    memory_region_init_io(&s->iomems[3], OBJECT(dev), &apple_ans_vendor_reg_ops,
+    memory_region_init_io(&s->iomems[3], OBJECT(s), &apple_ans_vendor_reg_ops,
                           s, TYPE_APPLE_ANS ".mmio", reg[7]);
     alias = g_new(MemoryRegion, 1);
-    memory_region_init_alias(alias, OBJECT(dev), TYPE_APPLE_ANS ".nvme",
+    memory_region_init_alias(alias, OBJECT(s), TYPE_APPLE_ANS ".nvme",
                              &s->nvme.iomem, 0, 0x1200);
     memory_region_add_subregion_overlap(&s->iomems[3], 0, alias, 1);
     sysbus_init_mmio(sbd, &s->iomems[3]);

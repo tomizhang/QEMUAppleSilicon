@@ -17,7 +17,7 @@ OBJECT_DECLARE_TYPE(AppleRTKit, AppleRTKitClass, APPLE_RTKIT)
 #define EP0_WAIT_ROLLCALL (2)
 #define EP0_DONE (3)
 
-typedef struct AppleRTKitMessage {
+typedef struct {
     struct QEMU_PACKED {
         uint64_t msg;
         uint32_t endpoint;

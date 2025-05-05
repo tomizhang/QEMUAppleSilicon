@@ -24,7 +24,7 @@
     } while (0)
 #endif
 
-typedef enum sio_op {
+typedef enum {
     OP_GET_PARAM = 2,
     OP_GET_PARAM_RETURN = 103,
     OP_CONFIG_SHIM = 5,
@@ -38,14 +38,14 @@ typedef enum sio_op {
     OP_ASYNC_ERROR = 102,
     OP_DMA_COMPLETE = 104,
     OP_QUERY_DMA_OK = 105,
-} sio_op;
+} SIOOp;
 
-typedef enum sio_endpoint {
+typedef enum {
     EP_CONTROL = 0,
     EP_PERF = 3,
-} sio_endpoint;
+} SIOEndpoint;
 
-typedef enum sio_param_id {
+typedef enum {
     PARAM_PROTOCOL = 0,
     PARAM_DMA_SEGMENT_BASE = 1,
     PARAM_DMA_SEGMENT_SIZE = 2,
@@ -67,9 +67,9 @@ typedef enum sio_param_id {
     PARAM_PS_REGS_SIZE = 37,
     PARAM_FORWARD_IRQS_BASE = 38,
     PARAM_FORWARD_IRQS_SIZE = 39,
-} sio_param_id;
+} SIOParamId;
 
-typedef struct QEMU_PACKED sio_msg {
+typedef struct QEMU_PACKED {
     union {
         uint64_t raw;
         struct QEMU_PACKED {
@@ -80,7 +80,7 @@ typedef struct QEMU_PACKED sio_msg {
             uint32_t data;
         };
     };
-} sio_msg;
+} SIOMessage;
 
 static void apple_sio_map_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep)
 {
@@ -141,7 +141,7 @@ static void apple_sio_unmap_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep)
 static void apple_sio_dma_writeback(AppleSIOState *s, AppleSIODMAEndpoint *ep)
 {
     AppleRTKit *rtk;
-    sio_msg m = { 0 };
+    SIOMessage m = { 0 };
 
     rtk = APPLE_RTKIT(s);
     m.op = OP_DMA_COMPLETE;
@@ -191,10 +191,10 @@ int apple_sio_dma_remaining(AppleSIODMAEndpoint *ep)
 }
 
 static void apple_sio_control(AppleSIOState *s, AppleSIODMAEndpoint *ep,
-                              sio_msg *m)
+                              SIOMessage *m)
 {
     AppleRTKit *rtk;
-    sio_msg reply = { 0 };
+    SIOMessage reply = { 0 };
 
     rtk = APPLE_RTKIT(s);
     reply.ep = m->ep;
@@ -216,10 +216,11 @@ static void apple_sio_control(AppleSIOState *s, AppleSIODMAEndpoint *ep,
     apple_rtkit_send_user_msg(rtk, EP_CONTROL, reply.raw);
 };
 
-static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep, sio_msg m)
+static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep,
+                          SIOMessage m)
 {
     AppleRTKit *rtk;
-    sio_msg reply = { 0 };
+    SIOMessage reply = { 0 };
 
     rtk = APPLE_RTKIT(s);
     reply.ep = m.ep;
@@ -255,9 +256,9 @@ static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep, sio_msg m)
         qemu_sglist_init(&ep->sgl, DEVICE(s), segment_count, &s->dma_as);
         ep->tag = m.tag;
         ep->count = segment_count;
-        ep->segments = g_new0(sio_dma_segment, segment_count);
+        ep->segments = g_new0(SIODMASegment, segment_count);
         dma_memory_read(&s->dma_as, seg_addr, ep->segments,
-                        segment_count * sizeof(sio_dma_segment),
+                        segment_count * sizeof(SIODMASegment),
                         MEMTXATTRS_UNSPECIFIED);
         for (int i = 0; i < segment_count; i++) {
             qemu_sglist_add(&ep->sgl, ep->segments[i].addr,
@@ -294,7 +295,7 @@ static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep, sio_msg m)
 static void apple_sio_handle_endpoint(void *opaque, uint32_t ep, uint64_t msg)
 {
     AppleSIOState *sio;
-    sio_msg m = { 0 };
+    SIOMessage m = { 0 };
 
     sio = APPLE_SIO(opaque);
     m.raw = msg;

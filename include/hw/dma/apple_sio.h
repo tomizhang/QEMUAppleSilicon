@@ -12,27 +12,27 @@
 #define TYPE_APPLE_SIO "apple.sio"
 OBJECT_DECLARE_TYPE(AppleSIOState, AppleSIOClass, APPLE_SIO)
 
-#define SIO_NUM_EPS (0xdb)
+#define SIO_NUM_EPS (0xDB)
 
-typedef struct QEMU_PACKED sio_dma_config {
+typedef struct QEMU_PACKED {
     uint32_t xfer;
     uint32_t timeout;
     uint32_t fifo;
     uint32_t trigger;
     uint32_t depth;
     uint64_t unk18;
-} sio_dma_config;
+} SIODMAConfig;
 
-typedef struct QEMU_PACKED sio_dma_segment {
+typedef struct QEMU_PACKED {
     uint64_t addr;
     uint32_t len;
-} sio_dma_segment;
+} SIODMASegment;
 
 typedef void AppleSIODMAHandler(void *opaque, uint32_t ep, uint32_t length);
 
 typedef struct AppleSIODMAEndpoint {
-    struct sio_dma_config config;
-    struct sio_dma_segment *segments;
+    SIODMAConfig config;
+    SIODMASegment *segments;
     QEMUSGList sgl;
     QEMUIOVector iov;
     uint32_t count;
