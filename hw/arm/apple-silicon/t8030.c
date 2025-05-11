@@ -719,7 +719,7 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     if (nvram == NULL) {
         error_setg(&error_abort, "Failed to find NVRAM device");
         return;
-    };
+    }
     apple_nvram_load(nvram);
 
     info_report("boot_mode: %u", t8030_machine->boot_mode);
@@ -1561,8 +1561,11 @@ static void t8030_create_i2c(T8030MachineState *t8030_machine, const char *name)
     DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io");
 
     child = dtb_get_node(child, name);
-    if (!child)
+    if (child == NULL) {
+        warn_report("Failed to create %s", name);
         return;
+    }
+
     i2c = apple_i2c_create(name);
     g_assert_nonnull(i2c);
     object_property_add_child(OBJECT(t8030_machine), name, OBJECT(i2c));
@@ -1797,8 +1800,7 @@ static void t8030_create_spmi(T8030MachineState *t8030_machine,
 
     g_assert_nonnull(child);
     child = dtb_get_node(child, name);
-    if (!child)
-        return;
+    g_assert_nonnull(child);
 
     spmi = apple_spmi_create(child);
     g_assert_nonnull(spmi);
@@ -1834,16 +1836,14 @@ static void t8030_create_pmu(T8030MachineState *t8030_machine,
 
     g_assert_nonnull(child);
     child = dtb_get_node(child, parent);
-    if (!child)
-        return;
+    g_assert_nonnull(child);
 
     spmi = APPLE_SPMI(
         object_property_get_link(OBJECT(t8030_machine), parent, &error_fatal));
     g_assert_nonnull(spmi);
 
     child = dtb_get_node(child, name);
-    if (!child)
-        return;
+    g_assert_nonnull(child);
 
     pmu = apple_spmi_pmu_create(child);
     g_assert_nonnull(pmu);
@@ -1868,45 +1868,12 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
     SysBusDevice *smc;
     DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io");
     DTBNode *iop_nub;
-    AppleIOPSegmentRange segranges[2] = { 0 };
-    hwaddr smc_region_base;
-    uint64_t smc_region_size;
 
     g_assert_nonnull(child);
     child = dtb_get_node(child, "smc");
     g_assert_nonnull(child);
     iop_nub = dtb_get_node(child, "iop-smc-nub");
     g_assert_nonnull(iop_nub);
-
-    dtb_set_prop(iop_nub, "segment-names", 14, "__TEXT;__DATA");
-
-    prop = dtb_find_prop(iop_nub, "region-base");
-    g_assert_nonnull(prop);
-    smc_region_base = *(uint64_t *)prop->data;
-    prop = dtb_find_prop(iop_nub, "region-size");
-    g_assert_nonnull(prop);
-    smc_region_size = *(uint64_t *)prop->data;
-
-    allocate_ram(t8030_machine->sys_mem, "SMC_REGION0", smc_region_base,
-                 smc_region_size, 0);
-
-    segranges[0].phys = smc_region_base + T8030_SMC_SRAM_SIZE;
-    segranges[0].virt = 0x0;
-    segranges[0].remap = smc_region_base;
-    segranges[0].size = (smc_region_size - T8030_SMC_SRAM_SIZE) / 2;
-    segranges[0].flags = 0x1;
-
-    segranges[1].phys = segranges[0].phys + segranges[0].size;
-    segranges[1].virt = segranges[0].size;
-    segranges[1].remap = segranges[1].phys;
-    segranges[1].size =
-        smc_region_size - segranges[0].size - T8030_SMC_SRAM_SIZE;
-    segranges[1].flags = 0x0;
-
-    dtb_set_prop(iop_nub, "segment-ranges", sizeof(segranges), segranges);
-
-    // used as a helper for apple_smc_create
-    dtb_set_prop_hwaddr(iop_nub, "sram-addr", smc_region_base);
 
     smc = apple_smc_create(child, APPLE_A7IOP_V4,
                            t8030_machine->rtkit_protocol_ver);
@@ -1921,7 +1888,9 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
         sysbus_mmio_map(smc, i, t8030_machine->soc_base_pa + reg[i * 2]);
     }
 
-    sysbus_mmio_map(smc, 2, smc_region_base);
+    prop = dtb_find_prop(iop_nub, "region-base");
+    g_assert_nonnull(prop);
+    sysbus_mmio_map(smc, APPLE_SMC_MMIO_SRAM, ldq_le_p(prop->data));
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);

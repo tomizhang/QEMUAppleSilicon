@@ -6,6 +6,9 @@
 #include "hw/misc/apple-silicon/a7iop/base.h"
 #include "hw/sysbus.h"
 
+#define APPLE_SMC_MMIO_ASC (1)
+#define APPLE_SMC_MMIO_SRAM (2)
+
 SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
                                uint32_t protocol_version);
 

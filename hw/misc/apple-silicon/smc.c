@@ -182,7 +182,6 @@ struct AppleSMCState {
     QTAILQ_HEAD(, SMCKey) keys;
     QTAILQ_HEAD(, SMCKeyData) key_data;
     uint32_t key_count;
-    uint64_t sram_addr;
     uint8_t sram[0x4000];
 };
 
@@ -404,7 +403,8 @@ static void apple_smc_handle_key_endpoint(void *opaque, const uint32_t ep,
 
     switch (kmsg->cmd) {
     case SMC_GET_SRAM_ADDR: {
-        apple_rtkit_send_user_msg(rtk, ep, s->sram_addr);
+        apple_rtkit_send_user_msg(rtk, ep,
+                                  s->iomems[APPLE_SMC_MMIO_SRAM]->addr);
         break;
     }
     case SMC_READ_KEY:
@@ -553,21 +553,18 @@ SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
     apple_rtkit_register_user_ep(rtk, kSMCKeyEndpoint, s,
                                  &apple_smc_handle_key_endpoint);
 
-    s->iomems[1] = g_new(MemoryRegion, 1);
-    memory_region_init_io(s->iomems[1], OBJECT(dev), &ascv2_core_reg_ops, s,
+    s->iomems[APPLE_SMC_MMIO_ASC] = g_new(MemoryRegion, 1);
+    memory_region_init_io(s->iomems[APPLE_SMC_MMIO_ASC], OBJECT(dev),
+                          &ascv2_core_reg_ops, s,
                           TYPE_APPLE_SMC_IOP ".ascv2-core-reg", reg[3]);
-    sysbus_init_mmio(sbd, s->iomems[1]);
+    sysbus_init_mmio(sbd, s->iomems[APPLE_SMC_MMIO_ASC]);
 
-    prop = dtb_find_prop(child, "sram-addr");
-    g_assert_nonnull(prop);
-    g_assert_cmpuint(prop->length, ==, 8);
-
-    s->sram_addr = *(uint64_t *)prop->data;
-    s->iomems[2] = g_new(MemoryRegion, 1);
-    memory_region_init_ram_device_ptr(s->iomems[2], OBJECT(dev),
-                                      TYPE_APPLE_SMC_IOP ".sram",
+    s->iomems[APPLE_SMC_MMIO_SRAM] = g_new(MemoryRegion, 1);
+    memory_region_init_ram_device_ptr(s->iomems[APPLE_SMC_MMIO_SRAM],
+                                      OBJECT(dev), TYPE_APPLE_SMC_IOP ".sram",
                                       sizeof(s->sram), s->sram);
-    sysbus_init_mmio(sbd, s->iomems[2]);
+    sysbus_init_mmio(sbd, s->iomems[APPLE_SMC_MMIO_SRAM]);
+
 
     dtb_set_prop_u32(child, "pre-loaded", 1);
     dtb_set_prop_u32(child, "running", 1);

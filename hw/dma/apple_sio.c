@@ -1,13 +1,7 @@
 #include "qemu/osdep.h"
-#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/dma/apple_sio.h"
-#include "hw/misc/apple-silicon/a7iop/rtkit.h"
-#include "hw/resettable.h"
 #include "qapi/error.h"
-#include "qemu/iov.h"
 #include "qemu/log.h"
-#include "qemu/module.h"
-#include "system/dma.h"
 
 // #define DEBUG_SIO
 

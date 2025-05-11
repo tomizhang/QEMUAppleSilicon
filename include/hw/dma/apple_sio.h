@@ -1,12 +1,9 @@
-#ifndef APPLE_SIO_H
-#define APPLE_SIO_H
+#ifndef HW_DMA_APPLE_SIO_H
+#define HW_DMA_APPLE_SIO_H
 
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/misc/apple-silicon/a7iop/rtkit.h"
-#include "hw/sysbus.h"
-#include "qemu/iov.h"
-#include "qom/object.h"
 #include "system/dma.h"
 
 #define TYPE_APPLE_SIO "apple.sio"
@@ -75,4 +72,4 @@ AppleSIODMAEndpoint *apple_sio_get_endpoint_from_node(AppleSIOState *s,
 SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
                                uint32_t protocol_version);
 
-#endif /* APPLE_SIO_H */
+#endif /* HW_DMA_APPLE_SIO_H */
