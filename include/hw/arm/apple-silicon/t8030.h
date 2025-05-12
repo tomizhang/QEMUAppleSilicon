@@ -68,6 +68,7 @@ typedef struct {
     char *sep_fw_filename;
     BootMode boot_mode;
     uint32_t rtkit_protocol_ver;
+    uint32_t sio_protocol;
     uint32_t build_version;
     uint64_t ecid;
     Notifier init_done_notifier;

@@ -369,7 +369,8 @@ static const MemoryRegionOps ascv2_core_reg_ops = {
 };
 
 SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
-                               uint32_t protocol_version)
+                               uint32_t rtkit_protocol_version,
+                               uint32_t protocol)
 {
     DeviceState *dev;
     AppleSIOState *s;
@@ -385,6 +386,8 @@ SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
     rtk = APPLE_RTKIT(dev);
     dev->id = g_strdup("sio");
 
+    s->params[PARAM_PROTOCOL] = protocol;
+
     child = dtb_get_node(node, "iop-sio-nub");
     g_assert_nonnull(child);
 
@@ -393,7 +396,8 @@ SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
 
     reg = (uint64_t *)prop->data;
 
-    apple_rtkit_init(rtk, NULL, "SIO", reg[1], version, protocol_version, NULL);
+    apple_rtkit_init(rtk, NULL, "SIO", reg[1], version, rtkit_protocol_version,
+                     NULL);
     apple_rtkit_register_user_ep(rtk, EP_CONTROL, s, apple_sio_handle_endpoint);
 
     memory_region_init_io(&s->ascv2_iomem, OBJECT(dev), &ascv2_core_reg_ops, s,
@@ -414,9 +418,11 @@ static void apple_sio_realize(DeviceState *dev, Error **errp)
 
     s = APPLE_SIO(dev);
     sioc = APPLE_SIO_GET_CLASS(dev);
-    if (sioc->parent_realize) {
+
+    if (sioc->parent_realize != NULL) {
         sioc->parent_realize(dev, errp);
     }
+
     obj = object_property_get_link(OBJECT(dev), "dma-mr", &error_abort);
 
     s->dma_mr = MEMORY_REGION(obj);
@@ -434,13 +440,19 @@ static void apple_sio_reset_hold(Object *obj, ResetType type)
 {
     AppleSIOState *s;
     AppleSIOClass *sioc;
+    uint32_t protocol;
 
     s = APPLE_SIO(obj);
     sioc = APPLE_SIO_GET_CLASS(obj);
+
     if (sioc->parent_reset.hold != NULL) {
         sioc->parent_reset.hold(obj, type);
     }
-    s->params[PARAM_PROTOCOL] = 9;
+
+    protocol = s->params[PARAM_PROTOCOL];
+    memset(s->params, 0, sizeof(s->params));
+    s->params[PARAM_PROTOCOL] = protocol;
+
     for (int i = 0; i < SIO_NUM_EPS; i++) {
         if (s->eps[i].mapped) {
             apple_sio_unmap_dma(s, &s->eps[i]);

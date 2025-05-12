@@ -1925,7 +1925,8 @@ static void t8030_create_sio(T8030MachineState *t8030_machine)
     g_assert_nonnull(iop_nub);
 
     sio = apple_sio_create(child, APPLE_A7IOP_V4,
-                           t8030_machine->rtkit_protocol_ver);
+                           t8030_machine->rtkit_protocol_ver,
+                           t8030_machine->sio_protocol);
     g_assert_nonnull(sio);
 
     object_property_add_child(OBJECT(t8030_machine), "sio", OBJECT(sio));
@@ -2401,6 +2402,21 @@ static void t8030_machine_init(MachineState *machine)
     case 17:
     case 18:
         t8030_machine->rtkit_protocol_ver = 12;
+        break;
+    default:
+        break;
+    }
+
+    switch (BUILD_VERSION_MAJOR(build_version)) {
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+        t8030_machine->sio_protocol = 9;
+        break;
+    case 17:
+    case 18:
+        t8030_machine->sio_protocol = 10;
         break;
     default:
         break;
