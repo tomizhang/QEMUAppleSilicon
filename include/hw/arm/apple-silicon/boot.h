@@ -130,7 +130,8 @@ typedef struct {
 #define PLATFORM_BRIDGEOS (5)
 
 #define BUILD_VERSION_MAJOR(_v) (((_v) & 0xFFFF0000) >> 16)
-#define BUILD_VERSION_MINOR(_v) (((_v) & 0x0000FF00) >> 8)
+#define BUILD_VERSION_MINOR(_v) (((_v) & 0xFF00) >> 8)
+#define BUILD_VERSION_PATCH(_v) ((_v) & 0xFF)
 
 typedef struct {
     uint32_t cmd;

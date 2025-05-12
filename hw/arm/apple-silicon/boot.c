@@ -938,10 +938,7 @@ uint32_t macho_build_version(MachoHeader64 *mh)
     for (index = 0; index < mh->n_cmds; index++) {
         switch (cmd->cmd) {
         case LC_BUILD_VERSION: {
-            MachoBuildVersionCommand *buildVerCmd =
-                (MachoBuildVersionCommand *)cmd;
-            return buildVerCmd->sdk;
-            break;
+            return ((MachoBuildVersionCommand *)cmd)->sdk;
         }
 
         default:
@@ -961,6 +958,7 @@ uint32_t macho_platform(MachoHeader64 *mh)
     if (mh->file_type == MH_FILESET) {
         mh = macho_get_fileset_header(mh, "com.apple.kernel");
     }
+
     cmd = (MachoLoadCommand *)((char *)mh + sizeof(MachoHeader64));
 
     for (index = 0; index < mh->n_cmds; index++) {

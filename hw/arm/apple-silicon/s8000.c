@@ -1243,9 +1243,10 @@ static void s8000_machine_init(MachineState *machine)
     s8000_machine->kernel = hdr;
     s8000_machine->secure_monitor = secure_monitor;
     build_version = macho_build_version(hdr);
-    info_report("Loading %s %u.%u...", macho_platform_string(hdr),
+    info_report("Loading %s %u.%u.%u...", macho_platform_string(hdr),
                 BUILD_VERSION_MAJOR(build_version),
-                BUILD_VERSION_MINOR(build_version));
+                BUILD_VERSION_MINOR(build_version),
+                BUILD_VERSION_PATCH(build_version));
     s8000_machine->build_version = build_version;
 
     macho_highest_lowest(hdr, &kernel_low, &kernel_high);

@@ -23,6 +23,7 @@
 #include "exec/memattrs.h"
 #include "exec/memory.h"
 #include "hw/arm/apple-silicon/a13.h"
+#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/dart.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/arm/apple-silicon/lm-backlight.h"
@@ -151,8 +152,16 @@ static void t8030_create_s3c_uart(const T8030MachineState *t8030_machine,
     dev->id = g_strdup(name);
 }
 
-static void t8030_patch_kernel(MachoHeader64 *hdr)
+static void t8030_patch_kernel(MachoHeader64 *hdr, uint32_t build_version)
 {
+    xnu_kpf(hdr);
+
+    if (BUILD_VERSION_MAJOR(build_version) != 14 ||
+        BUILD_VERSION_MINOR(build_version) != 0 ||
+        BUILD_VERSION_PATCH(build_version) != 0) {
+        return;
+    }
+
     const uint32_t nop = cpu_to_le32(0xD503201F);
 
     // disable_kprintf_output = 0;
@@ -217,8 +226,6 @@ static void t8030_patch_kernel(MachoHeader64 *hdr)
     // AND SHOULD BE PROSECUTED TO THE FULL EXTENT OF THE LAW.
     // We do NOT endorse nor approve the theft of property.
     memcpy((char *)vtop_slid(0xFFFFFFF00703884E), "profile", 8);
-
-    xnu_kpf(hdr);
 }
 
 static bool t8030_check_panic(T8030MachineState *t8030_machine)
@@ -2385,9 +2392,10 @@ static void t8030_machine_init(MachineState *machine)
     g_assert_nonnull(hdr);
     t8030_machine->kernel = hdr;
     build_version = macho_build_version(hdr);
-    info_report("Loading %s %u.%u...", macho_platform_string(hdr),
+    info_report("Loading %s %u.%u.%u...", macho_platform_string(hdr),
                 BUILD_VERSION_MAJOR(build_version),
-                BUILD_VERSION_MINOR(build_version));
+                BUILD_VERSION_MINOR(build_version),
+                BUILD_VERSION_PATCH(build_version));
     t8030_machine->build_version = build_version;
 
     switch (BUILD_VERSION_MAJOR(build_version)) {
@@ -2429,7 +2437,7 @@ static void t8030_machine_init(MachineState *machine)
     g_virt_base = kernel_low;
     g_phys_base = (hwaddr)macho_get_buffer(hdr);
 
-    t8030_patch_kernel(hdr);
+    t8030_patch_kernel(hdr, build_version);
 
     t8030_machine->device_tree = load_dtb_from_file(machine->dtb);
     t8030_machine->trustcache =
