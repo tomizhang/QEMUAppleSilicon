@@ -121,6 +121,7 @@ static const char *REM_NAMES[] = {
     "dotara\0$",
     "pmp\0$",
     "stockholm-spmi\0$",
+    "stockholm\0$",
 #ifndef ENABLE_BASEBAND
     "baseband\0$",
     "baseband-spmi\0$",
