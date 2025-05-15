@@ -911,11 +911,13 @@ static void apple_mt_spi_mouse_event(void *opaque, int dx, int dy, int dz,
 static void apple_mt_spi_realize(SSIPeripheral *dev, Error **errp)
 {
     AppleMTSPIState *s;
+    QEMUPutMouseEntry *entry;
 
     s = APPLE_MT_SPI(dev);
 
-    qemu_add_mouse_event_handler(apple_mt_spi_mouse_event, s, 1,
-                                 "Apple Multitouch HID SPI");
+    entry = qemu_add_mouse_event_handler(apple_mt_spi_mouse_event, s, 1,
+                                         "Apple Multitouch HID SPI");
+    qemu_activate_mouse_event_handler(entry);
 }
 
 static const VMStateDescription vmstate_apple_mt_spi_buffer = {
