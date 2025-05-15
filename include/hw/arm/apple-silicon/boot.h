@@ -20,14 +20,9 @@
 // #define ENABLE_BASEBAND
 #define ENABLE_SEP
 #define ENABLE_SEP_SECURITY
-#define ENABLE_PCIE
 
 #if defined(ENABLE_SEP_SECURITY) && !defined(ENABLE_SEP)
 #error "SEP Security cannot be enabled without SEP"
-#endif
-
-#if defined(ENABLE_BASEBAND) && !defined(ENABLE_PCIE)
-#error "Baseband cannot be enabled without APCIe"
 #endif
 
 #include "qemu/osdep.h"

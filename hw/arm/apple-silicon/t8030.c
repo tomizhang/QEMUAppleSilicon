@@ -2593,9 +2593,7 @@ static void t8030_machine_init(MachineState *machine)
     t8030_pmgr_setup(t8030_machine);
     t8030_amcc_setup(t8030_machine);
 
-#ifdef ENABLE_PCIE
     t8030_create_pcie(t8030_machine);
-#endif
 
     t8030_create_ans(t8030_machine);
 

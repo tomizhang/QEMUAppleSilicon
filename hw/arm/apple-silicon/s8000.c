@@ -145,32 +145,6 @@ static void s8000_create_s3c_uart(const S8000MachineState *s8000_machine,
 
 static void s8000_patch_kernel(MachoHeader64 *hdr)
 {
-#if 0
-    // 14beta5
-    //! disable_kprintf_output = 0;
-    *(uint32_t *)vtop_slid(0xfffffff0070ec020) = 0;
-    //! debug_enabled = 1;
-    *(uint32_t *)vtop_slid(0xfffffff00703ace0) = 1;
-//#ifdef ENABLE_PCIE
-#if 0
-    *(uint32_t *)vtop_slid(0xfffffff007918dc8) = cpu_to_le32(0xffffffff); // _gAPCIEdebugFlags: orig == 0x80000001
-#endif
-    // _doprnt_hide_pointers = 0;
-    *(uint32_t *)vtop_slid(0xfffffff00773861c) = 0;
-#endif
-#if 1
-    // 14.7.1
-    //! disable_kprintf_output = 0;
-    *(uint32_t *)vtop_slid(0xfffffff007114490) = 0;
-    //! debug_enabled = 1;
-    *(uint32_t *)vtop_slid(0xfffffff00703bfb0) = 1;
-// #ifdef ENABLE_PCIE
-#if 0
-    *(uint32_t *)vtop_slid(0x) = cpu_to_le32(0xffffffff); // _gAPCIEdebugFlags: orig == 0x80000001
-#endif
-    // _doprnt_hide_pointers = 0;
-    *(uint32_t *)vtop_slid(0xfffffff00778059c) = 0;
-#endif
     xnu_kpf(hdr);
 }
 
@@ -871,8 +845,6 @@ static void s8000_create_gpio(S8000MachineState *s8000_machine,
     ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
-        if (!strcmp(name, "gpio") && i == 0)
-            continue;
         sysbus_connect_irq(
             SYS_BUS_DEVICE(gpio), i,
             qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[i]));
@@ -1429,9 +1401,7 @@ static void s8000_machine_init(MachineState *machine)
     s8000_create_dart(s8000_machine, "dart-disp0", false);
     s8000_create_dart(s8000_machine, "dart-apcie0", true);
 
-#ifdef ENABLE_PCIE
     s8000_create_pcie(s8000_machine);
-#endif
 
     s8000_create_nvme(s8000_machine);
 

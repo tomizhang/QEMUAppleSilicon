@@ -70,7 +70,7 @@ static const char *KEEP_COMP[] = {
     "iop-nub,rtbuddy-v2\0$",
     "iop,s8000\0$",
     "iop-nub,sep\0$",
-    "iop-nub,sio\0$",
+    // "iop-nub,sio\0$",
     "N104AP\0iPhone12,1\0AppleARM\0$",
     "N104DEV\0iPhone12,1\0AppleARM\0$",
     "N66AP\0iPhone8,2\0AppleARM\0$",
@@ -101,10 +101,8 @@ static const char *KEEP_COMP[] = {
     "usb-drd,t8030\0usb-drd,t8027\0$",
     "wdt,s8000\0wdt,s5l8960x\0$",
     "wdt,t8030\0wdt,s5l8960x\0$",
-#ifdef ENABLE_PCIE
     "apcie,t8030\0$",
     "apcie,s8000\0$",
-#endif
 };
 
 static const char *REM_NAMES[] = {
@@ -122,12 +120,9 @@ static const char *REM_NAMES[] = {
     "baseband-vol\0$", "pci-bridge3\0$",
     "dart-apcie3\0$",
 #endif
-// #ifndef ENABLE_PCIE
-#if 1
     "pci-bridge1\0$",  "pci-bridge2\0$",
     "pci-bridge3\0$",  "dart-apcie1\0$",
     "dart-apcie2\0$",  "dart-apcie3\0$",
-#endif
 #ifndef ENABLE_SEP
     "sep\0$",          "dart-sep\0$",
     "xart-vol\0$",     "pearl-sep\0$",
