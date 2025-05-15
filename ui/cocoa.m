@@ -50,6 +50,7 @@
 #include "qemu/error-report.h"
 #include <Carbon/Carbon.h>
 #include "hw/core/cpu.h"
+#include "system/replay.h"
 
 #ifndef MAC_OS_VERSION_14_0
 #define MAC_OS_VERSION_14_0 140000
@@ -119,10 +120,12 @@ static void with_bql(CodeBlock block)
 {
     bool locked = bql_locked();
     if (!locked) {
+        replay_mutex_lock();
         bql_lock();
     }
     block();
     if (!locked) {
+        replay_mutex_unlock();
         bql_unlock();
     }
 }
@@ -133,10 +136,12 @@ static bool bool_with_bql(BoolCodeBlock block)
     bool val;
 
     if (!locked) {
+        replay_mutex_lock();
         bql_lock();
     }
     val = block();
     if (!locked) {
+        replay_mutex_unlock();
         bql_unlock();
     }
     return val;
