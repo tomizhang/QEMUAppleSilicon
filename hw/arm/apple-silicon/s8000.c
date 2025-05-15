@@ -39,6 +39,7 @@
 #include "hw/misc/apple-silicon/aes.h"
 #include "hw/misc/pmu_d2255.h"
 #include "hw/nvram/apple_nvram.h"
+#include "hw/pci-host/apcie.h"
 #include "hw/qdev-core.h"
 #include "hw/ssi/apple_spi.h"
 #include "hw/ssi/ssi.h"
@@ -144,6 +145,32 @@ static void s8000_create_s3c_uart(const S8000MachineState *s8000_machine,
 
 static void s8000_patch_kernel(MachoHeader64 *hdr)
 {
+#if 0
+    // 14beta5
+    //! disable_kprintf_output = 0;
+    *(uint32_t *)vtop_slid(0xfffffff0070ec020) = 0;
+    //! debug_enabled = 1;
+    *(uint32_t *)vtop_slid(0xfffffff00703ace0) = 1;
+//#ifdef ENABLE_PCIE
+#if 0
+    *(uint32_t *)vtop_slid(0xfffffff007918dc8) = cpu_to_le32(0xffffffff); // _gAPCIEdebugFlags: orig == 0x80000001
+#endif
+    // _doprnt_hide_pointers = 0;
+    *(uint32_t *)vtop_slid(0xfffffff00773861c) = 0;
+#endif
+#if 1
+    // 14.7.1
+    //! disable_kprintf_output = 0;
+    *(uint32_t *)vtop_slid(0xfffffff007114490) = 0;
+    //! debug_enabled = 1;
+    *(uint32_t *)vtop_slid(0xfffffff00703bfb0) = 1;
+// #ifdef ENABLE_PCIE
+#if 0
+    *(uint32_t *)vtop_slid(0x) = cpu_to_le32(0xffffffff); // _gAPCIEdebugFlags: orig == 0x80000001
+#endif
+    // _doprnt_hide_pointers = 0;
+    *(uint32_t *)vtop_slid(0xfffffff00778059c) = 0;
+#endif
     xnu_kpf(hdr);
 }
 
@@ -716,27 +743,80 @@ static void s8000_create_dart(S8000MachineState *s8000_machine,
     sysbus_realize_and_unref(SYS_BUS_DEVICE(dart), &error_fatal);
 }
 
-static void s8000_create_nvme(S8000MachineState *s8000_machine)
+static void s8000_create_pcie(S8000MachineState *s8000_machine)
 {
+    int i;
     uint32_t *ints;
     DTBProp *prop;
     uint64_t *reg;
-    SysBusDevice *nvme;
-    DTBNode *child;
+    SysBusDevice *pcie;
 
-    child = dtb_get_node(s8000_machine->device_tree, "arm-io/nvme-mmu0");
+    DTBNode *child = dtb_get_node(s8000_machine->device_tree, "arm-io");
+    g_assert_nonnull(child);
+    child = dtb_get_node(child, "apcie");
     g_assert_nonnull(child);
 
-    nvme = apple_nvme_mmu_create(child);
-    g_assert_nonnull(nvme);
+    dtb_set_prop_null(
+        child, "apcie-phy-tunables"); // TODO: S8000 needs it, and probably
+                                      // T8030 does need it as well.
+
+    pcie = apple_pcie_create(child);
+    g_assert_nonnull(pcie);
+    object_property_add_child(OBJECT(s8000_machine), "pcie", OBJECT(pcie));
 
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
     reg = (uint64_t *)prop->data;
 
-    sysbus_mmio_map(nvme, 0, reg[0]);
+    // TODO: Hook up all ports
+    sysbus_mmio_map(pcie, 0, reg[0 * 2]);
+    sysbus_mmio_map(pcie, 1, reg[9 * 2]);
 
+    prop = dtb_find_prop(child, "interrupts");
+    g_assert_nonnull(prop);
+    ints = (uint32_t *)prop->data;
+
+    for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
+        sysbus_connect_irq(
+            pcie, i, qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[i]));
+    }
+
+    sysbus_realize_and_unref(pcie, &error_fatal);
+}
+
+static void s8000_create_nvme(S8000MachineState *s8000_machine)
+{
+    int i;
+    uint32_t *ints;
+    DTBProp *prop;
+    uint64_t *reg;
+    SysBusDevice *nvme;
+    AppleNVMeMMUState *s;
+    DTBNode *child;
+    ApplePCIEHost *apcie_host;
+    ApplePCIERoot *apcie_root;
+
+    child = dtb_get_node(s8000_machine->device_tree, "arm-io/nvme-mmu0");
+    g_assert_nonnull(child);
+
+    PCIHostState *pci = PCI_HOST_BRIDGE(object_property_get_link(
+        OBJECT(s8000_machine), "pcie.bridge0", &error_fatal));
+    apcie_host = APPLE_PCIE_HOST(pci);
+    apcie_root = &apcie_host->root;
+    PCIBus *sec_bus = &PCI_BRIDGE(apcie_root)->sec_bus;
+    nvme = apple_nvme_mmu_create(child, sec_bus);
+    g_assert_nonnull(nvme);
     object_property_add_child(OBJECT(s8000_machine), "nvme", OBJECT(nvme));
+
+    s = APPLE_NVME_MMU(nvme);
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    reg = (uint64_t *)prop->data;
+
+    for (i = 0; i < 2; i++) {
+        sysbus_mmio_map(nvme, i, reg[i << 1]);
+    }
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
@@ -745,6 +825,21 @@ static void s8000_create_nvme(S8000MachineState *s8000_machine)
 
     sysbus_connect_irq(nvme, 0,
                        qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[0]));
+
+    AppleDARTState *dart = APPLE_DART(object_property_get_link(
+        OBJECT(s8000_machine), "dart-apcie0", &error_fatal));
+    g_assert_nonnull(dart);
+    child = dtb_get_node(s8000_machine->device_tree,
+                         "arm-io/dart-apcie0/mapper-apcie0");
+    g_assert_nonnull(child);
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    s->dma_mr =
+        MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->data));
+    g_assert_nonnull(s->dma_mr);
+    g_assert_nonnull(object_property_add_const_link(OBJECT(nvme), "dma_mr",
+                                                    OBJECT(s->dma_mr)));
+    address_space_init(&s->dma_as, s->dma_mr, "apcie0.dma");
 
     sysbus_realize_and_unref(nvme, &error_fatal);
 }
@@ -776,6 +871,8 @@ static void s8000_create_gpio(S8000MachineState *s8000_machine,
     ints = (uint32_t *)prop->data;
 
     for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
+        if (!strcmp(name, "gpio") && i == 0)
+            continue;
         sysbus_connect_irq(
             SYS_BUS_DEVICE(gpio), i,
             qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[i]));
@@ -1330,6 +1427,11 @@ static void s8000_machine_init(MachineState *machine)
     s8000_pmgr_setup(s8000_machine);
 
     s8000_create_dart(s8000_machine, "dart-disp0", false);
+    s8000_create_dart(s8000_machine, "dart-apcie0", true);
+
+#ifdef ENABLE_PCIE
+    s8000_create_pcie(s8000_machine);
+#endif
 
     s8000_create_nvme(s8000_machine);
 

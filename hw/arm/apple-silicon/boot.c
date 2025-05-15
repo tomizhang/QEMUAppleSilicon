@@ -68,7 +68,9 @@ static const char *KEEP_COMP[] = {
     "iop,ascwrap-v2\0$",
     "iop,t8030\0iop,t8015\0$",
     "iop-nub,rtbuddy-v2\0$",
+    "iop,s8000\0$",
     "iop-nub,sep\0$",
+    "iop-nub,sio\0$",
     "N104AP\0iPhone12,1\0AppleARM\0$",
     "N104DEV\0iPhone12,1\0AppleARM\0$",
     "N66AP\0iPhone8,2\0AppleARM\0$",
@@ -99,47 +101,40 @@ static const char *KEEP_COMP[] = {
     "usb-drd,t8030\0usb-drd,t8027\0$",
     "wdt,s8000\0wdt,s5l8960x\0$",
     "wdt,t8030\0wdt,s5l8960x\0$",
+#ifdef ENABLE_PCIE
+    "apcie,t8030\0$",
+    "apcie,s8000\0$",
+#endif
 };
 
 static const char *REM_NAMES[] = {
-    "gfx-asc\0$",
-    "smc-aop\0$",
-    "amfm\0$",
-    "dart-ane\0$",
-    "dart-aop\0$",
-    "dart-apcie2\0$",
-    "dart-apcie3\0$",
-    "dart-avd\0$",
-    "dart-ave\0$",
-    "dart-isp\0$",
-    "dart-jpeg0\0$",
-    "dart-jpeg1\0$",
-    "dart-pmp\0$",
-    "dart-rsm\0$",
-    "dart-scaler\0$",
-    "dockchannel-uart\0$",
-    "dotara\0$",
-    "pmp\0$",
-    "stockholm-spmi\0$",
-    "stockholm\0$",
+    "gfx-asc\0$",      "smc-aop\0$",
+    "amfm\0$",         "dart-ane\0$",
+    "dart-aop\0$",     "dart-avd\0$",
+    "dart-ave\0$",     "dart-isp\0$",
+    "dart-jpeg0\0$",   "dart-jpeg1\0$",
+    "dart-pmp\0$",     "dart-rsm\0$",
+    "dart-scaler\0$",  "dockchannel-uart\0$",
+    "dotara\0$",       "pmp\0$",
+    "stockholm\0$",    "stockholm-spmi\0$",
 #ifndef ENABLE_BASEBAND
-    "baseband\0$",
-    "baseband-spmi\0$",
-    "baseband-vol\0$",
-    "pci-bridge3\0$",
+    "baseband\0$",     "baseband-spmi\0$",
+    "baseband-vol\0$", "pci-bridge3\0$",
     "dart-apcie3\0$",
+#endif
+// #ifndef ENABLE_PCIE
+#if 1
+    "pci-bridge1\0$",  "pci-bridge2\0$",
+    "pci-bridge3\0$",  "dart-apcie1\0$",
+    "dart-apcie2\0$",  "dart-apcie3\0$",
 #endif
 #ifndef ENABLE_SEP
-    "sep\0$",
-    "dart-sep\0$",
-    "xart-vol\0$",
-    "pearl-sep\0$",
-    "isp\0$",
-    "xART\0$",
+    "sep\0$",          "dart-sep\0$",
+    "xart-vol\0$",     "pearl-sep\0$",
+    "isp\0$",          "xART\0$",
 #endif
 #ifndef ENABLE_SEP_SECURITY // necessary?
-    "pearl-sep\0$",
-    "isp\0$",
+    "pearl-sep\0$",    "isp\0$",
     "Lynx\0$",
 #endif
 };
@@ -190,6 +185,7 @@ static const char *REM_PROPS[] = {
     "pearl-camera",
     "face-detection-support",
 #endif
+    "siri-gesture",
 };
 
 static void allocate_and_copy(MemoryRegion *mem, AddressSpace *as,

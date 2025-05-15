@@ -48,6 +48,7 @@
 #include "hw/misc/apple-silicon/smc.h"
 #include "hw/misc/apple-silicon/spmi-pmu.h"
 #include "hw/nvram/apple_nvram.h"
+#include "hw/pci-host/apcie.h"
 #include "hw/spmi/apple_spmi.h"
 #include "hw/ssi/apple_spi.h"
 #include "hw/ssi/ssi.h"
@@ -1486,6 +1487,8 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     SysBusDevice *ans;
     DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io");
     DTBNode *iop_nub;
+    ApplePCIEHost *apcie_host;
+    ApplePCIERoot *apcie_root;
 
     g_assert_nonnull(child);
     child = dtb_get_node(child, "ans");
@@ -1497,8 +1500,28 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     sart = SYS_BUS_DEVICE(object_property_get_link(OBJECT(t8030_machine),
                                                    "sart-ans", &error_fatal));
 
+    // bridge0 and bridge1 don't exist in the t8030 device tree
+    // so either run in under e.g. bridge2 with sec_bus (working, but likely not
+    // actual behavior) or next to the bridges/bridge2 with pci->bus (also
+    // working, might be actual behavior) however, putting it next to bridge0
+    // with pci->bus will result in the usual panic but putting it next to
+    // bridge1 (also undefined, next to bridge0) with pci->bus is working
+    // somehow but I'll put it under bridge1 sec_bus, so every device will be
+    // under a bridge (also working) all bridges but the first one seem to work
+    // with either pci->bus or sec_bus, so ans seems to strongly dislike the
+    // first bridge maybe bridge0 has some hardcoded msi crap, or it shouldn't
+    // be used at all, no freaking idea unsure if ans/nvme under t8030 is
+    // actually exposed on the pci bus
+
+    PCIHostState *pci = PCI_HOST_BRIDGE(object_property_get_link(
+        OBJECT(t8030_machine), "pcie.bridge1", &error_fatal));
+    apcie_host = APPLE_PCIE_HOST(pci);
+    apcie_root = &apcie_host->root;
+    PCIBus *sec_bus = &PCI_BRIDGE(apcie_root)->sec_bus;
     ans = apple_ans_create(child, APPLE_A7IOP_V4,
-                           t8030_machine->rtkit_protocol_ver);
+                           t8030_machine->rtkit_protocol_ver, sec_bus);
+    // ans = apple_ans_create(child, APPLE_A7IOP_V4,
+    // t8030_machine->rtkit_protocol_ver, pci->bus);
     g_assert_nonnull(ans);
     g_assert_nonnull(object_property_add_const_link(
         OBJECT(ans), "dma-mr", OBJECT(sysbus_mmio_get_region(sart, 1))));
@@ -1521,6 +1544,13 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
         sysbus_connect_irq(
             ans, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
+    // both of those are working, so does pci_bus_irqs, but using
+    // out_named/in_named seems to be the cleanest solution
+    // qdev_connect_gpio_out_named(DEVICE(pci), "interrupt_pci", 0,
+    // qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[4]));
+    qdev_connect_gpio_out_named(
+        DEVICE(pci), "interrupt_pci", 0,
+        qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
 
     sysbus_realize_and_unref(ans, &error_fatal);
 }
@@ -1983,6 +2013,48 @@ static void t8030_create_roswell(T8030MachineState *t8030_machine)
         object_property_get_link(OBJECT(t8030_machine), "i2c3", &error_fatal));
     i2c_slave_create_simple(i2c->bus, TYPE_APPLE_ROSWELL,
                             *(uint32_t *)prop->data);
+}
+
+static void t8030_create_pcie(T8030MachineState *t8030_machine)
+{
+    int i;
+    uint32_t *ints;
+    DTBProp *prop;
+    uint64_t *reg;
+    SysBusDevice *pcie;
+
+    DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io");
+    g_assert_nonnull(child);
+    child = dtb_get_node(child, "apcie");
+    g_assert_nonnull(child);
+
+    dtb_set_prop_null(
+        child, "apcie-phy-tunables"); // TODO: S8000 needs it, and probably
+                                      // T8030 does need it as well.
+
+    pcie = apple_pcie_create(child);
+    g_assert_nonnull(pcie);
+    object_property_add_child(OBJECT(t8030_machine), "pcie", OBJECT(pcie));
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    reg = (uint64_t *)prop->data;
+
+    // TODO: Hook up all ports
+    for (i = 0; i < 3; i++) {
+        sysbus_mmio_map(pcie, i, reg[i * 2]);
+    }
+
+    prop = dtb_find_prop(child, "interrupts");
+    g_assert_nonnull(prop);
+    ints = (uint32_t *)prop->data;
+
+    for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
+        sysbus_connect_irq(
+            pcie, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
+    }
+
+    sysbus_realize_and_unref(pcie, &error_fatal);
 }
 
 static void t8030_create_backlight(T8030MachineState *t8030_machine)
@@ -2521,6 +2593,10 @@ static void t8030_machine_init(MachineState *machine)
     t8030_pmgr_setup(t8030_machine);
     t8030_amcc_setup(t8030_machine);
 
+#ifdef ENABLE_PCIE
+    t8030_create_pcie(t8030_machine);
+#endif
+
     t8030_create_ans(t8030_machine);
 
     t8030_create_gpio(t8030_machine, "gpio");
@@ -2539,6 +2615,7 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_dart(t8030_machine, "dart-sio", false);
     t8030_create_dart(t8030_machine, "dart-disp0", false);
     t8030_create_dart(t8030_machine, "dart-sep", false);
+    ////t8030_create_dart(t8030_machine, "dart-apcie2", true);
     t8030_create_usb(t8030_machine);
 
     t8030_create_wdt(t8030_machine);

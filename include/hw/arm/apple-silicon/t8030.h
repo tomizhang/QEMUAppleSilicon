@@ -25,6 +25,7 @@
 #include "exec/hwaddr.h"
 #include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/boot.h"
+//#include "hw/or-irq.h"
 #include "hw/boards.h"
 #include "hw/sysbus.h"
 #include "system/kvm.h"
@@ -81,6 +82,7 @@ typedef struct {
     bool force_dfu;
     uint32_t board_id;
     uint32_t chip_revision;
+    ////OrIRQState pcie4_msi_irq;
 } T8030MachineState;
 
 #endif /* HW_ARM_APPLE_SILICON_T8030_H */
