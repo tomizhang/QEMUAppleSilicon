@@ -144,13 +144,14 @@ static void apple_sio_dma_writeback(AppleSIOState *s, AppleSIODMAEndpoint *ep)
 
     rtk = APPLE_RTKIT(s);
 
-    apple_sio_unmap_dma(s, ep);
-
     m.op = OP_DMA_COMPLETE;
     m.ep = ep->id;
     m.param = (1 << 7);
     m.tag = ep->tag;
     m.data = ep->actual_length;
+
+    apple_sio_unmap_dma(s, ep);
+
     apple_rtkit_send_user_msg(rtk, EP_CONTROL, m.raw);
 }
 
