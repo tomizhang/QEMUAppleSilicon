@@ -2858,11 +2858,11 @@ void enable_trace_buffer(AppleSEPState *s)
     if (!s->shmbuf_base)
         return;
     AddressSpace *nsas = &address_space_memory;
-    typedef struct QEMU_PACKED {
+    typedef struct {
         uint32_t name;
         uint32_t size;
         uint64_t offset;
-    } shm_region_t;
+    } QEMU_PACKED shm_region_t;
 #ifdef SEP_ENABLE_OVERWRITE_SHMBUF_OBJECTS
     shm_region_t shm_region_TRAC = { 0 };
     g_assert_cmpuint(sizeof(shm_region_TRAC), ==, 0x10);
@@ -2883,7 +2883,7 @@ void enable_trace_buffer(AppleSEPState *s)
                       region_SCOT_size - 0x20,
                       MEMTXATTRS_UNSPECIFIED); // clean up SCOT a bit
 #endif
-    typedef struct QEMU_PACKED {
+    typedef struct {
         uint64_t name;
         uint64_t size;
         uint8_t maybe_permissions; // 0x04/0x06/0x16 // (arg5 & 1) != 0
@@ -2903,8 +2903,8 @@ void enable_trace_buffer(AppleSEPState *s)
                                         // object_mappings_t.virt_mapping_next
         uint64_t acl_next; // sepos_acl_t
         uint64_t acl_previous; // sepos_acl_t.next or object_mappings_t.acl_next
-    } object_mappings_t;
-    typedef struct QEMU_PACKED {
+    } QEMU_PACKED object_mappings_t;
+    typedef struct {
         uint64_t object_mapping; // object_mappings_t
         uint64_t maybe_virt_base;
         uint8_t sending_pid;
@@ -2916,13 +2916,13 @@ void enable_trace_buffer(AppleSEPState *s)
         uint64_t module_previous; // sepos_virt_mapping_t.next
         uint64_t all_next; // sepos_virt_mapping_t
         uint64_t all_previous; // sepos_virt_mapping_t.all_next
-    } sepos_virt_mapping_t;
-    typedef struct QEMU_PACKED {
+    } QEMU_PACKED sepos_virt_mapping_t;
+    typedef struct {
         uint32_t maybe_module_id; // 0x2/0x3/0x4/10001
         uint32_t acl; // 0x4/0x6/0x14/0x16
         uint64_t next; // sepos_acl_t
         uint64_t previous; // sepos_acl_t.next
-    } sepos_acl_t;
+    } QEMU_PACKED sepos_acl_t;
     object_mappings_t object_mapping_TRAC = { 0 };
     g_assert_cmpuint(sizeof(object_mapping_TRAC), ==, 0x48);
     sepos_acl_t acl_for_TRAC = { 0 };
@@ -2931,26 +2931,26 @@ void enable_trace_buffer(AppleSEPState *s)
     g_assert_cmpuint(sizeof(virt_mapping_for_TRAC), ==, 0x38);
 
 // SEPOS_PHYS_BASEs: not in runtime, but while in SEPROM. Same on T8020
-// (0x340611ba8-0x11ba8)
+// (0x340611BA8-0x11BA8)
 // get this with gdb, prerequisite is disabling aslr(?):
 // b *0x<sepos_module_start_function> ; gva2gpa 0x<sepos_module_start_function>
 // the result minus <sepos_module_start_function>
 // maybe it's not that easy to disable the SEPOS module ASLR under iOS 15:
 // so instead make breakpoints for the second (or both) eret and do "si".
-#define SEPOS_PHYS_BASE_T8015 0x3404a4000ull
-#define SEPOS_PHYS_BASE_T8020_IOS14 0x340600000ull
-#define SEPOS_PHYS_BASE_T8020_IOS15 0x340710000ull
-#define SEPOS_PHYS_BASE_T8030_IOS14 0x340634000ull
+#define SEPOS_PHYS_BASE_T8015 (0x3404A4000ull)
+#define SEPOS_PHYS_BASE_T8020_IOS14 (0x340600000ull)
+#define SEPOS_PHYS_BASE_T8020_IOS15 (0x340710000ull)
+#define SEPOS_PHYS_BASE_T8030_IOS14 (0x340634000ull)
 // for T8020/T8030 SEPFW of early 14 and 14.7.1
-#define SEPOS_OBJECT_MAPPING_BASE_VERSION_IOS14 0x198d0
-#define SEPOS_OBJECT_MAPPING_BASE_VERSION_IOS15 0x1d748
-#define SEPOS_OBJECT_MAPPING_INDEX 7
-// #define SEPOS_VIRT_MAPPING_BASE 0x282d0
+#define SEPOS_OBJECT_MAPPING_BASE_VERSION_IOS14 (0x198D0)
+#define SEPOS_OBJECT_MAPPING_BASE_VERSION_IOS15 (0x1D748)
+#define SEPOS_OBJECT_MAPPING_INDEX (7)
+// #define SEPOS_VIRT_MAPPING_BASE 0x282D0
 // #define SEPOS_VIRT_MAPPING_INDEX 555
 // for T8020/T8030 SEPFW of early 14 and 14.7.1
-#define SEPOS_ACL_BASE_VERSION_IOS14 0x140d0
-#define SEPOS_ACL_BASE_VERSION_IOS15 0x18348
-#define SEPOS_ACL_INDEX 19
+#define SEPOS_ACL_BASE_VERSION_IOS14 (0x140D0)
+#define SEPOS_ACL_BASE_VERSION_IOS15 (0x18348)
+#define SEPOS_ACL_INDEX (19)
 
     uint64_t sepos_phys_base = 0x0;
     uint64_t sepos_object_mapping_base = 0x0;

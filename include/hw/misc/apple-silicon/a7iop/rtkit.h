@@ -18,12 +18,10 @@ OBJECT_DECLARE_TYPE(AppleRTKit, AppleRTKitClass, APPLE_RTKIT)
 #define EP0_DONE (3)
 
 typedef struct {
-    struct QEMU_PACKED {
-        uint64_t msg;
-        uint32_t endpoint;
-        uint32_t flags;
-    };
-} AppleRTKitMessage;
+    uint64_t msg;
+    uint32_t endpoint;
+    uint32_t flags;
+} QEMU_PACKED AppleRTKitMessage;
 
 typedef union {
     uint64_t raw;

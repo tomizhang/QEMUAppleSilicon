@@ -121,15 +121,15 @@ enum SMCNotify {
 
 #define kSMCKeyEndpoint 0
 
-typedef struct QEMU_PACKED {
+typedef struct {
     uint8_t cmd;
     uint8_t tag_and_id;
     uint8_t length;
     uint8_t payload_length;
     uint32_t key;
-} KeyMessage;
+} QEMU_PACKED KeyMessage;
 
-typedef struct QEMU_PACKED {
+typedef struct {
     union {
         struct {
             uint8_t status;
@@ -140,13 +140,13 @@ typedef struct QEMU_PACKED {
         };
         uint64_t raw;
     };
-} KeyResponse;
+} QEMU_PACKED KeyResponse;
 
-typedef struct QEMU_PACKED {
+typedef struct {
     uint8_t size;
     uint32_t type;
     uint8_t attr;
-} SMCKeyInfo;
+} QEMU_PACKED SMCKeyInfo;
 
 enum SMCAttr {
     SMC_ATTR_LITTLE_ENDIAN = (1 << 2),

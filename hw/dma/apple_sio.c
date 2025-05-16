@@ -81,6 +81,7 @@ static void apple_sio_map_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep)
     if (ep->mapped) {
         return;
     }
+
     qemu_iovec_init(&ep->iov, ep->count);
     for (int i = 0; i < ep->count; i++) {
         dma_addr_t base = ep->sgl.sg[i].base;
@@ -90,11 +91,12 @@ static void apple_sio_map_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep)
             dma_addr_t xlen = len;
             void *mem = dma_memory_map(&s->dma_as, base, &xlen, ep->dir,
                                        MEMTXATTRS_UNSPECIFIED);
-            if (!mem) {
+            if (mem == NULL) {
                 qemu_log_mask(LOG_GUEST_ERROR, "%s: unable to map memory\n",
                               __func__);
                 continue;
             }
+
             if (xlen > len) {
                 xlen = len;
             }
@@ -106,15 +108,18 @@ static void apple_sio_map_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep)
 
     ep->mapped = true;
     ep->actual_length = 0;
-    /* TODO: call handler? */
 }
 
 static void apple_sio_unmap_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep)
 {
+    int i;
+    int unmap_length;
+    int access_len;
+
     ep->mapped = false;
-    int unmap_length = ep->actual_length;
-    for (int i = 0; i < ep->iov.niov; i++) {
-        int access_len = ep->iov.iov[i].iov_len;
+    unmap_length = ep->actual_length;
+    for (i = 0; i < ep->iov.niov; i++) {
+        access_len = ep->iov.iov[i].iov_len;
         if (access_len > unmap_length) {
             access_len = unmap_length;
         }
@@ -138,44 +143,56 @@ static void apple_sio_dma_writeback(AppleSIOState *s, AppleSIODMAEndpoint *ep)
     SIOMessage m = { 0 };
 
     rtk = APPLE_RTKIT(s);
+
+    apple_sio_unmap_dma(s, ep);
+
     m.op = OP_DMA_COMPLETE;
     m.ep = ep->id;
     m.param = (1 << 7);
     m.tag = ep->tag;
     m.data = ep->actual_length;
-    apple_sio_unmap_dma(s, ep);
     apple_rtkit_send_user_msg(rtk, EP_CONTROL, m.raw);
 }
 
 int apple_sio_dma_read(AppleSIODMAEndpoint *ep, void *buffer, size_t len)
 {
-    AppleSIOState *s = container_of(ep, AppleSIOState, eps[ep->id]);
-    int xlen = 0;
+    AppleSIOState *s;
+    int xlen;
+
+    s = container_of(ep, AppleSIOState, eps[ep->id]);
+
     if (!ep->mapped) {
         return 0;
     }
+
     g_assert_cmpuint(ep->dir, ==, DMA_DIRECTION_TO_DEVICE);
     xlen = qemu_iovec_to_buf(&ep->iov, ep->actual_length, buffer, len);
     ep->actual_length += xlen;
     if (ep->actual_length >= ep->iov.size) {
         apple_sio_dma_writeback(s, ep);
     }
+
     return xlen;
 }
 
 int apple_sio_dma_write(AppleSIODMAEndpoint *ep, void *buffer, size_t len)
 {
-    AppleSIOState *s = container_of(ep, AppleSIOState, eps[ep->id]);
-    int xlen = 0;
+    AppleSIOState *s;
+    int xlen;
+
+    s = container_of(ep, AppleSIOState, eps[ep->id]);
+
     if (!ep->mapped) {
         return 0;
     }
+
     g_assert_cmpuint(ep->dir, ==, DMA_DIRECTION_FROM_DEVICE);
     xlen = qemu_iovec_from_buf(&ep->iov, ep->actual_length, buffer, len);
     ep->actual_length += xlen;
     if (ep->actual_length >= ep->iov.size) {
         apple_sio_dma_writeback(s, ep);
     }
+
     return xlen;
 }
 
@@ -191,6 +208,7 @@ static void apple_sio_control(AppleSIOState *s, AppleSIODMAEndpoint *ep,
     SIOMessage reply = { 0 };
 
     rtk = APPLE_RTKIT(s);
+
     reply.ep = m->ep;
     reply.tag = m->tag;
     switch (m->op) {
@@ -215,32 +233,33 @@ static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep,
 {
     AppleRTKit *rtk;
     SIOMessage reply = { 0 };
+    dma_addr_t config_addr;
+    dma_addr_t handle_addr;
+    uint32_t segment_count;
+    int i;
 
     rtk = APPLE_RTKIT(s);
     reply.ep = m.ep;
     reply.tag = m.tag;
     switch (m.op) {
     case OP_CONFIG_SHIM: {
-        dma_addr_t config_addr =
-            (s->params[PARAM_DMA_SEGMENT_BASE] << 12) + m.data * 12;
+        config_addr = (s->params[PARAM_DMA_SEGMENT_BASE] << 12) + m.data * 12;
         if (dma_memory_read(&s->dma_as, config_addr, &ep->config,
                             sizeof(ep->config),
                             MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
             return;
-        };
+        }
         reply.op = OP_ACK;
         break;
     }
     case OP_START_DMA: {
-        dma_addr_t handle_addr =
-            (s->params[PARAM_DMA_SEGMENT_BASE] << 12) + m.data * 12;
-        dma_addr_t seg_addr = handle_addr + 0x48;
-        uint32_t segment_count = 0;
         if (ep->mapped) {
             qemu_log_mask(LOG_GUEST_ERROR, "SIO: Another DMA is running\n");
             reply.op = OP_ERROR;
             break;
         }
+
+        handle_addr = (s->params[PARAM_DMA_SEGMENT_BASE] << 12) + m.data * 12;
         if (dma_memory_read(&s->dma_as, handle_addr + 0x3C, &segment_count,
                             sizeof(segment_count),
                             MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
@@ -251,10 +270,10 @@ static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep,
         ep->tag = m.tag;
         ep->count = segment_count;
         ep->segments = g_new0(SIODMASegment, segment_count);
-        dma_memory_read(&s->dma_as, seg_addr, ep->segments,
+        dma_memory_read(&s->dma_as, handle_addr + 0x48, ep->segments,
                         segment_count * sizeof(SIODMASegment),
                         MEMTXATTRS_UNSPECIFIED);
-        for (int i = 0; i < segment_count; i++) {
+        for (i = 0; i < segment_count; i++) {
             qemu_sglist_add(&ep->sgl, ep->segments[i].addr,
                             ep->segments[i].len);
         }
@@ -263,20 +282,20 @@ static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep,
         break;
     }
     case OP_QUERY_DMA:
-        if (!ep->mapped) {
-            reply.op = OP_ERROR;
+        if (ep->mapped) {
+            reply.op = OP_QUERY_DMA_OK;
+            reply.data = ep->actual_length;
             break;
         }
-        reply.op = OP_QUERY_DMA_OK;
-        reply.data = ep->actual_length;
+        reply.op = OP_ERROR;
         break;
     case OP_STOP_DMA:
-        if (!ep->mapped) {
-            reply.op = OP_ERROR;
+        if (ep->mapped) {
+            reply.op = OP_ACK;
+            apple_sio_unmap_dma(s, ep);
             break;
         }
-        reply.op = OP_ACK;
-        apple_sio_unmap_dma(s, ep);
+        reply.op = OP_ERROR;
         break;
     default:
         qemu_log_mask(LOG_UNIMP, "%s: Unknown SIO op: %d\n", __func__, m.op);
@@ -316,18 +335,22 @@ AppleSIODMAEndpoint *apple_sio_get_endpoint(AppleSIOState *s, int ep)
     if (ep <= EP_PERF || ep >= SIO_NUM_EPS) {
         return NULL;
     }
+
     return &s->eps[ep];
 }
 
 AppleSIODMAEndpoint *apple_sio_get_endpoint_from_node(AppleSIOState *s,
                                                       DTBNode *node, int idx)
 {
-    DTBProp *prop = dtb_find_prop(node, "dma-channels");
+    DTBProp *prop;
     uint32_t *data;
     int count;
-    if (!prop) {
+
+    prop = dtb_find_prop(node, "dma-channels");
+    if (prop == NULL) {
         return NULL;
     }
+
     count = prop->length / 32;
     if (idx >= count) {
         return NULL;
@@ -432,7 +455,7 @@ static void apple_sio_realize(DeviceState *dev, Error **errp)
     for (int i = 0; i < SIO_NUM_EPS; i++) {
         s->eps[i].id = i;
         s->eps[i].dir =
-            i & 1 ? DMA_DIRECTION_FROM_DEVICE : DMA_DIRECTION_TO_DEVICE;
+            (i & 1) ? DMA_DIRECTION_FROM_DEVICE : DMA_DIRECTION_TO_DEVICE;
     }
 }
 
@@ -457,6 +480,7 @@ static void apple_sio_reset_hold(Object *obj, ResetType type)
         if (s->eps[i].mapped) {
             apple_sio_unmap_dma(s, &s->eps[i]);
         }
+
         memset(&s->eps[i].config, 0, sizeof(s->eps[i].config));
     }
 }
