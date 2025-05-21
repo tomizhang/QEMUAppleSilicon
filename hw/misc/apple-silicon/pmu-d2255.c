@@ -20,7 +20,7 @@
 #include "qemu/osdep.h"
 #include "hw/i2c/i2c.h"
 #include "hw/irq.h"
-#include "hw/misc/pmu_d2255.h"
+#include "hw/misc/apple-silicon/pmu-d2255.h"
 #include "migration/vmstate.h"
 #include "qemu/error-report.h"
 #include "qemu/log.h"

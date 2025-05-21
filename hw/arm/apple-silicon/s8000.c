@@ -38,7 +38,7 @@
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/aes.h"
 #include "hw/misc/apple-silicon/chestnut.h"
-#include "hw/misc/pmu_d2255.h"
+#include "hw/misc/apple-silicon/pmu-d2255.h"
 #include "hw/nvram/apple_nvram.h"
 #include "hw/pci-host/apcie.h"
 #include "hw/qdev-core.h"

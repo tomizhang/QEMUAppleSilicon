@@ -17,8 +17,8 @@
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef PMU_D2255_H
-#define PMU_D2255_H
+#ifndef HW_MISC_APPLE_SILICON_PMU_D2255_H
+#define HW_MISC_APPLE_SILICON_PMU_D2255_H
 
 #include "qemu/osdep.h"
 #include "hw/i2c/i2c.h"
@@ -27,4 +27,4 @@
 #define TYPE_PMU_D2255 "pmu-d2255"
 OBJECT_DECLARE_SIMPLE_TYPE(PMUD2255State, PMU_D2255);
 
-#endif
+#endif /* HW_MISC_APPLE_SILICON_PMU_D2255_H */
