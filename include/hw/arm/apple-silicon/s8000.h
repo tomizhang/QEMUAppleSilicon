@@ -1,8 +1,8 @@
 /*
  * Apple s8000 SoC.
  *
- * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
- * Copyright (c) 2023 Christian Inci (chris-pcguy).
+ * Copyright (c) 2023-2025 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023-2025 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,7 +28,7 @@
 #include "hw/boards.h"
 #include "hw/cpu/cluster.h"
 #include "hw/sysbus.h"
-#include "sysemu/kvm.h"
+#include "system/kvm.h"
 
 #define TYPE_S8000 "s8000"
 
@@ -58,13 +58,13 @@ typedef struct {
     CPUClusterState cluster;
     SysBusDevice *aic;
     SysBusDevice *sep;
-    MemoryRegion *sysmem;
+    MemoryRegion *sys_mem;
     MachoHeader64 *kernel;
     MachoHeader64 *secure_monitor;
     uint8_t *trustcache;
     DTBNode *device_tree;
-    AppleBootInfo bootinfo;
-    AppleVideoArgs video;
+    AppleBootInfo boot_info;
+    AppleVideoArgs video_args;
     char *trustcache_filename;
     char *ticket_filename;
     char *seprom_filename;
@@ -78,6 +78,7 @@ typedef struct {
     char pmgr_reg[0x100000];
     bool kaslr_off;
     bool force_dfu;
+    uint32_t board_id;
 } S8000MachineState;
 
 #endif /* HW_ARM_APPLE_SILICON_S8000_H */

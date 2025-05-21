@@ -28,9 +28,9 @@
 #include "hw/acpi/acpi.h"
 #include "hw/acpi/pcihp.h"
 #include "hw/acpi/piix4.h"
-#include "sysemu/runstate.h"
-#include "sysemu/sysemu.h"
-#include "sysemu/xen.h"
+#include "system/runstate.h"
+#include "system/system.h"
+#include "system/xen.h"
 #include "qapi/error.h"
 #include "qemu/range.h"
 #include "hw/acpi/cpu_hotplug.h"
@@ -602,7 +602,7 @@ static void piix4_send_gpe(AcpiDeviceIf *adev, AcpiEventStatusBits ev)
     acpi_send_gpe_event(&s->ar, s->irq, ev);
 }
 
-static Property piix4_pm_properties[] = {
+static const Property piix4_pm_properties[] = {
     DEFINE_PROP_UINT32("smb_io_base", PIIX4PMState, smb_io_base, 0),
     DEFINE_PROP_UINT8(ACPI_PM_PROP_S3_DISABLED, PIIX4PMState, disable_s3, 0),
     DEFINE_PROP_UINT8(ACPI_PM_PROP_S4_DISABLED, PIIX4PMState, disable_s4, 0),
@@ -617,7 +617,6 @@ static Property piix4_pm_properties[] = {
     DEFINE_PROP_BOOL("smm-enabled", PIIX4PMState, smm_enabled, false),
     DEFINE_PROP_BOOL("x-not-migrate-acpi-index", PIIX4PMState,
                       not_migrate_acpi_index, false),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void piix4_pm_class_init(ObjectClass *klass, void *data)
@@ -633,7 +632,7 @@ static void piix4_pm_class_init(ObjectClass *klass, void *data)
     k->device_id = PCI_DEVICE_ID_INTEL_82371AB_3;
     k->revision = 0x03;
     k->class_id = PCI_CLASS_BRIDGE_OTHER;
-    dc->reset = piix4_pm_reset;
+    device_class_set_legacy_reset(dc, piix4_pm_reset);
     dc->desc = "PM";
     dc->vmsd = &vmstate_acpi;
     device_class_set_props(dc, piix4_pm_properties);

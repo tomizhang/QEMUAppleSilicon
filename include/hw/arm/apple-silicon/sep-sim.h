@@ -1,7 +1,7 @@
 /*
  * Apple SEP.
  *
- * Copyright (c) 2023-2024 Visual Ehrmanntraut.
+ * Copyright (c) 2023-2025 Visual Ehrmanntraut.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,7 +24,6 @@
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/sysbus.h"
-#include "qemu/typedefs.h"
 #include "qom/object.h"
 
 #define TYPE_APPLE_SEP_SIM "apple-sep-sim"
@@ -35,7 +34,7 @@ struct AppleSEPSimClass {
     SysBusDeviceClass base_class;
 
     DeviceRealize parent_realize;
-    DeviceReset parent_reset;
+    ResettablePhases parent_phases;
 };
 
 #define SEP_ENDPOINT_MAX 0x20

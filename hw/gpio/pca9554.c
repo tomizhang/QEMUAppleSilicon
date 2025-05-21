@@ -291,9 +291,8 @@ static void pca9554_realize(DeviceState *dev, Error **errp)
     qdev_init_gpio_in(dev, pca9554_gpio_in_handler, PCA9554_PIN_COUNT);
 }
 
-static Property pca9554_properties[] = {
+static const Property pca9554_properties[] = {
     DEFINE_PROP_STRING("description", PCA9554State, description),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void pca9554_class_init(ObjectClass *klass, void *data)
@@ -305,7 +304,7 @@ static void pca9554_class_init(ObjectClass *klass, void *data)
     k->recv = pca9554_recv;
     k->send = pca9554_send;
     dc->realize = pca9554_realize;
-    dc->reset = pca9554_reset;
+    device_class_set_legacy_reset(dc, pca9554_reset);
     dc->vmsd = &pca9554_vmstate;
     device_class_set_props(dc, pca9554_properties);
 }

@@ -22,7 +22,7 @@
 
 #include "qapi/error.h"
 #include "hw/vfio/vfio-common.h"
-#include "sysemu/iommufd.h"
+#include "system/iommufd.h"
 #include "hw/s390x/s390-ccw.h"
 #include "hw/s390x/vfio-ccw.h"
 #include "hw/qdev-properties.h"
@@ -51,16 +51,7 @@ struct VFIOCCWDevice {
     EventNotifier crw_notifier;
     EventNotifier req_notifier;
     bool force_orb_pfch;
-    bool warned_orb_pfch;
 };
-
-static inline void warn_once_pfch(VFIOCCWDevice *vcdev, SubchDev *sch,
-                                  const char *msg)
-{
-    warn_report_once_cond(&vcdev->warned_orb_pfch,
-                          "vfio-ccw (devno %x.%x.%04x): %s",
-                          sch->cssid, sch->ssid, sch->devno, msg);
-}
 
 static void vfio_ccw_compute_needs_reset(VFIODevice *vdev)
 {
@@ -83,7 +74,8 @@ static IOInstEnding vfio_ccw_handle_request(SubchDev *sch)
 
     if (!(sch->orb.ctrl0 & ORB_CTRL0_MASK_PFCH) && vcdev->force_orb_pfch) {
         sch->orb.ctrl0 |= ORB_CTRL0_MASK_PFCH;
-        warn_once_pfch(vcdev, sch, "PFCH flag forced");
+        warn_report_once("vfio-ccw (devno %x.%x.%04x): PFCH flag forced",
+                         sch->cssid, sch->ssid, sch->devno);
     }
 
     QEMU_BUILD_BUG_ON(sizeof(region->orb_area) != sizeof(ORB));
@@ -379,12 +371,12 @@ read_err:
     css_inject_io_interrupt(sch);
 }
 
-static void vfio_ccw_register_irq_notifier(VFIOCCWDevice *vcdev,
+static bool vfio_ccw_register_irq_notifier(VFIOCCWDevice *vcdev,
                                            unsigned int irq,
                                            Error **errp)
 {
     VFIODevice *vdev = &vcdev->vdev;
-    struct vfio_irq_info *irq_info;
+    g_autofree struct vfio_irq_info *irq_info = NULL;
     size_t argsz;
     int fd;
     EventNotifier *notifier;
@@ -405,13 +397,13 @@ static void vfio_ccw_register_irq_notifier(VFIOCCWDevice *vcdev,
         break;
     default:
         error_setg(errp, "vfio: Unsupported device irq(%d)", irq);
-        return;
+        return false;
     }
 
     if (vdev->num_irqs < irq + 1) {
         error_setg(errp, "vfio: IRQ %u not available (number of irqs %u)",
                    irq, vdev->num_irqs);
-        return;
+        return false;
     }
 
     argsz = sizeof(*irq_info);
@@ -421,27 +413,26 @@ static void vfio_ccw_register_irq_notifier(VFIOCCWDevice *vcdev,
     if (ioctl(vdev->fd, VFIO_DEVICE_GET_IRQ_INFO,
               irq_info) < 0 || irq_info->count < 1) {
         error_setg_errno(errp, errno, "vfio: Error getting irq info");
-        goto out_free_info;
+        return false;
     }
 
     if (event_notifier_init(notifier, 0)) {
         error_setg_errno(errp, errno,
                          "vfio: Unable to init event notifier for irq (%d)",
                          irq);
-        goto out_free_info;
+        return false;
     }
 
     fd = event_notifier_get_fd(notifier);
     qemu_set_fd_handler(fd, fd_read, NULL, vcdev);
 
-    if (vfio_set_irq_signaling(vdev, irq, 0,
-                               VFIO_IRQ_SET_ACTION_TRIGGER, fd, errp)) {
+    if (!vfio_set_irq_signaling(vdev, irq, 0,
+                                VFIO_IRQ_SET_ACTION_TRIGGER, fd, errp)) {
         qemu_set_fd_handler(fd, NULL, NULL, vcdev);
         event_notifier_cleanup(notifier);
     }
 
-out_free_info:
-    g_free(irq_info);
+    return true;
 }
 
 static void vfio_ccw_unregister_irq_notifier(VFIOCCWDevice *vcdev,
@@ -465,8 +456,8 @@ static void vfio_ccw_unregister_irq_notifier(VFIOCCWDevice *vcdev,
         return;
     }
 
-    if (vfio_set_irq_signaling(&vcdev->vdev, irq, 0,
-                               VFIO_IRQ_SET_ACTION_TRIGGER, -1, &err)) {
+    if (!vfio_set_irq_signaling(&vcdev->vdev, irq, 0,
+                                VFIO_IRQ_SET_ACTION_TRIGGER, -1, &err)) {
         warn_reportf_err(err, VFIO_MSG_PREFIX, vcdev->vdev.name);
     }
 
@@ -475,7 +466,7 @@ static void vfio_ccw_unregister_irq_notifier(VFIOCCWDevice *vcdev,
     event_notifier_cleanup(notifier);
 }
 
-static void vfio_ccw_get_region(VFIOCCWDevice *vcdev, Error **errp)
+static bool vfio_ccw_get_region(VFIOCCWDevice *vcdev, Error **errp)
 {
     VFIODevice *vdev = &vcdev->vdev;
     struct vfio_region_info *info;
@@ -484,7 +475,7 @@ static void vfio_ccw_get_region(VFIOCCWDevice *vcdev, Error **errp)
     /* Sanity check device */
     if (!(vdev->flags & VFIO_DEVICE_FLAGS_CCW)) {
         error_setg(errp, "vfio: Um, this isn't a vfio-ccw device");
-        return;
+        return false;
     }
 
     /*
@@ -494,13 +485,13 @@ static void vfio_ccw_get_region(VFIOCCWDevice *vcdev, Error **errp)
     if (vdev->num_regions < VFIO_CCW_CONFIG_REGION_INDEX + 1) {
         error_setg(errp, "vfio: too few regions (%u), expected at least %u",
                    vdev->num_regions, VFIO_CCW_CONFIG_REGION_INDEX + 1);
-        return;
+        return false;
     }
 
     ret = vfio_get_region_info(vdev, VFIO_CCW_CONFIG_REGION_INDEX, &info);
     if (ret) {
         error_setg_errno(errp, -ret, "vfio: Error getting config info");
-        return;
+        return false;
     }
 
     vcdev->io_region_size = info->size;
@@ -554,7 +545,7 @@ static void vfio_ccw_get_region(VFIOCCWDevice *vcdev, Error **errp)
         g_free(info);
     }
 
-    return;
+    return true;
 
 out_err:
     g_free(vcdev->crw_region);
@@ -562,7 +553,7 @@ out_err:
     g_free(vcdev->async_cmd_region);
     g_free(vcdev->io_region);
     g_free(info);
-    return;
+    return false;
 }
 
 static void vfio_ccw_put_region(VFIOCCWDevice *vcdev)
@@ -580,50 +571,44 @@ static void vfio_ccw_realize(DeviceState *dev, Error **errp)
     S390CCWDeviceClass *cdc = S390_CCW_DEVICE_GET_CLASS(cdev);
     VFIODevice *vbasedev = &vcdev->vdev;
     Error *err = NULL;
-    int ret;
 
     /* Call the class init function for subchannel. */
     if (cdc->realize) {
-        cdc->realize(cdev, vcdev->vdev.sysfsdev, &err);
-        if (err) {
-            goto out_err_propagate;
+        if (!cdc->realize(cdev, vcdev->vdev.sysfsdev, errp)) {
+            return;
         }
     }
 
-    if (vfio_device_get_name(vbasedev, errp) < 0) {
-        return;
+    if (!vfio_device_get_name(vbasedev, errp)) {
+        goto out_unrealize;
     }
 
-    ret = vfio_attach_device(cdev->mdevid, vbasedev,
-                             &address_space_memory, errp);
-    if (ret) {
+    if (!vfio_attach_device(cdev->mdevid, vbasedev,
+                            &address_space_memory, errp)) {
         goto out_attach_dev_err;
     }
 
-    vfio_ccw_get_region(vcdev, &err);
-    if (err) {
+    if (!vfio_ccw_get_region(vcdev, errp)) {
         goto out_region_err;
     }
 
-    vfio_ccw_register_irq_notifier(vcdev, VFIO_CCW_IO_IRQ_INDEX, &err);
-    if (err) {
+    if (!vfio_ccw_register_irq_notifier(vcdev, VFIO_CCW_IO_IRQ_INDEX, errp)) {
         goto out_io_notifier_err;
     }
 
     if (vcdev->crw_region) {
-        vfio_ccw_register_irq_notifier(vcdev, VFIO_CCW_CRW_IRQ_INDEX, &err);
-        if (err) {
+        if (!vfio_ccw_register_irq_notifier(vcdev, VFIO_CCW_CRW_IRQ_INDEX,
+                                            errp)) {
             goto out_irq_notifier_err;
         }
     }
 
-    vfio_ccw_register_irq_notifier(vcdev, VFIO_CCW_REQ_IRQ_INDEX, &err);
-    if (err) {
+    if (!vfio_ccw_register_irq_notifier(vcdev, VFIO_CCW_REQ_IRQ_INDEX, &err)) {
         /*
          * Report this error, but do not make it a failing condition.
          * Lack of this IRQ in the host does not prevent normal operation.
          */
-        error_report_err(err);
+        warn_report_err(err);
     }
 
     return;
@@ -638,11 +623,10 @@ out_region_err:
     vfio_detach_device(vbasedev);
 out_attach_dev_err:
     g_free(vbasedev->name);
+out_unrealize:
     if (cdc->unrealize) {
         cdc->unrealize(cdev);
     }
-out_err_propagate:
-    error_propagate(errp, err);
 }
 
 static void vfio_ccw_unrealize(DeviceState *dev)
@@ -663,14 +647,14 @@ static void vfio_ccw_unrealize(DeviceState *dev)
     }
 }
 
-static Property vfio_ccw_properties[] = {
+static const Property vfio_ccw_properties[] = {
     DEFINE_PROP_STRING("sysfsdev", VFIOCCWDevice, vdev.sysfsdev),
     DEFINE_PROP_BOOL("force-orb-pfch", VFIOCCWDevice, force_orb_pfch, false),
 #ifdef CONFIG_IOMMUFD
     DEFINE_PROP_LINK("iommufd", VFIOCCWDevice, vdev.iommufd,
                      TYPE_IOMMUFD_BACKEND, IOMMUFDBackend *),
 #endif
-    DEFINE_PROP_END_OF_LIST(),
+    DEFINE_PROP_CCW_LOADPARM("loadparm", CcwDevice, loadparm),
 };
 
 static const VMStateDescription vfio_ccw_vmstate = {
@@ -682,6 +666,9 @@ static void vfio_ccw_instance_init(Object *obj)
 {
     VFIOCCWDevice *vcdev = VFIO_CCW(obj);
     VFIODevice *vbasedev = &vcdev->vdev;
+
+    /* CCW device is mdev type device */
+    vbasedev->mdev = true;
 
     /*
      * All vfio-ccw devices are believed to operate in a way compatible with
@@ -716,12 +703,27 @@ static void vfio_ccw_class_init(ObjectClass *klass, void *data)
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
     dc->realize = vfio_ccw_realize;
     dc->unrealize = vfio_ccw_unrealize;
-    dc->reset = vfio_ccw_reset;
+    device_class_set_legacy_reset(dc, vfio_ccw_reset);
 
     cdc->handle_request = vfio_ccw_handle_request;
     cdc->handle_halt = vfio_ccw_handle_halt;
     cdc->handle_clear = vfio_ccw_handle_clear;
     cdc->handle_store = vfio_ccw_handle_store;
+
+    object_class_property_set_description(klass, /* 2.10 */
+                                          "sysfsdev",
+                                          "Host sysfs path of assigned device");
+    object_class_property_set_description(klass, /* 3.0 */
+                                          "force-orb-pfch",
+                                          "Force unlimited prefetch");
+#ifdef CONFIG_IOMMUFD
+    object_class_property_set_description(klass, /* 9.0 */
+                                          "iommufd",
+                                          "Set host IOMMUFD backend device");
+#endif
+    object_class_property_set_description(klass, /* 9.2 */
+                                          "loadparm",
+                                          "Define which devices that can be used for booting");
 }
 
 static const TypeInfo vfio_ccw_info = {

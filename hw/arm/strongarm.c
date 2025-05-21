@@ -38,8 +38,8 @@
 #include "hw/arm/boot.h"
 #include "chardev/char-fe.h"
 #include "chardev/char-serial.h"
-#include "sysemu/sysemu.h"
-#include "sysemu/rtc.h"
+#include "system/system.h"
+#include "system/rtc.h"
 #include "hw/ssi/ssi.h"
 #include "qapi/error.h"
 #include "qemu/cutils.h"
@@ -1332,9 +1332,8 @@ static const VMStateDescription vmstate_strongarm_uart_regs = {
     },
 };
 
-static Property strongarm_uart_properties[] = {
+static const Property strongarm_uart_properties[] = {
     DEFINE_PROP_CHR("chardev", StrongARMUARTState, chr),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void strongarm_uart_class_init(ObjectClass *klass, void *data)
@@ -1342,7 +1341,7 @@ static void strongarm_uart_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->desc = "StrongARM UART controller";
-    dc->reset = strongarm_uart_reset;
+    device_class_set_legacy_reset(dc, strongarm_uart_reset);
     dc->vmsd = &vmstate_strongarm_uart_regs;
     device_class_set_props(dc, strongarm_uart_properties);
     dc->realize = strongarm_uart_realize;
@@ -1595,7 +1594,7 @@ static void strongarm_ssp_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->desc = "StrongARM SSP controller";
-    dc->reset = strongarm_ssp_reset;
+    device_class_set_legacy_reset(dc, strongarm_ssp_reset);
     dc->vmsd = &vmstate_strongarm_ssp_regs;
 }
 

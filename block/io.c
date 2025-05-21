@@ -24,7 +24,7 @@
 
 #include "qemu/osdep.h"
 #include "trace.h"
-#include "sysemu/block-backend.h"
+#include "system/block-backend.h"
 #include "block/aio-wait.h"
 #include "block/blockjob.h"
 #include "block/blockjob_int.h"
@@ -37,7 +37,7 @@
 #include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "qemu/main-loop.h"
-#include "sysemu/replay.h"
+#include "system/replay.h"
 
 /* Maximum bounce buffer for copy-on-read and write zeroes, in bytes */
 #define MAX_BOUNCE_BUFFER (32768 << BDRV_SECTOR_BITS)
@@ -1058,6 +1058,10 @@ bdrv_driver_pwritev(BlockDriverState *bs, int64_t offset, int64_t bytes,
         return -ENOMEDIUM;
     }
 
+    if (bs->open_flags & BDRV_O_NO_FLUSH) {
+        flags &= ~BDRV_REQ_FUA;
+    }
+
     if ((flags & BDRV_REQ_FUA) &&
         (~bs->supported_write_flags & BDRV_REQ_FUA)) {
         flags &= ~BDRV_REQ_FUA;
@@ -1862,6 +1866,11 @@ bdrv_co_do_pwrite_zeroes(BlockDriverState *bs, int64_t offset, int64_t bytes,
         return -EINVAL;
     }
 
+    /* If opened with discard=off we should never unmap. */
+    if (!(bs->open_flags & BDRV_O_UNMAP)) {
+        flags &= ~BDRV_REQ_MAY_UNMAP;
+    }
+
     /* Invalidate the cached block-status data range if this write overlaps */
     bdrv_bsc_invalidate_range(bs, offset, bytes);
 
@@ -2314,10 +2323,6 @@ int coroutine_fn bdrv_co_pwrite_zeroes(BdrvChild *child, int64_t offset,
     IO_CODE();
     trace_bdrv_co_pwrite_zeroes(child->bs, offset, bytes, flags);
     assert_bdrv_graph_readable();
-
-    if (!(child->bs->open_flags & BDRV_O_UNMAP)) {
-        flags &= ~BDRV_REQ_MAY_UNMAP;
-    }
 
     return bdrv_co_pwritev(child, offset, bytes, NULL,
                            BDRV_REQ_ZERO_WRITE | flags);

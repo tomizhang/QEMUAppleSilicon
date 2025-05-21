@@ -36,8 +36,8 @@
 #include "block/thread-pool.h"
 #include "qemu/iov.h"
 #include "block/raw-aio.h"
-#include "qapi/qmp/qdict.h"
-#include "qapi/qmp/qstring.h"
+#include "qobject/qdict.h"
+#include "qobject/qstring.h"
 
 #include "scsi/pr-manager.h"
 #include "scsi/constants.h"
@@ -159,6 +159,7 @@ typedef struct BDRVRawState {
     bool has_discard:1;
     bool has_write_zeroes:1;
     bool use_linux_aio:1;
+    bool has_laio_fdsync:1;
     bool use_linux_io_uring:1;
     int page_cache_inconsistent; /* errno from fdatasync failure */
     bool has_fallocate;
@@ -193,6 +194,7 @@ static int fd_open(BlockDriverState *bs)
 }
 
 static int64_t raw_getlength(BlockDriverState *bs);
+static int coroutine_fn raw_co_flush_to_disk(BlockDriverState *bs);
 
 typedef struct RawPosixAIOData {
     BlockDriverState *bs;
@@ -718,6 +720,9 @@ static int raw_open_common(BlockDriverState *bs, QDict *options,
         ret = -EINVAL;
         goto fail;
     }
+    if (s->use_linux_aio) {
+        s->has_laio_fdsync = laio_has_fdsync(s->fd);
+    }
 #else
     if (s->use_linux_aio) {
         error_setg(errp, "aio=native was specified, but is not supported "
@@ -799,6 +804,13 @@ static int raw_open_common(BlockDriverState *bs, QDict *options,
     }
 #endif
     s->needs_alignment = raw_needs_alignment(bs);
+
+    bs->supported_write_flags = BDRV_REQ_FUA;
+    if (s->use_linux_aio && !laio_has_fua()) {
+        bs->supported_write_flags &= ~BDRV_REQ_FUA;
+    } else if (s->use_linux_io_uring && !luring_has_fua()) {
+        bs->supported_write_flags &= ~BDRV_REQ_FUA;
+    }
 
     bs->supported_zero_flags = BDRV_REQ_MAY_UNMAP | BDRV_REQ_NO_FALLBACK;
     if (S_ISREG(st.st_mode)) {
@@ -1039,8 +1051,7 @@ static int fcntl_setfl(int fd, int flag)
 }
 
 static int raw_reconfigure_getfd(BlockDriverState *bs, int flags,
-                                 int *open_flags, uint64_t perm, bool force_dup,
-                                 Error **errp)
+                                 int *open_flags, uint64_t perm, Error **errp)
 {
     BDRVRawState *s = bs->opaque;
     int fd = -1;
@@ -1068,7 +1079,7 @@ static int raw_reconfigure_getfd(BlockDriverState *bs, int flags,
     assert((s->open_flags & O_ASYNC) == 0);
 #endif
 
-    if (!force_dup && *open_flags == s->open_flags) {
+    if (*open_flags == s->open_flags) {
         /* We're lucky, the existing fd is fine */
         return s->fd;
     }
@@ -1395,7 +1406,7 @@ static void raw_refresh_zoned_limits(BlockDriverState *bs, struct stat *st,
                                      Error **errp)
 {
     BDRVRawState *s = bs->opaque;
-    BlockZoneModel zoned;
+    BlockZoneModel zoned = BLK_Z_NONE;
     int ret;
 
     ret = get_sysfs_zoned_model(st, &zoned);
@@ -2474,7 +2485,8 @@ static inline bool raw_check_linux_aio(BDRVRawState *s)
 #endif
 
 static int coroutine_fn raw_co_prw(BlockDriverState *bs, int64_t *offset_ptr,
-                                   uint64_t bytes, QEMUIOVector *qiov, int type)
+                                   uint64_t bytes, QEMUIOVector *qiov, int type,
+                                   int flags)
 {
     BDRVRawState *s = bs->opaque;
     RawPosixAIOData acb;
@@ -2505,13 +2517,13 @@ static int coroutine_fn raw_co_prw(BlockDriverState *bs, int64_t *offset_ptr,
 #ifdef CONFIG_LINUX_IO_URING
     } else if (raw_check_linux_io_uring(s)) {
         assert(qiov->size == bytes);
-        ret = luring_co_submit(bs, s->fd, offset, qiov, type);
+        ret = luring_co_submit(bs, s->fd, offset, qiov, type, flags);
         goto out;
 #endif
 #ifdef CONFIG_LINUX_AIO
     } else if (raw_check_linux_aio(s)) {
         assert(qiov->size == bytes);
-        ret = laio_co_submit(s->fd, offset, qiov, type,
+        ret = laio_co_submit(s->fd, offset, qiov, type, flags,
                               s->aio_max_batch);
         goto out;
 #endif
@@ -2531,6 +2543,10 @@ static int coroutine_fn raw_co_prw(BlockDriverState *bs, int64_t *offset_ptr,
 
     assert(qiov->size == bytes);
     ret = raw_thread_pool_submit(handle_aiocb_rw, &acb);
+    if (ret == 0 && (flags & BDRV_REQ_FUA)) {
+        /* TODO Use pwritev2() instead if it's available */
+        ret = raw_co_flush_to_disk(bs);
+    }
     goto out; /* Avoid the compiler err of unused label */
 
 out:
@@ -2568,14 +2584,14 @@ static int coroutine_fn raw_co_preadv(BlockDriverState *bs, int64_t offset,
                                       int64_t bytes, QEMUIOVector *qiov,
                                       BdrvRequestFlags flags)
 {
-    return raw_co_prw(bs, &offset, bytes, qiov, QEMU_AIO_READ);
+    return raw_co_prw(bs, &offset, bytes, qiov, QEMU_AIO_READ, flags);
 }
 
 static int coroutine_fn raw_co_pwritev(BlockDriverState *bs, int64_t offset,
                                        int64_t bytes, QEMUIOVector *qiov,
                                        BdrvRequestFlags flags)
 {
-    return raw_co_prw(bs, &offset, bytes, qiov, QEMU_AIO_WRITE);
+    return raw_co_prw(bs, &offset, bytes, qiov, QEMU_AIO_WRITE, flags);
 }
 
 static int coroutine_fn raw_co_flush_to_disk(BlockDriverState *bs)
@@ -2597,7 +2613,12 @@ static int coroutine_fn raw_co_flush_to_disk(BlockDriverState *bs)
 
 #ifdef CONFIG_LINUX_IO_URING
     if (raw_check_linux_io_uring(s)) {
-        return luring_co_submit(bs, s->fd, 0, NULL, QEMU_AIO_FLUSH);
+        return luring_co_submit(bs, s->fd, 0, NULL, QEMU_AIO_FLUSH, 0);
+    }
+#endif
+#ifdef CONFIG_LINUX_AIO
+    if (s->has_laio_fdsync && raw_check_linux_aio(s)) {
+        return laio_co_submit(s->fd, 0, NULL, QEMU_AIO_FLUSH, 0, 0);
     }
 #endif
     return raw_thread_pool_submit(handle_aiocb_flush, &acb);
@@ -3532,7 +3553,7 @@ static int coroutine_fn raw_co_zone_append(BlockDriverState *bs,
     }
 
     trace_zbd_zone_append(bs, *offset >> BDRV_SECTOR_BITS);
-    return raw_co_prw(bs, offset, len, qiov, QEMU_AIO_ZONE_APPEND);
+    return raw_co_prw(bs, offset, len, qiov, QEMU_AIO_ZONE_APPEND, 0);
 }
 #endif
 
@@ -3748,8 +3769,7 @@ static int raw_check_perm(BlockDriverState *bs, uint64_t perm, uint64_t shared,
     int ret;
 
     /* We may need a new fd if auto-read-only switches the mode */
-    ret = raw_reconfigure_getfd(bs, input_flags, &open_flags, perm,
-                                false, errp);
+    ret = raw_reconfigure_getfd(bs, input_flags, &open_flags, perm, errp);
     if (ret < 0) {
         return ret;
     } else if (ret != s->fd) {
@@ -3879,7 +3899,7 @@ BlockDriver bdrv_file = {
     .bdrv_needs_filename = true,
     .bdrv_probe = NULL, /* no probe for protocols */
     .bdrv_parse_filename = raw_parse_filename,
-    .bdrv_file_open = raw_open,
+    .bdrv_open      = raw_open,
     .bdrv_reopen_prepare = raw_reopen_prepare,
     .bdrv_reopen_commit = raw_reopen_commit,
     .bdrv_reopen_abort = raw_reopen_abort,
@@ -3921,11 +3941,6 @@ BlockDriver bdrv_file = {
 #if defined(__APPLE__) && defined(__MACH__)
 static kern_return_t GetBSDPath(io_iterator_t mediaIterator, char *bsdPath,
                                 CFIndex maxPathSize, int flags);
-
-#if !defined(MAC_OS_VERSION_12_0) \
-    || (MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_VERSION_12_0)
-#define IOMainPort IOMasterPort
-#endif
 
 static char *FindEjectableOpticalMedia(io_iterator_t *mediaIterator)
 {
@@ -4250,7 +4265,7 @@ static BlockDriver bdrv_host_device = {
     .bdrv_needs_filename = true,
     .bdrv_probe_device  = hdev_probe_device,
     .bdrv_parse_filename = hdev_parse_filename,
-    .bdrv_file_open     = hdev_open,
+    .bdrv_open          = hdev_open,
     .bdrv_close         = raw_close,
     .bdrv_reopen_prepare = raw_reopen_prepare,
     .bdrv_reopen_commit  = raw_reopen_commit,
@@ -4389,7 +4404,7 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_needs_filename = true,
     .bdrv_probe_device	= cdrom_probe_device,
     .bdrv_parse_filename = cdrom_parse_filename,
-    .bdrv_file_open     = cdrom_open,
+    .bdrv_open          = cdrom_open,
     .bdrv_close         = raw_close,
     .bdrv_reopen_prepare = raw_reopen_prepare,
     .bdrv_reopen_commit  = raw_reopen_commit,
@@ -4515,7 +4530,7 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_needs_filename = true,
     .bdrv_probe_device	= cdrom_probe_device,
     .bdrv_parse_filename = cdrom_parse_filename,
-    .bdrv_file_open     = cdrom_open,
+    .bdrv_open          = cdrom_open,
     .bdrv_close         = raw_close,
     .bdrv_reopen_prepare = raw_reopen_prepare,
     .bdrv_reopen_commit  = raw_reopen_commit,

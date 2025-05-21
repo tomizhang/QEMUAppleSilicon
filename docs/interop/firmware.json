@@ -14,8 +14,10 @@
 # = Firmware
 ##
 
-{ 'include' : 'machine.json' }
-{ 'include' : 'block-core.json' }
+{ 'pragma': {
+    'member-name-exceptions': [
+        'FirmwareArchitecture' # x86_64
+    ] } }
 
 ##
 # @FirmwareOSInterface:
@@ -61,6 +63,27 @@
   'data' : [ 'flash', 'kernel', 'memory' ] }
 
 ##
+# @FirmwareArchitecture:
+#
+# Enumeration of architectures for which Qemu uses additional
+# firmware files.
+#
+# @aarch64: 64-bit Arm.
+#
+# @arm: 32-bit Arm.
+#
+# @i386: 32-bit x86.
+#
+# @loongarch64: 64-bit LoongArch. (since: 7.1)
+#
+# @x86_64: 64-bit x86.
+#
+# Since: 3.0
+##
+{ 'enum' : 'FirmwareArchitecture',
+  'data' : [ 'aarch64', 'arm', 'i386', 'loongarch64', 'x86_64' ] }
+
+##
 # @FirmwareTarget:
 #
 # Defines the machine types that firmware may execute on.
@@ -81,7 +104,7 @@
 # Since: 3.0
 ##
 { 'struct' : 'FirmwareTarget',
-  'data'   : { 'architecture' : 'SysEmuTarget',
+  'data'   : { 'architecture' : 'FirmwareArchitecture',
                'machines'     : [ 'str' ] } }
 
 ##
@@ -191,14 +214,38 @@
 #                  PL011 UART. @verbose-static is mutually exclusive
 #                  with @verbose-dynamic.
 #
+# @host-uefi-vars: The firmware expects the host to provide an uefi
+#                  variable store.  qemu supports that via
+#                  "uefi-vars-sysbus" (aarch64, riscv64, loongarch64)
+#                  or "uefi-vars-x64" (x86_64) devices.  The firmware
+#                  will not use flash for nvram.  When loading the
+#                  firmware into flash the 'stateless' setup should be
+#                  used.  It is recommened to load the firmware into
+#                  memory though.
+#
 # Since: 3.0
 ##
 { 'enum' : 'FirmwareFeature',
   'data' : [ 'acpi-s3', 'acpi-s4',
              'amd-sev', 'amd-sev-es', 'amd-sev-snp',
              'intel-tdx',
-             'enrolled-keys', 'requires-smm', 'secure-boot',
+             'enrolled-keys', 'requires-smm',
+             'secure-boot', 'host-uefi-vars',
              'verbose-dynamic', 'verbose-static' ] }
+
+##
+# @FirmwareFormat:
+#
+# Formats that are supported for firmware images.
+#
+# @raw: Raw disk image format.
+#
+# @qcow2: The QCOW2 image format.
+#
+# Since: 3.0
+##
+{ 'enum': 'FirmwareFormat',
+  'data': [ 'raw', 'qcow2' ] }
 
 ##
 # @FirmwareFlashFile:
@@ -219,7 +266,7 @@
 ##
 { 'struct' : 'FirmwareFlashFile',
   'data'   : { 'filename' : 'str',
-               'format'   : 'BlockdevDriver' } }
+               'format'   : 'FirmwareFormat' } }
 
 
 ##
@@ -433,7 +480,7 @@
 #
 # Since: 3.0
 #
-# Examples:
+# .. qmp-example::
 #
 #     {
 #         "description": "SeaBIOS",

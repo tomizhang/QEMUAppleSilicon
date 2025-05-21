@@ -21,7 +21,7 @@
 #include "hw/qdev-properties.h"
 #include "net/tap.h"
 #include "net/checksum.h"
-#include "sysemu/sysemu.h"
+#include "system/system.h"
 #include "qemu/bswap.h"
 #include "qemu/log.h"
 #include "qemu/module.h"
@@ -456,7 +456,6 @@ vmxnet3_setup_tx_offloads(VMXNET3State *s)
 
     default:
         g_assert_not_reached();
-        return false;
     }
 
     return true;
@@ -2091,8 +2090,6 @@ static void vmxnet3_net_init(VMXNET3State *s)
     if (s->peer_has_vhdr) {
         qemu_set_vnet_hdr_len(qemu_get_queue(s->nic)->peer,
             sizeof(struct virtio_net_hdr));
-
-        qemu_using_vnet_hdr(qemu_get_queue(s->nic)->peer, 1);
     }
 
     qemu_format_nic_info_str(qemu_get_queue(s->nic), s->conf.macaddr.a);
@@ -2474,13 +2471,12 @@ static const VMStateDescription vmstate_vmxnet3 = {
     }
 };
 
-static Property vmxnet3_properties[] = {
+static const Property vmxnet3_properties[] = {
     DEFINE_NIC_PROPERTIES(VMXNET3State, conf),
     DEFINE_PROP_BIT("x-old-msi-offsets", VMXNET3State, compat_flags,
                     VMXNET3_COMPAT_FLAG_OLD_MSI_OFFSETS_BIT, false),
     DEFINE_PROP_BIT("x-disable-pcie", VMXNET3State, compat_flags,
                     VMXNET3_COMPAT_FLAG_DISABLE_PCIE_BIT, false),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void vmxnet3_realize(DeviceState *qdev, Error **errp)
@@ -2514,7 +2510,7 @@ static void vmxnet3_class_init(ObjectClass *class, void *data)
     device_class_set_parent_realize(dc, vmxnet3_realize,
                                     &vc->parent_dc_realize);
     dc->desc = "VMWare Paravirtualized Ethernet v3";
-    dc->reset = vmxnet3_qdev_reset;
+    device_class_set_legacy_reset(dc, vmxnet3_qdev_reset);
     dc->vmsd = &vmstate_vmxnet3;
     device_class_set_props(dc, vmxnet3_properties);
     set_bit(DEVICE_CATEGORY_NETWORK, dc->categories);

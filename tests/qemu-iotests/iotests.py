@@ -701,6 +701,10 @@ def filter_qmp_imgfmt(qmsg):
 def filter_nbd_exports(output: str) -> str:
     return re.sub(r'((min|opt|max) block): [0-9]+', r'\1: XXX', output)
 
+def filter_qtest(output: str) -> str:
+    output = re.sub(r'^\[I \d+\.\d+\] OPENED\n', '', output)
+    output = re.sub(r'\n?\[I \+\d+\.\d+\] CLOSED\n?$', '', output)
+    return output
 
 Msg = TypeVar('Msg', Dict[str, Any], List[Any], str)
 
@@ -907,6 +911,10 @@ class VM(qtest.QEMUQtestMachine):
     def add_incoming(self, addr):
         self._args.append('-incoming')
         self._args.append(addr)
+        return self
+
+    def add_paused(self):
+        self._args.append('-S')
         return self
 
     def hmp(self, command_line: str, use_log: bool = False) -> QMPMessage:
@@ -1614,10 +1622,13 @@ class ReproducibleStreamWrapper:
         self.stream.write(arg)
 
 class ReproducibleTestRunner(unittest.TextTestRunner):
-    def __init__(self, stream: Optional[TextIO] = None,
-                 resultclass: Type[unittest.TestResult] =
-                 ReproducibleTestResult,
-                 **kwargs: Any) -> None:
+    def __init__(
+        self,
+        stream: Optional[TextIO] = None,
+        resultclass: Type[unittest.TextTestResult] =
+        ReproducibleTestResult,
+        **kwargs: Any
+    ) -> None:
         rstream = ReproducibleStreamWrapper(stream or sys.stdout)
         super().__init__(stream=rstream,           # type: ignore
                          descriptions=True,

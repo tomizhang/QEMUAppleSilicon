@@ -30,8 +30,6 @@
 
 #define CPU_RESOLVING_TYPE TYPE_AVR_CPU
 
-#define TCG_GUEST_DEFAULT_MO 0
-
 /*
  * AVR has two memory spaces, data & code.
  * e.g. both have 0 address
@@ -185,6 +183,8 @@ static inline void set_avr_feature(CPUAVRState *env, int feature)
 }
 
 void avr_cpu_tcg_init(void);
+void avr_cpu_translate_code(CPUState *cs, TranslationBlock *tb,
+                            int *max_insns, vaddr pc, void *host_pc);
 
 int cpu_avr_exec(CPUState *cpu);
 

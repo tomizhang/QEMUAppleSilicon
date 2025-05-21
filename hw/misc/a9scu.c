@@ -123,9 +123,8 @@ static const VMStateDescription vmstate_a9_scu = {
     }
 };
 
-static Property a9_scu_properties[] = {
+static const Property a9_scu_properties[] = {
     DEFINE_PROP_UINT32("num-cpu", A9SCUState, num_cpu, 1),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void a9_scu_class_init(ObjectClass *klass, void *data)
@@ -134,7 +133,7 @@ static void a9_scu_class_init(ObjectClass *klass, void *data)
 
     device_class_set_props(dc, a9_scu_properties);
     dc->vmsd = &vmstate_a9_scu;
-    dc->reset = a9_scu_reset;
+    device_class_set_legacy_reset(dc, a9_scu_reset);
     dc->realize = a9_scu_realize;
 }
 

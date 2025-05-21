@@ -1,7 +1,8 @@
 /*
  * Apple NVMe MMU Controller.
  *
- * Copyright (c) 2023-2024 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2023-2025 Visual Ehrmanntraut (VisualEhrmanntraut).
+ * Copyright (c) 2025 Christian Inci (chris-pcguy).
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -20,8 +21,158 @@
 #include "qemu/osdep.h"
 #include "hw/block/apple_nvme_mmu.h"
 #include "hw/irq.h"
+#include "hw/pci/msi.h"
+#include "hw/pci/pci_device.h"
 #include "hw/sysbus.h"
 #include "qapi/error.h"
+#include "qemu/log.h"
+
+#define DEBUG_NVME_MMU
+#ifdef DEBUG_NVME_MMU
+#define DPRINTF(fmt, ...)                             \
+    do {                                              \
+        qemu_log_mask(LOG_UNIMP, fmt, ##__VA_ARGS__); \
+    } while (0)
+#else
+#define DPRINTF(fmt, ...) \
+    do {                  \
+    } while (0)
+#endif
+
+static void apple_nvme_mmu_common_reg_write(void *opaque, hwaddr addr,
+                                            uint64_t data, unsigned size)
+{
+    AppleNVMeMMUState *s = APPLE_NVME_MMU(opaque);
+    uint32_t *mmio = &s->common_reg[addr >> 2];
+    DPRINTF("apple_nvme_mmu: common reg WRITE @ 0x" HWADDR_FMT_plx
+            " value: 0x" HWADDR_FMT_plx "\n",
+            addr, data);
+    switch (addr) {
+#if 0
+    case NVME_APPLE_MAX_PEND_CMDS:
+        val = NVME_APPLE_MAX_PEND_CMDS_VAL;
+        break;
+    case NVME_APPLE_BOOT_STATUS:
+        val = NVME_APPLE_BOOT_STATUS_OK;
+        break;
+    case NVME_APPLE_BASE_CMD_ID:
+        val = 0x6000;
+        break;
+#endif
+    case 0x4:
+        if ((data & (1 << 16)) != 0) {
+            data &= ~(1 << 16);
+        }
+        break;
+    default:
+        break;
+    }
+    *mmio = data;
+}
+
+static uint64_t apple_nvme_mmu_common_reg_read(void *opaque, hwaddr addr,
+                                               unsigned size)
+{
+    AppleNVMeMMUState *s = APPLE_NVME_MMU(opaque);
+    uint32_t *mmio = &s->common_reg[addr >> 2];
+    uint32_t val = *mmio;
+
+    switch (addr) {
+#if 0
+    case NVME_APPLE_MAX_PEND_CMDS:
+        val = NVME_APPLE_MAX_PEND_CMDS_VAL;
+        break;
+    case NVME_APPLE_BOOT_STATUS:
+        val = NVME_APPLE_BOOT_STATUS_OK;
+        break;
+    case NVME_APPLE_BASE_CMD_ID:
+        val = 0x6000;
+        break;
+#endif
+    default:
+        break;
+    }
+    DPRINTF("apple_nvme_mmu: common reg READ @ 0x" HWADDR_FMT_plx
+            " value: 0x%x\n",
+            addr, val);
+    return val;
+}
+
+static const MemoryRegionOps apple_nvme_mmu_common_reg_ops = {
+    .write = apple_nvme_mmu_common_reg_write,
+    .read = apple_nvme_mmu_common_reg_read,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
+    .valid.min_access_size = 4,
+    .valid.max_access_size = 4,
+    .valid.unaligned = false,
+};
+
+static void apple_nvme_mmu_config_reg_write(void *opaque, hwaddr addr,
+                                            uint64_t data, unsigned size)
+{
+    AppleNVMeMMUState *s = APPLE_NVME_MMU(opaque);
+    uint32_t *mmio = &s->config_reg[addr >> 2];
+    DPRINTF("apple_nvme_mmu: config reg WRITE @ 0x" HWADDR_FMT_plx
+            " value: 0x" HWADDR_FMT_plx "\n",
+            addr, data);
+    switch (addr) {
+#if 0
+    case NVME_APPLE_MAX_PEND_CMDS:
+        val = NVME_APPLE_MAX_PEND_CMDS_VAL;
+        break;
+    case NVME_APPLE_BOOT_STATUS:
+        val = NVME_APPLE_BOOT_STATUS_OK;
+        break;
+    case NVME_APPLE_BASE_CMD_ID:
+        val = 0x6000;
+        break;
+#endif
+    default:
+        break;
+    }
+    *mmio = data;
+}
+
+static uint64_t apple_nvme_mmu_config_reg_read(void *opaque, hwaddr addr,
+                                               unsigned size)
+{
+    AppleNVMeMMUState *s = APPLE_NVME_MMU(opaque);
+    uint32_t *mmio = &s->config_reg[addr >> 2];
+    uint32_t val = *mmio;
+
+    switch (addr) {
+#if 0
+    case NVME_APPLE_MAX_PEND_CMDS:
+        val = NVME_APPLE_MAX_PEND_CMDS_VAL;
+        break;
+    case NVME_APPLE_BOOT_STATUS:
+        val = NVME_APPLE_BOOT_STATUS_OK;
+        break;
+    case NVME_APPLE_BASE_CMD_ID:
+        val = 0x6000;
+        break;
+#endif
+    default:
+        break;
+    }
+    DPRINTF("apple_nvme_mmu: config reg READ @ 0x" HWADDR_FMT_plx
+            " value: 0x%x\n",
+            addr, val);
+    return val;
+}
+
+static const MemoryRegionOps apple_nvme_mmu_config_reg_ops = {
+    .write = apple_nvme_mmu_config_reg_write,
+    .read = apple_nvme_mmu_config_reg_read,
+    .endianness = DEVICE_NATIVE_ENDIAN,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
+    .valid.min_access_size = 4,
+    .valid.max_access_size = 4,
+    .valid.unaligned = false,
+};
 
 static void apple_nvme_mmu_set_irq(void *opaque, int irq_num, int level)
 {
@@ -29,49 +180,59 @@ static void apple_nvme_mmu_set_irq(void *opaque, int irq_num, int level)
     qemu_set_irq(s->irq, level);
 }
 
-SysBusDevice *apple_nvme_mmu_create(DTBNode *node)
+static void apple_nvme_mmu_start(AppleNVMeMMUState *s)
+{
+    PCIDevice *pci_dev = PCI_DEVICE(s->nvme);
+    uint32_t config;
+
+    config = pci_default_read_config(pci_dev, PCI_COMMAND, 4);
+    config |= PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER;
+    pci_default_write_config(pci_dev, PCI_COMMAND, config, 4);
+
+    g_assert_true(pci_dev->bus_master_enable_region.enabled);
+}
+
+SysBusDevice *apple_nvme_mmu_create(DTBNode *node, PCIBus *pci_bus)
 {
     DeviceState *dev;
     AppleNVMeMMUState *s;
-    PCIHostState *pci;
     SysBusDevice *sbd;
-    PCIExpressHost *pex;
     DTBProp *prop;
     uint64_t *reg;
+    PCIDevice *pci_dev;
 
     dev = qdev_new(TYPE_APPLE_NVME_MMU);
     s = APPLE_NVME_MMU(dev);
-    pci = PCI_HOST_BRIDGE(dev);
     sbd = SYS_BUS_DEVICE(dev);
-    pex = PCIE_HOST_BRIDGE(dev);
 
-    object_initialize_child(OBJECT(dev), "nvme", &s->nvme, TYPE_NVME);
+    s->pci_bus = pci_bus;
+    pci_dev = pci_new(-1, TYPE_NVME);
+    s->nvme = NVME(pci_dev);
 
-    object_property_set_str(OBJECT(&s->nvme), "serial", "QEMUAppleSiliconNVMe",
+    object_property_set_str(OBJECT(s->nvme), "serial", "ChefKiss-NVMeMMU",
                             &error_fatal);
-    object_property_set_uint(OBJECT(&s->nvme), "max_ioqpairs", 7, &error_fatal);
-    object_property_set_uint(OBJECT(&s->nvme), "mdts", 8, &error_fatal);
-    object_property_set_uint(OBJECT(&s->nvme), "logical_block_size", 4096,
+    object_property_set_uint(OBJECT(s->nvme), "max_ioqpairs", 7, &error_fatal);
+    object_property_set_uint(OBJECT(s->nvme), "mdts", 8, &error_fatal);
+    object_property_set_uint(OBJECT(s->nvme), "logical_block_size", 4096,
                              &error_fatal);
-    object_property_set_uint(OBJECT(&s->nvme), "physical_block_size", 4096,
+    object_property_set_uint(OBJECT(s->nvme), "physical_block_size", 4096,
                              &error_fatal);
+    object_property_add_child(OBJECT(dev), "nvme", OBJECT(s->nvme));
 
-    pcie_host_mmcfg_init(pex, PCIE_MMCFG_SIZE_MAX);
+    prop = dtb_find_prop(node, "reg");
+    g_assert_nonnull(prop);
 
-    prop = find_dtb_prop(node, "reg");
-    assert(prop);
+    reg = (uint64_t *)prop->data;
 
-    reg = (uint64_t *)prop->value;
-
-    memory_region_init(&s->io_mmio, OBJECT(s), "nvme_mmu_pci_mmio", reg[1]);
-    sysbus_init_mmio(sbd, &s->io_mmio);
-    memory_region_init(&s->io_ioport, OBJECT(s), "nvme_mmu_pci_ioport",
-                       64 * 1024);
-
-    pci->bus = pci_register_root_bus(
-        dev, "nvme_mmu_pcie.0", apple_nvme_mmu_set_irq, pci_swizzle_map_irq_fn,
-        s, &s->io_mmio, &s->io_ioport, 0, 4, TYPE_PCIE_BUS);
     sysbus_init_irq(sbd, &s->irq);
+    memory_region_init_io(&s->common, OBJECT(dev),
+                          &apple_nvme_mmu_common_reg_ops, s,
+                          TYPE_APPLE_NVME_MMU ".common-reg", reg[1]);
+    sysbus_init_mmio(sbd, &s->common);
+    memory_region_init_io(&s->config, OBJECT(dev),
+                          &apple_nvme_mmu_config_reg_ops, s,
+                          TYPE_APPLE_NVME_MMU ".config-reg", reg[3]);
+    sysbus_init_mmio(sbd, &s->config);
 
     return sbd;
 }
@@ -79,9 +240,25 @@ SysBusDevice *apple_nvme_mmu_create(DTBNode *node)
 static void apple_nvme_mmu_realize(DeviceState *dev, Error **errp)
 {
     AppleNVMeMMUState *s = APPLE_NVME_MMU(dev);
-    PCIHostState *pci = PCI_HOST_BRIDGE(dev);
 
-    pci_realize_and_unref(PCI_DEVICE(&s->nvme), pci->bus, &error_fatal);
+    PCIDevice *pci_dev = PCI_DEVICE(s->nvme);
+    pci_bus_irqs(s->pci_bus, apple_nvme_mmu_set_irq, s, 4);
+    qdev_realize(DEVICE(s->nvme), BUS(s->pci_bus), &error_fatal);
+    g_assert_true(pci_is_express(pci_dev));
+    pcie_endpoint_cap_init(pci_dev, 0);
+    pcie_cap_deverr_init(pci_dev);
+
+    msi_nonbroken = true;
+    // for root bridge: offset 0x50, only 1 vector for the first bridge, 64-bit
+    // enabled, per-vector-mask disabled
+    msi_init(pci_dev, 0, 1, true, false, &error_fatal);
+
+    pci_pm_init(pci_dev, 0, &error_fatal);
+    pcie_cap_fill_link_ep_usp(pci_dev, QEMU_PCI_EXP_LNK_X2,
+                              QEMU_PCI_EXP_LNK_8GT);
+    pcie_aer_init(pci_dev, PCI_ERR_VER, 0x100, PCI_ERR_SIZEOF, &error_fatal);
+    pci_config_set_class(pci_dev->config, PCI_CLASS_STORAGE_OTHER);
+    apple_nvme_mmu_start(s);
 }
 
 static void apple_nvme_mmu_class_init(ObjectClass *klass, void *data)
@@ -96,7 +273,7 @@ static void apple_nvme_mmu_class_init(ObjectClass *klass, void *data)
 
 static const TypeInfo apple_nvme_mmu_info = {
     .name = TYPE_APPLE_NVME_MMU,
-    .parent = TYPE_PCIE_HOST_BRIDGE,
+    .parent = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(AppleNVMeMMUState),
     .class_init = apple_nvme_mmu_class_init,
 };

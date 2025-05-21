@@ -15,9 +15,8 @@
 #include "qemu/module.h"
 #include "trace.h"
 
-static Property spmi_props[] = {
+static const Property spmi_props[] = {
     DEFINE_PROP_UINT8("sid", struct SPMISlave, sid, 0),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static const TypeInfo spmi_bus_info = {

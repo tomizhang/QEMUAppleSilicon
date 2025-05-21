@@ -512,9 +512,8 @@ static void g364fb_sysbus_reset(DeviceState *d)
     g364fb_reset(&s->g364);
 }
 
-static Property g364fb_sysbus_properties[] = {
+static const Property g364fb_sysbus_properties[] = {
     DEFINE_PROP_UINT32("vram_size", G364SysBusState, g364.vram_size, 8 * MiB),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static const VMStateDescription vmstate_g364fb_sysbus = {
@@ -534,7 +533,7 @@ static void g364fb_sysbus_class_init(ObjectClass *klass, void *data)
     dc->realize = g364fb_sysbus_realize;
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
     dc->desc = "G364 framebuffer";
-    dc->reset = g364fb_sysbus_reset;
+    device_class_set_legacy_reset(dc, g364fb_sysbus_reset);
     dc->vmsd = &vmstate_g364fb_sysbus;
     device_class_set_props(dc, g364fb_sysbus_properties);
 }

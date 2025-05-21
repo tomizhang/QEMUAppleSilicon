@@ -1,8 +1,6 @@
 #include "qemu/osdep.h"
 #include "exec/address-spaces.h"
-#include "hw/arm/apple-silicon/dtb.h"
 #include "hw/arm/apple-silicon/sart.h"
-#include "qemu/module.h"
 
 // #define DEBUG_SART
 
@@ -17,15 +15,15 @@
     } while (0)
 #endif
 
-#define SART_MAX_VA_BITS 42
-#define SART_NUM_REGIONS 16
+#define SART_MAX_VA_BITS (42)
+#define SART_NUM_REGIONS (16)
 
-typedef struct AppleSARTIOMMUMemoryRegion {
+struct AppleSARTIOMMUMemoryRegion {
     IOMMUMemoryRegion parent_obj;
     AppleSARTState *s;
-} AppleSARTIOMMUMemoryRegion;
+};
 
-typedef struct AppleSARTRegion {
+typedef struct {
     uint64_t addr;
     uint64_t size;
     uint32_t flags;
@@ -40,9 +38,9 @@ struct AppleSARTState {
     uint32_t reg[0x8000 / sizeof(uint32_t)];
 };
 
-static inline uint64_t sart_get_reg(AppleSARTState *s, uint32_t offset)
+static inline uint32_t sart_get_reg(AppleSARTState *s, uint32_t offset)
 {
-    return *(uint64_t *)((char *)s->reg + offset);
+    return s->reg[offset / sizeof(uint32_t)];
 }
 
 static inline hwaddr sart_get_region_addr(AppleSARTState *s, int region)
@@ -52,9 +50,11 @@ static inline hwaddr sart_get_region_addr(AppleSARTState *s, int region)
     switch (s->version) {
     case 1:
     case 2:
-        return (sart_get_reg(s, 0x40 + region * 4) >> 0) & 0xFFFFFF;
+        return (sart_get_reg(s, 0x40 + region * sizeof(uint32_t)) >> 0) &
+               0xFFFFFF;
     case 3:
-        return (sart_get_reg(s, 0x40 + region * 4) >> 0) & 0x3FFFFFFF;
+        return (sart_get_reg(s, 0x40 + region * sizeof(uint32_t)) >> 0) &
+               0x3FFFFFFF;
     default:
         g_assert_not_reached();
         break;
@@ -98,15 +98,15 @@ static inline uint32_t sart_get_region_flags(AppleSARTState *s, int region)
 static void base_reg_write(void *opaque, hwaddr addr, uint64_t data,
                            unsigned size)
 {
-    AppleSARTState *s = APPLE_SART(opaque);
-    uint32_t orig;
-    uint32_t val = data;
+    AppleSARTState *s;
+    IOMMUTLBEvent event;
+
+    s = APPLE_SART(opaque);
+
     DPRINTF("%s: %s @ 0x" HWADDR_FMT_plx " value: 0x" HWADDR_FMT_plx "\n",
             DEVICE(s)->id, __func__, addr, data);
 
-    orig = s->reg[addr >> 2];
-
-    s->reg[addr >> 2] = val;
+    s->reg[addr / sizeof(uint32_t)] = (uint32_t)data;
 
     for (int i = 0; i < SART_NUM_REGIONS; i++) {
         if ((sart_get_region_addr(s, i) != s->regions[i].addr) ||
@@ -115,7 +115,6 @@ static void base_reg_write(void *opaque, hwaddr addr, uint64_t data,
             hwaddr curr = s->regions[i].addr;
             for (curr = s->regions[i].addr;
                  curr < s->regions[i].addr + s->regions[i].size; curr++) {
-                IOMMUTLBEvent event;
                 event.type = IOMMU_NOTIFIER_UNMAP;
                 event.entry.target_as = &address_space_memory;
                 event.entry.iova = curr << 12;
@@ -133,7 +132,10 @@ static void base_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
 static uint64_t base_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
-    AppleSARTState *s = APPLE_SART(opaque);
+    AppleSARTState *s;
+
+    s = APPLE_SART(opaque);
+
     DPRINTF("%s: %s @ 0x" HWADDR_FMT_plx "\n", DEVICE(s)->id, __func__, addr);
 
     return s->reg[addr >> 2];
@@ -153,8 +155,11 @@ static const MemoryRegionOps base_reg_ops = {
 static IOMMUTLBEntry apple_sart_translate(IOMMUMemoryRegion *mr, hwaddr addr,
                                           IOMMUAccessFlags flag, int iommu_idx)
 {
-    AppleSARTIOMMUMemoryRegion *iommu = APPLE_SART_IOMMU_MEMORY_REGION(mr);
-    AppleSARTState *s = container_of(iommu, AppleSARTState, iommu);
+    AppleSARTIOMMUMemoryRegion *iommu;
+    AppleSARTState *s;
+
+    iommu = APPLE_SART_IOMMU_MEMORY_REGION(mr);
+    s = container_of(iommu, AppleSARTState, iommu);
 
     IOMMUTLBEntry entry = {
         .target_as = &address_space_memory,
@@ -178,7 +183,10 @@ static IOMMUTLBEntry apple_sart_translate(IOMMUMemoryRegion *mr, hwaddr addr,
 
 static void apple_sart_reset(DeviceState *dev)
 {
-    AppleSARTState *s = APPLE_SART(dev);
+    AppleSARTState *s;
+
+    s = APPLE_SART(dev);
+
     memset(s->reg, 0, sizeof(s->reg));
     memset(s->regions, 0, sizeof(s->regions));
 }
@@ -195,19 +203,23 @@ SysBusDevice *apple_sart_create(DTBNode *node)
     s = APPLE_SART(dev);
     sbd = SYS_BUS_DEVICE(dev);
 
-    prop = find_dtb_prop(node, "name");
-    dev->id = g_strdup((const char *)prop->value);
+    prop = dtb_find_prop(node, "name");
+    dev->id = g_strdup((const char *)prop->data);
 
-    prop = find_dtb_prop(node, "sart-version");
-    g_assert_nonnull(prop);
-    s->version = *(uint32_t *)prop->value;
+    prop = dtb_find_prop(node, "sart-version");
+    if (prop == NULL) { // iOS 13?
+        s->version = 1;
+    } else {
+        g_assert_nonnull(prop);
+        s->version = ldl_le_p(prop->data);
+    }
     g_assert_cmpuint(s->version, >=, 1);
     g_assert_cmpuint(s->version, <=, 3);
 
-    prop = find_dtb_prop(node, "reg");
+    prop = dtb_find_prop(node, "reg");
     g_assert_nonnull(prop);
 
-    reg = (uint64_t *)prop->value;
+    reg = (uint64_t *)prop->data;
     memory_region_init_io(&s->iomem, OBJECT(dev), &base_reg_ops, s,
                           TYPE_APPLE_SART ".reg", reg[1]);
     sysbus_init_mmio(sbd, &s->iomem);
@@ -224,7 +236,7 @@ static void apple_sart_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    dc->reset = apple_sart_reset;
+    device_class_set_legacy_reset(dc, apple_sart_reset);
     dc->desc = "Apple SART IOMMU";
 }
 

@@ -28,7 +28,7 @@
 #include "hw/register.h"
 #include "hw/usb/hcd-xhci-sysbus.h"
 #include "qemu/queue.h"
-#include "sysemu/dma.h"
+#include "system/dma.h"
 
 #define DWC3_SIZE 0x10000
 #define DWC3_MMIO_SIZE 0x10000
@@ -47,7 +47,7 @@ typedef struct DWC3TRB {
     union {
         uint32_t status;
         struct QEMU_PACKED {
-            uint32_t size : 23;
+            uint32_t size : 24;
             uint32_t pcm : 2;
             uint32_t reserved27_26 : 2;
             uint32_t trbsts : 4;

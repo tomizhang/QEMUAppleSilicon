@@ -10,7 +10,7 @@
 #include "qemu/lockable.h"
 #include "qemu/main-loop.h"
 #include "qom/object.h"
-#include "sysemu/iothread.h"
+#include "system/iothread.h"
 #include "tcp-usb.h"
 
 // #define DEBUG_HCD_TCP
@@ -57,7 +57,7 @@ static ssize_t tcp_usb_read(QIOChannel *ioc, void *buf, size_t len)
         bql_unlock();
     }
 
-    ret = qio_channel_readv_full_all_eof(ioc, &iov, 1, NULL, 0, &err);
+    ret = qio_channel_readv_full_all_eof(ioc, &iov, 1, NULL, 0, 0, &err);
 
     if (iolock && !iothread && !qemu_in_coroutine()) {
         bql_lock();
@@ -302,7 +302,7 @@ static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
                 usb_tcp_host_respond_packet(s, pkt);
             } else {
                 warn_report("%s: TCP_USB_CANCEL: packet"
-                            " pid: 0x%x ep: %d id: 0x%llx not found",
+                            " pid: 0x%x ep: %d id: 0x%" PRIx64 " not found",
                             __func__, pkt_hdr.pid, pkt_hdr.ep, pkt_hdr.id);
             }
             break;
@@ -446,10 +446,6 @@ static void usb_tcp_host_init(Object *obj)
                TYPE_USB_TCP_HOST);
 }
 
-static Property usb_tcp_host_properties[] = {
-    DEFINE_PROP_END_OF_LIST(),
-};
-
 static void usb_tcp_host_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -457,7 +453,6 @@ static void usb_tcp_host_class_init(ObjectClass *klass, void *data)
     dc->realize = usb_tcp_host_realize;
     dc->unrealize = usb_tcp_host_unrealize;
     dc->desc = "QEMU USB Passthrough Host Controller";
-    device_class_set_props(dc, usb_tcp_host_properties);
     set_bit(DEVICE_CATEGORY_USB, dc->categories);
 }
 

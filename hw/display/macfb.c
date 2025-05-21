@@ -758,13 +758,12 @@ static void macfb_nubus_reset(DeviceState *d)
     macfb_reset(&s->macfb);
 }
 
-static Property macfb_sysbus_properties[] = {
+static const Property macfb_sysbus_properties[] = {
     DEFINE_PROP_UINT32("width", MacfbSysBusState, macfb.width, 640),
     DEFINE_PROP_UINT32("height", MacfbSysBusState, macfb.height, 480),
     DEFINE_PROP_UINT8("depth", MacfbSysBusState, macfb.depth, 8),
     DEFINE_PROP_UINT8("display", MacfbSysBusState, macfb.type,
                       MACFB_DISPLAY_VGA),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static const VMStateDescription vmstate_macfb_sysbus = {
@@ -777,13 +776,12 @@ static const VMStateDescription vmstate_macfb_sysbus = {
     }
 };
 
-static Property macfb_nubus_properties[] = {
+static const Property macfb_nubus_properties[] = {
     DEFINE_PROP_UINT32("width", MacfbNubusState, macfb.width, 640),
     DEFINE_PROP_UINT32("height", MacfbNubusState, macfb.height, 480),
     DEFINE_PROP_UINT8("depth", MacfbNubusState, macfb.depth, 8),
     DEFINE_PROP_UINT8("display", MacfbNubusState, macfb.type,
                       MACFB_DISPLAY_VGA),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static const VMStateDescription vmstate_macfb_nubus = {
@@ -802,7 +800,7 @@ static void macfb_sysbus_class_init(ObjectClass *klass, void *data)
 
     dc->realize = macfb_sysbus_realize;
     dc->desc = "SysBus Macintosh framebuffer";
-    dc->reset = macfb_sysbus_reset;
+    device_class_set_legacy_reset(dc, macfb_sysbus_reset);
     dc->vmsd = &vmstate_macfb_sysbus;
     device_class_set_props(dc, macfb_sysbus_properties);
 }
@@ -817,7 +815,7 @@ static void macfb_nubus_class_init(ObjectClass *klass, void *data)
     device_class_set_parent_unrealize(dc, macfb_nubus_unrealize,
                                       &ndc->parent_unrealize);
     dc->desc = "Nubus Macintosh framebuffer";
-    dc->reset = macfb_nubus_reset;
+    device_class_set_legacy_reset(dc, macfb_nubus_reset);
     dc->vmsd = &vmstate_macfb_nubus;
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
     device_class_set_props(dc, macfb_nubus_properties);

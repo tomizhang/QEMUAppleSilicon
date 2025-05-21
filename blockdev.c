@@ -31,8 +31,8 @@
  */
 
 #include "qemu/osdep.h"
-#include "sysemu/block-backend.h"
-#include "sysemu/blockdev.h"
+#include "system/block-backend.h"
+#include "system/blockdev.h"
 #include "hw/block/block.h"
 #include "block/blockjob.h"
 #include "block/dirty-bitmap.h"
@@ -46,19 +46,19 @@
 #include "qapi/qapi-commands-block.h"
 #include "qapi/qapi-commands-transaction.h"
 #include "qapi/qapi-visit-block-core.h"
-#include "qapi/qmp/qdict.h"
-#include "qapi/qmp/qnum.h"
-#include "qapi/qmp/qstring.h"
+#include "qobject/qdict.h"
+#include "qobject/qnum.h"
+#include "qobject/qstring.h"
 #include "qapi/error.h"
 #include "qapi/qmp/qerror.h"
-#include "qapi/qmp/qlist.h"
+#include "qobject/qlist.h"
 #include "qapi/qobject-output-visitor.h"
-#include "sysemu/sysemu.h"
-#include "sysemu/iothread.h"
+#include "system/system.h"
+#include "system/iothread.h"
 #include "block/block_int.h"
 #include "block/trace.h"
-#include "sysemu/runstate.h"
-#include "sysemu/replay.h"
+#include "system/runstate.h"
+#include "system/replay.h"
 #include "qemu/cutils.h"
 #include "qemu/help_option.h"
 #include "qemu/main-loop.h"
@@ -1395,7 +1395,7 @@ static void external_snapshot_action(TransactionAction *action,
     bdrv_drained_begin(state->old_bs);
 
     if (!bdrv_is_inserted(state->old_bs)) {
-        error_setg(errp, QERR_DEVICE_HAS_NO_MEDIUM,
+        error_setg(errp, "Device '%s' has no medium",
                    bdrv_get_device_or_node_name(state->old_bs));
         return;
     }
@@ -1406,8 +1406,10 @@ static void external_snapshot_action(TransactionAction *action,
     }
 
     if (!bdrv_is_read_only(state->old_bs)) {
-        if (bdrv_flush(state->old_bs)) {
-            error_setg(errp, QERR_IO_ERROR);
+        ret = bdrv_flush(state->old_bs);
+        if (ret < 0) {
+            error_setg_errno(errp, -ret, "Write to node '%s' failed",
+                             bdrv_get_device_or_node_name(state->old_bs));
             return;
         }
     }
@@ -1493,6 +1495,22 @@ static void external_snapshot_action(TransactionAction *action,
     if (!state->new_bs->drv->supports_backing) {
         error_setg(errp, "The overlay does not support backing images");
         return;
+    }
+
+    /*
+     * Older QEMU versions have allowed adding an active parent node to an
+     * inactive child node. This is unsafe in the general case, but there is an
+     * important use case, which is taking a VM snapshot with migration to file
+     * and then adding an external snapshot while the VM is still stopped and
+     * images are inactive. Requiring the user to explicitly create the overlay
+     * as inactive would break compatibility, so just do it automatically here
+     * to keep this working.
+     */
+    if (bdrv_is_inactive(state->old_bs) && !bdrv_is_inactive(state->new_bs)) {
+        ret = bdrv_inactivate(state->new_bs, errp);
+        if (ret < 0) {
+            return;
+        }
     }
 
     ret = bdrv_append(state->new_bs, state->old_bs, errp);
@@ -2653,6 +2671,9 @@ static BlockJob *do_backup_common(BackupCommon *backup,
         if (backup->x_perf->has_max_chunk) {
             perf.max_chunk = backup->x_perf->max_chunk;
         }
+        if (backup->x_perf->has_min_cluster_size) {
+            perf.min_cluster_size = backup->x_perf->min_cluster_size;
+        }
     }
 
     if ((backup->sync == MIRROR_SYNC_MODE_BITMAP) ||
@@ -2726,7 +2747,7 @@ static BlockJob *do_backup_common(BackupCommon *backup,
 
     job = backup_job_create(backup->job_id, bs, target_bs, backup->speed,
                             backup->sync, bmap, backup->bitmap_mode,
-                            backup->compress,
+                            backup->compress, backup->discard_source,
                             backup->filter_node_name,
                             &perf,
                             backup->on_source_error,
@@ -3448,6 +3469,38 @@ void qmp_blockdev_del(const char *node_name, Error **errp)
 
     QTAILQ_REMOVE(&monitor_bdrv_states, bs, monitor_list);
     bdrv_unref(bs);
+}
+
+void qmp_blockdev_set_active(const char *node_name, bool active, Error **errp)
+{
+    int ret;
+
+    GLOBAL_STATE_CODE();
+    GRAPH_RDLOCK_GUARD_MAINLOOP();
+
+    if (!node_name) {
+        if (active) {
+            bdrv_activate_all(errp);
+        } else {
+            ret = bdrv_inactivate_all();
+            if (ret < 0) {
+                error_setg_errno(errp, -ret, "Failed to inactivate all nodes");
+            }
+        }
+    } else {
+        BlockDriverState *bs = bdrv_find_node(node_name);
+        if (!bs) {
+            error_setg(errp, "Failed to find node with node-name='%s'",
+                       node_name);
+            return;
+        }
+
+        if (active) {
+            bdrv_activate(bs, errp);
+        } else {
+            bdrv_inactivate(bs, errp);
+        }
+    }
 }
 
 static BdrvChild * GRAPH_RDLOCK

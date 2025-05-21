@@ -1,5 +1,5 @@
 # core.c
 
-apple_a7iop_mailbox_send(const char *role, uint8_t endpoint, uint64_t qword0, uint64_t qword1) "%s EP%d QWORD0 0x%016" PRIx64 " QWORD1 0x%016" PRIx64
-apple_a7iop_mailbox_recv(const char *role, uint8_t endpoint, uint64_t qword0, uint64_t qword1) "%s EP%d QWORD0 0x%016" PRIx64 " QWORD1 0x%016" PRIx64
+apple_a7iop_mailbox_send(const char *role, uint64_t qword0, uint64_t qword1) "%s QWORD0 0x%016" PRIx64 " QWORD1 0x%016" PRIx64
+apple_a7iop_mailbox_recv(const char *role, uint64_t qword0, uint64_t qword1) "%s QWORD0 0x%016" PRIx64 " QWORD1 0x%016" PRIx64
 apple_a7iop_mailbox_update_irq(const char *role, bool iop_empty, bool ap_empty, bool iop_nonempty_masked, bool iop_empty_masked, bool ap_nonempty_masked, bool ap_empty_masked) "%s iop_empty %d ap_empty %d iop_nonempty_masked %d iop_empty_masked %d ap_nonempty_masked %d ap_empty_masked %d"

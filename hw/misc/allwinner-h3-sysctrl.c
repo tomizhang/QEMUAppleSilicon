@@ -78,7 +78,7 @@ static void allwinner_h3_sysctrl_write(void *opaque, hwaddr offset,
 static const MemoryRegionOps allwinner_h3_sysctrl_ops = {
     .read = allwinner_h3_sysctrl_read,
     .write = allwinner_h3_sysctrl_write,
-    .endianness = DEVICE_NATIVE_ENDIAN,
+    .endianness = DEVICE_LITTLE_ENDIAN,
     .valid = {
         .min_access_size = 4,
         .max_access_size = 4,
@@ -120,7 +120,7 @@ static void allwinner_h3_sysctrl_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
-    dc->reset = allwinner_h3_sysctrl_reset;
+    device_class_set_legacy_reset(dc, allwinner_h3_sysctrl_reset);
     dc->vmsd = &allwinner_h3_sysctrl_vmstate;
 }
 

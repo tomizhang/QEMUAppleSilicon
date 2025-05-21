@@ -25,7 +25,7 @@
 #include "cpu.h"
 #include "x86_descr.h"
 #include "x86_decode.h"
-#include "sysemu/hw_accel.h"
+#include "system/hw_accel.h"
 
 #include "hw/i386/apic_internal.h"
 
@@ -427,7 +427,7 @@ int hvf_process_events(CPUState *cs)
     X86CPU *cpu = X86_CPU(cs);
     CPUX86State *env = &cpu->env;
 
-    if (!cs->vcpu_dirty) {
+    if (!cs->accel->dirty) {
         /* light weight sync for CPU_INTERRUPT_HARD and IF_MASK */
         env->eflags = rreg(cs->accel->fd, HV_X86_RFLAGS);
     }

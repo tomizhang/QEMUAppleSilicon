@@ -1,7 +1,7 @@
 /*
  * Apple Display Pipe V2 Controller.
  *
- * Copyright (c) 2023-2024 Visual Ehrmanntraut.
+ * Copyright (c) 2023-2025 Visual Ehrmanntraut.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,56 +16,21 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef APPLE_DISPLAYPIPE_V2_H
-#define APPLE_DISPLAYPIPE_V2_H
+
+#ifndef HW_DISPLAY_ADBE_V2_H
+#define HW_DISPLAY_ADBE_V2_H
 
 #include "qemu/osdep.h"
+#include "hw/arm/apple-silicon/boot.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/sysbus.h"
-#include "qom/object.h"
-#include "ui/console.h"
 
-#define TYPE_APPLE_DISPLAYPIPE_V2 "apple-displaypipe-v2"
-OBJECT_DECLARE_SIMPLE_TYPE(AppleDisplayPipeV2State, APPLE_DISPLAYPIPE_V2);
+#define TYPE_APPLE_DISPLAY_PIPE_V2 "apple-display-pipe-v2"
+OBJECT_DECLARE_SIMPLE_TYPE(AppleDisplayPipeV2State, APPLE_DISPLAY_PIPE_V2);
 
-typedef struct {
-    uint32_t start;
-    uint32_t end;
-    uint32_t stride;
-    uint32_t size;
-} GenPipeLayer;
+SysBusDevice *adp_v2_create(DTBNode *node, MemoryRegion *dma_mr,
+                            AppleVideoArgs *video_args, uint64_t vram_size);
+void adp_v2_update_vram_mapping(AppleDisplayPipeV2State *s, MemoryRegion *mr,
+                                hwaddr base);
 
-typedef struct {
-    size_t index;
-    MemoryRegion *vram;
-    AddressSpace *dma_as;
-    QEMUBH *bh;
-    // TODO: Not have this field.
-    AppleDisplayPipeV2State *disp_state;
-    uint32_t config_control;
-    uint32_t pixel_format;
-    uint16_t width;
-    uint16_t height;
-    GenPipeLayer layers[2];
-} GenPipeState;
-
-struct AppleDisplayPipeV2State {
-    /*< private >*/
-    SysBusDevice parent_obj;
-
-    /*< public >*/
-    uint32_t width, height;
-    MemoryRegion up_regs, vram;
-    MemoryRegion *dma_mr;
-    AddressSpace dma_as;
-    MemoryRegionSection vram_section;
-    qemu_irq irqs[9];
-    uint32_t int_filter;
-    GenPipeState genpipes[2];
-    QemuConsole *console;
-};
-
-AppleDisplayPipeV2State *apple_displaypipe_v2_create(MachineState *machine,
-                                                     DTBNode *node);
-
-#endif /* APPLE_DISPLAYPIPE_V2_H */
+#endif /* HW_DISPLAY_ADBE_V2_H */

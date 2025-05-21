@@ -16,6 +16,7 @@
 #include "exec/log.h"
 #include "qemu/qemu-print.h"
 #include "fpu/softfloat.h"
+#include "tcg_loongarch.h"
 #include "translate.h"
 #include "internals.h"
 #include "vec.h"
@@ -288,7 +289,7 @@ static void loongarch_tr_translate_insn(DisasContextBase *dcbase, CPUState *cs)
 
     if (!decode(ctx, ctx->opcode)) {
         qemu_log_mask(LOG_UNIMP, "Error: unknown opcode. "
-                      TARGET_FMT_lx ": 0x%x\n",
+                      "0x%" VADDR_PRIx ": 0x%x\n",
                       ctx->base.pc_next, ctx->opcode);
         generate_exception(ctx, EXCCODE_INE);
     }
@@ -325,24 +326,16 @@ static void loongarch_tr_tb_stop(DisasContextBase *dcbase, CPUState *cs)
     }
 }
 
-static void loongarch_tr_disas_log(const DisasContextBase *dcbase,
-                                   CPUState *cpu, FILE *logfile)
-{
-    qemu_log("IN: %s\n", lookup_symbol(dcbase->pc_first));
-    target_disas(logfile, cpu, dcbase->pc_first, dcbase->tb->size);
-}
-
 static const TranslatorOps loongarch_tr_ops = {
     .init_disas_context = loongarch_tr_init_disas_context,
     .tb_start           = loongarch_tr_tb_start,
     .insn_start         = loongarch_tr_insn_start,
     .translate_insn     = loongarch_tr_translate_insn,
     .tb_stop            = loongarch_tr_tb_stop,
-    .disas_log          = loongarch_tr_disas_log,
 };
 
-void gen_intermediate_code(CPUState *cs, TranslationBlock *tb, int *max_insns,
-                           vaddr pc, void *host_pc)
+void loongarch_translate_code(CPUState *cs, TranslationBlock *tb,
+                              int *max_insns, vaddr pc, void *host_pc)
 {
     DisasContext ctx;
 
@@ -366,4 +359,8 @@ void loongarch_translate_init(void)
                     offsetof(CPULoongArchState, lladdr), "lladdr");
     cpu_llval = tcg_global_mem_new(tcg_env,
                     offsetof(CPULoongArchState, llval), "llval");
+
+#ifndef CONFIG_USER_ONLY
+    loongarch_csr_translate_init();
+#endif
 }

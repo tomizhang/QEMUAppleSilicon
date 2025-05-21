@@ -1925,10 +1925,9 @@ static const GraphicHwOps exynos4210_fimd_ops = {
     .gfx_update  = exynos4210_fimd_update,
 };
 
-static Property exynos4210_fimd_properties[] = {
+static const Property exynos4210_fimd_properties[] = {
     DEFINE_PROP_LINK("framebuffer-memory", Exynos4210fimdState, fbmem,
                      TYPE_MEMORY_REGION, MemoryRegion *),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void exynos4210_fimd_init(Object *obj)
@@ -1964,7 +1963,7 @@ static void exynos4210_fimd_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->vmsd = &exynos4210_fimd_vmstate;
-    dc->reset = exynos4210_fimd_reset;
+    device_class_set_legacy_reset(dc, exynos4210_fimd_reset);
     dc->realize = exynos4210_fimd_realize;
     device_class_set_props(dc, exynos4210_fimd_properties);
 }

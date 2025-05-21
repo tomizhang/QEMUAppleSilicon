@@ -12,9 +12,9 @@
 #include "qemu/main-loop.h"
 #include "qemu/module.h"
 #include "qom/object.h"
-#include "sysemu/iothread.h"
 #include "dev-tcp-remote.h"
 #include "desc.h"
+#include "system/iothread.h"
 #include "tcp-usb.h"
 #include "trace.h"
 
@@ -37,12 +37,11 @@ usb_tcp_remote_find_inflight_packet(USBTCPRemoteState *s, int pid, uint8_t ep,
 {
     USBTCPInflightPacket *p;
 
-    WITH_QEMU_LOCK_GUARD(&s->queue_mutex)
-    {
-        QTAILQ_FOREACH (p, &s->queue, queue) {
-            if (p->p->pid == pid && p->p->ep->nr == ep && p->p->id == id) {
-                return p;
-            }
+    QEMU_LOCK_GUARD(&s->queue_mutex);
+
+    QTAILQ_FOREACH (p, &s->queue, queue) {
+        if (p->p->pid == pid && p->p->ep->nr == ep && p->p->id == id) {
+            return p;
         }
     }
 
@@ -53,13 +52,12 @@ static void usb_tcp_remote_clean_inflight_queue(USBTCPRemoteState *s)
 {
     USBTCPInflightPacket *p;
 
-    WITH_QEMU_LOCK_GUARD(&s->queue_mutex)
-    {
-        QTAILQ_FOREACH (p, &s->queue, queue) {
-            p->p->status = USB_RET_STALL;
-            qatomic_set(&p->handled, 1);
-            /* Will be cleaned by usb_tcp_remote_handle_packet */
-        }
+    QEMU_LOCK_GUARD(&s->queue_mutex);
+
+    QTAILQ_FOREACH (p, &s->queue, queue) {
+        p->p->status = USB_RET_STALL;
+        qatomic_set(&p->handled, 1);
+        /* Will be cleaned by usb_tcp_remote_handle_packet */
     }
 }
 
@@ -68,19 +66,18 @@ static void usb_tcp_remote_clean_completed_queue(USBTCPRemoteState *s)
     USBTCPCompletedPacket *p;
     USBDevice *dev = USB_DEVICE(s);
 
-    WITH_QEMU_LOCK_GUARD(&s->completed_queue_mutex)
-    {
-        while (!QTAILQ_EMPTY(&s->completed_queue)) {
-            p = QTAILQ_FIRST(&s->completed_queue);
-            QTAILQ_REMOVE(&s->completed_queue, p, queue);
-            p->p->status = USB_RET_STALL;
-            if (p->p->status == USB_RET_REMOVE_FROM_QUEUE) {
-                dev->port->ops->complete(dev->port, p->p);
-            } else {
-                usb_packet_complete(USB_DEVICE(s), p->p);
-            }
-            g_free(p);
+    QEMU_LOCK_GUARD(&s->completed_queue_mutex);
+
+    while (!QTAILQ_EMPTY(&s->completed_queue)) {
+        p = QTAILQ_FIRST(&s->completed_queue);
+        QTAILQ_REMOVE(&s->completed_queue, p, queue);
+        p->p->status = USB_RET_STALL;
+        if (p->p->status == USB_RET_REMOVE_FROM_QUEUE) {
+            dev->port->ops->complete(dev->port, p->p);
+        } else {
+            usb_packet_complete(USB_DEVICE(s), p->p);
         }
+        g_free(p);
     }
 }
 
@@ -123,33 +120,32 @@ static void usb_tcp_remote_completed_bh(void *opaque)
 
     USBTCPCompletedPacket *p;
 
-    WITH_QEMU_LOCK_GUARD(&s->completed_queue_mutex)
-    {
-        while (!QTAILQ_EMPTY(&s->completed_queue)) {
-            p = QTAILQ_FIRST(&s->completed_queue);
-            QTAILQ_REMOVE(&s->completed_queue, p, queue);
+    QEMU_LOCK_GUARD(&s->completed_queue_mutex);
 
-            qemu_mutex_unlock(&s->completed_queue_mutex);
-            if (s->addr != dev->addr && p->p->ep->nr == 0 &&
-                p->p->pid == USB_TOKEN_IN && p->p->status == USB_RET_SUCCESS) {
-                /*
-                 * EHCI will append the completed packet to a queue
-                 * and then schedule a BH
-                 * BH scheduling is FIFO
-                 * we want addr to be update after the IN status completed
-                 */
-                qemu_bh_schedule(s->addr_bh);
-            }
-            if (usb_packet_is_inflight(p->p)) {
-                if (p->p->status == USB_RET_REMOVE_FROM_QUEUE) {
-                    dev->port->ops->complete(dev->port, p->p);
-                } else {
-                    usb_packet_complete(USB_DEVICE(s), p->p);
-                }
-            }
-            g_free(p);
-            qemu_mutex_lock(&s->completed_queue_mutex);
+    while (!QTAILQ_EMPTY(&s->completed_queue)) {
+        p = QTAILQ_FIRST(&s->completed_queue);
+        QTAILQ_REMOVE(&s->completed_queue, p, queue);
+
+        qemu_mutex_unlock(&s->completed_queue_mutex);
+        if (s->addr != dev->addr && p->p->ep->nr == 0 &&
+            p->p->pid == USB_TOKEN_IN && p->p->status == USB_RET_SUCCESS) {
+            /*
+             * EHCI will append the completed packet to a queue
+             * and then schedule a BH
+             * BH scheduling is FIFO
+             * we want addr to be update after the IN status completed
+             */
+            qemu_bh_schedule(s->addr_bh);
         }
+        if (usb_packet_is_inflight(p->p)) {
+            if (p->p->status == USB_RET_REMOVE_FROM_QUEUE) {
+                dev->port->ops->complete(dev->port, p->p);
+            } else {
+                usb_packet_complete(USB_DEVICE(s), p->p);
+            }
+        }
+        g_free(p);
+        qemu_mutex_lock(&s->completed_queue_mutex);
     }
 }
 
@@ -669,10 +665,6 @@ out:
     }
 }
 
-static Property usb_tcp_remote_properties[] = {
-    DEFINE_PROP_END_OF_LIST(),
-};
-
 static void usb_tcp_remote_dev_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -691,7 +683,6 @@ static void usb_tcp_remote_dev_class_init(ObjectClass *klass, void *data)
 
     dc->desc = "QEMU USB Passthrough Device";
 
-    device_class_set_props(dc, usb_tcp_remote_properties);
 
     set_bit(DEVICE_CATEGORY_USB, dc->categories);
 }

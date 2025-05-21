@@ -26,12 +26,8 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu/event_notifier.h"
 #include "qemu/module.h"
-#include "qemu/thread.h"
-#include "qemu/sockets.h"
 #include "qapi/error.h"
-#include "chardev/char.h"
 #include "hw/irq.h"
 #include "hw/pci/pci_device.h"
 #include "hw/qdev-properties.h"
@@ -243,7 +239,7 @@ static void mioe3680_pci_class_init(ObjectClass *klass, void *data)
     dc->desc = "Mioe3680 PCICANx";
     dc->vmsd = &vmstate_mioe3680_pci;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
-    dc->reset = mioe3680_pci_reset;
+    device_class_set_legacy_reset(dc, mioe3680_pci_reset);
 }
 
 static const TypeInfo mioe3680_pci_info = {

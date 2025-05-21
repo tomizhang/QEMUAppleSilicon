@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024 Visual Ehrmanntraut.
+ * Copyright (c) 2023-2025 Visual Ehrmanntraut.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -16,6 +16,14 @@
 
 #ifndef HW_ARM_APPLE_SILICON_BOOT_H
 #define HW_ARM_APPLE_SILICON_BOOT_H
+
+// #define ENABLE_BASEBAND
+#define ENABLE_SEP
+#define ENABLE_SEP_SECURITY
+
+#if defined(ENABLE_SEP_SECURITY) && !defined(ENABLE_SEP)
+#error "SEP Security cannot be enabled without SEP"
+#endif
 
 #include "qemu/osdep.h"
 #include "exec/hwaddr.h"
@@ -122,7 +130,8 @@ typedef struct {
 #define PLATFORM_BRIDGEOS (5)
 
 #define BUILD_VERSION_MAJOR(_v) (((_v) & 0xFFFF0000) >> 16)
-#define BUILD_VERSION_MINOR(_v) (((_v) & 0x0000FF00) >> 8)
+#define BUILD_VERSION_MINOR(_v) (((_v) & 0xFF00) >> 8)
+#define BUILD_VERSION_PATCH(_v) ((_v) & 0xFF)
 
 typedef struct {
     uint32_t cmd;
@@ -169,12 +178,20 @@ typedef struct {
 #define N_EXT (0x01)
 
 typedef struct {
-    unsigned long base_addr;
-    unsigned long display;
-    unsigned long row_bytes;
-    unsigned long width;
-    unsigned long height;
-    unsigned long depth;
+    uint64_t base_addr;
+    uint64_t display;
+    uint64_t row_bytes;
+    uint64_t width;
+    uint64_t height;
+    union {
+        struct {
+            uint8_t depth : 8;
+            uint8_t rotate : 8;
+            uint8_t scale : 8;
+            uint8_t boot_rotate : 8;
+        };
+        uint64_t raw;
+    } depth;
 } AppleVideoArgs;
 
 typedef struct {
@@ -190,6 +207,8 @@ typedef struct {
     uint64_t kern_text_section_off;
     uint8_t random_bytes[0x10];
 } AppleMonitorBootArgs;
+
+#define BOOT_FLAGS_DARK_BOOT BIT(0)
 
 typedef struct {
     uint16_t revision;
@@ -248,13 +267,15 @@ typedef struct {
     char macos_version[EMBEDDED_PANIC_HEADER_OSVERSION_LEN];
 } QEMU_PACKED AppleEmbeddedPanicHeader;
 
+#define IOP_SEGMENT_RANGE_NEEDS_BACKUP BIT(2)
+
 typedef struct {
     uint64_t phys;
     uint64_t virt;
     uint64_t remap;
     uint32_t size;
-    uint32_t flag;
-} QEMU_PACKED AppleIopSegmentRange;
+    uint32_t flags;
+} AppleIOPSegmentRange;
 
 #define XNU_MAX_NVRAM_SIZE (0xFFFF * 0x10)
 #define XNU_BNCH_SIZE (32)
@@ -273,11 +294,12 @@ typedef struct {
     uint64_t sep_fw_size;
     hwaddr kern_boot_args_addr;
     uint64_t kern_boot_args_size;
+    hwaddr top_of_kernel_data_pa;
     hwaddr tz1_boot_args_pa;
     hwaddr dram_base;
     uint64_t dram_size;
     uint8_t nvram_data[XNU_MAX_NVRAM_SIZE];
-    uint64_t nvram_size;
+    uint32_t nvram_size;
     char *ticket_data;
     uint64_t ticket_length;
     uint8_t boot_nonce_hash[XNU_BNCH_SIZE];
@@ -327,10 +349,9 @@ void apple_monitor_setup_boot_args(
     hwaddr kern_entry, hwaddr kern_phys_base, hwaddr kern_phys_slide,
     hwaddr kern_virt_slide, hwaddr kern_text_section_off);
 void macho_setup_bootargs(const char *name, AddressSpace *as, MemoryRegion *mem,
-                          hwaddr bootargs_pa, hwaddr virt_base,
-                          hwaddr phys_base, hwaddr mem_size,
-                          hwaddr top_of_kernel_data_pa, hwaddr dtb_va,
-                          hwaddr dtb_size, AppleVideoArgs v_bootargs,
+                          hwaddr addr, hwaddr virt_base, hwaddr phys_base,
+                          hwaddr mem_size, hwaddr kernel_top, hwaddr dtb_va,
+                          hwaddr dtb_size, AppleVideoArgs *video_args,
                           const char *cmdline);
 
 void macho_allocate_segment_records(DTBNode *memory_map, MachoHeader64 *mh);

@@ -10,15 +10,16 @@
 #include "qemu/osdep.h"
 
 #include "qapi/error.h"
+#include "qemu/error-report.h"
 #include "qemu/module.h"
 #include "hw/i2c/i2c.h"
 #include "hw/nvram/eeprom_at24c.h"
 #include "hw/qdev-properties.h"
 #include "hw/qdev-properties-system.h"
-#include "sysemu/block-backend.h"
+#include "system/block-backend.h"
 #include "qom/object.h"
 
-/* #define DEBUG_AT24C */
+//#define DEBUG_AT24C
 
 #ifdef DEBUG_AT24C
 #define DPRINTK(FMT, ...) printf(TYPE_AT24C_EE " : " FMT, ## __VA_ARGS__)
@@ -26,13 +27,8 @@
 #define DPRINTK(FMT, ...) do {} while (0)
 #endif
 
-#define ERR(FMT, ...) fprintf(stderr, TYPE_AT24C_EE " : " FMT, \
-                            ## __VA_ARGS__)
-
 #define TYPE_AT24C_EE "at24c-eeprom"
-typedef struct EEPROMState EEPROMState;
-DECLARE_INSTANCE_CHECKER(EEPROMState, AT24C_EE,
-                         TYPE_AT24C_EE)
+OBJECT_DECLARE_SIMPLE_TYPE(EEPROMState, AT24C_EE)
 
 struct EEPROMState {
     I2CSlave parent_obj;
@@ -71,14 +67,14 @@ int at24c_eeprom_event(I2CSlave *s, enum i2c_event event)
     case I2C_START_SEND:
     case I2C_FINISH:
         ee->haveaddr = 0;
+        //ee->cur = 0;
         /* fallthrough */
     case I2C_START_RECV:
         DPRINTK("clear\n");
         if (ee->blk && ee->changed) {
             int ret = blk_pwrite(ee->blk, 0, ee->rsize, ee->mem, 0);
             if (ret < 0) {
-                ERR(TYPE_AT24C_EE
-                        " : failed to write backing file\n");
+                error_report("%s: failed to write backing file", __func__);
             }
             DPRINTK("Wrote to backing file\n");
         }
@@ -108,8 +104,10 @@ uint8_t at24c_eeprom_recv(I2CSlave *s)
 
     ret = ee->mem[ee->cur];
 
+    DPRINTK("Prev recv cur=0x%x\n", ee->cur);
     ee->cur = (ee->cur + 1u) % ee->rsize;
-    DPRINTK("Recv %02x %c\n", ret, ret);
+    //DPRINTK("Recv %02x %c\n", ret, ret);
+    DPRINTK("Recv next_cur=0x%x %02x %c\n", ee->cur, ret, ret);
 
     return ret;
 }
@@ -120,12 +118,16 @@ int at24c_eeprom_send(I2CSlave *s, uint8_t data)
     EEPROMState *ee = AT24C_EE(s);
 
     if (ee->haveaddr < ee->asize) {
+        if (!ee->haveaddr) {
+            ee->cur = 0;
+        }
         ee->cur <<= 8;
         ee->cur |= data;
         ee->haveaddr++;
         if (ee->haveaddr == ee->asize) {
+            DPRINTK("haveaddr=0x%x; asize=0x%x; rsize=0x%x; cur=0x%x\n", ee->haveaddr, ee->asize, ee->rsize, ee->cur);
             ee->cur %= ee->rsize;
-            DPRINTK("Set pointer %04x\n", ee->cur);
+            DPRINTK("Set pointer %08x\n", ee->cur);
         }
 
     } else {
@@ -166,6 +168,28 @@ I2CSlave *at24c_eeprom_init_rom(I2CBus *bus, uint8_t address, uint32_t rom_size,
     return I2C_SLAVE(s);
 }
 
+I2CSlave *at24c_eeprom_init_rom_blk(I2CBus *bus, uint8_t address, uint32_t rom_size,
+                                const uint8_t *init_rom, uint32_t init_rom_size, uint32_t address_size, BlockBackend *blk)
+{
+    EEPROMState *s;
+
+    s = AT24C_EE(i2c_slave_new(TYPE_AT24C_EE, address));
+
+    qdev_prop_set_uint32(DEVICE(s), "rom-size", rom_size);
+    qdev_prop_set_uint32(DEVICE(s), "address-size", address_size);
+    if (blk) {
+        qdev_prop_set_drive_err(DEVICE(s), "drive", blk, &error_fatal);
+    }
+
+    /* TODO: Model init_rom with QOM properties. */
+    s->init_rom = init_rom;
+    s->init_rom_size = init_rom_size;
+
+    i2c_slave_realize_and_unref(I2C_SLAVE(s), bus, &error_abort);
+
+    return I2C_SLAVE(s);
+}
+
 static void at24c_eeprom_realize(DeviceState *dev, Error **errp)
 {
     EEPROMState *ee = AT24C_EE(dev);
@@ -195,20 +219,18 @@ static void at24c_eeprom_realize(DeviceState *dev, Error **errp)
     }
 
     ee->mem = g_malloc0(ee->rsize);
-    memset(ee->mem, 0, ee->rsize);
-
-    if (ee->init_rom) {
-        memcpy(ee->mem, ee->init_rom, MIN(ee->init_rom_size, ee->rsize));
-    }
 
     if (ee->blk) {
         int ret = blk_pread(ee->blk, 0, ee->rsize, ee->mem, 0);
 
         if (ret < 0) {
-            ERR(TYPE_AT24C_EE
-                    " : Failed initial sync with backing file\n");
+            error_setg(errp, "%s: Failed initial sync with backing file",
+                       TYPE_AT24C_EE);
+            return;
         }
         DPRINTK("Reset read backing file\n");
+    } else if (ee->init_rom) {
+        memcpy(ee->mem, ee->init_rom, MIN(ee->init_rom_size, ee->rsize));
     }
 
     /*
@@ -234,12 +256,11 @@ void at24c_eeprom_reset(DeviceState *state)
     ee->haveaddr = 0;
 }
 
-static Property at24c_eeprom_props[] = {
+static const Property at24c_eeprom_props[] = {
     DEFINE_PROP_UINT32("rom-size", EEPROMState, rsize, 0),
     DEFINE_PROP_UINT8("address-size", EEPROMState, asize, 0),
     DEFINE_PROP_BOOL("writable", EEPROMState, writable, true),
     DEFINE_PROP_DRIVE("drive", EEPROMState, blk),
-    DEFINE_PROP_END_OF_LIST()
 };
 
 static
@@ -254,7 +275,7 @@ void at24c_eeprom_class_init(ObjectClass *klass, void *data)
     k->send = &at24c_eeprom_send;
 
     device_class_set_props(dc, at24c_eeprom_props);
-    dc->reset = at24c_eeprom_reset;
+    device_class_set_legacy_reset(dc, at24c_eeprom_reset);
 }
 
 static

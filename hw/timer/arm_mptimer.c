@@ -300,9 +300,8 @@ static const VMStateDescription vmstate_arm_mptimer = {
     }
 };
 
-static Property arm_mptimer_properties[] = {
+static const Property arm_mptimer_properties[] = {
     DEFINE_PROP_UINT32("num-cpu", ARMMPTimerState, num_cpu, 0),
-    DEFINE_PROP_END_OF_LIST()
 };
 
 static void arm_mptimer_class_init(ObjectClass *klass, void *data)
@@ -311,7 +310,7 @@ static void arm_mptimer_class_init(ObjectClass *klass, void *data)
 
     dc->realize = arm_mptimer_realize;
     dc->vmsd = &vmstate_arm_mptimer;
-    dc->reset = arm_mptimer_reset;
+    device_class_set_legacy_reset(dc, arm_mptimer_reset);
     device_class_set_props(dc, arm_mptimer_properties);
 }
 

@@ -116,6 +116,7 @@ struct XlnxZynqMPState {
     MemoryRegion mr_unimp[XLNX_ZYNQMP_NUM_UNIMP_AREAS];
 
     CadenceGEMState gem[XLNX_ZYNQMP_NUM_GEMS];
+    OrIRQState gem_irq_orgate[XLNX_ZYNQMP_NUM_GEMS];
     CadenceUARTState uart[XLNX_ZYNQMP_NUM_UARTS];
     XlnxZynqMPCANState can[XLNX_ZYNQMP_NUM_CAN];
     SysbusAHCIState sata;
@@ -133,7 +134,7 @@ struct XlnxZynqMPState {
     XlnxZynqMPAPUCtrl apu_ctrl;
     XlnxZynqMPCRF crf;
     CadenceTTCState ttc[XLNX_ZYNQMP_NUM_TTC];
-    USBDWC3 usb[XLNX_ZYNQMP_NUM_USB];
+    DWC3State usb[XLNX_ZYNQMP_NUM_USB];
 
     char *boot_cpu;
     ARMCPU *boot_cpu_ptr;

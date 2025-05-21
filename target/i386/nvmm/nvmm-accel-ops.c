@@ -8,12 +8,13 @@
  */
 
 #include "qemu/osdep.h"
-#include "sysemu/kvm_int.h"
+#include "system/kvm_int.h"
 #include "qemu/main-loop.h"
-#include "sysemu/cpus.h"
+#include "system/accel-ops.h"
+#include "system/cpus.h"
 #include "qemu/guest-random.h"
 
-#include "sysemu/nvmm.h"
+#include "system/nvmm.h"
 #include "nvmm-accel-ops.h"
 
 static void *qemu_nvmm_cpu_thread_fn(void *arg)
@@ -64,9 +65,6 @@ static void nvmm_start_vcpu_thread(CPUState *cpu)
 {
     char thread_name[VCPU_THREAD_NAME_SIZE];
 
-    cpu->thread = g_new0(QemuThread, 1);
-    cpu->halt_cond = g_new0(QemuCond, 1);
-    qemu_cond_init(cpu->halt_cond);
     snprintf(thread_name, VCPU_THREAD_NAME_SIZE, "CPU %d/NVMM",
              cpu->cpu_index);
     qemu_thread_create(cpu->thread, thread_name, qemu_nvmm_cpu_thread_fn,

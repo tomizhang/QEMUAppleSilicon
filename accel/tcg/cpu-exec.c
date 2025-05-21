@@ -21,24 +21,27 @@
 #include "qemu/qemu-print.h"
 #include "qapi/error.h"
 #include "qapi/type-helpers.h"
-#include "hw/core/tcg-cpu-ops.h"
+#include "hw/core/cpu.h"
+#include "accel/tcg/cpu-ops.h"
 #include "trace.h"
 #include "disas/disas.h"
-#include "exec/exec-all.h"
+#include "exec/cpu-common.h"
+#include "exec/page-protection.h"
+#include "exec/translation-block.h"
 #include "tcg/tcg.h"
 #include "qemu/atomic.h"
 #include "qemu/rcu.h"
 #include "exec/log.h"
 #include "qemu/main-loop.h"
-#include "sysemu/cpus.h"
 #include "exec/cpu-all.h"
-#include "sysemu/cpu-timers.h"
+#include "system/cpu-timers.h"
 #include "exec/replay-core.h"
-#include "sysemu/tcg.h"
+#include "system/tcg.h"
 #include "exec/helper-proto-common.h"
 #include "tb-jmp-cache.h"
 #include "tb-hash.h"
 #include "tb-context.h"
+#include "tb-internal.h"
 #include "internal-common.h"
 #include "internal-target.h"
 
@@ -144,28 +147,6 @@ static void init_delay_params(SyncClocks *sc, const CPUState *cpu)
 }
 #endif /* CONFIG USER ONLY */
 
-uint32_t curr_cflags(CPUState *cpu)
-{
-    uint32_t cflags = cpu->tcg_cflags;
-
-    /*
-     * Record gdb single-step.  We should be exiting the TB by raising
-     * EXCP_DEBUG, but to simplify other tests, disable chaining too.
-     *
-     * For singlestep and -d nochain, suppress goto_tb so that
-     * we can log -d cpu,exec after every TB.
-     */
-    if (unlikely(cpu->singlestep_enabled)) {
-        cflags |= CF_NO_GOTO_TB | CF_NO_GOTO_PTR | CF_SINGLE_STEP | 1;
-    } else if (qatomic_read(&one_insn_per_tb)) {
-        cflags |= CF_NO_GOTO_TB | 1;
-    } else if (qemu_loglevel_mask(CPU_LOG_TB_NOCHAIN)) {
-        cflags |= CF_NO_GOTO_TB;
-    }
-
-    return cflags;
-}
-
 struct tb_desc {
     vaddr pc;
     uint64_t cs_base;
@@ -235,7 +216,20 @@ static TranslationBlock *tb_htable_lookup(CPUState *cpu, vaddr pc,
     return qht_lookup_custom(&tb_ctx.htable, &desc, h, tb_lookup_cmp);
 }
 
-/* Might cause an exception, so have a longjmp destination ready */
+/**
+ * tb_lookup:
+ * @cpu: CPU that will execute the returned translation block
+ * @pc: guest PC
+ * @cs_base: arch-specific value associated with translation block
+ * @flags: arch-specific translation block flags
+ * @cflags: CF_* flags
+ *
+ * Look up a translation block inside the QHT using @pc, @cs_base, @flags and
+ * @cflags. Uses @cpu's tb_jmp_cache. Might cause an exception, so have a
+ * longjmp destination ready.
+ *
+ * Returns: an existing translation block or NULL.
+ */
 static inline TranslationBlock *tb_lookup(CPUState *cpu, vaddr pc,
                                           uint64_t cs_base, uint32_t flags,
                                           uint32_t cflags)
@@ -368,7 +362,7 @@ static bool check_for_breakpoints_slow(CPUState *cpu, vaddr pc,
      * breakpoints are removed.
      */
     if (match_page) {
-        *cflags = (*cflags & ~CF_COUNT_MASK) | CF_NO_GOTO_TB | 1;
+        *cflags = (*cflags & ~CF_COUNT_MASK) | CF_NO_GOTO_TB | CF_BP_PAGE | 1;
     }
     return false;
 }
@@ -421,6 +415,16 @@ const void *HELPER(lookup_tb_ptr)(CPUArchState *env)
     }
 
     return tb->tc.ptr;
+}
+
+/* Return the current PC from CPU, which may be cached in TB. */
+static vaddr log_pc(CPUState *cpu, const TranslationBlock *tb)
+{
+    if (tb_cflags(tb) & CF_PCREL) {
+        return cpu->cc->get_pc(cpu);
+    } else {
+        return tb->pc;
+    }
 }
 
 /* Execute a TB, and fix up the CPU state afterwards if necessary */
@@ -669,11 +673,9 @@ static inline bool cpu_handle_halt(CPUState *cpu)
 #ifndef CONFIG_USER_ONLY
     if (cpu->halted) {
         const TCGCPUOps *tcg_ops = cpu->cc->tcg_ops;
+        bool leave_halt = tcg_ops->cpu_exec_halt(cpu);
 
-        if (tcg_ops->cpu_exec_halt) {
-            tcg_ops->cpu_exec_halt(cpu);
-        }
-        if (!cpu_has_work(cpu)) {
+        if (!leave_halt) {
             return true;
         }
 
@@ -846,8 +848,7 @@ static inline bool cpu_handle_interrupt(CPUState *cpu,
         else {
             const TCGCPUOps *tcg_ops = cpu->cc->tcg_ops;
 
-            if (tcg_ops->cpu_exec_interrupt &&
-                tcg_ops->cpu_exec_interrupt(cpu, interrupt_request)) {
+            if (tcg_ops->cpu_exec_interrupt(cpu, interrupt_request)) {
                 if (!tcg_ops->need_replay_interrupt ||
                     tcg_ops->need_replay_interrupt(interrupt_request)) {
                     replay_interrupt();
@@ -897,8 +898,6 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
                                     vaddr pc, TranslationBlock **last_tb,
                                     int *tb_exit)
 {
-    int32_t insns_left;
-
     trace_exec_tb(tb, pc);
     tb = cpu_tb_exec(cpu, tb, tb_exit);
     if (*tb_exit != TB_EXIT_REQUESTED) {
@@ -907,8 +906,7 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
     }
 
     *last_tb = NULL;
-    insns_left = qatomic_read(&cpu->neg.icount_decr.u32);
-    if (insns_left < 0) {
+    if (cpu_loop_exit_requested(cpu)) {
         /* Something asked us to stop executing chained TBs; just
          * continue round the main loop. Whatever requested the exit
          * will also have set something else (eg exit_request or
@@ -925,7 +923,7 @@ static inline void cpu_loop_exec_tb(CPUState *cpu, TranslationBlock *tb,
     /* Ensure global icount has gone forward */
     icount_update(cpu);
     /* Refill decrementer and continue execution.  */
-    insns_left = MIN(0xffff, cpu->icount_budget);
+    int32_t insns_left = MIN(0xffff, cpu->icount_budget);
     cpu->neg.icount_decr.u16.low = insns_left;
     cpu->icount_extra = cpu->icount_budget - insns_left;
 
@@ -1069,7 +1067,14 @@ bool tcg_exec_realizefn(CPUState *cpu, Error **errp)
     static bool tcg_target_initialized;
 
     if (!tcg_target_initialized) {
-        cpu->cc->tcg_ops->initialize();
+        /* Check mandatory TCGCPUOps handlers */
+        const TCGCPUOps *tcg_ops = cpu->cc->tcg_ops;
+#ifndef CONFIG_USER_ONLY
+        assert(tcg_ops->cpu_exec_halt);
+        assert(tcg_ops->cpu_exec_interrupt);
+#endif /* !CONFIG_USER_ONLY */
+        assert(tcg_ops->translate_code);
+        tcg_ops->initialize();
         tcg_target_initialized = true;
     }
 

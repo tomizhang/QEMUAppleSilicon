@@ -13,7 +13,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu/module.h"
-#include "sysemu/runstate.h"
+#include "system/runstate.h"
 
 #include "hw/nvram/fw_cfg.h"
 #include "hw/qdev-properties.h"
@@ -21,7 +21,7 @@
 #include "hw/misc/pvpanic.h"
 #include "qom/object.h"
 #include "hw/pci/pci_device.h"
-#include "standard-headers/linux/pvpanic.h"
+#include "standard-headers/misc/pvpanic.h"
 
 OBJECT_DECLARE_SIMPLE_TYPE(PVPanicPCIState, PVPANIC_PCI_DEVICE)
 
@@ -53,10 +53,9 @@ static void pvpanic_pci_realizefn(PCIDevice *dev, Error **errp)
     pci_register_bar(dev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY, &ps->mr);
 }
 
-static Property pvpanic_pci_properties[] = {
+static const Property pvpanic_pci_properties[] = {
     DEFINE_PROP_UINT8("events", PVPanicPCIState, pvpanic.events,
-                      PVPANIC_PANICKED | PVPANIC_CRASH_LOADED),
-    DEFINE_PROP_END_OF_LIST(),
+                      PVPANIC_EVENTS),
 };
 
 static void pvpanic_pci_class_init(ObjectClass *klass, void *data)

@@ -22,6 +22,7 @@
 #include "qemu/log.h"
 #include "cpu.h"
 #include "exec/helper-proto.h"
+#include "exec/cputlb.h"
 #include "exec/exec-all.h"
 #include "s390x-internal.h"
 #include "tcg_s390x.h"
@@ -209,7 +210,7 @@ static void do_program_interrupt(CPUS390XState *env)
 
     switch (env->int_pgm_code) {
     case PGM_PER:
-        advance = !(env->per_perc_atmid & PER_CODE_EVENT_NULLIFICATION);
+        /* advance already handled */
         break;
     case PGM_ASCE_TYPE:
     case PGM_REG_FIRST_TRANS:

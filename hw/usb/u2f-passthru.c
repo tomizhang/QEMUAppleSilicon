@@ -482,10 +482,8 @@ static void u2f_passthru_realize(U2FKeyState *base, Error **errp)
         return;
 #endif
     } else {
-        fd = qemu_open_old(key->hidraw, O_RDWR);
+        fd = qemu_open(key->hidraw, O_RDWR, errp);
         if (fd < 0) {
-            error_setg(errp, "%s: Failed to open %s", TYPE_U2F_PASSTHRU,
-                       key->hidraw);
             return;
         }
 
@@ -518,9 +516,8 @@ static const VMStateDescription u2f_passthru_vmstate = {
     }
 };
 
-static Property u2f_passthru_properties[] = {
+static const Property u2f_passthru_properties[] = {
     DEFINE_PROP_STRING("hidraw", U2FPassthruState, hidraw),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void u2f_passthru_class_init(ObjectClass *klass, void *data)
