@@ -154,6 +154,7 @@ system_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
     'apple-silicon/a7iop/rtkit.c',
     'apple-silicon/smc.c',
     'apple-silicon/roswell.c',
+    'apple-silicon/chestnut.c',
     'pmu_d2255.c'))
 system_ss.add(when: 'CONFIG_APPLE_SPMI_PMU', if_true: files('apple-silicon/spmi-pmu.c'))
 

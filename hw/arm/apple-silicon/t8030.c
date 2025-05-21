@@ -44,6 +44,7 @@
 #include "hw/intc/apple_aic.h"
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/aes.h"
+#include "hw/misc/apple-silicon/chestnut.h"
 #include "hw/misc/apple-silicon/roswell.h"
 #include "hw/misc/apple-silicon/smc.h"
 #include "hw/misc/apple-silicon/spmi-pmu.h"
@@ -2015,6 +2016,23 @@ static void t8030_create_roswell(T8030MachineState *t8030_machine)
                             *(uint32_t *)prop->data);
 }
 
+static void t8030_create_chestnut(T8030MachineState *t8030_machine)
+{
+    DTBNode *child;
+    DTBProp *prop;
+    AppleI2CState *i2c;
+
+    child = dtb_get_node(t8030_machine->device_tree, "arm-io/i2c2/display-pmu");
+    g_assert_nonnull(child);
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    i2c = APPLE_I2C(
+        object_property_get_link(OBJECT(t8030_machine), "i2c2", &error_fatal));
+    i2c_slave_create_simple(i2c->bus, TYPE_APPLE_CHESTNUT,
+                            *(uint32_t *)prop->data);
+}
+
 static void t8030_create_pcie(T8030MachineState *t8030_machine)
 {
     int i;
@@ -2641,6 +2659,7 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_roswell(t8030_machine);
 
     t8030_create_backlight(t8030_machine);
+    t8030_create_chestnut(t8030_machine);
 
     t8030_create_misc(t8030_machine);
 

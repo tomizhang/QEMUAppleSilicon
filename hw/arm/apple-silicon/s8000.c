@@ -37,6 +37,7 @@
 #include "hw/intc/apple_aic.h"
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/aes.h"
+#include "hw/misc/apple-silicon/chestnut.h"
 #include "hw/misc/pmu_d2255.h"
 #include "hw/nvram/apple_nvram.h"
 #include "hw/pci-host/apcie.h"
@@ -715,6 +716,23 @@ static void s8000_create_dart(S8000MachineState *s8000_machine,
                        qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[0]));
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(dart), &error_fatal);
+}
+
+static void s8000_create_chestnut(S8000MachineState *s8000_machine)
+{
+    DTBNode *child;
+    DTBProp *prop;
+    AppleI2CState *i2c;
+
+    child = dtb_get_node(s8000_machine->device_tree, "arm-io/i2c0/display-pmu");
+    g_assert_nonnull(child);
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    i2c = APPLE_I2C(
+        object_property_get_link(OBJECT(s8000_machine), "i2c0", &error_fatal));
+    i2c_slave_create_simple(i2c->bus, TYPE_APPLE_CHESTNUT,
+                            *(uint32_t *)prop->data);
 }
 
 static void s8000_create_pcie(S8000MachineState *s8000_machine)
@@ -1426,6 +1444,8 @@ static void s8000_machine_init(MachineState *machine)
     s8000_create_sep(s8000_machine);
 
     s8000_create_pmu(s8000_machine);
+
+    s8000_create_chestnut(s8000_machine);
 
     s8000_display_create(s8000_machine);
 
