@@ -1,6 +1,7 @@
 #include "qemu/osdep.h"
 #include "hw/dma/apple_sio.h"
 #include "hw/misc/apple-silicon/a7iop/rtkit.h"
+#include "migration/vmstate.h"
 #include "qapi/error.h"
 #include "qemu/log.h"
 #include "system/dma.h"
@@ -28,7 +29,8 @@ typedef struct {
     uint32_t fifo;
     uint32_t trigger;
     uint32_t depth;
-    uint64_t unk18;
+    uint32_t field_14;
+    uint32_t field_18;
 } QEMU_PACKED SIODMAConfig;
 
 typedef struct {
@@ -41,7 +43,7 @@ struct AppleSIODMAEndpoint {
     SIODMASegment *segments;
     QEMUSGList sgl;
     QEMUIOVector iov;
-    uint32_t count;
+    uint32_t segment_count;
     uint32_t bytes_accessed;
     uint32_t id;
     uint32_t tag;
@@ -135,8 +137,8 @@ static void apple_sio_map_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep)
         return;
     }
 
-    qemu_iovec_init(&ep->iov, ep->count);
-    for (int i = 0; i < ep->count; i++) {
+    qemu_iovec_init(&ep->iov, ep->segment_count);
+    for (int i = 0; i < ep->segment_count; i++) {
         dma_addr_t base = ep->sgl.sg[i].base;
         dma_addr_t len = ep->sgl.sg[i].len;
 
@@ -182,7 +184,7 @@ static void apple_sio_unmap_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep)
         unmap_length -= access_len;
     }
     qemu_iovec_destroy(&ep->iov);
-    ep->count = 0;
+    ep->segment_count = 0;
     ep->bytes_accessed = 0;
     ep->tag = 0;
     g_free(ep->segments);
@@ -322,7 +324,7 @@ static void apple_sio_dma(AppleSIOState *s, AppleSIODMAEndpoint *ep,
 
         qemu_sglist_init(&ep->sgl, DEVICE(s), segment_count, &s->dma_as);
         ep->tag = m.tag;
-        ep->count = segment_count;
+        ep->segment_count = segment_count;
         ep->segments = g_new0(SIODMASegment, segment_count);
         dma_memory_read(&s->dma_as, handle_addr + 0x48, ep->segments,
                         segment_count * sizeof(SIODMASegment),
@@ -445,48 +447,6 @@ static const MemoryRegionOps ascv2_core_reg_ops = {
     .valid.unaligned = false,
 };
 
-SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
-                               uint32_t rtkit_protocol_version,
-                               uint32_t protocol)
-{
-    DeviceState *dev;
-    AppleSIOState *s;
-    SysBusDevice *sbd;
-    AppleRTKit *rtk;
-    DTBNode *child;
-    DTBProp *prop;
-    uint64_t *reg;
-
-    dev = qdev_new(TYPE_APPLE_SIO);
-    s = APPLE_SIO(dev);
-    sbd = SYS_BUS_DEVICE(dev);
-    rtk = APPLE_RTKIT(dev);
-    dev->id = g_strdup("sio");
-
-    s->params[PARAM_PROTOCOL] = protocol;
-
-    child = dtb_get_node(node, "iop-sio-nub");
-    g_assert_nonnull(child);
-
-    prop = dtb_find_prop(node, "reg");
-    g_assert_nonnull(prop);
-
-    reg = (uint64_t *)prop->data;
-
-    apple_rtkit_init(rtk, NULL, "SIO", reg[1], version, rtkit_protocol_version,
-                     NULL);
-    apple_rtkit_register_user_ep(rtk, EP_CONTROL, s, apple_sio_handle_endpoint);
-
-    memory_region_init_io(&s->ascv2_iomem, OBJECT(dev), &ascv2_core_reg_ops, s,
-                          TYPE_APPLE_SIO ".ascv2-core-reg", reg[3]);
-    sysbus_init_mmio(sbd, &s->ascv2_iomem);
-
-    dtb_set_prop_u32(child, "pre-loaded", 1);
-    // dtb_set_prop_u32(child, "running", 1);
-
-    return sbd;
-}
-
 static void apple_sio_realize(DeviceState *dev, Error **errp)
 {
     AppleSIOState *s;
@@ -539,6 +499,106 @@ static void apple_sio_reset_hold(Object *obj, ResetType type)
     }
 }
 
+static const VMStateDescription vmstate_apple_sio_dma_config = {
+    .name = "SIODMAConfig",
+    .version_id = 0,
+    .minimum_version_id = 0,
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_UINT32(xfer, SIODMAConfig),
+            VMSTATE_UINT32(timeout, SIODMAConfig),
+            VMSTATE_UINT32(fifo, SIODMAConfig),
+            VMSTATE_UINT32(trigger, SIODMAConfig),
+            VMSTATE_UINT32(depth, SIODMAConfig),
+            VMSTATE_UINT32(field_14, SIODMAConfig),
+            VMSTATE_UINT32(field_18, SIODMAConfig),
+            VMSTATE_END_OF_LIST(),
+        },
+};
+
+static const VMStateDescription vmstate_apple_sio_dma_segment = {
+    .name = "SIODMASegment",
+    .version_id = 0,
+    .minimum_version_id = 0,
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_UINT64(addr, SIODMASegment),
+            VMSTATE_UINT32(len, SIODMASegment),
+            VMSTATE_END_OF_LIST(),
+        },
+};
+
+static int vmstate_apple_sio_dma_endpoint_pre_load(void *opaque)
+{
+    AppleSIODMAEndpoint *ep;
+    AppleSIOState *s;
+
+    ep = (AppleSIODMAEndpoint *)opaque;
+    s = container_of(ep, AppleSIOState, eps[ep->id]);
+
+    apple_sio_unmap_dma(s, ep);
+
+    return 0;
+}
+
+static int vmstate_apple_sio_dma_endpoint_post_load(void *opaque,
+                                                    int version_id)
+{
+    AppleSIODMAEndpoint *ep;
+    AppleSIOState *s;
+    uint32_t bytes_accessed;
+
+    ep = (AppleSIODMAEndpoint *)opaque;
+    s = container_of(ep, AppleSIOState, eps[ep->id]);
+
+    if (ep->mapped) {
+        ep->mapped = false;
+        bytes_accessed = ep->bytes_accessed;
+        apple_sio_map_dma(s, ep);
+        ep->bytes_accessed = bytes_accessed;
+    }
+
+    return 0;
+}
+
+static const VMStateDescription vmstate_apple_sio_dma_endpoint = {
+    .name = "AppleSIODMAEndpoint",
+    .version_id = 0,
+    .minimum_version_id = 0,
+    .pre_load = vmstate_apple_sio_dma_endpoint_pre_load,
+    .post_load = vmstate_apple_sio_dma_endpoint_post_load,
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_STRUCT(config, AppleSIODMAEndpoint, 0,
+                           vmstate_apple_sio_dma_config, SIODMAConfig),
+            VMSTATE_STRUCT_VARRAY_UINT32_ALLOC(
+                segments, AppleSIODMAEndpoint, segment_count, 0,
+                vmstate_apple_sio_dma_segment, SIODMASegment),
+            VMSTATE_UINT32(segment_count, AppleSIODMAEndpoint),
+            VMSTATE_UINT32(bytes_accessed, AppleSIODMAEndpoint),
+            VMSTATE_UINT32(id, AppleSIODMAEndpoint),
+            VMSTATE_UINT32(tag, AppleSIODMAEndpoint),
+            VMSTATE_BOOL(mapped, AppleSIODMAEndpoint),
+            VMSTATE_UINT32(direction, AppleSIODMAEndpoint),
+            VMSTATE_END_OF_LIST(),
+        },
+};
+
+static const VMStateDescription vmstate_apple_sio = {
+    .name = "AppleSIOState",
+    .version_id = 0,
+    .minimum_version_id = 0,
+    .fields =
+        (const VMStateField[]){
+            VMSTATE_APPLE_RTKIT(parent_obj, AppleSIOState),
+            VMSTATE_STRUCT_ARRAY(eps, AppleSIOState, SIO_NUM_EPS, 0,
+                                 vmstate_apple_sio_dma_endpoint,
+                                 AppleSIODMAEndpoint),
+            VMSTATE_UINT32_ARRAY(params, AppleSIOState, 0x100),
+            VMSTATE_END_OF_LIST(),
+        },
+};
+
 static void apple_sio_class_init(ObjectClass *klass, void *data)
 {
     ResettableClass *rc;
@@ -554,6 +614,8 @@ static void apple_sio_class_init(ObjectClass *klass, void *data)
     resettable_class_set_parent_phases(rc, NULL, apple_sio_reset_hold, NULL,
                                        &sioc->parent_reset);
     dc->desc = "Apple Smart IO DMA Controller";
+    dc->user_creatable = false;
+    dc->vmsd = &vmstate_apple_sio;
 }
 
 static const TypeInfo apple_sio_info = {
@@ -570,3 +632,45 @@ static void apple_sio_register_types(void)
 }
 
 type_init(apple_sio_register_types);
+
+SysBusDevice *apple_sio_create(DTBNode *node, AppleA7IOPVersion version,
+                               uint32_t rtkit_protocol_version,
+                               uint32_t protocol)
+{
+    DeviceState *dev;
+    AppleSIOState *s;
+    SysBusDevice *sbd;
+    AppleRTKit *rtk;
+    DTBNode *child;
+    DTBProp *prop;
+    uint64_t *reg;
+
+    dev = qdev_new(TYPE_APPLE_SIO);
+    s = APPLE_SIO(dev);
+    sbd = SYS_BUS_DEVICE(dev);
+    rtk = APPLE_RTKIT(dev);
+    dev->id = g_strdup("sio");
+
+    s->params[PARAM_PROTOCOL] = protocol;
+
+    child = dtb_get_node(node, "iop-sio-nub");
+    g_assert_nonnull(child);
+
+    prop = dtb_find_prop(node, "reg");
+    g_assert_nonnull(prop);
+
+    reg = (uint64_t *)prop->data;
+
+    apple_rtkit_init(rtk, NULL, "SIO", reg[1], version, rtkit_protocol_version,
+                     NULL);
+    apple_rtkit_register_user_ep(rtk, EP_CONTROL, s, apple_sio_handle_endpoint);
+
+    memory_region_init_io(&s->ascv2_iomem, OBJECT(dev), &ascv2_core_reg_ops, s,
+                          TYPE_APPLE_SIO ".ascv2-core-reg", reg[3]);
+    sysbus_init_mmio(sbd, &s->ascv2_iomem);
+
+    dtb_set_prop_u32(child, "pre-loaded", 1);
+    // dtb_set_prop_u32(child, "running", 1);
+
+    return sbd;
+}
