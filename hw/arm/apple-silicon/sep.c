@@ -20,7 +20,6 @@
 
 #include "qemu/osdep.h"
 #include "crypto/cipher.h"
-#include "crypto/hmac.h"
 #include "crypto/random.h"
 #include "exec/address-spaces.h"
 #include "hw/arm/apple-silicon/a13.h"
@@ -39,7 +38,6 @@
 #include "hw/qdev-properties.h"
 #include "hw/resettable.h"
 #include "qapi/error.h"
-#include "qemu/crc-ccitt.h"
 #include "qemu/cutils.h"
 #include "qemu/log.h"
 #include "qemu/units.h"
@@ -2028,8 +2026,7 @@ static void aess_handle_cmd(AppleAESSState *s)
             SEP_AESS_COMMAND_ENCRYPT_CBC_ONLY_NONCUSTOM_FORCE_CUSTOM_AES256) /* GID0 || GID1 || Custom */
     {
         bool custom_encryption = false;
-        uint32_t original_command = s->command;
-        DBGLOG("%s: original_command 0x%03x ; ", __func__, original_command);
+        DBGLOG("%s: s->command 0x%03x ; ", __func__, s->command);
         HEXDUMP("s->in_full", s->in_full, sizeof(s->in_full));
         if (normalized_cmd ==
             SEP_AESS_COMMAND_ENCRYPT_CBC_ONLY_NONCUSTOM_FORCE_CUSTOM_AES256) {
@@ -2395,7 +2392,6 @@ static void aesh_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     switch (addr) {
     default:
         memcpy(&s->aesh_base_regs[addr], &data, size);
-    jump_default:
 #if 0
         qemu_log_mask(LOG_UNIMP,
                       "SEP AESH_BASE: Unknown write at 0x" HWADDR_FMT_plx
@@ -2417,7 +2413,6 @@ static uint64_t aesh_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     switch (addr) {
     default:
         memcpy(&ret, &s->aesh_base_regs[addr], size);
-    jump_default:
 #if 0
         qemu_log_mask(LOG_UNIMP,
                       "SEP AESH_BASE: Unknown read at 0x" HWADDR_FMT_plx
@@ -2807,7 +2802,6 @@ static void boot_monitor_reg_write(void *opaque, hwaddr addr, uint64_t data,
                       "SEP Boot Monitor: Unknown write at 0x" HWADDR_FMT_plx
                       " with value 0x%" PRIx64 "\n",
                       addr, data);
-    jump_default:
         memcpy(&s->boot_monitor_regs[addr], &data, size);
         break;
     }

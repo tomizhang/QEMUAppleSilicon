@@ -131,12 +131,7 @@ static void aes_update_command_fifo_status(AppleAESState *s)
         s->reg.command_fifo_status.level > COMMAND_FIFO_SIZE;
     s->reg.command_fifo_status.low =
         s->reg.command_fifo_status.level < s->reg.watermarks.command_fifo_low;
-
-    if (s->reg.command_fifo_status.low) {
-        qatomic_or(&s->reg.int_status.raw, AES_BLK_INT_COMMAND_FIFO_LOW);
-    } else {
-        qatomic_and(&s->reg.int_status.raw, ~AES_BLK_INT_COMMAND_FIFO_LOW);
-    }
+    s->reg.int_status.command_fifo_low = s->reg.command_fifo_status.low;
     aes_update_irq(s);
 }
 
@@ -208,10 +203,11 @@ static bool aes_process_command(AppleAESState *s, AESCommand *cmd)
         lock_reg();
         if (s->keys[ctx].select != KEY_SELECT_SOFTWARE) {
             s->keys[ctx].disabled = true;
+
             if (ctx) {
-                qatomic_or(&s->reg.int_status.raw, AES_BLK_INT_KEY_1_DISABLED);
+                s->reg.int_status.key_1_disabled = true;
             } else {
-                qatomic_or(&s->reg.int_status.raw, AES_BLK_INT_KEY_0_DISABLED);
+                s->reg.int_status.key_0_disabled = true;
             }
             qemu_log_mask(
                 LOG_GUEST_ERROR,
@@ -224,11 +220,9 @@ static bool aes_process_command(AppleAESState *s, AESCommand *cmd)
             }
             s->keys[ctx].disabled = false;
             if (ctx) {
-                qatomic_and(&s->reg.int_status.raw,
-                            ~AES_BLK_INT_KEY_1_DISABLED);
+                s->reg.int_status.key_1_disabled = false;
             } else {
-                qatomic_and(&s->reg.int_status.raw,
-                            ~AES_BLK_INT_KEY_0_DISABLED);
+                s->reg.int_status.key_0_disabled = false;
             }
             s->keys[ctx].cipher = qcrypto_cipher_new(
                 s->keys[ctx].algo, key_mode(s->keys[ctx].mode),
@@ -262,15 +256,15 @@ static bool aes_process_command(AppleAESState *s, AESCommand *cmd)
                      << 32;
         if (len & 0xf) {
             lock_reg();
-            qatomic_or(&s->reg.int_status.raw, AES_BLK_INT_INVALID_DATA_LENGTH);
+            s->reg.int_status.invalid_data_length = true;
             break;
         }
         if (s->keys[key_ctx].disabled || !s->keys[key_ctx].cipher) {
             lock_reg();
             if (key_ctx) {
-                qatomic_or(&s->reg.int_status.raw, AES_BLK_INT_KEY_1_DISABLED);
+                s->reg.int_status.key_1_disabled = true;
             } else {
-                qatomic_or(&s->reg.int_status.raw, AES_BLK_INT_KEY_0_DISABLED);
+                s->reg.int_status.key_0_disabled = true;
             }
             break;
         }
@@ -321,12 +315,12 @@ static bool aes_process_command(AppleAESState *s, AESCommand *cmd)
             s->stopped = true;
         }
         if (cmd->command & COMMAND_FLAG_SEND_INTERRUPT) {
-            qatomic_or(&s->reg.int_status.raw, AES_BLK_INT_FLAG_COMMAND);
+            s->reg.int_status.flag_command = true;
         }
         break;
     default:
         lock_reg();
-        qatomic_or(&s->reg.int_status.raw, AES_BLK_INT_INVALID_COMMAND);
+        s->reg.int_status.invalid_command = true;
         break;
     }
 
@@ -388,33 +382,18 @@ static uint64_t aes_security_reg_read(void *opaque, hwaddr addr, unsigned size)
 #endif
 
     switch (addr) {
-    case 0x00: // unknown0
-        // return 0x00; // panic panic(cpu 0 caller 0xfffffff0090dcdb8):
-        // "AppleS8000AESAccelerator::AES Error: IntStatus 0x0x2021\n" return
-        // 0x0F; // no panic return 0xF0; // panic return 0x07; // no panic
-        // return 0x03; // panic "AppleS8000AESAccelerator::AES Error: IntStatus
-        // 0x0x2021\n" return 0x04; // panic "AppleS8000AESAccelerator::AES
-        // Error: IntStatus 0x0xa1\n" return (1 << 2) | (1 << 1) | (0 << 0); //
-        // panic "AppleS8000AESAccelerator::AES Error: IntStatus 0x0xa1\n"
-        // return (1 << 2) | (0 << 1) | (1 << 0); // no panic
-        // return (0 << 2) | (0 << 1) | (1 << 0); // panic
-        // "AppleS8000AESAccelerator::AES Error: IntStatus 0x0x2021\n" return (0
-        // << 2) | (1 << 1) | (0 << 0); // panic "AppleS8000AESAccelerator::AES
-        // Error: IntStatus 0x0x2021\n" return (1 << 2) | (1 << 1) | (1 << 0);
-        // // no panic
-        return (1 << 2) | (1 << 0);
-        // return 0xFF; // (val & 0xf)
-    case 0x20: // board-id
-        return s->board_id & 0x1f; // (val & 0x1f)
-    case 0x30: // unknown1
+    case REG_AES_V3_SECURITY_AES_DISABLE:
+        return AES_V3_SECURITY_AES_DISABLE_GID1 |
+               AES_V3_SECURITY_AES_DISABLE_UID;
+    case REG_AES_V3_SECURITY_GPIO_STRAPS:
+        return AES_V3_SECURITY_GPIO_STRAPS_BOARD_ID(s->board_id) |
+               AES_V3_SECURITY_GPIO_STRAPS_VALID;
+    case REG_AES_V3_SECURITY_SET_ONLY:
         return 0x00;
-        // return 0xFF; // many various flags // might cause sep skgs errors
-        // "panic(cpu 0 caller 0xfffffff008b69bb0): SEP Panic: :skg /skgs:
-        // 0x00017190 0x000169f8 0x000169d8 0x00011c2c 0x00011998 0x00013198
-        // 0x0000b98c 0x000160e8 [hnhpg]"
-    case 0x34: // bit 24 = is fresh boot?
-        return (1 << 24) | (1 << 25);
-    default: // We don't know the rest
+    case REG_AES_V3_SECURITY_SEP:
+        return AES_V3_SECURITY_SEP_FIRST_BOOT |
+               AES_V3_SECURITY_SEP_FIRST_AWAKE_BOOT;
+    default:
         return 0xFF;
     }
 }
@@ -540,7 +519,7 @@ static void aes_reg_write(void *opaque, hwaddr addr, uint64_t data,
                 s->data_read = 1;
                 break;
             default:
-                qatomic_or(&s->reg.int_status.raw, AES_BLK_INT_INVALID_COMMAND);
+                s->reg.int_status.invalid_command = true;
                 iflg = 1;
                 qemu_log_mask(LOG_GUEST_ERROR,
                               "REG_AES_COMMAND_FIFO: Unknown opcode: 0x%x\n",
@@ -592,6 +571,7 @@ static void aes_reg_write(void *opaque, hwaddr addr, uint64_t data,
     if (iflg) {
         aes_update_irq(s);
     }
+
     trace_apple_aes_reg_write(addr, orig, old, val);
 }
 
@@ -607,14 +587,6 @@ static uint64_t aes_reg_read(void *opaque, hwaddr addr, unsigned size)
         return 0;
     }
 
-    s->reg.status.text_dpa_random_seeded = 1;
-    s->reg.status.key_unwrap_dpa_random_seeded = 1;
-    s->reg.status.dpa_seeded_unk0 = 1;
-    s->reg.status.dpa_seeded_unk1 = 1;
-    s->reg.status.dpa_seeded_unk2 = 1;
-    s->reg.status.dpa_seeded_unk3 = 1;
-    s->reg.status.dpa_seeded_unk4 = 1;
-    s->reg.status.dpa_seeded_unk5 = 1;
     mmio = &s->reg.raw[addr >> 2];
 
     switch (addr) {
@@ -627,9 +599,6 @@ static uint64_t aes_reg_read(void *opaque, hwaddr addr, unsigned size)
         val = s->reg.raw[addr >> 2];
         break;
     }
-#if 0
-    qemu_log_mask(LOG_UNIMP, "AES reg READ @ 0x%llx value: 0x%llx\n", addr, val);
-#endif
 
     trace_apple_aes_reg_read(addr, val);
     return val;
@@ -663,8 +632,15 @@ static void apple_aes_reset(DeviceState *dev)
 
     memset(s->reg.raw, 0, AES_BLK_REG_SIZE);
 
-    s->reg.status.text_dpa_random_seeded = 1;
-    s->reg.status.key_unwrap_dpa_random_seeded = 1;
+    s->reg.status.v5.text0_dpa_random_seeded = true;
+    s->reg.status.v5.text1_dpa_random_seeded = true;
+    s->reg.status.v5.text2_dpa_random_seeded = true;
+    s->reg.status.v5.text3_dpa_random_seeded = true;
+    s->reg.status.v5.text4_dpa_random_seeded = true;
+    s->reg.status.v5.text5_dpa_random_seeded = true;
+    s->reg.status.v5.key_unwrap_dpa_random_seeded = true;
+    s->reg.status.v5.gid_self_test_passed = true;
+    s->reg.status.v5.fairplay_descrambler_self_test_passed = true;
 
     s->command = 0;
     if (s->data) {
@@ -721,17 +697,13 @@ SysBusDevice *apple_aes_create(DTBNode *node, uint32_t board_id)
 
     reg = (uint64_t *)prop->data;
 
-    /*
-     * 0: aesMemoryMap
-     * 1: aesDisableKeyMap
-     */
     memory_region_init_io(&s->iomems[0], OBJECT(dev), &aes_reg_ops, s,
                           TYPE_APPLE_AES ".mmio", reg[1]);
 
     sysbus_init_mmio(sbd, &s->iomems[0]);
 
     memory_region_init_io(&s->iomems[1], OBJECT(dev), &aes_security_reg_ops, s,
-                          TYPE_APPLE_AES ".disable_key.mmio", reg[3]);
+                          TYPE_APPLE_AES ".security.mmio", reg[3]);
     sysbus_init_mmio(sbd, &s->iomems[1]);
 
     s->last_level = 0;
@@ -815,7 +787,7 @@ static const VMStateDescription vmstate_apple_aes_key = {
 };
 
 static const VMStateDescription vmstate_apple_aes = {
-    .name = "apple_aes",
+    .name = "AppleAESState",
     .version_id = 0,
     .minimum_version_id = 0,
     .pre_save = apple_aes_pre_save,

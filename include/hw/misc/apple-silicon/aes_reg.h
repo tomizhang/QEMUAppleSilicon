@@ -3,8 +3,6 @@
 
 #include "qemu/osdep.h"
 
-#pragma pack(push, 1)
-
 #define REG_AES_VERSION (0x0)
 #define REG_AES_CONFIG (0x4)
 #define REG_AES_CONTROL (0x8)
@@ -12,120 +10,20 @@
 #define AES_BLK_CONTROL_STOP (1 << 1)
 #define AES_BLK_CONTROL_RESET (1 << 2)
 #define AES_BLK_CONTROL_RESET_AES (1 << 3)
-
 #define REG_AES_STATUS (0xc)
-#define AES_BLK_STATUS_DMA_READ_ACTIVE (1 << 0)
-#define AES_BLK_STATUS_DMA_READ_INCOMPLETE (1 << 1)
-#define AES_BLK_STATUS_DMA_WRITE_ACTIVE (1 << 2)
-#define AES_BLK_STATUS_DMA_WRITE_INCOMPLETE (1 << 3)
-#define AES_BLK_STATUS_ACTIVE (1 << 4)
-#define AES_BLK_STATUS_COMMAND_FIFO_ACTIVE (1 << 5)
-#define AES_BLK_STATUS_COMMAND_FIFO_ENABLED (1 << 6)
-#define AES_BLK_STATUS_TEXT_DPA_RANDOM_SEEDED (1 << 7)
-#define AES_BLK_STATUS_KEY_UNWRAP_DPA_RANDOM_SEEDED (1 << 8)
-
 #define REG_AES_KEY_ID (0x10)
-#define AES_BLK_KEY_ID_CONTEXT_0_SHIFT (0)
-#define AES_BLK_KEY_ID_CONTEXT_0_WIDTH (8)
-#define AES_BLK_KEY_ID_CONTEXT_0_UMASK (0xff)
-#define AES_BLK_KEY_ID_CONTEXT_0_SMASK (0xff)
-#define AES_BLK_KEY_ID_CONTEXT_0_XTRCT(r) ((((uint32_t)r) >> 0) & 0xff)
-#define AES_BLK_KEY_ID_CONTEXT_0_INSRT(f) ((((uint32_t)f) & 0xff) << 0)
-#define AES_BLK_KEY_ID_CONTEXT_1_SHIFT (8)
-#define AES_BLK_KEY_ID_CONTEXT_1_WIDTH (8)
-#define AES_BLK_KEY_ID_CONTEXT_1_UMASK (0xff00)
-#define AES_BLK_KEY_ID_CONTEXT_1_SMASK (0xff)
-#define AES_BLK_KEY_ID_CONTEXT_1_XTRCT(r) ((((uint32_t)r) >> 8) & 0xff)
-#define AES_BLK_KEY_ID_CONTEXT_1_INSRT(f) ((((uint32_t)f) & 0xff) << 8)
-
 #define REG_AES_AXI_STATUS (0x14)
-
 #define REG_AES_INT_STATUS (0x18)
 #define REG_AES_INT_ENABLE (0x1c)
-#define AES_BLK_INT_COMMAND_FIFO_LOW (1 << 0)
-#define AES_BLK_INT_COMMAND_FIFO_OVERFLOW (1 << 1)
-#define AES_BLK_INT_INVALID_COMMAND (1 << 2)
-#define AES_BLK_INT_AXI_READ_RESPONSE_NOT_OKAY (1 << 3)
-#define AES_BLK_INT_AXI_WRITE_RESPONSE_NOT_OKAY (1 << 4)
-#define AES_BLK_INT_FLAG_COMMAND (1 << 5)
-#define AES_BLK_INT_INVALID_DATA_LENGTH (1 << 6)
-#define AES_BLK_INT_KEY_0_DISABLED (1 << 7)
-#define AES_BLK_INT_KEY_0_CMAC_TAG_MISMATCH (1 << 8)
-#define AES_BLK_INT_KEY_0_POLICY_MISMATCH (1 << 9)
-#define AES_BLK_INT_KEY_0_INVALID_AT_USE_TIME (1 << 10)
-#define AES_BLK_INT_KEY_0_HDCP_ERR (1 << 11)
-#define AES_BLK_INT_KEY_0_DPA_RANDOM_UNSEEDED (1 << 12)
-#define AES_BLK_INT_KEY_1_DISABLED (1 << 13)
-#define AES_BLK_INT_KEY_1_CMAC_TAG_MISMATCH (1 << 14)
-#define AES_BLK_INT_KEY_1_POLICY_MISMATCH (1 << 15)
-#define AES_BLK_INT_KEY_1_INVALID_AT_USE_TIME (1 << 16)
-#define AES_BLK_INT_KEY_1_HDCP_ERR (1 << 17)
-#define AES_BLK_INT_KEY_1_DPA_RANDOM_UNSEEDED (1 << 18)
-
 #define REG_AES_WATERMARKS (0x20)
-#define AES_BLK_WATERMARKS_COMMAND_FIFO_LOW_SHIFT (0)
-#define AES_BLK_WATERMARKS_COMMAND_FIFO_LOW_WIDTH (7)
-#define AES_BLK_WATERMARKS_COMMAND_FIFO_LOW_UMASK (0x7f)
-#define AES_BLK_WATERMARKS_COMMAND_FIFO_LOW_SMASK (0x7f)
-#define AES_BLK_WATERMARKS_COMMAND_FIFO_LOW_XTRCT(r) \
-    ((((uint32_t)r) >> 0) & 0x7f)
-#define AES_BLK_WATERMARKS_COMMAND_FIFO_LOW_INSRT(f) \
-    ((((uint32_t)f) & 0x7f) << 0)
-
 #define REG_AES_COMMAND_FIFO_STATUS (0x24)
-#define AES_BLK_COMMAND_FIFO_STATUS_LOW (1 << 0)
-#define AES_BLK_COMMAND_FIFO_STATUS_EMPTY (1 << 1)
-#define AES_BLK_COMMAND_FIFO_STATUS_FULL (1 << 2)
-#define AES_BLK_COMMAND_FIFO_STATUS_OVERFLOW (1 << 3)
-#define AES_BLK_COMMAND_FIFO_STATUS_LEVEL_SHIFT (8)
-#define AES_BLK_COMMAND_FIFO_STATUS_LEVEL_WIDTH (8)
-#define AES_BLK_COMMAND_FIFO_STATUS_LEVEL_UMASK (0xff00)
-#define AES_BLK_COMMAND_FIFO_STATUS_LEVEL_SMASK (0xff)
-#define AES_BLK_COMMAND_FIFO_STATUS_LEVEL_XTRCT(r) ((((uint32_t)r) >> 8) & 0xff)
-#define AES_BLK_COMMAND_FIFO_STATUS_LEVEL_INSRT(f) ((((uint32_t)f) & 0xff) << 8)
-#define AES_BLK_COMMAND_FIFO_STATUS_READ_POINTER_SHIFT (16)
-#define AES_BLK_COMMAND_FIFO_STATUS_READ_POINTER_WIDTH (7)
-#define AES_BLK_COMMAND_FIFO_STATUS_READ_POINTER_UMASK (0x7f0000)
-#define AES_BLK_COMMAND_FIFO_STATUS_READ_POINTER_SMASK (0x7f)
-#define AES_BLK_COMMAND_FIFO_STATUS_READ_POINTER_XTRCT(r) \
-    ((((uint32_t)r) >> 16) & 0x7f)
-#define AES_BLK_COMMAND_FIFO_STATUS_READ_POINTER_INSRT(f) \
-    ((((uint32_t)f) & 0x7f) << 16)
-#define AES_BLK_COMMAND_FIFO_STATUS_WRITE_POINTER_SHIFT (24)
-#define AES_BLK_COMMAND_FIFO_STATUS_WRITE_POINTER_WIDTH (7)
-#define AES_BLK_COMMAND_FIFO_STATUS_WRITE_POINTER_UMASK (0x7f000000)
-#define AES_BLK_COMMAND_FIFO_STATUS_WRITE_POINTER_SMASK (0x7f)
-#define AES_BLK_COMMAND_FIFO_STATUS_WRITE_POINTER_XTRCT(r) \
-    ((((uint32_t)r) >> 24) & 0x7f)
-#define AES_BLK_COMMAND_FIFO_STATUS_WRITE_POINTER_INSRT(f) \
-    ((((uint32_t)f) & 0x7f) << 24)
-
 #define REG_AES_COMMAND_FIFO_COUNT (0x2c)
-#define AES_BLK_COMMAND_FIFO_COUNT_TOTAL_SHIFT (0)
-#define AES_BLK_COMMAND_FIFO_COUNT_TOTAL_WIDTH (32)
-#define AES_BLK_COMMAND_FIFO_COUNT_TOTAL_UMASK (0xffffffff)
-#define AES_BLK_COMMAND_FIFO_COUNT_TOTAL_SMASK (0xffffffff)
-#define AES_BLK_COMMAND_FIFO_COUNT_TOTAL_XTRCT(r) \
-    ((((uint32_t)r) >> 0) & 0xffffffff)
-#define AES_BLK_COMMAND_FIFO_COUNT_TOTAL_INSRT(f) \
-    ((((uint32_t)f) & 0xffffffff) << 0)
-
 #define REG_AES_FLAG_COMMAND (0x30)
-#define AES_BLK_FLAG_COMMAND_CODE_SHIFT (0)
-#define AES_BLK_FLAG_COMMAND_CODE_WIDTH (16)
-#define AES_BLK_FLAG_COMMAND_CODE_UMASK (0xffff)
-#define AES_BLK_FLAG_COMMAND_CODE_SMASK (0xffff)
-#define AES_BLK_FLAG_COMMAND_CODE_XTRCT(r) ((((uint32_t)r) >> 0) & 0xffff)
-#define AES_BLK_FLAG_COMMAND_CODE_INSRT(f) ((((uint32_t)f) & 0xffff) << 0)
-
 #define REG_AES_SKG_KEY (0x34)
-
 #define REG_AES_CLEAR_FIFO (0x38)
 #define REG_AES_CLEAR_FIFO_RESET (1 << 0)
-
 #define REG_AES_COMMAND_FIFO_S8000 (0x100)
 #define REG_AES_COMMAND_FIFO (0x200)
-
 #define REG_AES_HISTORY_FIFO (0x400)
 
 #define COMMAND_FIFO_SIZE 128
@@ -325,14 +223,27 @@ typedef union {
         uint32_t command_fifo_enabled : 1;
         uint32_t text_dpa_random_seeded : 1;
         uint32_t key_unwrap_dpa_random_seeded : 1;
-        uint32_t dpa_seeded_unk0 : 1;
-        uint32_t dpa_seeded_unk1 : 1;
-        uint32_t dpa_seeded_unk2 : 1;
-        uint32_t dpa_seeded_unk3 : 1;
-        uint32_t dpa_seeded_unk4 : 1;
-        uint32_t dpa_seeded_unk5 : 1;
-        uint32_t rsvd0 : 17;
-    };
+        uint32_t rsvd0 : 23;
+    } v3;
+    struct {
+        uint32_t dma_read_active : 1;
+        uint32_t dma_read_incomplete : 1;
+        uint32_t dma_write_active : 1;
+        uint32_t dma_write_incomplete : 1;
+        uint32_t active : 1;
+        uint32_t command_fifo_active : 1;
+        uint32_t command_fifo_enabled : 1;
+        uint32_t text0_dpa_random_seeded : 1;
+        uint32_t text1_dpa_random_seeded : 1;
+        uint32_t text2_dpa_random_seeded : 1;
+        uint32_t text3_dpa_random_seeded : 1;
+        uint32_t text4_dpa_random_seeded : 1;
+        uint32_t text5_dpa_random_seeded : 1;
+        uint32_t key_unwrap_dpa_random_seeded : 1;
+        uint32_t gid_self_test_passed : 1;
+        uint32_t fairplay_descrambler_self_test_passed : 1;
+        uint32_t rsvd0 : 16;
+    } v5;
 } aes_blk_status_t;
 
 typedef union {
@@ -473,9 +384,32 @@ typedef union {
         uint32_t clear_fifos;
         uint8_t rsvd0[452];
         uint32_t command_fifo;
-    };
+    } QEMU_PACKED;
 } aes_reg_t;
 
-#pragma pack(pop)
+#define REG_AES_V3_SECURITY_AES_DISABLE (0x0)
+#define AES_V3_SECURITY_AES_DISABLE_UID BIT(0)
+#define AES_V3_SECURITY_AES_DISABLE_GID_SHIFT (1)
+#define AES_V3_SECURITY_AES_DISABLE_GID0 \
+    (1 << AES_V3_SECURITY_AES_DISABLE_GID_SHIFT)
+#define AES_V3_SECURITY_AES_DISABLE_GID1 \
+    (2 << AES_V3_SECURITY_AES_DISABLE_GID_SHIFT)
+#define AES_V3_SECURITY_AES_DISABLE_GID2 \
+    (3 << AES_V3_SECURITY_AES_DISABLE_GID_SHIFT)
+#define REG_AES_V3_SECURITY_MCC_BOOTROM_DIS (0x10)
+#define AES_V3_SECURITY_MCC_BOOTROM_DIS BIT(0)
+#define REG_AES_V3_SECURITY_GPIO_STRAPS (0x20)
+#define AES_V3_SECURITY_GPIO_STRAPS_BOARD_ID_MASK (0x1F)
+#define AES_V3_SECURITY_GPIO_STRAPS_BOARD_ID(v) \
+    ((v) & AES_V3_SECURITY_GPIO_STRAPS_BOARD_ID_MASK)
+#define AES_V3_SECURITY_GPIO_STRAPS_UNTRUSTED_BOOT_CONFIG BIT(16)
+#define AES_V3_SECURITY_GPIO_STRAPS_VALID BIT(31)
+#define REG_AES_V3_SECURITY_SET_ONLY (0x30)
+#define REG_AES_V3_SECURITY_SEP (0x34)
+#define AES_V3_SECURITY_SEP_LOCK_SET BIT(8)
+#define AES_V3_SECURITY_SEP_SECURE_MODE_CLR BIT(8)
+#define AES_V3_SECURITY_SEP_FIRST_BOOT BIT(24)
+#define AES_V3_SECURITY_SEP_FIRST_AWAKE_BOOT BIT(25)
+#define AES_V3_SECURITY_SEP_ATTACK_CLK_GATE_DISABLE BIT(31)
 
 #endif /* HW_MISC_APPLE_SILICON_AES_REG_H */
