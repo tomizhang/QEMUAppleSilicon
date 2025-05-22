@@ -369,6 +369,8 @@ static void apple_sio_handle_endpoint(void *opaque, uint32_t ep, uint64_t msg)
     sio = APPLE_SIO(opaque);
     m.raw = msg;
 
+    SIO_LOG_MSG(ep, msg);
+
     switch (m.ep) {
     case EP_CONTROL:
     case EP_PERF:
@@ -378,7 +380,6 @@ static void apple_sio_handle_endpoint(void *opaque, uint32_t ep, uint64_t msg)
         if (m.ep >= SIO_NUM_EPS) {
             qemu_log_mask(LOG_UNIMP, "%s: Unknown SIO ep: %d\n", __func__,
                           m.ep);
-            SIO_LOG_MSG(ep, msg);
         } else {
             apple_sio_dma(sio, &sio->eps[m.ep], m);
         }
