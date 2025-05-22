@@ -143,7 +143,7 @@ static void apple_i2c_reg_write(void *opaque, hwaddr addr, uint64_t data,
             if (value & kMTXFIFORead) {
                 uint8_t len = kMTXFIFOData(value);
                 if (!s->is_recv) {
-                    s->is_recv = 1;
+                    s->is_recv = true;
                     if (i2c_start_transfer(s->bus, i2c_addr, s->is_recv) != 0) {
                         REG(s, REG_SMSTA) |= kSMSTAmtn;
                         break;

@@ -418,7 +418,7 @@ static void usb_tcp_host_realize(DeviceState *dev, Error **errp)
                               USB_SPEED_MASK_HIGH);
     }
 
-    s->closed = 1;
+    s->closed = true;
     qemu_co_mutex_init(&s->write_mutex);
 }
 
@@ -432,14 +432,14 @@ static void usb_tcp_host_unrealize(DeviceState *dev)
         s->ioc = NULL;
     }
 
-    s->closed = 1;
-    s->stopped = 1;
+    s->closed = true;
+    s->stopped = true;
 }
 
 static void usb_tcp_host_init(Object *obj)
 {
     USBTCPHostState *s = USB_TCP_HOST(obj);
-    s->closed = 1;
+    s->closed = true;
     error_setg(&s->migration_blocker,
                "%s does not support migration "
                "while connected",
