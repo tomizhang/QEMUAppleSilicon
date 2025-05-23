@@ -1,9 +1,9 @@
 #include "qemu/osdep.h"
- #include "hw/usb/tcp-usb.h"
 #include "hw/qdev-properties.h"
 #include "hw/core/qdev-prop-internal.h"
+#include "hw/usb/tcp-usb.h"
 
- const QEnumLookup USBTCPRemoteConnType_lookup = {
+const QEnumLookup USBTCPRemoteConnType_lookup = {
     .array =
         (const char *const[]){
             [TCP_REMOTE_CONN_TYPE_UNIX] = "unix",
@@ -13,7 +13,7 @@
     .size = TCP_REMOTE_CONN_TYPE__MAX,
 };
 
- const PropertyInfo qdev_usb_tcp_remote_conn_type = {
+const PropertyInfo qdev_usb_tcp_remote_conn_type = {
     .type = "USBTCPRemoteConnType",
     .description = "unix/ipv4/ipv6",
     .enum_table = &USBTCPRemoteConnType_lookup,
