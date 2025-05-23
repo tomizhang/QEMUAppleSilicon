@@ -1,6 +1,5 @@
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/qdev-properties.h"
 #include "hw/usb/apple_otg.h"
 #include "hw/usb/hcd-dwc2.h"
 #include "migration/vmstate.h"
@@ -60,15 +59,13 @@ static void apple_otg_realize(DeviceState *dev, Error **errp)
     sysbus_pass_irq(SYS_BUS_DEVICE(s), SYS_BUS_DEVICE(&s->dwc2));
 
     object_initialize_child(OBJECT(dev), "host", &s->usbtcp, TYPE_USB_TCP_HOST);
-    sysbus_realize(SYS_BUS_DEVICE(&s->usbhcd), errp);
+    sysbus_realize(SYS_BUS_DEVICE(&s->usbtcp), errp);
     qdev_realize(DEVICE(s->dwc2.device), &s->usbtcp.bus.qbus, errp);
 }
 
 static void apple_otg_reset(DeviceState *dev)
 {
     AppleOTGState *s = APPLE_OTG(dev);
-    device_cold_reset(DEVICE(&s->dwc2));
-    device_cold_reset(&s->usbhcd);
 }
 
 static void phy_reg_write(void *opaque, hwaddr addr, uint64_t data,

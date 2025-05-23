@@ -1,3 +1,22 @@
+/*
+ * TCP Remote USB Host.
+ *
+ * Copyright (c) 2023-2025 Visual Ehrmanntraut.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "qemu/osdep.h"
 #include "hw/qdev-properties.h"
 #include "hw/usb.h"
@@ -9,6 +28,7 @@
 #include "qemu/error-report.h"
 #include "qemu/lockable.h"
 #include "qemu/main-loop.h"
+#include "qemu/sockets.h"
 #include "qom/object.h"
 #include "system/iothread.h"
 #include "tcp-usb.h"
@@ -29,7 +49,7 @@
 static void usb_tcp_host_closed(USBTCPHostState *s)
 {
     DPRINTF("%s\n", __func__);
-    if (s->ioc) {
+    if (s->ioc != NULL) {
         qio_channel_shutdown(s->ioc, QIO_CHANNEL_SHUTDOWN_BOTH, NULL);
         qio_channel_close(s->ioc, NULL);
         object_unref(OBJECT(s->ioc));
@@ -51,7 +71,7 @@ static ssize_t tcp_usb_read(QIOChannel *ioc, void *buf, size_t len)
      * Dont use in IOThread out of co-routine context as
      * it will block IOThread.
      */
-    assert(qemu_in_coroutine() || !iothread);
+    g_assert_true(qemu_in_coroutine() || !iothread);
 
     if (iolock && !iothread && !qemu_in_coroutine()) {
         bql_unlock();
@@ -81,7 +101,7 @@ static bool tcp_usb_write(QIOChannel *ioc, void *buf, ssize_t len)
      * Dont use in IOThread out of co-routine context as
      * it will block IOThread.
      */
-    assert(qemu_in_coroutine() || !iothread);
+    g_assert_true(qemu_in_coroutine() || !iothread);
 
     if (iolock && !iothread && !qemu_in_coroutine()) {
         bql_unlock();
@@ -103,12 +123,12 @@ static bool tcp_usb_write(QIOChannel *ioc, void *buf, ssize_t len)
 
 static USBPort *usb_tcp_host_find_active_port(USBTCPHostState *s)
 {
-    for (int i = 0; i < G_N_ELEMENTS(s->uports) - 1; i++) {
-        if (s->uports[i].dev->attached) {
-            return &s->uports[i];
+    for (int i = 0; i < G_N_ELEMENTS(s->ports) - 1; i++) {
+        if (s->ports[i].dev->attached) {
+            return &s->ports[i];
         }
     }
-    return &s->uports[0];
+    return &s->ports[0];
 }
 
 static void coroutine_fn usb_tcp_host_respond_packet_co(void *opaque)
@@ -119,13 +139,13 @@ static void coroutine_fn usb_tcp_host_respond_packet_co(void *opaque)
     tcp_usb_header_t hdr = { 0 };
     tcp_usb_response_header resp = { 0 };
     g_autofree void *buffer = NULL;
-    USBPort *uport = usb_tcp_host_find_active_port(s);
+    USBPort *port = usb_tcp_host_find_active_port(s);
 
     WITH_QEMU_LOCK_GUARD(&s->write_mutex)
     {
         if (!s->closed) {
             hdr.type = TCP_USB_RESPONSE;
-            resp.addr = uport->dev->addr;
+            resp.addr = port->dev->addr;
             resp.pid = p->pid;
             resp.ep = p->ep->nr;
             resp.id = p->id;
@@ -178,13 +198,16 @@ static void usb_tcp_host_respond_packet(USBTCPHostState *s, USBTCPPacket *pkt)
 
 static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
 {
-    USBTCPHostState *s = USB_TCP_HOST(opaque);
-    USBPort *uport = usb_tcp_host_find_active_port(s);
-    QIOChannel *ioc = s->ioc;
+    USBTCPHostState *s;
+    USBPort *port;
+    QIOChannel *ioc;
+    tcp_usb_header_t hdr;
+
+    s = USB_TCP_HOST(opaque);
+    port = usb_tcp_host_find_active_port(s);
+    ioc = s->ioc;
 
     for (;;) {
-        tcp_usb_header_t hdr = { 0 };
-
         if (unlikely((tcp_usb_read(ioc, &hdr, sizeof(hdr)) != sizeof(hdr)))) {
             usb_tcp_host_closed(s);
             return;
@@ -192,7 +215,6 @@ static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
 
         switch (hdr.type) {
         case TCP_USB_REQUEST: {
-            /* fprintf(stderr, "%s: TCP_USB_REQUEST\n", __func__); */
             tcp_usb_request_header pkt_hdr = { 0 };
             g_autofree void *buffer = NULL;
             g_autofree USBTCPPacket *pkt =
@@ -205,12 +227,11 @@ static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
                 return;
             }
 
-#if 0
-                DPRINTF("%s: TCP_USB_REQUEST pid: 0x%x ep: %d id: 0x%lx\n", __func__, pkt_hdr.pid, pkt_hdr.ep, pkt_hdr.id);
-#endif
-            ep = usb_ep_get(uport->dev, pkt_hdr.pid, pkt_hdr.ep);
+            DPRINTF("%s: TCP_USB_REQUEST pid: 0x%x ep: %d id: 0x%lx\n",
+                    __func__, pkt_hdr.pid, pkt_hdr.ep, pkt_hdr.id);
+            ep = usb_ep_get(port->dev, pkt_hdr.pid, pkt_hdr.ep);
             if (ep == NULL) {
-                DPRINTF("%s: TCP_USB_REQUEST unknown EP\n", __func__);
+                fprintf(stderr, "%s: TCP_USB_REQUEST unknown EP\n", __func__);
                 usb_tcp_host_closed(s);
                 return;
             }
@@ -229,8 +250,6 @@ static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
                         usb_packet_cleanup(&pkt->p);
                         return;
                     }
-                    /* qemu_hexdump(stderr, __func__, buffer, pkt_hdr.length);
-                     */
                 }
 
                 usb_packet_addbuf(&pkt->p, buffer, pkt_hdr.length);
@@ -238,20 +257,10 @@ static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
                 g_steal_pointer(&buffer);
             }
 
-            if (pkt_hdr.addr != uport->dev->addr) {
-                /*
-                 * fprintf(stderr,
-                 *         "%s: USB_RET_NODEV: pkt_hdr.addr != uport->dev->addr:
-                 * %d != %d\n",
-                 *         __func__, pkt_hdr.addr, uport->dev->addr);
-                 */
-                /* Can't enforce this check because dwc2 address transition time
-                 * is slow */
-            }
             pkt->dev = ep->dev;
             pkt->s = s;
             pkt->addr = pkt_hdr.addr;
-            assert(bql_locked());
+            g_assert_true(bql_locked());
 
             usb_handle_packet(pkt->dev, &pkt->p);
             usb_tcp_host_respond_packet(s, pkt);
@@ -263,7 +272,6 @@ static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
             usb_tcp_host_closed(s);
             return;
         case TCP_USB_CANCEL: {
-            /* DPRINTF("%s: TCP_USB_CANCEL\n", __func__); */
             tcp_usb_cancel_header pkt_hdr = { 0 };
             USBTCPPacket *pkt = NULL;
             USBPacket *p = NULL;
@@ -274,23 +282,11 @@ static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
                 return;
             }
 
-#if 1
             DPRINTF("%s: TCP_USB_CANCEL pid: 0x%x ep: %d\n", __func__,
                     pkt_hdr.pid, pkt_hdr.ep);
-#endif
 
-            if (pkt_hdr.addr != uport->dev->addr) {
-                /*
-                 * fprintf(stderr,
-                 *         "%s: USB_RET_NODEV: pkt_hdr.addr != uport->dev->addr:
-                 * %d != %d\n",
-                 *         __func__, pkt_hdr.addr, uport->dev->addr);
-                 */
-                /* Can't enforce this check because dwc2 address transition time
-                 * is slow */
-            }
-            assert(bql_locked());
-            p = usb_ep_find_packet_by_id(uport->dev, pkt_hdr.pid, pkt_hdr.ep,
+            g_assert_true(bql_locked());
+            p = usb_ep_find_packet_by_id(port->dev, pkt_hdr.pid, pkt_hdr.ep,
                                          pkt_hdr.id);
             if (p) {
                 pkt = container_of(p, USBTCPPacket, p);
@@ -308,10 +304,9 @@ static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
             break;
         }
         case TCP_USB_RESET:
-            /* fprintf(stderr, "%s: TCP_USB_RESET\n", __func__); */
             DPRINTF("%s: TCP_USB_RESET\n", __func__);
-            assert(bql_locked());
-            usb_device_reset(uport->dev);
+            g_assert_true(bql_locked());
+            usb_device_reset(port->dev);
             break;
             ;
         default:
@@ -323,57 +318,190 @@ static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
     return;
 }
 
-static void usb_tcp_host_attach(USBPort *uport)
+static int usb_tcp_host_connect_unix(USBTCPHostState *s, Error **errp)
 {
-    struct sockaddr_un server_addr;
-    USBTCPHostState *s = USB_TCP_HOST(uport->opaque);
-    int sock = -1;
-    Coroutine *co = NULL;
-    QIOChannel *ioc = NULL;
-    int ret;
-    Error *err = NULL;
+    struct sockaddr_un addr;
+    int sock;
 
-    if (uport->index >= G_N_ELEMENTS(s->uports) - 1) {
+    memset(&addr, 0, sizeof(addr));
+
+    if (s->conn_addr == NULL) {
+        s->conn_addr = g_strdup(USB_TCP_REMOTE_UNIX_DEFAULT);
+        warn_report("No socket path specified, using default (`%s`).",
+                    USB_TCP_REMOTE_UNIX_DEFAULT);
+    }
+
+    addr.sun_family = AF_UNIX;
+    if (strlen(s->conn_addr) >= sizeof(addr.sun_path)) {
+        error_setg(errp, "Socket path too long: %s", s->conn_addr);
+        return -1;
+    }
+    strncpy(addr.sun_path, s->conn_addr, sizeof(addr.sun_path));
+
+    sock = qemu_socket(PF_UNIX, SOCK_STREAM, 0);
+    if (sock < 0) {
+        error_setg_errno(errp, errno, "Cannot open socket");
+        return -1;
+    }
+
+    if (connect(sock, (const struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        error_setg_errno(errp, errno, "Cannot connect to server");
+        close(sock);
+        return -1;
+    }
+
+    return sock;
+}
+
+static int usb_tcp_host_connect_ipv4(USBTCPHostState *s, Error **errp)
+{
+    struct sockaddr_in addr;
+    int ret;
+    int sock;
+
+    memset(&addr, 0, sizeof(addr));
+
+    if (s->conn_port == 0) {
+        error_setg(errp, "Port must be specified.");
+        return -1;
+    }
+
+    if (s->conn_addr == NULL) {
+        error_setg(errp, "Address must be specified");
+        return -1;
+    }
+
+    addr.sin_family = AF_INET;
+    ret = inet_pton(AF_INET, s->conn_addr, &addr.sin_addr.s_addr);
+    if (ret == 0) {
+        error_setg(errp, "Invalid IPv4 address: %s", s->conn_addr);
+        return -1;
+    } else if (ret < 0) {
+        error_setg_errno(errp, errno, "inet_pton failed");
+        return -1;
+    }
+    addr.sin_port = htons(s->conn_port);
+
+    sock = qemu_socket(PF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        error_setg_errno(errp, errno, "Cannot open socket");
+        return -1;
+    }
+
+    if (socket_set_nodelay(sock) < 0) {
+        warn_report("Failed to set nodelay for socket: %s", strerror(errno));
+    }
+
+    if (connect(sock, (const struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        error_setg_errno(errp, errno, "Cannot connect to server");
+        close(sock);
+        return -1;
+    }
+
+    return sock;
+}
+
+static int usb_tcp_host_connect_ipv6(USBTCPHostState *s, Error **errp)
+{
+    struct sockaddr_in6 addr;
+    int ret;
+    int sock;
+
+    memset(&addr, 0, sizeof(addr));
+
+    if (s->conn_port == 0) {
+        error_setg(errp, "Port must be specified.");
+        return -1;
+    }
+
+    if (s->conn_addr == NULL) {
+        error_setg(errp, "Address must be specified");
+        return -1;
+    }
+
+    addr.sin6_family = AF_INET6;
+    ret = inet_pton(AF_INET6, s->conn_addr, &addr.sin6_addr);
+    if (ret == 0) {
+        error_setg(errp, "Invalid IPv6 address: %s", s->conn_addr);
+        return -1;
+    } else if (ret < 0) {
+        error_setg_errno(errp, errno, "inet_pton failed");
+        return -1;
+    }
+    addr.sin6_port = htons(s->conn_port);
+
+    sock = qemu_socket(PF_INET, SOCK_STREAM, 0);
+    if (sock < 0) {
+        error_setg_errno(errp, errno, "Cannot open socket");
+        return -1;
+    }
+
+    if (socket_set_nodelay(sock) < 0) {
+        warn_report("Failed to set nodelay for socket: %s", strerror(errno));
+    }
+
+    if (connect(sock, (const struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        error_setg_errno(errp, errno, "Cannot connect to server");
+        close(sock);
+        return -1;
+    }
+
+    return sock;
+}
+
+static void usb_tcp_host_attach(USBPort *port)
+{
+    USBTCPHostState *s;
+    int sock;
+    Coroutine *co;
+    QIOChannel *ioc;
+    Error *err;
+
+    s = USB_TCP_HOST(port->opaque);
+    err = NULL;
+
+    if (port->index >= G_N_ELEMENTS(s->ports) - 1) {
         error_report("%s: attached to unused port\n", __func__);
         return;
     }
 
-    if (usb_tcp_host_find_active_port(s) != uport) {
+    if (usb_tcp_host_find_active_port(s) != port) {
         error_report("%s: Attaching to 2 proxy ports at the same time. "
                      "This port might not be able to receive packets.\n",
                      __func__);
         return;
     }
 
-    if (!uport->dev || !uport->dev->attached) {
+    if (port->dev == NULL || !port->dev->attached) {
         return;
     }
 
-    sock = socket(AF_UNIX, SOCK_STREAM, 0);
-
-    if (socket < 0) {
-        error_report("%s: cannot open socket", __func__);
+    switch (s->conn_type) {
+    case TCP_REMOTE_CONN_TYPE_UNIX:
+        sock = usb_tcp_host_connect_unix(s, &err);
+        break;
+    case TCP_REMOTE_CONN_TYPE_IPV4:
+        sock = usb_tcp_host_connect_ipv4(s, &err);
+        break;
+    case TCP_REMOTE_CONN_TYPE_IPV6:
+        sock = usb_tcp_host_connect_ipv6(s, &err);
+        break;
+    default:
+        g_assert_not_reached();
     }
 
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sun_family = AF_UNIX;
-    strncpy(server_addr.sun_path, socket_path, sizeof(server_addr.sun_path));
-    server_addr.sun_path[sizeof(server_addr.sun_path) - 1] = '\0';
-
-    ret = connect(sock, (const struct sockaddr *)&server_addr,
-                  sizeof(server_addr));
-    if (ret < 0) {
-        error_report("%s: failed to connect to server: %d\n", __func__, ret);
-        close(sock);
+    if (sock == -1) {
+        error_report_err(err);
         return;
     }
 
     ioc = qio_channel_new_fd(sock, &err);
-    if (!ioc) {
+    if (ioc == NULL) {
         error_report_err(err);
         close(sock);
         return;
     }
+
     object_ref(ioc);
     qio_channel_set_blocking(ioc, false, NULL);
     s->closed = false;
@@ -384,16 +512,21 @@ static void usb_tcp_host_attach(USBPort *uport)
     qemu_coroutine_enter(co);
 }
 
-static void usb_tcp_host_detach(USBPort *uport)
+static void usb_tcp_host_detach(USBPort *port)
 {
-    USBTCPHostState *s = USB_TCP_HOST(uport->opaque);
+    USBTCPHostState *s;
+
+    s = USB_TCP_HOST(port->opaque);
 
     usb_tcp_host_closed(s);
 }
 
 static void usb_tcp_host_async_packet_complete(USBPort *port, USBPacket *p)
 {
-    USBTCPHostState *s = USB_TCP_HOST(port->opaque);
+    USBTCPHostState *s;
+
+    s = USB_TCP_HOST(port->opaque);
+
     usb_tcp_host_respond_packet(s, container_of(p, USBTCPPacket, p));
 }
 
@@ -409,11 +542,14 @@ static USBPortOps usb_tcp_host_port_ops = {
 
 static void usb_tcp_host_realize(DeviceState *dev, Error **errp)
 {
-    USBTCPHostState *s = USB_TCP_HOST(dev);
+    USBTCPHostState *s;
+    int i;
+
+    s = USB_TCP_HOST(dev);
 
     usb_bus_new(&s->bus, sizeof(s->bus), &usb_tcp_bus_ops, dev);
-    for (int i = 0; i < G_N_ELEMENTS(s->uports); i++) {
-        usb_register_port(&s->bus, &s->uports[i], s, i, &usb_tcp_host_port_ops,
+    for (i = 0; i < G_N_ELEMENTS(s->ports); i++) {
+        usb_register_port(&s->bus, &s->ports[i], s, i, &usb_tcp_host_port_ops,
                           USB_SPEED_MASK_LOW | USB_SPEED_MASK_FULL |
                               USB_SPEED_MASK_HIGH);
     }
@@ -441,10 +577,16 @@ static void usb_tcp_host_init(Object *obj)
     USBTCPHostState *s = USB_TCP_HOST(obj);
     s->closed = true;
     error_setg(&s->migration_blocker,
-               "%s does not support migration "
-               "while connected",
+               "%s does not support migration while connected",
                TYPE_USB_TCP_HOST);
 }
+
+static const Property usb_tcp_host_props[] = {
+    DEFINE_PROP_USB_TCP_REMOTE_CONN_TYPE("conn-type", USBTCPHostState,
+                                         conn_type, TCP_REMOTE_CONN_TYPE_UNIX),
+    DEFINE_PROP_STRING("conn-addr", USBTCPHostState, conn_addr),
+    DEFINE_PROP_UINT16("conn-port", USBTCPHostState, conn_port, 0),
+};
 
 static void usb_tcp_host_class_init(ObjectClass *klass, void *data)
 {
@@ -454,6 +596,7 @@ static void usb_tcp_host_class_init(ObjectClass *klass, void *data)
     dc->unrealize = usb_tcp_host_unrealize;
     dc->desc = "QEMU USB Passthrough Host Controller";
     set_bit(DEVICE_CATEGORY_USB, dc->categories);
+    device_class_set_props(dc, usb_tcp_host_props);
 }
 
 static const TypeInfo usb_tcp_host_type_info = {

@@ -13,7 +13,7 @@ system_ss.add(when: 'CONFIG_USB', if_true: files(
 
 system_ss.add(when: 'CONFIG_APPLE_OTG', if_true: files('apple_otg.c'))
 system_ss.add(when: 'CONFIG_APPLE_TYPEC', if_true: files('apple_typec.c'))
-system_ss.add(when: 'CONFIG_USB_TCP', if_true: files('dev-tcp-remote.c', 'hcd-tcp.c'))
+system_ss.add(when: 'CONFIG_USB_TCP', if_true: files('tcp-usb.c', 'dev-tcp-remote.c', 'hcd-tcp.c'))
 
 # usb host adapters
 system_ss.add(when: 'CONFIG_USB_UHCI', if_true: files('hcd-uhci.c'))

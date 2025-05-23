@@ -25,10 +25,10 @@
 #include "exec/hwaddr.h"
 #include "hw/arm/apple-silicon/a13.h"
 #include "hw/arm/apple-silicon/boot.h"
-//#include "hw/or-irq.h"
 #include "hw/boards.h"
 #include "hw/sysbus.h"
 #include "system/kvm.h"
+#include "hw/usb/tcp-usb.h"
 
 #define TYPE_T8030 "t8030"
 
@@ -50,9 +50,9 @@ typedef enum {
 
 typedef struct {
     MachineState parent;
+
     hwaddr soc_base_pa;
     hwaddr soc_size;
-
     unsigned long dram_size;
     AppleA13State *cpus[A13_MAX_CPU];
     AppleA13Cluster clusters[A13_MAX_CLUSTER];
@@ -82,7 +82,9 @@ typedef struct {
     bool force_dfu;
     uint32_t board_id;
     uint32_t chip_revision;
-    ////OrIRQState pcie4_msi_irq;
+    USBTCPRemoteConnType usb_conn_type;
+    char *usb_conn_addr;
+    uint16_t usb_conn_port;
 } T8030MachineState;
 
 #endif /* HW_ARM_APPLE_SILICON_T8030_H */

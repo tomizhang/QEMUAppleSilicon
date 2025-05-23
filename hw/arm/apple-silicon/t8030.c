@@ -1694,6 +1694,15 @@ static void t8030_create_usb(T8030MachineState *t8030_machine)
     atc = qdev_new(TYPE_APPLE_TYPEC);
     object_property_add_child(OBJECT(t8030_machine), "atc", OBJECT(atc));
 
+    object_property_set_str(OBJECT(atc), "conn-type",
+                            qapi_enum_lookup(&USBTCPRemoteConnType_lookup,
+                                             t8030_machine->usb_conn_type),
+                            &error_fatal);
+    object_property_set_str(OBJECT(atc), "conn-addr",
+                            t8030_machine->usb_conn_addr, &error_fatal);
+    object_property_set_uint(OBJECT(atc), "conn-port",
+                             t8030_machine->usb_conn_port, &error_fatal);
+
     prop = dtb_find_prop(dart_mapper, "reg");
     g_assert_nonnull(prop);
     g_assert_cmpuint(prop->length, ==, 4);
@@ -2839,7 +2848,69 @@ static bool t8030_get_force_dfu(Object *obj, Error **errp)
     T8030MachineState *t8030_machine;
 
     t8030_machine = T8030_MACHINE(obj);
+
     return t8030_machine->force_dfu;
+}
+
+static void t8030_set_usb_conn_type(Object *obj, int value, Error **errp)
+{
+    T8030MachineState *t8030_machine;
+
+    t8030_machine = T8030_MACHINE(obj);
+    t8030_machine->usb_conn_type = value;
+}
+
+static int t8030_get_usb_conn_type(Object *obj, Error **errp)
+{
+    T8030MachineState *t8030_machine;
+
+    t8030_machine = T8030_MACHINE(obj);
+
+    return t8030_machine->usb_conn_type;
+}
+
+static void t8030_set_usb_conn_addr(Object *obj, const char *value,
+                                    Error **errp)
+{
+    T8030MachineState *t8030_machine;
+
+    t8030_machine = T8030_MACHINE(obj);
+    t8030_machine->usb_conn_addr = g_strdup(value);
+}
+
+static char *t8030_get_usb_conn_addr(Object *obj, Error **errp)
+{
+    T8030MachineState *t8030_machine;
+
+    t8030_machine = T8030_MACHINE(obj);
+
+    return t8030_machine->usb_conn_addr;
+}
+
+static void t8030_get_usb_conn_port(Object *obj, Visitor *v, const char *name,
+                                    void *opaque, Error **errp)
+{
+    T8030MachineState *t8030_machine;
+    int64_t value;
+
+    t8030_machine = T8030_MACHINE(obj);
+    value = t8030_machine->usb_conn_port;
+    visit_type_int(v, name, &value, errp);
+}
+
+static void t8030_set_usb_conn_port(Object *obj, Visitor *v, const char *name,
+                                    void *opaque, Error **errp)
+{
+    T8030MachineState *t8030_machine;
+    int64_t value;
+
+    t8030_machine = T8030_MACHINE(obj);
+
+    if (!visit_type_int(v, name, &value, errp)) {
+        return;
+    }
+
+    t8030_machine->usb_conn_port = value;
 }
 
 static void t8030_machine_class_init(ObjectClass *klass, void *data)
@@ -2888,6 +2959,22 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
     object_class_property_add_bool(klass, "force-dfu", t8030_get_force_dfu,
                                    t8030_set_force_dfu);
     object_class_property_set_description(klass, "force-dfu", "Force DFU");
+    object_class_property_add_enum(
+        klass, "usb-conn-type", "USBTCPRemoteConnType",
+        &USBTCPRemoteConnType_lookup, t8030_get_usb_conn_type,
+        t8030_set_usb_conn_type);
+    object_class_property_set_description(klass, "usb-conn-type",
+                                          "USB Connection Type");
+    object_class_property_add_str(klass, "usb-conn-addr",
+                                  t8030_get_usb_conn_addr,
+                                  t8030_set_usb_conn_addr);
+    object_class_property_set_description(klass, "usb-conn-addr",
+                                          "USB Connection Address");
+    object_class_property_add(klass, "usb-conn-port", "uint64",
+                              t8030_get_usb_conn_port, t8030_set_usb_conn_port,
+                              NULL, NULL);
+    object_class_property_set_description(klass, "usb-conn-port",
+                                          "USB Connection Port");
 }
 
 static const TypeInfo t8030_machine_info = {

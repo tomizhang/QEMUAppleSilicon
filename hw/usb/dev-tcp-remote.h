@@ -1,12 +1,28 @@
+/*
+ * TCP Remote USB.
+ *
+ * Copyright (c) 2023-2025 Visual Ehrmanntraut.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
 #ifndef HW_USB_DEV_TCP_REMOTE_H
 #define HW_USB_DEV_TCP_REMOTE_H
 
 #include "qemu/osdep.h"
 #include "hw/usb.h"
-#include "qom/object.h"
 #include "tcp-usb.h"
-#include "qemu/main-loop.h"
-#include "qapi/error.h"
 
 typedef struct USBTCPInflightPacket {
     USBPacket *p;
@@ -21,8 +37,7 @@ typedef struct USBTCPCompletedPacket {
     uint8_t addr;
 } USBTCPCompletedPacket;
 
-
-typedef struct USBTCPRemoteState {
+struct USBTCPRemoteState {
     USBDevice parent_obj;
 
     QemuThread thread;
@@ -42,12 +57,15 @@ typedef struct USBTCPRemoteState {
     QEMUBH *cleanup_bh;
     Error *migration_blocker;
 
+    USBTCPRemoteConnType conn_type;
+    char *conn_addr;
+    uint16_t conn_port;
     int socket;
     int fd;
     uint8_t addr;
     bool closed;
     bool stopped;
-} USBTCPRemoteState;
+};
 
 #define TYPE_USB_TCP_REMOTE "usb-tcp-remote"
 OBJECT_DECLARE_SIMPLE_TYPE(USBTCPRemoteState, USB_TCP_REMOTE)

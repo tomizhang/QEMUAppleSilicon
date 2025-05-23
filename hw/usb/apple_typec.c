@@ -5,6 +5,7 @@
 #include "migration/vmstate.h"
 #include "qapi/error.h"
 #include "qemu/module.h"
+#include "qom/object.h"
 
 static void apple_typec_realize(DeviceState *dev, Error **errp)
 {
@@ -36,7 +37,6 @@ static void apple_typec_realize(DeviceState *dev, Error **errp)
     sysbus_pass_irq(SYS_BUS_DEVICE(s), SYS_BUS_DEVICE(&s->dwc3));
     sysbus_init_irq(SYS_BUS_DEVICE(s), &s->dwc2.irq);
 
-    s->host = SYS_BUS_DEVICE(qdev_new(TYPE_USB_TCP_HOST));
     sysbus_realize(s->host, errp);
 
     bus = QLIST_FIRST(&DEVICE(s->host)->child_bus);
@@ -47,9 +47,6 @@ static void apple_typec_realize(DeviceState *dev, Error **errp)
 static void apple_typec_reset(DeviceState *dev)
 {
     AppleTypeCState *s = APPLE_TYPEC(dev);
-    device_cold_reset(DEVICE(&s->dwc2));
-    device_cold_reset(DEVICE(&s->dwc3));
-    device_cold_reset(DEVICE(s->host));
 }
 
 static void phy_reg_write(void *opaque, hwaddr addr, uint64_t data,
@@ -137,6 +134,11 @@ static void apple_typec_init(Object *obj)
         &s->container, 0x100000,
         sysbus_mmio_get_region(SYS_BUS_DEVICE(&s->dwc2), 0));
     sysbus_init_mmio(sbd, &s->container);
+
+    s->host = SYS_BUS_DEVICE(qdev_new(TYPE_USB_TCP_HOST));
+    object_property_add_alias(OBJECT(s), "conn-type", OBJECT(s->host), "conn-type");
+    object_property_add_alias(OBJECT(s), "conn-addr", OBJECT(s->host), "conn-addr");
+    object_property_add_alias(OBJECT(s), "conn-port", OBJECT(s->host), "conn-port");
 }
 
 static int apple_typec_post_load(void *opaque, int version_id)
@@ -146,7 +148,7 @@ static int apple_typec_post_load(void *opaque, int version_id)
 }
 
 static const VMStateDescription vmstate_apple_typec = {
-    .name = "apple_typec",
+    .name = "AppleTypeCState",
     .version_id = 0,
     .minimum_version_id = 0,
     .post_load = apple_typec_post_load,

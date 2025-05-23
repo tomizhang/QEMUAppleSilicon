@@ -1,20 +1,34 @@
+/*
+ * TCP Remote USB.
+ *
+ * Copyright (c) 2023-2025 Visual Ehrmanntraut.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "qemu/osdep.h"
-#include "hw/qdev-properties-system.h"
 #include "hw/qdev-properties.h"
 #include "hw/usb.h"
 #include "migration/blocker.h"
-#include "migration/vmstate.h"
 #include "qapi/error.h"
-#include "qemu/cutils.h"
 #include "qemu/error-report.h"
 #include "qemu/lockable.h"
-#include "qemu/log.h"
 #include "qemu/main-loop.h"
 #include "qemu/module.h"
+#include "qemu/sockets.h"
 #include "qom/object.h"
 #include "dev-tcp-remote.h"
-#include "desc.h"
-#include "system/iothread.h"
 #include "tcp-usb.h"
 #include "trace.h"
 
@@ -345,12 +359,9 @@ static void *usb_tcp_remote_thread(void *arg)
 
     while (!s->stopped) {
         if (s->closed) {
-            struct sockaddr_un addr = { 0 };
-            unsigned int addr_sz = sizeof(addr);
-
             DPRINTF("%s: waiting on accept...\n", __func__);
 
-            s->fd = accept(s->socket, (struct sockaddr *)&addr, &addr_sz);
+            s->fd = accept(s->socket, NULL, NULL);
             if (s->fd < 0) {
                 DPRINTF("%s: accept error %d.\n", __func__, errno);
                 continue;
@@ -381,9 +392,142 @@ static void *usb_tcp_remote_thread(void *arg)
     return NULL;
 }
 
+static void usb_tcp_remote_bind_unix(USBTCPRemoteState *s, Error **errp)
+{
+    struct sockaddr_un addr;
+    struct stat addr_stat;
+
+    memset(&addr, 0, sizeof(addr));
+    memset(&addr_stat, 0, sizeof(addr_stat));
+
+    if (s->conn_addr == NULL) {
+        s->conn_addr = g_strdup(USB_TCP_REMOTE_UNIX_DEFAULT);
+        warn_report("No socket path specified, using default (`%s`).",
+                    USB_TCP_REMOTE_UNIX_DEFAULT);
+    }
+
+    if (lstat(s->conn_addr, &addr_stat) == 0) {
+        if (!S_ISSOCK(addr_stat.st_mode)) {
+            error_setg(errp, "Existing file at `%s` is not a socket",
+                       s->conn_addr);
+            return;
+        }
+    }
+
+    if (unlink(s->conn_addr) < 0 && errno != ENOENT) {
+        error_setg_errno(errp, errno, "unlink('%s') failed", s->conn_addr);
+        return;
+    }
+
+    s->socket = qemu_socket(AF_UNIX, SOCK_STREAM, 0);
+    if (s->socket < 0) {
+        error_setg_errno(errp, errno, "Cannot open socket");
+        return;
+    }
+
+    addr.sun_family = AF_UNIX;
+    if (strlen(s->conn_addr) >= sizeof(addr.sun_path)) {
+        error_setg(errp, "Socket path too long: %s", s->conn_addr);
+        return;
+    }
+    strncpy(addr.sun_path, s->conn_addr, sizeof(addr.sun_path));
+
+    if (bind(s->socket, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        error_setg_errno(errp, errno, "Cannot bind socket");
+        return;
+    }
+
+    if (chmod(s->conn_addr, 0666) < 0) {
+        warn_report("chmod('%s') failed: %s", s->conn_addr, strerror(errno));
+    }
+}
+
+static void usb_tcp_remote_bind_ipv4(USBTCPRemoteState *s, Error **errp)
+{
+    struct sockaddr_in addr;
+    int ret;
+
+    memset(&addr, 0, sizeof(addr));
+
+    if (s->conn_port == 0) {
+        error_setg(errp, "Port must be specified.");
+        return;
+    }
+
+    addr.sin_family = AF_INET;
+    if (s->conn_addr == NULL) {
+        addr.sin_addr.s_addr = INADDR_ANY;
+    } else {
+        ret = inet_pton(AF_INET, s->conn_addr, &addr.sin_addr.s_addr);
+        if (ret == 0) {
+            error_setg(errp, "Invalid IPv4 address: %s", s->conn_addr);
+            return;
+        } else if (ret < 0) {
+            error_setg_errno(errp, errno, "inet_pton failed");
+            return;
+        }
+    }
+    addr.sin_port = htons(s->conn_port);
+
+    s->socket = qemu_socket(PF_INET, SOCK_STREAM, 0);
+    if (s->socket < 0) {
+        error_setg_errno(errp, errno, "Cannot open socket");
+        return;
+    }
+    if (socket_set_nodelay(s->socket) < 0) {
+        warn_report("Failed to set nodelay for socket: %s", strerror(errno));
+    }
+    if (bind(s->socket, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(s->socket);
+        error_setg_errno(errp, errno, "Cannot bind socket");
+        return;
+    }
+}
+
+static void usb_tcp_remote_bind_ipv6(USBTCPRemoteState *s, Error **errp)
+{
+    struct sockaddr_in6 addr;
+    int ret;
+
+    memset(&addr, 0, sizeof(addr));
+
+    if (s->conn_port == 0) {
+        error_setg(errp, "Port must be specified.");
+        return;
+    }
+
+    addr.sin6_family = AF_INET6;
+    if (s->conn_addr == NULL) {
+        addr.sin6_addr = in6addr_any;
+    } else {
+        ret = inet_pton(AF_INET6, s->conn_addr, &addr.sin6_addr);
+        if (ret == 0) {
+            error_setg(errp, "Invalid IPv6 address: %s", s->conn_addr);
+            return;
+        } else if (ret < 0) {
+            error_setg_errno(errp, errno, "inet_pton failed");
+            return;
+        }
+    }
+    addr.sin6_port = htons(s->conn_port);
+
+    s->socket = qemu_socket(PF_INET, SOCK_STREAM, 0);
+    if (s->socket < 0) {
+        error_setg_errno(errp, errno, "Cannot open socket");
+        return;
+    }
+    if (socket_set_nodelay(s->socket) < 0) {
+        warn_report("Failed to set nodelay for socket: %s", strerror(errno));
+    }
+    if (bind(s->socket, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(s->socket);
+        error_setg_errno(errp, errno, "Cannot bind socket");
+        return;
+    }
+}
+
 static void usb_tcp_remote_realize(USBDevice *dev, Error **errp)
 {
-    struct sockaddr_un ai;
     USBTCPRemoteState *s = USB_TCP_REMOTE(dev);
 
     dev->speed = USB_SPEED_HIGH;
@@ -410,40 +554,21 @@ static void usb_tcp_remote_realize(USBDevice *dev, Error **errp)
     s->fd = -1;
     s->closed = true;
 
-    struct stat fst;
-    if (stat(socket_path, &fst) == 0) {
-        if (!S_ISSOCK(fst.st_mode)) {
-            qemu_log_mask(LOG_GUEST_ERROR,
-                          "File '%s' already exists and is not a socket file. "
-                          "Refusing to continue.",
-                          socket_path);
-            return;
-        }
+    switch (s->conn_type) {
+    case TCP_REMOTE_CONN_TYPE_UNIX:
+        usb_tcp_remote_bind_unix(s, errp);
+        break;
+    case TCP_REMOTE_CONN_TYPE_IPV4:
+        usb_tcp_remote_bind_ipv4(s, errp);
+        break;
+    case TCP_REMOTE_CONN_TYPE_IPV6:
+        usb_tcp_remote_bind_ipv6(s, errp);
+        break;
+    default:
+        g_assert_not_reached();
     }
 
-    if (unlink(socket_path) == -1 && errno != ENOENT) {
-        qemu_log_mask(LOG_GUEST_ERROR, "%s: unlink(%s) failed: %s", __func__,
-                      socket_path, strerror(errno));
-        return;
-    }
-
-    s->socket = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (s->socket < 0) {
-        error_setg(errp, "Cannot open socket: %d", s->socket);
-        return;
-    }
-
-    ai.sun_family = AF_UNIX;
-    strncpy(ai.sun_path, socket_path, sizeof(ai.sun_path));
-    ai.sun_path[sizeof(ai.sun_path) - 1] = '\0';
-
-    if (bind(s->socket, (struct sockaddr *)&ai, sizeof(ai)) < 0) {
-        error_setg(errp, "Cannot bind socket");
-        return;
-    }
-    chmod(socket_path, 0666);
-
-    if (listen(s->socket, 5) < 0) {
+    if (listen(s->socket, 1) < 0) {
         error_setg(errp, "Cannot listen on socket");
         return;
     }
@@ -665,6 +790,13 @@ out:
     }
 }
 
+static const Property usb_tcp_remote_dev_props[] = {
+    DEFINE_PROP_USB_TCP_REMOTE_CONN_TYPE("conn-type", USBTCPRemoteState,
+                                         conn_type, TCP_REMOTE_CONN_TYPE_UNIX),
+    DEFINE_PROP_STRING("conn-addr", USBTCPRemoteState, conn_addr),
+    DEFINE_PROP_UINT16("conn-port", USBTCPRemoteState, conn_port, 0),
+};
+
 static void usb_tcp_remote_dev_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -682,9 +814,8 @@ static void usb_tcp_remote_dev_class_init(ObjectClass *klass, void *data)
     uc->product_desc = "QEMU USB Passthrough Device";
 
     dc->desc = "QEMU USB Passthrough Device";
-
-
     set_bit(DEVICE_CATEGORY_USB, dc->categories);
+    device_class_set_props(dc, usb_tcp_remote_dev_props);
 }
 
 static const TypeInfo usb_tcp_remote_dev_type_info = {
