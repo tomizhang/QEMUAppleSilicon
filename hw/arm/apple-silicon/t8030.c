@@ -1698,8 +1698,10 @@ static void t8030_create_usb(T8030MachineState *t8030_machine)
                             qapi_enum_lookup(&USBTCPRemoteConnType_lookup,
                                              t8030_machine->usb_conn_type),
                             &error_fatal);
-    object_property_set_str(OBJECT(atc), "conn-addr",
-                            t8030_machine->usb_conn_addr, &error_fatal);
+    if (t8030_machine->usb_conn_addr != NULL) {
+        object_property_set_str(OBJECT(atc), "conn-addr",
+                                t8030_machine->usb_conn_addr, &error_fatal);
+    }
     object_property_set_uint(OBJECT(atc), "conn-port",
                              t8030_machine->usb_conn_port, &error_fatal);
 
