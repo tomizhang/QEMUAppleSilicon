@@ -30,64 +30,62 @@
 #define DART_MAX_TTBR 4
 #define DART_MAX_VA_BITS 38
 
-#define DART_PARAMS1 (0x0)
-#define DART_PARAMS1_PAGE_SHIFT(_x) (((_x) & 0xf) << 24)
+#define REG_DART_PARAMS1 (0x0)
+#define DART_PARAMS1_PAGE_SHIFT(_x) (((_x) & 0xF) << 24)
 
-#define DART_PARAMS2 (0x4)
-#define DART_PARAMS2_BYPASS_SUPPORT (0x1)
+#define REG_DART_PARAMS2 (0x4)
+#define DART_PARAMS2_BYPASS_SUPPORT BIT32(0)
 
-#define DART_TLB_OP (0x20)
-#define DART_TLB_OP_BUSY (1 << 2)
-#define DART_TLB_OP_INVALIDATE (1 << 20)
+#define REG_DART_TLB_OP (0x20)
+#define DART_TLB_OP_BUSY BIT32(2)
+#define DART_TLB_OP_INVALIDATE BIT32(20)
 
-#define DART_SID_MASK_LOW (0x34)
-#define DART_SID_MASK_HIGH (0x38)
-#define DART_ERROR_STATUS (0x40)
+#define REG_DART_SID_MASK_LOW (0x34)
+#define REG_DART_SID_MASK_HIGH (0x38)
+#define REG_DART_ERROR_STATUS (0x40)
 #define DART_ERROR_STREAM_SHIFT (24)
 #define DART_ERROR_STREAM_LENGTH (4)
-#define DART_ERROR_STREAM(_x) (((_x) & 0xf) << 24)
-#define DART_ERROR_CODE(_x) (((_x) & 0xf) << 0)
-#define DART_ERROR_FLAG (1 << 31)
-#define DART_ERROR_APF_REJECT (1 << 11)
-#define DART_ERROR_UNKNOWN (1 << 9)
-#define DART_ERROR_CTRR_WRITE_PROT (1 << 8)
-#define DART_ERROR_REGION_PROT (1 << 7)
-#define DART_ERROR_AXI_SLV_ERR (1 << 6)
-#define DART_ERROR_AXI_SLV_DECODE (1 << 5)
-#define DART_ERROR_READ_PROT (1 << 4)
-#define DART_ERROR_WRITE_PROT (1 << 3)
-#define DART_ERROR_PTE_INVLD (1 << 2)
-#define DART_ERROR_L2E_INVLD (1 << 1)
-#define DART_ERROR_TTBR_INVLD (1 << 0)
-#define DART_ERROR_ADDRESS_LO (0x50)
-#define DART_ERROR_ADDRESS_HI (0x54)
-#define DART_CONFIG (0x60)
+#define DART_ERROR_FLAG BIT32(31)
+#define DART_ERROR_APF_REJECT BIT32(11)
+#define DART_ERROR_UNKNOWN BIT32(9)
+#define DART_ERROR_CTRR_WRITE_PROT BIT32(8)
+#define DART_ERROR_REGION_PROT BIT32(7)
+#define DART_ERROR_AXI_SLV_ERR BIT32(6)
+#define DART_ERROR_AXI_SLV_DECODE BIT32(5)
+#define DART_ERROR_READ_PROT BIT32(4)
+#define DART_ERROR_WRITE_PROT BIT32(3)
+#define DART_ERROR_PTE_INVLD BIT32(2)
+#define DART_ERROR_L2E_INVLD BIT32(1)
+#define DART_ERROR_TTBR_INVLD BIT32(0)
+#define REG_DART_ERROR_ADDRESS_LO (0x50)
+#define REG_DART_ERROR_ADDRESS_HI (0x54)
+#define REG_DART_CONFIG (0x60)
 #define DART_CONFIG_LOCK (1 << 15)
 
 #define DART_SID_REMAP(sid4) (0x80 + 4 * (sid4))
 
-#define DART_TCR(sid) (0x100 + 4 * (sid))
-#define DART_TCR_TXEN (1 << 7)
-#define DART_TCR_BYPASS_DART (1 << 8)
-#define DART_TCR_BYPASS_DAPF (1 << 12)
+#define REG_DART_TCR(sid) (0x100 + 4 * (sid))
+#define DART_TCR_TXEN BIT32(7)
+#define DART_TCR_BYPASS_DART BIT32(8)
+#define DART_TCR_BYPASS_DAPF BIT32(12)
 
-#define DART_TTBR(sid, idx) (0x200 + 16 * (sid) + 4 * (idx))
-#define DART_TTBR_VALID (1 << 31)
+#define REG_DART_TTBR(sid, idx) (0x200 + 16 * (sid) + 4 * (idx))
+#define DART_TTBR_VALID BIT32(31)
 #define DART_TTBR_SHIFT 12
 #define DART_TTBR_MASK 0xFFFFFFF
 
-#define DART_TTE_NO_WRITE (1 << 7)
-#define DART_TTE_NO_READ (1 << 8)
-#define DART_TTE_AP_MASK (3 << 7)
-#define DART_TTE_VALID (1 << 0)
-#define DART_TTE_TYPE_TABLE (1 << 0)
-#define DART_TTE_TYPE_BLOCK (3 << 0)
-#define DART_TTE_TYPE_MASK (0x3)
-#define DART_TTE_ADDR_MASK (0xFFFFFFFFFFull)
+#define DART_PTE_NO_WRITE (1 << 7)
+#define DART_PTE_NO_READ (1 << 8)
+#define DART_PTE_AP_MASK (3 << 7)
+#define DART_PTE_VALID (1 << 0)
+#define DART_PTE_TYPE_TABLE (1 << 0)
+#define DART_PTE_TYPE_BLOCK (3 << 0)
+#define DART_PTE_TYPE_MASK (0x3)
+#define DART_PTE_ADDR_MASK (0xFFFFFFFFFFull)
 
 #define DART_IOTLB_SID_SHIFT (53)
-#define DART_IOTLB_SID(_x) (((_x) & 0xfull) << 53)
-#define DART_IOTLB_SID_EX(_x) (((_x) >> 53) & 0xf)
+#define DART_IOTLB_SID(_x) (((_x) & 0xFull) << DART_IOTLB_SID_SHIFT)
+#define GET_DART_IOTLB_SID(_x) (((_x) >> DART_IOTLB_SID_SHIFT) & 0xF)
 
 typedef enum {
     DART_UNKNOWN = 0,
@@ -195,7 +193,7 @@ static gboolean apple_dart_tlb_remove_by_sid_mask(gpointer key, gpointer value,
     hwaddr va = (hwaddr)key;
     uint64_t sid_mask = *(uint64_t *)user_data;
 
-    if ((1ULL << DART_IOTLB_SID_EX(va)) & sid_mask) {
+    if ((1ULL << GET_DART_IOTLB_SID(va)) & sid_mask) {
         return true;
     }
     return false;
@@ -227,7 +225,7 @@ static void base_reg_write(void *opaque, hwaddr addr, uint64_t data,
 
     if (o->type == DART_DART) {
         switch (addr) {
-        case DART_TLB_OP:
+        case REG_DART_TLB_OP:
             if (val & DART_TLB_OP_INVALIDATE) {
                 IOMMUTLBEvent event;
                 uint64_t sid_mask = o->sid_mask;
@@ -261,7 +259,7 @@ static void base_reg_write(void *opaque, hwaddr addr, uint64_t data,
                 return;
             }
             break;
-        case DART_ERROR_STATUS:
+        case REG_DART_ERROR_STATUS:
             val = o->error_status & (~val);
             apple_dart_update_irq(s);
             return;
@@ -278,9 +276,9 @@ static uint64_t base_reg_read(void *opaque, hwaddr addr, unsigned size)
 
     if (o->type == DART_DART) {
         switch (addr) {
-        case DART_TLB_OP:
+        case REG_DART_TLB_OP:
             return qatomic_read(&o->tlb_op);
-        case DART_ERROR_STATUS:
+        case REG_DART_ERROR_STATUS:
             return o->error_status;
         default:
             return o->base_reg[addr >> 2];
@@ -334,20 +332,20 @@ static AppleDARTTLBEntry *apple_dart_ptw(AppleDARTInstance *o, uint32_t sid,
         DPRINTF("%s: level: %d, pa: 0x" HWADDR_FMT_plx " pte: 0x%llx(0x%llx)\n",
                 __func__, level, pa, pte, idx);
 
-        if ((pte & DART_TTE_VALID) == 0) {
+        if ((pte & DART_PTE_VALID) == 0) {
             err_status = (DART_ERROR_FLAG | DART_ERROR_PTE_INVLD);
             pa = 0;
             pte = 0;
             break;
         }
-        pa = pte & s->page_mask & DART_TTE_ADDR_MASK;
+        pa = pte & s->page_mask & DART_PTE_ADDR_MASK;
     }
 
-    if ((pte & DART_TTE_VALID)) {
+    if ((pte & DART_PTE_VALID)) {
         tlb_entry = g_new0(AppleDARTTLBEntry, 1);
-        tlb_entry->block_addr = (pte & s->page_mask & DART_TTE_ADDR_MASK);
-        tlb_entry->perm = IOMMU_ACCESS_FLAG(!(pte & DART_TTE_NO_READ),
-                                            !(pte & DART_TTE_NO_WRITE));
+        tlb_entry->block_addr = (pte & s->page_mask & DART_PTE_ADDR_MASK);
+        tlb_entry->perm = IOMMU_ACCESS_FLAG(!(pte & DART_PTE_NO_READ),
+                                            !(pte & DART_PTE_NO_WRITE));
     } else {
         err_status = (DART_ERROR_FLAG | DART_ERROR_PTE_INVLD);
     }
@@ -649,18 +647,18 @@ static void apple_dart_dump_pt(Monitor *mon, AppleDARTInstance *o, hwaddr iova,
                        "\t\t\t0x" HWADDR_FMT_plx " ... 0x" HWADDR_FMT_plx
                        " -> 0x%llx %c%c\n",
                        iova << s->page_shift, (iova + 1) << s->page_shift,
-                       pte & s->page_mask & DART_TTE_ADDR_MASK,
-                       pte & DART_TTE_NO_READ ? '-' : 'r',
-                       pte & DART_TTE_NO_WRITE ? '-' : 'w');
+                       pte & s->page_mask & DART_PTE_ADDR_MASK,
+                       pte & DART_PTE_NO_READ ? '-' : 'r',
+                       pte & DART_PTE_NO_WRITE ? '-' : 'w');
         return;
     }
 
     for (uint64_t i = 0; i <= (s->l_mask[level] >> s->l_shift[level]); i++) {
         uint64_t pte2 = entries[i];
 
-        if ((pte2 & DART_TTE_VALID) ||
+        if ((pte2 & DART_PTE_VALID) ||
             ((level == 0) && (pte2 & DART_TTBR_VALID))) {
-            uint64_t pa = pte2 & s->page_mask & DART_TTE_ADDR_MASK;
+            uint64_t pa = pte2 & s->page_mask & DART_PTE_ADDR_MASK;
             if (level == 0) {
                 pa = (pte2 & DART_TTBR_MASK) << DART_TTBR_SHIFT;
             }
