@@ -591,32 +591,32 @@ static void apple_mt_spi_handle_get_feature(AppleMTSPIState *s)
         apple_mt_spi_push_report_hdr(
             &packet->buf, HID_CONTROL_PACKET_SET_OUTPUT_REPORT, report_id,
             HID_PACKET_STATUS_SUCCESS, frame_number, 22); // 1 + 7*3
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x3); // region count
+        apple_mt_spi_buf_push_byte(&packet->buf, 3); // region count
 
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x1); // type Multitouch
+        apple_mt_spi_buf_push_byte(&packet->buf, 1); // type Multitouch
         apple_mt_spi_buf_push_byte(&packet->buf, 0); // start_row
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x1E); // rows
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x01); // row_skip
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x0); // start_col
-        apple_mt_spi_buf_push_byte(&packet->buf, 0xe); // cols
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x0); // hardware_coloffset
+        apple_mt_spi_buf_push_byte(&packet->buf, 30); // rows
+        apple_mt_spi_buf_push_byte(&packet->buf, 1); // row_skip
+        apple_mt_spi_buf_push_byte(&packet->buf, 0); // start_col
+        apple_mt_spi_buf_push_byte(&packet->buf, 14); // cols
+        apple_mt_spi_buf_push_byte(&packet->buf, 0); // hardware_coloffset
 
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x8); // type CommonMode
+        apple_mt_spi_buf_push_byte(&packet->buf, 8); // type CommonMode
         apple_mt_spi_buf_push_byte(&packet->buf, 0); // start_row
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x1E); // rows
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x01); // row_skip
-        apple_mt_spi_buf_push_byte(&packet->buf, 0xE); // start_col
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x1); // cols
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x0); // hardware_coloffset
+        apple_mt_spi_buf_push_byte(&packet->buf, 30); // rows
+        apple_mt_spi_buf_push_byte(&packet->buf, 1); // row_skip
+        apple_mt_spi_buf_push_byte(&packet->buf, 14); // start_col
+        apple_mt_spi_buf_push_byte(&packet->buf, 1); // cols
+        apple_mt_spi_buf_push_byte(&packet->buf, 0); // hardware_coloffset
 
-        apple_mt_spi_buf_push_byte(&packet->buf, 0xB); // type unknown
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x1E); // maybe rows?
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x1); // maybe row_skip?
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x1); // unknown
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x0); // unknown
+        apple_mt_spi_buf_push_byte(&packet->buf, 11); // type unknown
+        apple_mt_spi_buf_push_byte(&packet->buf, 30); // maybe rows?
+        apple_mt_spi_buf_push_byte(&packet->buf, 1); // maybe row_skip?
+        apple_mt_spi_buf_push_byte(&packet->buf, 1); // unknown
+        apple_mt_spi_buf_push_byte(&packet->buf, 0); // unknown
         // maybe ignored? offsets 0x14/0x15 > size 0x14
-        apple_mt_spi_buf_push_byte(&packet->buf, 0xF);
-        apple_mt_spi_buf_push_byte(&packet->buf, 0x0);
+        apple_mt_spi_buf_push_byte(&packet->buf, 15);
+        apple_mt_spi_buf_push_byte(&packet->buf, 0);
         break;
     default:
         apple_mt_spi_push_report_byte(
@@ -886,7 +886,7 @@ static void apple_mt_spi_mouse_event(void *opaque, int dx, int dy, int dz,
     s->y =
         qemu_input_scale_axis(INPUT_EVENT_ABS_MAX - dy, INPUT_EVENT_ABS_MIN,
                               INPUT_EVENT_ABS_MAX, 0, MT_SENSOR_SURFACE_HEIGHT);
-    // hardcoded calibration by 16 pixels on y-axis for display_height 1792.
+    // Hardcoded calibration on y-axis for display_height 1792.
     // Tested accuracy is +/- 1 pixel.
     s->y -= qemu_input_scale_axis(16, 0, 1792, 0, MT_SENSOR_SURFACE_HEIGHT);
     s->prev_btn_state = s->btn_state;
