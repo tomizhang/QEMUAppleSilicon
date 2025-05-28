@@ -908,7 +908,7 @@ static void trng_regs_reg_write(void *opaque, hwaddr addr, uint64_t data,
     s = (AppleTRNGState *)opaque;
 
 #if 0
-    qemu_log_mask(LOG_UNIMP,
+    DPRINTF(
                   "TRNG_REGS: Write at 0x" HWADDR_FMT_plx
                   " of value 0x%" PRIx64 "\n",
                   addr, data);
@@ -942,10 +942,9 @@ static void trng_regs_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case REG_TRNG_CONTROL: {
         uint32_t old_enabled = (s->config & TRNG_CONTROL_ENABLED) != 0;
         s->config = (uint32_t)data;
-        qemu_log_mask(LOG_UNIMP,
-                      "TRNG_REGS: REG_TRNG_CONTROL write at 0x" HWADDR_FMT_plx
-                      " of value 0x%" PRIx64 "\n",
-                      addr, data);
+        DPRINTF("TRNG_REGS: REG_TRNG_CONTROL write at 0x" HWADDR_FMT_plx
+                " of value 0x%" PRIx64 "\n",
+                addr, data);
         enabled = (data & TRNG_CONTROL_ENABLED) != 0;
 
         if (!old_enabled && enabled) {
@@ -1088,7 +1087,7 @@ static uint64_t trng_regs_reg_read(void *opaque, hwaddr addr, unsigned size)
         break;
     }
 #if 0
-    qemu_log_mask(LOG_UNIMP,
+    DPRINTF(
                   "TRNG_REGS: Read at 0x" HWADDR_FMT_plx
                   " ret: 0x%" PRIx64 "\n",
                   addr, ret);
@@ -1152,8 +1151,8 @@ static void pmgr_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case 0x58: // mod_KEY
     case 0x60: // mod_EISP
     case 0x68: // mod_SEPD
-        qemu_log_mask(
-            LOG_UNIMP,
+        DPRINTF(
+
             "SEP PMGR_BASE: PowerState %s write before at 0x" HWADDR_FMT_plx
             " with value 0x%" PRIx64 "\n",
             sepos_powerstate_name(addr), addr, data);
@@ -1199,11 +1198,9 @@ static void pmgr_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
             }
         }
 
-        qemu_log_mask(
-            LOG_UNIMP,
-            "SEP PMGR_BASE: PowerState %s write after at 0x" HWADDR_FMT_plx
-            " with value 0x%" PRIx64 "\n",
-            sepos_powerstate_name(addr), addr, data);
+        DPRINTF("SEP PMGR_BASE: PowerState %s write after at 0x" HWADDR_FMT_plx
+                " with value 0x%" PRIx64 "\n",
+                sepos_powerstate_name(addr), addr, data);
         goto jump_default;
     case 0x8000:
         // the resulting values should only reset on SoC reset
@@ -1213,10 +1210,9 @@ static void pmgr_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
         if ((data & 2) != 0) {
             s->pmgr_fuse_changer_bit1_was_set = true;
         }
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP PMGR_BASE: fuse change write at 0x" HWADDR_FMT_plx
-                      " with value 0x%" PRIx64 "\n",
-                      addr, data);
+        DPRINTF("SEP PMGR_BASE: fuse change write at 0x" HWADDR_FMT_plx
+                " with value 0x%" PRIx64 "\n",
+                addr, data);
         goto jump_default;
     default:
 #if 1
@@ -1249,10 +1245,9 @@ static uint64_t pmgr_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x60: // mod_EISP
     case 0x68: // mod_SEPD
 #if 1
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP PMGR_BASE: PowerState %s read at 0x" HWADDR_FMT_plx
-                      " with value 0x%" PRIx64 "\n",
-                      sepos_powerstate_name(addr), addr, ret);
+        DPRINTF("SEP PMGR_BASE: PowerState %s read at 0x" HWADDR_FMT_plx
+                " with value 0x%" PRIx64 "\n",
+                sepos_powerstate_name(addr), addr, ret);
 #endif
         break;
     case 0x8200:
@@ -1312,16 +1307,14 @@ static void key_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
         0x3f: first 0x40 bytes of random data cmd7_0x7
         0x40: second 0x40 bytes of random data cmd7_0x7
         */
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP KEY_BASE: Offset 0x" HWADDR_FMT_plx
-                      ": Execute Command/Storage Index: cmd 0x%" PRIx64 "\n",
-                      addr, data);
+        DPRINTF("SEP KEY_BASE: Offset 0x" HWADDR_FMT_plx
+                ": Execute Command/Storage Index: cmd 0x%" PRIx64 "\n",
+                addr, data);
         goto jump_default;
     case 0x308 ... 0x344: // 0x40 bytes of output from TRNG
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP KEY_BASE: Offset 0x" HWADDR_FMT_plx
-                      ": Input: cmd 0x%" PRIx64 "\n",
-                      addr, data);
+        DPRINTF("SEP KEY_BASE: Offset 0x" HWADDR_FMT_plx
+                ": Input: cmd 0x%" PRIx64 "\n",
+                addr, data);
         goto jump_default;
     default:
     jump_default:
@@ -1397,7 +1390,7 @@ static void key_fcfg_reg_write(void *opaque, hwaddr addr, uint64_t data,
         }
 #endif
 #if 0
-        qemu_log_mask(LOG_UNIMP,
+        DPRINTF(
                       "SEP KEY_FCFG: TEST0 0x" HWADDR_FMT_plx
                       " with value 0x%" PRIx64 "\n",
                       addr, data);
@@ -1412,7 +1405,7 @@ static void key_fcfg_reg_write(void *opaque, hwaddr addr, uint64_t data,
         // if (data == 0x3)
         {
 #if 0
-        qemu_log_mask(LOG_UNIMP,
+        DPRINTF(
                       "SEP KEY_FCFG: TEST1 0x" HWADDR_FMT_plx
                       " with value 0x%" PRIx64 "\n",
                       addr, data);
@@ -1431,10 +1424,9 @@ static void key_fcfg_reg_write(void *opaque, hwaddr addr, uint64_t data,
         }
         goto jump_default;
     case 0x14:
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP KEY_FCFG: vals 0x" HWADDR_FMT_plx
-                      " with value 0x%" PRIx64 "\n",
-                      addr, data);
+        DPRINTF("SEP KEY_FCFG: vals 0x" HWADDR_FMT_plx " with value 0x%" PRIx64
+                "\n",
+                addr, data);
         if (data == 0xffff) {
             s->key_fcfg_offset_0x14_index = 0x0;
             memset(s->key_fcfg_offset_0x14_values, 0,
@@ -1451,7 +1443,7 @@ static void key_fcfg_reg_write(void *opaque, hwaddr addr, uint64_t data,
     jump_default:
         memcpy(&s->key_fcfg_regs[addr], &data, size);
 #if 0
-        qemu_log_mask(LOG_UNIMP,
+        DPRINTF(
                       "SEP KEY_FCFG: Unknown write at 0x" HWADDR_FMT_plx
                       " with value 0x%" PRIx64 "\n",
                       addr, data);
@@ -1485,25 +1477,22 @@ static uint64_t key_fcfg_reg_read(void *opaque, hwaddr addr, unsigned size)
                 0;
         ret = ((uint32_t)key_fcfg_offset_0x14_index << 16) |
               s->key_fcfg_offset_0x14_values[key_fcfg_offset_0x14_index];
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP KEY_FCFG: vals read at 0x" HWADDR_FMT_plx
-                      " ret: 0x%" PRIx64 "\n",
-                      addr, ret);
+        DPRINTF("SEP KEY_FCFG: vals read at 0x" HWADDR_FMT_plx
+                " ret: 0x%" PRIx64 "\n",
+                addr, ret);
         break;
     case 0x18: // for SKG ; 0x4 | (value & 0x3)
         // ret = 0x4 | 0x0; // when AMK is disabled
         ret = 0x4 | 0x1; // when AMK is enabled
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP KEY_FCFG: AMK read at 0x" HWADDR_FMT_plx
-                      " ret: 0x%" PRIx64 "\n",
-                      addr, ret);
+        DPRINTF("SEP KEY_FCFG: AMK read at 0x" HWADDR_FMT_plx " ret: 0x%" PRIx64
+                "\n",
+                addr, ret);
         break;
     default:
         memcpy(&ret, &s->key_fcfg_regs[addr], size);
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP KEY_FCFG: Unknown read at 0x" HWADDR_FMT_plx
-                      " ret: 0x%" PRIx64 "\n",
-                      addr, ret);
+        DPRINTF("SEP KEY_FCFG: Unknown read at 0x" HWADDR_FMT_plx
+                " ret: 0x%" PRIx64 "\n",
+                addr, ret);
         break;
     }
 
@@ -2168,7 +2157,7 @@ static void aess_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     s = (AppleAESSState *)opaque;
 
 #ifdef ENABLE_CPU_DUMP_STATE
-    qemu_log_mask(LOG_UNIMP, "\n");
+    DPRINTF("\n");
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
