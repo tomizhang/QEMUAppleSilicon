@@ -1071,19 +1071,6 @@ static uint64_t pmgr_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0xF0010: // AppleT8030PMGR::commonSramCheck
         result = 0x5000;
         break;
-#if 0
-    case 0x80C00: // SEP Power State, Manual & Actual: Run Max
-        result = 0xFF;
-        break;
-#endif
-#if 0
-    case 0xBC008:
-        result = 0xFFFFFFFF;
-        break;
-    case 0xBC00C:
-        result = 0xFFFFFFFF;
-        break;
-#endif
     default:
         memcpy(&result, t8030_machine->pmgr_reg + addr, size);
         break;
