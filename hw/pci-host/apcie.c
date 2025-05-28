@@ -31,7 +31,8 @@
 #include "hw/pci/pcie_port.h"
 #include "hw/qdev-properties.h"
 
-#define DEBUG_APCIE
+// #define DEBUG_APCIE
+
 #ifdef DEBUG_APCIE
 #define DPRINTF(fmt, ...)                             \
     do {                                              \
