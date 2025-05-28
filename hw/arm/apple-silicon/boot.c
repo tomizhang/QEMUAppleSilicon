@@ -233,9 +233,10 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
         }
         if (!found) {
             g_assert_nonnull(parent);
-            info_report("Removing node %s because its compatible property %s "
-                        "is not in the whitelist",
-                        dtb_find_prop(node, "name")->data, prop->data);
+            info_report(
+                "Removing node `%s` because its compatible property `%s` "
+                "is not whitelisted",
+                dtb_find_prop(node, "name")->data, prop->data);
             dtb_remove_node(parent, node);
             return;
         }
@@ -249,6 +250,9 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
             uint64_t size = MIN(prop->length, sstrlen(REM_NAMES[i]));
             if (memcmp(prop->data, REM_NAMES[i], size) == 0) {
                 g_assert_nonnull(parent);
+                info_report(
+                    "Removing node `%s` because its name is blacklisted",
+                    prop->data);
                 dtb_remove_node(parent, node);
                 return;
             }
@@ -263,6 +267,9 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
             uint64_t size = MIN(prop->length, sstrlen(REM_DEV_TYPES[i]));
             if (memcmp(prop->data, REM_DEV_TYPES[i], size) == 0) {
                 g_assert_nonnull(parent);
+                info_report("Removing node `%s` because its device type "
+                            "property `%s` is blacklisted",
+                            dtb_find_prop(node, "name")->data, prop->data);
                 dtb_remove_node(parent, node);
                 return;
             }
