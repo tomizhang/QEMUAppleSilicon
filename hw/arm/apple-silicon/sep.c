@@ -60,13 +60,13 @@
 
 #ifdef SEP_DEBUG
 #define HEXDUMP(a, b, c) qemu_hexdump(stderr, a, b, c)
-#define DBGLOG(v, ...) fprintf(stderr, v, ##__VA_ARGS__)
+#define DPRINTF(v, ...) fprintf(stderr, v, ##__VA_ARGS__)
 #else
 #define HEXDUMP(a, b, c) \
     do {                 \
     } while (0)
-#define DBGLOG(v, ...) \
-    do {               \
+#define DPRINTF(v, ...) \
+    do {                \
     } while (0)
 #endif
 
@@ -476,101 +476,87 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
     uint64_t arg5 = *(uint64_t *)&s->debug_trace_regs[addr - 0x10];
     uint64_t tid = *(uint64_t *)&s->debug_trace_regs[addr - 0x08];
     uint64_t time = *(uint64_t *)&s->debug_trace_regs[addr - 0x00];
-    DBGLOG("\nDEBUG_TRACE: Debug:"
-           " 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64
-           " 0x%" PRIx64 " %" PRIu64 "\n",
-           trace_id, arg2, arg3, arg4, arg5, tid, time);
+    DPRINTF("\nDEBUG_TRACE: Debug:"
+            " 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64 " 0x%" PRIx64
+            " 0x%" PRIx64 " 0x%" PRIx64 " %" PRIu64 "\n",
+            trace_id, arg2, arg3, arg4, arg5, tid, time);
     const char *tid_str = sepos_return_module_thread_string(s->chip_id, tid);
     switch (trace_id) {
     case 0x82000004: { // SEP L4 task switch
         // %s instead of %c%c%c%c because the names will be nullbytes sometimes.
         uint64_t old_taskname = bswap32(arg2);
         uint64_t new_taskname = bswap32(arg4);
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
-                      "L4 task switch: old task thread name: 0x%02" PRIx64
-                      "(%s) old task id: 0x%05" PRIx64
-                      " new task thread name: 0x%02" PRIx64 "(%s) "
-                      "arg5: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, (char *)&old_taskname, arg3, arg4,
-                      (char *)&new_taskname, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
+                "L4 task switch: old task thread name: 0x%02" PRIx64
+                "(%s) old task id: 0x%05" PRIx64
+                " new task thread name: 0x%02" PRIx64 "(%s) "
+                "arg5: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, (char *)&old_taskname, arg3, arg4,
+                (char *)&new_taskname, arg5);
         break;
     }
     case 0x82010004: // panic
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
-                      "module panicked\n",
-                      tid, tid_str);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
+                "module panicked\n",
+                tid, tid_str);
         break;
     case 0x82030004: // initialize_ool_page
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "initialize_ool_page:"
-                      " obj_id: 0x%02" PRIx64 " address: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "initialize_ool_page:"
+                " obj_id: 0x%02" PRIx64 " address: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3);
         break;
     case 0x82040005: // before SEP_IO__Control
     case 0x82040006: // after SEP_IO__Control
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: %s "
-                      "SEP_IO__Control Sending message to other module:"
-                      " fromto: 0x%02" PRIx64 " method: 0x%02" PRIx64
-                      " data0: 0x%02" PRIx64 " "
-                      "data1: 0x%02" PRIx64 "\n",
-                      tid, tid_str,
-                      (trace_id == 0x82040005) ? "Before" : "After", arg2, arg3,
-                      arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: %s "
+                "SEP_IO__Control Sending message to other module:"
+                " fromto: 0x%02" PRIx64 " method: 0x%02" PRIx64
+                " data0: 0x%02" PRIx64 " "
+                "data1: 0x%02" PRIx64 "\n",
+                tid, tid_str, (trace_id == 0x82040005) ? "Before" : "After",
+                arg2, arg3, arg4, arg5);
         break;
     case 0x82050005: // SEP_SERVICE__Call: request
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_SERVICE__Call: request:"
-                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
-                      " "
-                      "method: 0x%02" PRIx64 " data0: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_SERVICE__Call: request:"
+                " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64 " "
+                "method: 0x%02" PRIx64 " data0: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82050006: // SEP_SERVICE__Call: response
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_SERVICE__Call: response:"
-                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
-                      " "
-                      "method: 0x%02" PRIx64 " status/data0: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_SERVICE__Call: response:"
+                " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64 " "
+                "method: 0x%02" PRIx64 " status/data0: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82060004: // entered workloop function
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
-                      "module entered workloop function:"
-                      " handlers0: 0x%02" PRIx64 " handlers1: 0x%02" PRIx64
-                      " arg5: "
-                      "0x%02" PRIx64 " arg6: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
+                "module entered workloop function:"
+                " handlers0: 0x%02" PRIx64 " handlers1: 0x%02" PRIx64 " arg5: "
+                "0x%02" PRIx64 " arg6: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82060010: // workloop function: interface_msgid==0xfffe after
                      // receiving
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
-                      "module workloop function:"
-                      " interface_msgid==0xfffe after receiving: "
-                      "data0: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
+                "module workloop function:"
+                " interface_msgid==0xfffe after receiving: "
+                "data0: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2);
         break;
     case 0x82060014: // workloop function: before handlers0 handler
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
-                      "/%s: SEP module "
-                      "workloop function: before handlers0 handler:"
-                      " handler_index: 0x%02" PRIx64 " data0: 0x%02" PRIx64
-                      " data1: 0x%02" PRIx64 " "
-                      "data2: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP module "
+                "workloop function: before handlers0 handler:"
+                " handler_index: 0x%02" PRIx64 " data0: 0x%02" PRIx64
+                " data1: 0x%02" PRIx64 " "
+                "data2: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82060018: // workloop function: handlers0: handler not found,
                      // panic
-        qemu_log_mask(
-            LOG_UNIMP,
+        DPRINTF(
+
             "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP module "
             "workloop function: handlers0: handler not found, panic:"
             " interface_msgid: 0x%02" PRIx64 " method: 0x%02" PRIx64 " data0: "
@@ -580,274 +566,236 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
         break;
     case 0x8206001C: // workloop function: interface_msgid==0xFFFE
                      // before handler
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
-                      "module workloop function:"
-                      " interface_msgid==0xfffe before handler: data0: "
-                      "0x%02" PRIx64 " handler: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
+                "module workloop function:"
+                " interface_msgid==0xfffe before handler: data0: "
+                "0x%02" PRIx64 " handler: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3);
         break;
     case 0x82080005: // 0x82080005==before Rpc_Call
     case 0x82080006: // 0x82080006==after Rpc_Call
-        qemu_log_mask(
-            LOG_UNIMP,
-            "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: %s "
-            "Rpc_Call Sending message to other module:"
-            " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64 " ool: "
-            "0x%02" PRIx64 " method: 0x%02" PRIx64 "\n",
-            tid, tid_str, (trace_id == 0x82080005) ? "Before" : "After", arg2,
-            arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: %s "
+                "Rpc_Call Sending message to other module:"
+                " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
+                " ool: "
+                "0x%02" PRIx64 " method: 0x%02" PRIx64 "\n",
+                tid, tid_str, (trace_id == 0x82080005) ? "Before" : "After",
+                arg2, arg3, arg4, arg5);
         break;
     case 0x8208000D: // before Rpc_Wait
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
-                      "/%s: Before "
-                      "Rpc_Wait Receiving message from other module\n",
-                      tid, tid_str);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: Before "
+                "Rpc_Wait Receiving message from other module\n",
+                tid, tid_str);
         break;
     case 0x8208000E: // after Rpc_Wait
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
-                      "/%s: After "
-                      "Rpc_Wait "
-                      "Receiving message from other module:"
-                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
-                      " ool: 0x%02" PRIx64 " "
-                      "method: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: After "
+                "Rpc_Wait "
+                "Receiving message from other module:"
+                " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
+                " ool: 0x%02" PRIx64 " "
+                "method: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82080019: // before Rpc_WaitFrom
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
-                      "/%s: Before "
-                      "Rpc_WaitFrom Receiving message from other module:"
-                      " arg2: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: Before "
+                "Rpc_WaitFrom Receiving message from other module:"
+                " arg2: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2);
         break;
     case 0x8208001A: // after Rpc_WaitFrom
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
-                      "/%s: After "
-                      "Rpc_WaitFrom Receiving message from other module:"
-                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
-                      " ool: 0x%02" PRIx64 " "
-                      "method: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: After "
+                "Rpc_WaitFrom Receiving message from other module:"
+                " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
+                " ool: 0x%02" PRIx64 " "
+                "method: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82080011: // before Rpc_ReturnWait
     case 0x82080012: // after Rpc_ReturnWait
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: %s "
-                      "Rpc_ReturnWait Receiving message from other module:"
-                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
-                      " ool: 0x%02" PRIx64 " "
-                      "method: 0x%02" PRIx64 "\n",
-                      tid, tid_str,
-                      (trace_id == 0x82080011) ? "Before" : "After", arg2, arg3,
-                      arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: %s "
+                "Rpc_ReturnWait Receiving message from other module:"
+                " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
+                " ool: 0x%02" PRIx64 " "
+                "method: 0x%02" PRIx64 "\n",
+                tid, tid_str, (trace_id == 0x82080011) ? "Before" : "After",
+                arg2, arg3, arg4, arg5);
         break;
     case 0x82080014: // before Rpc_Return return response
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "Before Rpc_Return return response:"
-                      " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
-                      " ool: "
-                      "0x%02" PRIx64 " method: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "Before Rpc_Return return response:"
+                " fromto: 0x%02" PRIx64 " interface_msgid: 0x%02" PRIx64
+                " ool: "
+                "0x%02" PRIx64 " method: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x8208001D: // before Rpc_WaitNotify
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64
-                      "/%s: Before "
-                      "Rpc_WaitNotify:"
-                      " Rpc_WaitNotify_arg2 != 0: Rpc_WaitNotify_arg1: "
-                      "0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: Before "
+                "Rpc_WaitNotify:"
+                " Rpc_WaitNotify_arg2 != 0: Rpc_WaitNotify_arg1: "
+                "0x%02" PRIx64 "\n",
+                tid, tid_str, arg2);
         break;
     case 0x8208001e: // after Rpc_WaitNotify
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "After Rpc_WaitNotify:"
-                      " svc_0x5_0_func_arg2 != 0: svc_0x5_0_func_arg1: "
-                      "0x%02" PRIx64 " L4_MR0: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "After Rpc_WaitNotify:"
+                " svc_0x5_0_func_arg2 != 0: svc_0x5_0_func_arg1: "
+                "0x%02" PRIx64 " L4_MR0: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3);
         break;
     case 0x82140004: // _dispatch_thread_main__intr/SEPD interrupt
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "_dispatch_thread_main__intr/SEPD interrupt "
-                      "trace_id 0x%02" PRIx64 ":"
-                      " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64
-                      " arg4: 0x%02" PRIx64 " "
-                      "arg5: 0x%02" PRIx64 "\n",
-                      tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "_dispatch_thread_main__intr/SEPD interrupt "
+                "trace_id 0x%02" PRIx64 ":"
+                " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64
+                " arg4: 0x%02" PRIx64 " "
+                "arg5: 0x%02" PRIx64 "\n",
+                tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
         break;
     case 0x82140014: // SEP_Driver__Close
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_Driver__Close:"
-                      " module_name_int: 0x%02" PRIx64 " fromto: 0x%02" PRIx64
-                      " "
-                      "response_data0: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_Driver__Close:"
+                " module_name_int: 0x%02" PRIx64 " fromto: 0x%02" PRIx64 " "
+                "response_data0: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg5);
         break;
     case 0x82140024: // *_enable_powersave_arg2/SEP_Driver__SetPowerState
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_Driver__SetPowerState:"
-                      " function called: enable_powersave?: 0x%02" PRIx64 " "
-                      "is_powersave_enabled: 0x%02" PRIx64
-                      " field_cc3: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_Driver__SetPowerState:"
+                " function called: enable_powersave?: 0x%02" PRIx64 " "
+                "is_powersave_enabled: 0x%02" PRIx64 " field_cc3: 0x%02" PRIx64
+                "\n",
+                tid, tid_str, arg2, arg3, arg4);
         break;
     case 0x82140031: // SEPD_thread_handler:
                      // SEP_Driver__before_InterruptAsync
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEPD_thread_handler: before_InterruptAsync:"
-                      " arg2: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEPD_thread_handler: before_InterruptAsync:"
+                " arg2: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2);
         break;
     case 0x82140032: // SEPD_thread_handler:
                      // SEP_Driver__after_InterruptAsync
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEPD_thread_handler: after_InterruptAsync\n",
-                      tid, tid_str);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEPD_thread_handler: after_InterruptAsync\n",
+                tid, tid_str);
         break;
     case 0x82140195: // AESS_message_received: before
                      // AESS_keywrap_cmd_0x02
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "AESS_message_received: before AESS_keywrap_cmd_0x02:"
-                      " data0_low: 0x%02" PRIx64 " data0_high: 0x%02" PRIx64
-                      " data1_low: "
-                      "0x%02" PRIx64 " data1_high: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "AESS_message_received: before AESS_keywrap_cmd_0x02:"
+                " data0_low: 0x%02" PRIx64 " data0_high: 0x%02" PRIx64
+                " data1_low: "
+                "0x%02" PRIx64 " data1_high: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82140196: // AESS_message_received: after
                      // AESS_keywrap_cmd_0x02
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "AESS_message_received: after AESS_keywrap_cmd_0x02:"
-                      " status: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "AESS_message_received: after AESS_keywrap_cmd_0x02:"
+                " status: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2);
         break;
     case 0x82140324: // SEP_Driver__Mailbox_Rx
         memcpy((void *)&m + 0x00, &s->debug_trace_regs[offset + 0x88],
                sizeof(uint32_t));
         memcpy((void *)&m + 0x04, &s->debug_trace_regs[offset + 0x90],
                sizeof(uint32_t));
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_Driver__Mailbox_Rx:"
-                      " endpoint: 0x%02x tag: 0x%02x opcode: "
-                      "0x%02x(%u) param: 0x%02x data: 0x%02x\n",
-                      tid, tid_str, m.ep, m.tag, m.op, m.op, m.param, m.data);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_Driver__Mailbox_Rx:"
+                " endpoint: 0x%02x tag: 0x%02x opcode: "
+                "0x%02x(%u) param: 0x%02x data: 0x%02x\n",
+                tid, tid_str, m.ep, m.tag, m.op, m.op, m.param, m.data);
         break;
     case 0x82140328: // SEP_Driver__Mailbox_RxMessageQueue
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_Driver__Mailbox_RxMessageQueue:"
-                      " endpoint: 0x%02" PRIx64 " opcode: 0x%02" PRIx64
-                      " arg4: "
-                      "0x%02" PRIx64 " arg5: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_Driver__Mailbox_RxMessageQueue:"
+                " endpoint: 0x%02" PRIx64 " opcode: 0x%02" PRIx64 " arg4: "
+                "0x%02" PRIx64 " arg5: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82140334: // SEP_Driver__Mailbox_ReadMsgFetch
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_Driver__Mailbox_ReadMsgFetch:"
-                      " endpoint: 0x%02" PRIx64 " data: 0x%02" PRIx64
-                      " data2: 0x%02" PRIx64 " "
-                      "read_msg.data[0]: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_Driver__Mailbox_ReadMsgFetch:"
+                " endpoint: 0x%02" PRIx64 " data: 0x%02" PRIx64
+                " data2: 0x%02" PRIx64 " "
+                "read_msg.data[0]: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82140338: // SEP_Driver__Mailbox_ReadBlocked
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_Driver__Mailbox_ReadBlocked:"
-                      " for_TRNG_ASC0_ASC1_read_0 returned False: "
-                      "data0: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_Driver__Mailbox_ReadBlocked:"
+                " for_TRNG_ASC0_ASC1_read_0 returned False: "
+                "data0: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2);
         break;
     case 0x8214033C: // SEP_Driver__Mailbox_ReadComplete
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_Driver__Mailbox_ReadComplete:"
-                      " for_TRNG_ASC0_ASC1_read_0 returned True: "
-                      "data0: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_Driver__Mailbox_ReadComplete:"
+                " for_TRNG_ASC0_ASC1_read_0 returned True: "
+                "data0: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2);
         break;
     case 0x82140340: // SEP_Driver__Mailbox_Tx
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_Driver__Mailbox_Tx:"
-                      " function_13 returned True:  arg2: 0x%02" PRIx64 " "
-                      "arg3: 0x%02" PRIx64 " arg4: 0x%02" PRIx64
-                      " arg5: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_Driver__Mailbox_Tx:"
+                " function_13 returned True:  arg2: 0x%02" PRIx64 " "
+                "arg3: 0x%02" PRIx64 " arg4: 0x%02" PRIx64 " arg5: 0x%02" PRIx64
+                "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82140344: // SEP_Driver__Mailbox_TxStall
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_Driver__Mailbox_TxStall:"
-                      " function_13 returned False: arg2: 0x%02" PRIx64 " "
-                      "arg3: 0x%02" PRIx64 " arg4: 0x%02" PRIx64
-                      " arg5: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_Driver__Mailbox_TxStall:"
+                " function_13 returned False: arg2: 0x%02" PRIx64 " "
+                "arg3: 0x%02" PRIx64 " arg4: 0x%02" PRIx64 " arg5: 0x%02" PRIx64
+                "\n",
+                tid, tid_str, arg2, arg3, arg4, arg5);
         break;
     case 0x82140348: // mod_ASC0_ASC1_function_message_received:
                      // method_0x4131/Mailbox_OOL_In
     case 0x8214034C: // mod_ASC0_ASC1_function_message_received:
                      // Mailbox_OOL_Out
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
-                      "mod_ASC0_ASC1_function_message_received "
-                      "SEP_Driver: Mailbox_OOL_%s:"
-                      " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64
-                      " arg4: 0x%02" PRIx64 "\n",
-                      tid, tid_str, (trace_id == 0x82140348) ? "In" : "Out",
-                      arg2, arg3, arg4);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: SEP "
+                "mod_ASC0_ASC1_function_message_received "
+                "SEP_Driver: Mailbox_OOL_%s:"
+                " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64
+                " arg4: 0x%02" PRIx64 "\n",
+                tid, tid_str, (trace_id == 0x82140348) ? "In" : "Out", arg2,
+                arg3, arg4);
         break;
     case 0x82140360: // SEP_Driver__Mailbox_Wake
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_Driver__Mailbox_Wake:"
-                      " current value: registers[0x4108]: 0x%08" PRIx64 " "
-                      "SEP_message_incoming: %" PRIu64 "\n",
-                      tid, tid_str, arg2, arg3);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_Driver__Mailbox_Wake:"
+                " current value: registers[0x4108]: 0x%08" PRIx64 " "
+                "SEP_message_incoming: %" PRIu64 "\n",
+                tid, tid_str, arg2, arg3);
         break;
     case 0x82140364: // SEP_Driver__Mailbox_NoData
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "SEP_Driver__Mailbox_NoData:"
-                      " current value: registers[0x4108]: 0x%08" PRIx64 "\n",
-                      tid, tid_str, arg2);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "SEP_Driver__Mailbox_NoData:"
+                " current value: registers[0x4108]: 0x%08" PRIx64 "\n",
+                tid, tid_str, arg2);
         break;
     case 0x82140964: // PMGR_message_received
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "PMGR_message_received:"
-                      " fromto: 0x%02" PRIx64 " data0: 0x%02" PRIx64
-                      " data1: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2, arg3, arg4);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "PMGR_message_received:"
+                " fromto: 0x%02" PRIx64 " data0: 0x%02" PRIx64
+                " data1: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2, arg3, arg4);
         break;
     case 0x82140968: // PMGR_enable_clock
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "PMGR_enable_clock:"
-                      " enable_clock: 0x%02" PRIx64 "\n",
-                      tid, tid_str, arg2);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "PMGR_enable_clock:"
+                " enable_clock: 0x%02" PRIx64 "\n",
+                tid, tid_str, arg2);
         break;
     default: // Unknown trace value
-        qemu_log_mask(LOG_UNIMP,
-                      "DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
-                      "Unknown trace_id 0x%02" PRIx64 ":"
-                      " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64
-                      " arg4: 0x%02" PRIx64 " "
-                      "arg5: 0x%02" PRIx64 "\n",
-                      tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
+        DPRINTF("DEBUG_TRACE: Description: tid: 0x%05" PRIx64 "/%s: "
+                "Unknown trace_id 0x%02" PRIx64 ":"
+                " arg2: 0x%02" PRIx64 " arg3: 0x%02" PRIx64
+                " arg4: 0x%02" PRIx64 " "
+                "arg5: 0x%02" PRIx64 "\n",
+                tid, tid_str, trace_id, arg2, arg3, arg4, arg5);
         break;
     }
 }
@@ -1856,12 +1804,12 @@ static void aess_keywrap_uid(AppleAESSState *s, uint8_t *in, uint8_t *out,
     // in the same output keys.
     xor_32bit_value(&used_key[0x10], s->reg_0x14_keywrap_iterations_counter,
                     0x8 / 4); // seed_bits are only for keywrap
-    DBGLOG("%s: s->command: 0x%02x normalized_cmd: 0x%02x cipher_alg: %u; "
-           "key_len: %lu; iterations: %u, seed_bits: 0x%02x, "
-           "reg_0x18_keydisable: 0x%02x\n",
-           __func__, s->command, normalized_cmd, cipher_alg, key_len,
-           s->reg_0x14_keywrap_iterations_counter, s->seed_bits,
-           s->reg_0x18_keydisable);
+    DPRINTF("%s: s->command: 0x%02x normalized_cmd: 0x%02x cipher_alg: %u; "
+            "key_len: %lu; iterations: %u, seed_bits: 0x%02x, "
+            "reg_0x18_keydisable: 0x%02x\n",
+            __func__, s->command, normalized_cmd, cipher_alg, key_len,
+            s->reg_0x14_keywrap_iterations_counter, s->seed_bits,
+            s->reg_0x18_keydisable);
     HEXDUMP("aess_keywrap_uid: used_key", used_key, sizeof(used_key));
     HEXDUMP("aess_keywrap_uid: in", in, data_len);
     cipher = qcrypto_cipher_new(cipher_alg, QCRYPTO_CIPHER_MODE_CBC, used_key,
@@ -2026,7 +1974,7 @@ static void aess_handle_cmd(AppleAESSState *s)
             SEP_AESS_COMMAND_ENCRYPT_CBC_ONLY_NONCUSTOM_FORCE_CUSTOM_AES256) /* GID0 || GID1 || Custom */
     {
         bool custom_encryption = false;
-        DBGLOG("%s: s->command 0x%03x ; ", __func__, s->command);
+        DPRINTF("%s: s->command 0x%03x ; ", __func__, s->command);
         HEXDUMP("s->in_full", s->in_full, sizeof(s->in_full));
         if (normalized_cmd ==
             SEP_AESS_COMMAND_ENCRYPT_CBC_ONLY_NONCUSTOM_FORCE_CUSTOM_AES256) {
@@ -2129,9 +2077,8 @@ static void aess_handle_cmd(AppleAESSState *s)
             /// s->reg_0x18_keydisable, 0x8/4);
             // NOT AFFECTED by REG_0x18???
             s->keywrap_uid0_enabled = true;
-            qemu_log_mask(LOG_UNIMP,
-                          "SEP AESS_BASE: %s: Copied seed_bits for uid0 0x%x\n",
-                          __func__, s->seed_bits);
+            DPRINTF("SEP AESS_BASE: %s: Copied seed_bits for uid0 0x%x\n",
+                    __func__, s->seed_bits);
         }
     }
 #endif
@@ -2157,9 +2104,8 @@ static void aess_handle_cmd(AppleAESSState *s)
             /// s->reg_0x18_keydisable, 0x8/4);
             // actually affected by reg_0x18?
             s->keywrap_uid1_enabled = true;
-            qemu_log_mask(LOG_UNIMP,
-                          "SEP AESS_BASE: %s: Copied seed_bits for uid1 0x%x\n",
-                          __func__, s->seed_bits);
+            DPRINTF("SEP AESS_BASE: %s: Copied seed_bits for uid1 0x%x\n",
+                    __func__, s->seed_bits);
         }
     }
 #endif
@@ -2177,10 +2123,9 @@ static void aess_handle_cmd(AppleAESSState *s)
             0x20 /
                 4); // unset (real zero-key) != zero-key set (not real zero-key)
         s->custom_key_index_enabled[custom_keywrap_index] = true;
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP AESS_BASE: %s: sync/set key command 0x%02x "
-                      "s->command 0x%02x\n",
-                      __func__, normalized_cmd, s->command);
+        DPRINTF("SEP AESS_BASE: %s: sync/set key command 0x%02x "
+                "s->command 0x%02x\n",
+                __func__, normalized_cmd, s->command);
     }
 #endif
 // TODO: other sync commands: 0x205(0x201), 0x204(0x281), 0x245(0x241),
@@ -2192,8 +2137,9 @@ static void aess_handle_cmd(AppleAESSState *s)
 #endif
 #if 1
     else {
-        qemu_log_mask(LOG_UNIMP, "SEP AESS_BASE: %s: Unknown command 0x%02x\n",
-                      __func__, s->command);
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "SEP AESS_BASE: %s: Unknown command 0x%02x\n", __func__,
+                      s->command);
         // valid_command = false;
     }
 #endif
@@ -2304,7 +2250,7 @@ static uint64_t aess_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     uint64_t ret = 0;
 
 #ifdef ENABLE_CPU_DUMP_STATE
-    qemu_log_mask(LOG_UNIMP, "\n");
+    DPRINTF("\n");
     cpu_dump_state(CPU(sep->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
@@ -2844,11 +2790,9 @@ static const MemoryRegionOps boot_monitor_reg_ops = {
 
 void enable_trace_buffer(AppleSEPState *s)
 {
-    qemu_log_mask(
-        LOG_UNIMP,
-        "SEP MISC4: Enable Trace Buffer: s->shmbuf_base: 0x" HWADDR_FMT_plx
-        "\n",
-        s->shmbuf_base);
+    DPRINTF("SEP MISC4: Enable Trace Buffer: s->shmbuf_base: 0x" HWADDR_FMT_plx
+            "\n",
+            s->shmbuf_base);
     if (!s->shmbuf_base)
         return;
     AddressSpace *nsas = &address_space_memory;
@@ -3074,8 +3018,8 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
             // SEPROM_Opcode3/kOpCode_GenerateNonce", msg0);
             // apple_mbox_send_inbox_control_message(s->mbox, 0, sep_msg.raw);
             apple_sep_send_message(s, 0xff, 0x67, 3, 0x00, 0x00);
-            qemu_log_mask(LOG_UNIMP, "SEP Progress: Sent fake "
-                                     "SEPROM_Opcode3/kOpCode_GenerateNonce\n");
+            DPRINTF("SEP Progress: Sent fake "
+                    "SEPROM_Opcode3/kOpCode_GenerateNonce\n");
 
 
             sep_msg.op = 17; // Opcode 17
@@ -3084,7 +3028,7 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
                                    // found the correct data in Ghidra.
             // apple_mbox_send_inbox_control_message(s->mbox, 0, sep_msg.raw);
             apple_sep_send_message(s, 0xff, 0x0, 17, 0x00, 0x8000);
-            qemu_log_mask(LOG_UNIMP, "SEP MISC4: Sent fake SEPROM_Opcode17\n");
+            DPRINTF("SEP MISC4: Sent fake SEPROM_Opcode17\n");
         }
         if ((data == 0xFC4A2CAC || data == 0xeee6ba79) &&
             (s->chip_id >= 0x8020)) // Enable Trace Buffer
@@ -3131,8 +3075,9 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
             }
         }
         if (data == 0x41a7 && (s->chip_id >= 0x8015)) {
-            DBGLOG("%s: SEPFW_copy_test0: 0x" HWADDR_FMT_plx " 0x%" PRIx64 "\n",
-                   __func__, s->sep_fw_addr, s->sep_fw_size);
+            DPRINTF("%s: SEPFW_copy_test0: 0x" HWADDR_FMT_plx " 0x%" PRIx64
+                    "\n",
+                    __func__, s->sep_fw_addr, s->sep_fw_size);
             AddressSpace *nsas = &address_space_memory;
 #ifdef SEP_ENABLE_HARDCODED_FIRMWARE
             address_space_write(nsas, s->sep_fw_addr, MEMTXATTRS_UNSPECIFIED,
@@ -3148,14 +3093,13 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
             if (msg != NULL) {
                 memcpy(&sep_msg, msg->data, sizeof(sep_msg));
                 uint64_t shmbuf_base = (uint64_t)sep_msg.data << 12;
-                qemu_log_mask(LOG_UNIMP,
-                              "%s: SHMBUF_TEST0: trace_data8:0x%" PRIx64 ": "
-                              "shmbuf=0x" HWADDR_FMT_plx
-                              ": ep=0x%02x, tag=0x%02x, opcode=0x%02x(%u), "
-                              "param=0x%02x, data=0x%08x\n",
-                              APPLE_A7IOP(s)->iop_mailbox->role, data,
-                              shmbuf_base, sep_msg.ep, sep_msg.tag, sep_msg.op,
-                              sep_msg.op, sep_msg.param, sep_msg.data);
+                DPRINTF("%s: SHMBUF_TEST0: trace_data8:0x%" PRIx64 ": "
+                        "shmbuf=0x" HWADDR_FMT_plx
+                        ": ep=0x%02x, tag=0x%02x, opcode=0x%02x(%u), "
+                        "param=0x%02x, data=0x%08x\n",
+                        APPLE_A7IOP(s)->iop_mailbox->role, data, shmbuf_base,
+                        sep_msg.ep, sep_msg.tag, sep_msg.op, sep_msg.op,
+                        sep_msg.param, sep_msg.data);
                 int debug_trace_mmio_index = -1;
                 if (s->chip_id == 0x8015) {
                     debug_trace_mmio_index = 11;
@@ -3166,10 +3110,9 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
                     s->shmbuf_base = shmbuf_base;
                     uint64_t tracebuf_mmio_addr =
                         shmbuf_base + s->trace_buffer_base_offset;
-                    qemu_log_mask(
-                        LOG_UNIMP,
-                        "%s: SHMBUF_TEST1: tracbuf=0x" HWADDR_FMT_plx "\n",
-                        APPLE_A7IOP(s)->iop_mailbox->role, tracebuf_mmio_addr);
+                    DPRINTF("%s: SHMBUF_TEST1: tracbuf=0x" HWADDR_FMT_plx "\n",
+                            APPLE_A7IOP(s)->iop_mailbox->role,
+                            tracebuf_mmio_addr);
                     // if SEP_ENABLE_DEBUG_TRACE_MAPPING
                     // TODO: T8020 isn't handled here anymore, but T8015
                     // probably still should. endif
@@ -3194,12 +3137,9 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
         break;
     case 0x0:
         memcpy(&s->progress_regs[addr], &data, size);
-#if 0
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP Progress: Progress_0 write at 0x" HWADDR_FMT_plx
-                      " with value 0x%" PRIx64 "\n",
-                      addr, data);
-#endif
+        DPRINTF("SEP Progress: Progress_0 write at 0x" HWADDR_FMT_plx
+                " with value 0x%" PRIx64 "\n",
+                addr, data);
         if (data == 0xDEADBEE0) {
             qemu_irq_lower(qdev_get_gpio_in(DEVICE(s->cpu), ARM_CPU_IRQ));
         }
@@ -3249,10 +3189,9 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
         break;
     case 0x3370:
         memcpy(&s->progress_regs[addr], &data, size);
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP Progress: Progress_1 write at 0x" HWADDR_FMT_plx
-                      " with value 0x%" PRIx64 "\n",
-                      addr, data);
+        DPRINTF("SEP Progress: Progress_1 write at 0x" HWADDR_FMT_plx
+                " with value 0x%" PRIx64 "\n",
+                addr, data);
         // apple_mbox_set_custom0(s->mbox, data);
         apple_a7iop_interrupt_status_push(APPLE_A7IOP(s)->iop_mailbox, data);
         break;
@@ -3323,8 +3262,8 @@ static const MemoryRegionOps progress_reg_ops = {
 static void apple_sep_cpu_moni_jump(CPUState *cpu, run_on_cpu_data data)
 {
     vaddr load_addr = data.target_ptr;
-    DBGLOG("%s: before cpu_set_pc: base=0x" HWADDR_FMT_plx "\n", __func__,
-           load_addr);
+    DPRINTF("%s: before cpu_set_pc: base=0x" HWADDR_FMT_plx "\n", __func__,
+            load_addr);
     cpu_set_pc(cpu, load_addr);
 }
 
@@ -3345,10 +3284,8 @@ static void apple_sep_iop_start(AppleA7IOP *s)
     // once by seprom and once by sepfw.
     // rely on apple_a7iop_set_cpu_ctrl for "(cpu_ctrl & SEP_BOOT_MONITOR_RUN)"
     if (sep->modern && load_addr != 0) {
-#if 1
-        qemu_log_mask(LOG_UNIMP, "%s: have load_addr 0x" HWADDR_FMT_plx "\n",
-                      __func__, load_addr);
-#endif
+        DPRINTF("%s: have load_addr 0x" HWADDR_FMT_plx "\n", __func__,
+                load_addr);
         async_safe_run_on_cpu(CPU(sep->cpu), apple_sep_cpu_moni_jump,
                               RUN_ON_CPU_TARGET_PTR(load_addr));
     }
@@ -3580,9 +3517,10 @@ static void apple_sep_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 {
     AppleSEPState *s = data.host_ptr;
     cpu_reset(cpu);
-    DBGLOG("apple_sep_cpu_reset_work: before cpu_set_pc: base=0x" HWADDR_FMT_plx
-           "\n",
-           s->base);
+    DPRINTF(
+        "apple_sep_cpu_reset_work: before cpu_set_pc: base=0x" HWADDR_FMT_plx
+        "\n",
+        s->base);
     cpu_set_pc(cpu, s->base);
 }
 
@@ -3655,7 +3593,7 @@ static void pka_reset(ApplePKAState *s)
 
 static void map_sepfw(AppleSEPState *s)
 {
-    DBGLOG("%s: entered function\n", __func__);
+    DPRINTF("%s: entered function\n", __func__);
     AddressSpace *nsas = &address_space_memory;
     // Apparently needed because of a bug occurring on XNU
     // clear lowest 0x4000 bytes as well, because they shouldn't contain any
@@ -3740,16 +3678,16 @@ static int apple_ssc_event(I2CSlave *s, enum i2c_event event)
 
     switch (event) {
     case I2C_START_SEND:
-        qemu_log_mask(LOG_UNIMP, "apple_ssc_event: I2C_START_SEND\n");
+        DPRINTF("apple_ssc_event: I2C_START_SEND\n");
         break;
     case I2C_FINISH:
-        qemu_log_mask(LOG_UNIMP, "apple_ssc_event: I2C_FINISH\n");
+        DPRINTF("apple_ssc_event: I2C_FINISH\n");
         break;
     case I2C_START_RECV:
-        qemu_log_mask(LOG_UNIMP, "apple_ssc_event: I2C_START_RECV\n");
+        DPRINTF("apple_ssc_event: I2C_START_RECV\n");
         break;
     case I2C_NACK:
-        qemu_log_mask(LOG_UNIMP, "apple_ssc_event: I2C_NACK\n");
+        DPRINTF("apple_ssc_event: I2C_NACK\n");
         break;
     default:
         return -1;
@@ -3801,10 +3739,10 @@ static bool is_keyslot_valid(struct AppleSSCState *ssc_state,
     ret &= !buffer_is_zero(&ssc_state->kbkdf_keys[kbkdf_index],
                            sizeof(ssc_state->kbkdf_keys[kbkdf_index]));
 
-    DBGLOG("%s: kbkdf_index: %d ; ecc_keys_item_size: 0x%lX ; "
-           "kbkdf_keys_item_size: 0x%lX\n",
-           __func__, kbkdf_index, sizeof(struct ecc_scalar),
-           sizeof(ssc_state->kbkdf_keys[kbkdf_index]));
+    DPRINTF("%s: kbkdf_index: %d ; ecc_keys_item_size: 0x%lX ; "
+            "kbkdf_keys_item_size: 0x%lX\n",
+            __func__, kbkdf_index, sizeof(struct ecc_scalar),
+            sizeof(ssc_state->kbkdf_keys[kbkdf_index]));
     return ret;
 }
 
@@ -3856,7 +3794,7 @@ static int aes_ccm_crypt(struct AppleSSCState *ssc_state, uint8_t kbkdf_index,
         memcpy(out, &tmp_out[payload_len], AES_CCM_TAG_LENGTH);
         memcpy(&out[AES_CCM_TAG_LENGTH], tmp_out, payload_len);
     } else {
-        DBGLOG("counter_be: 0x%08x\n", counter_be);
+        DPRINTF("counter_be: 0x%08x\n", counter_be);
         // tag[0x10]-data[0x20] => data[0x20]-tag[0x10]
         memcpy(tmp_in, &data[AES_CCM_TAG_LENGTH], payload_len);
         memcpy(&tmp_in[payload_len], data, AES_CCM_TAG_LENGTH);
@@ -3868,8 +3806,8 @@ static int aes_ccm_crypt(struct AppleSSCState *ssc_state, uint8_t kbkdf_index,
             &aes, AES_CCM_NONCE_LENGTH, nonce, AES_CCM_AUTH_LENGTH, auth,
             AES_CCM_TAG_LENGTH, payload_len, tmp_out, tmp_in);
         if (!status) {
-            DBGLOG("%s: ccm_aes256_decrypt_message: DIGEST INVALID\n",
-                   __func__);
+            DPRINTF("%s: ccm_aes256_decrypt_message: DIGEST INVALID\n",
+                    __func__);
         }
         memcpy(out, tmp_out, payload_len);
     }
@@ -4004,14 +3942,14 @@ static int generate_kbkdf_keys(struct AppleSSCState *ssc_state,
         0
     }; // shared_key == pub_x (first half)
     uint8_t derived_key[SHA256_DIGEST_SIZE] = { 0 };
-    DBGLOG("generate_kbkdf_keys: label: %s\n", label); // 0x10 bytes
-    DBGLOG("generate_kbkdf_keys: context: %02x%02x%02x%02x\n", context[0x00],
-           context[0x01], context[0x02],
-           context[0x03]); // 4 bytes
+    DPRINTF("generate_kbkdf_keys: label: %s\n", label); // 0x10 bytes
+    DPRINTF("generate_kbkdf_keys: context: %02x%02x%02x%02x\n", context[0x00],
+            context[0x01], context[0x02],
+            context[0x03]); // 4 bytes
 
     ecc_point_init(&T, ecc);
     ecc_point_mul(&T, ecc_key, ecc_pub_peer);
-    DBGLOG("generate_kbkdf_keys: shared_key==pub_x:\n");
+    DPRINTF("generate_kbkdf_keys: shared_key==pub_x:\n");
     output_ec_pub(&T, shared_key_xy);
     ecc_point_clear(&T);
 
@@ -4027,7 +3965,7 @@ static int generate_kbkdf_keys(struct AppleSSCState *ssc_state,
                                  ssc_state->kbkdf_keys[kbkdf_index],
                                  KBKDF_CMAC_OUTPUT_LEN);
     if (err) {
-        DBGLOG("error: kbkdf_generate_key returned non-zero\n");
+        DPRINTF("error: kbkdf_generate_key returned non-zero\n");
         return err;
     }
     ssc_state->kbkdf_counter[kbkdf_index] = 0;
@@ -4099,7 +4037,7 @@ static void clear_ecc_scalar(struct ecc_scalar *ecc_key)
 static int answer_cmd_0x0_init1(struct AppleSSCState *ssc_state,
                                 uint8_t *request, uint8_t *response)
 {
-    DBGLOG("%s: entered function\n", __func__);
+    DPRINTF("%s: entered function\n", __func__);
     struct ecc_point cmd0_ecpub, ecc_pub;
     struct knuth_lfib_ctx rctx;
     struct dsa_signature signature;
@@ -4111,7 +4049,7 @@ static int answer_cmd_0x0_init1(struct AppleSSCState *ssc_state,
     dsa_signature_init(&signature);
 
     if (is_keyslot_valid(ssc_state, kbkdf_index)) { // shouldn't already exist
-        DBGLOG("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
+        DPRINTF("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
@@ -4119,7 +4057,7 @@ static int answer_cmd_0x0_init1(struct AppleSSCState *ssc_state,
     if (input_ec_pub(&cmd0_ecpub,
                      &request[MSG_PREFIX_LENGTH + SHA256_DIGEST_SIZE]) ==
         0) { // curve is invalid
-        DBGLOG("%s: invalid curve\n", __func__);
+        DPRINTF("%s: invalid curve\n", __func__);
         do_response_prefix(request, response, SSC_RESPONSE_FLAG_CURVE_INVALID);
         goto jump_ret;
     }
@@ -4139,7 +4077,7 @@ static int answer_cmd_0x0_init1(struct AppleSSCState *ssc_state,
     ecc_point_clear(&ecc_pub);
     memcpy(ssc_state->random_hmac_key, &request[MSG_PREFIX_LENGTH],
            SHA256_DIGEST_SIZE);
-    DBGLOG("INFOSTR_AKE_SESSIONSEED: %s\n", INFOSTR_AKE_SESSIONSEED);
+    DPRINTF("INFOSTR_AKE_SESSIONSEED: %s\n", INFOSTR_AKE_SESSIONSEED);
     generate_kbkdf_keys(ssc_state, &ssc_state->ecc_keys[kbkdf_index],
                         &cmd0_ecpub, ssc_state->random_hmac_key,
                         INFOSTR_AKE_SESSIONSEED, request, kbkdf_index);
@@ -4175,7 +4113,7 @@ jump_ret:
 static int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state,
                                      uint8_t *request, uint8_t *response)
 {
-    DBGLOG("%s: entered function\n", __func__);
+    DPRINTF("%s: entered function\n", __func__);
     HEXDUMP("cmd_0x01_req", request, SSC_REQUEST_SIZE_CMD_0x1);
     struct ecc_point cmd1_ecpub, ecc_pub;
     uint8_t kbkdf_index = request[1];
@@ -4183,7 +4121,7 @@ static int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state,
 
     uint8_t *cmac_req_should = &request[MSG_PREFIX_LENGTH];
     uint8_t *sw_public_xy2 = &request[MSG_PREFIX_LENGTH + AES_BLOCK_SIZE];
-    DBGLOG("answer_cmd_0x1_connect_sp: kbkdf_index: %u\n", kbkdf_index);
+    DPRINTF("answer_cmd_0x1_connect_sp: kbkdf_index: %u\n", kbkdf_index);
     HEXDUMP("answer_cmd_0x1_connect_sp: req_prefix", request,
             MSG_PREFIX_LENGTH);
     HEXDUMP("answer_cmd_0x1_connect_sp: sw_public_xy2", sw_public_xy2,
@@ -4191,19 +4129,19 @@ static int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state,
     HEXDUMP("answer_cmd_0x1_connect_sp: cmac_req_should", cmac_req_should,
             AES_BLOCK_SIZE);
     if (kbkdf_index >= KBKDF_KEY_MAX_SLOTS) {
-        DBGLOG("%s: kbkdf_index over limit: %u\n", __func__, kbkdf_index);
+        DPRINTF("%s: kbkdf_index over limit: %u\n", __func__, kbkdf_index);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         return 0;
     }
     if (is_keyslot_valid(ssc_state, kbkdf_index)) { // shouldn't already exist
-        DBGLOG("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
+        DPRINTF("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
     }
     if (input_ec_pub(&cmd1_ecpub, sw_public_xy2) == 0) { // curve is invalid
-        DBGLOG("%s: invalid curve\n", __func__);
+        DPRINTF("%s: invalid curve\n", __func__);
         do_response_prefix(request, response, SSC_RESPONSE_FLAG_CURVE_INVALID);
         goto jump_ret1;
     }
@@ -4229,7 +4167,7 @@ static int answer_cmd_0x1_connect_sp(struct AppleSSCState *ssc_state,
     HEXDUMP("answer_cmd_0x1_connect_sp: cmac_req_is", cmac_req_is,
             sizeof(cmac_req_is));
     if (memcmp(cmac_req_should, cmac_req_is, sizeof(cmac_req_is)) != 0) {
-        DBGLOG("%s: invalid CMAC\n", __func__);
+        DPRINTF("%s: invalid CMAC\n", __func__);
         do_response_prefix(request, response, SSC_RESPONSE_FLAG_CMAC_INVALID);
         goto jump_ret0;
     }
@@ -4255,11 +4193,11 @@ jump_ret1:
 static int answer_cmd_0x2_disconnect_sp(struct AppleSSCState *ssc_state,
                                         uint8_t *request, uint8_t *response)
 {
-    DBGLOG("%s: entered function\n", __func__);
+    DPRINTF("%s: entered function\n", __func__);
     HEXDUMP("cmd_0x02_req", request, SSC_REQUEST_SIZE_CMD_0x2);
     uint8_t kbkdf_index = request[1];
     if (!is_keyslot_valid(ssc_state, kbkdf_index)) { // should already exist
-        DBGLOG("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
+        DPRINTF("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
@@ -4269,39 +4207,39 @@ static int answer_cmd_0x2_disconnect_sp(struct AppleSSCState *ssc_state,
     memset(&ssc_state->kbkdf_keys[kbkdf_index], 0,
            sizeof(ssc_state->kbkdf_keys[kbkdf_index]));
     ssc_state->kbkdf_counter[kbkdf_index] = 0;
-    DBGLOG("answer_cmd_0x2_disconnect_sp: kbkdf_index: %u\n", kbkdf_index);
+    DPRINTF("answer_cmd_0x2_disconnect_sp: kbkdf_index: %u\n", kbkdf_index);
     return 0;
 }
 
 static int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
                                          uint8_t *request, uint8_t *response)
 {
-    DBGLOG("%s: entered function\n", __func__);
+    DPRINTF("%s: entered function\n", __func__);
     HEXDUMP("cmd_0x03_req", request, SSC_REQUEST_SIZE_CMD_0x3);
     uint8_t kbkdf_index_key = request[1];
     uint8_t kbkdf_index_dataslot = request[2];
     uint8_t copy = request[3];
-    DBGLOG("cmd_0x03_req: kbkdf_index_key: %u\n", kbkdf_index_key);
-    DBGLOG("cmd_0x03_req: kbkdf_index_dataslot: %u\n", kbkdf_index_dataslot);
-    DBGLOG("cmd_0x03_req: copy: %u\n", copy);
+    DPRINTF("cmd_0x03_req: kbkdf_index_key: %u\n", kbkdf_index_key);
+    DPRINTF("cmd_0x03_req: kbkdf_index_dataslot: %u\n", kbkdf_index_dataslot);
+    DPRINTF("cmd_0x03_req: copy: %u\n", copy);
     ////if (copy >= SSC_REQUEST_MAX_COPIES)
     if (copy > 0) {
-        DBGLOG("%s: invalid copy: %u\n", __func__, copy);
+        DPRINTF("%s: invalid copy: %u\n", __func__, copy);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         return 0;
     }
     if (kbkdf_index_key >= KBKDF_KEY_MAX_SLOTS ||
         !is_keyslot_valid(ssc_state, kbkdf_index_key)) {
-        DBGLOG("%s: invalid kbkdf_index_key: %u\n", __func__, kbkdf_index_key);
+        DPRINTF("%s: invalid kbkdf_index_key: %u\n", __func__, kbkdf_index_key);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
     }
     if (kbkdf_index_dataslot == 0 ||
         kbkdf_index_dataslot >= KBKDF_KEY_MAX_SLOTS) {
-        DBGLOG("%s: invalid kbkdf_index_dataslot: %u\n", __func__,
-               kbkdf_index_dataslot);
+        DPRINTF("%s: invalid kbkdf_index_dataslot: %u\n", __func__,
+                kbkdf_index_dataslot);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
@@ -4313,7 +4251,7 @@ static int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
         (KBKDF_KEY_KEY_FILE_OFFSET * CMD_METADATA_DATA_PAYLOAD_LENGTH *
          SSC_REQUEST_MAX_COPIES) +
         (kbkdf_index_dataslot * KBKDF_KEY_KEY_LENGTH);
-    DBGLOG("cmd_0x03_req: blk_offset: 0x%x\n", blk_offset);
+    DPRINTF("cmd_0x03_req: blk_offset: 0x%x\n", blk_offset);
     HEXDUMP("cmd_0x03_req: ssc_state->kbkdf_keys[kbkdf_index_key]",
             ssc_state->kbkdf_keys[kbkdf_index_key], KBKDF_CMAC_OUTPUT_LEN);
 
@@ -4322,7 +4260,7 @@ static int answer_cmd_0x3_metadata_write(struct AppleSSCState *ssc_state,
         ssc_state, kbkdf_index_key, &request[0x00], CMD_METADATA_PAYLOAD_LENGTH,
         &request[MSG_PREFIX_LENGTH], req_dec_out, false, false);
     if (err0 == 0) {
-        DBGLOG("%s: invalid CMAC\n", __func__);
+        DPRINTF("%s: invalid CMAC\n", __func__);
         do_response_prefix(request, response, SSC_RESPONSE_FLAG_CMAC_INVALID);
         return 0;
     }
@@ -4358,21 +4296,21 @@ static int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state,
                                              uint8_t *request,
                                              uint8_t *response)
 {
-    DBGLOG("%s: entered function\n", __func__);
+    DPRINTF("%s: entered function\n", __func__);
     HEXDUMP("cmd_0x04_req", request, SSC_REQUEST_SIZE_CMD_0x4);
     uint8_t kbkdf_index = request[1];
     uint8_t copy = request[3];
-    DBGLOG("cmd_0x04_req: kbkdf_index: %u\n", kbkdf_index);
-    DBGLOG("cmd_0x04_req: copy: %u\n", copy);
+    DPRINTF("cmd_0x04_req: kbkdf_index: %u\n", kbkdf_index);
+    DPRINTF("cmd_0x04_req: copy: %u\n", copy);
     if (copy >= SSC_REQUEST_MAX_COPIES) {
-        DBGLOG("%s: invalid copy: %u\n", __func__, copy);
+        DPRINTF("%s: invalid copy: %u\n", __func__, copy);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         return 0;
     }
     if (kbkdf_index == 0 || kbkdf_index >= KBKDF_KEY_MAX_SLOTS ||
         !is_keyslot_valid(ssc_state, kbkdf_index)) {
-        DBGLOG("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
+        DPRINTF("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
@@ -4380,7 +4318,7 @@ static int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state,
     int blk_offset = (kbkdf_index * CMD_METADATA_DATA_PAYLOAD_LENGTH *
                       SSC_REQUEST_MAX_COPIES) +
                      (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
-    DBGLOG("cmd_0x04_req: blk_offset: 0x%x\n", blk_offset);
+    DPRINTF("cmd_0x04_req: blk_offset: 0x%x\n", blk_offset);
     HEXDUMP("cmd_0x04_req: ssc_state->kbkdf_keys[kbkdf_index]",
             ssc_state->kbkdf_keys[kbkdf_index], KBKDF_CMAC_OUTPUT_LEN);
 
@@ -4389,7 +4327,7 @@ static int answer_cmd_0x4_metadata_data_read(struct AppleSSCState *ssc_state,
         aes_ccm_crypt(ssc_state, kbkdf_index, &request[0x00], 0x0,
                       &request[MSG_PREFIX_LENGTH], req_nop_out, false, false);
     if (err0 == 0) {
-        DBGLOG("%s: invalid CMAC\n", __func__);
+        DPRINTF("%s: invalid CMAC\n", __func__);
         do_response_prefix(request, response, SSC_RESPONSE_FLAG_CMAC_INVALID);
         return 0;
     }
@@ -4414,21 +4352,21 @@ static int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
                                               uint8_t *request,
                                               uint8_t *response)
 {
-    DBGLOG("%s: entered function\n", __func__);
+    DPRINTF("%s: entered function\n", __func__);
     HEXDUMP("cmd_0x05_req", request, SSC_REQUEST_SIZE_CMD_0x5);
     uint8_t kbkdf_index = request[1];
     uint8_t copy = request[3];
-    DBGLOG("cmd_0x05_req: kbkdf_index: %u\n", kbkdf_index);
-    DBGLOG("cmd_0x05_req: copy: %u\n", copy);
+    DPRINTF("cmd_0x05_req: kbkdf_index: %u\n", kbkdf_index);
+    DPRINTF("cmd_0x05_req: copy: %u\n", copy);
     if (copy >= SSC_REQUEST_MAX_COPIES) {
-        DBGLOG("%s: invalid copy: %u\n", __func__, copy);
+        DPRINTF("%s: invalid copy: %u\n", __func__, copy);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         return 0;
     }
     if (kbkdf_index == 0 || kbkdf_index >= KBKDF_KEY_MAX_SLOTS ||
         !is_keyslot_valid(ssc_state, kbkdf_index)) {
-        DBGLOG("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
+        DPRINTF("%s: invalid kbkdf_index: %u\n", __func__, kbkdf_index);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
@@ -4436,7 +4374,7 @@ static int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
     int blk_offset = (kbkdf_index * CMD_METADATA_DATA_PAYLOAD_LENGTH *
                       SSC_REQUEST_MAX_COPIES) +
                      (copy * CMD_METADATA_DATA_PAYLOAD_LENGTH);
-    DBGLOG("cmd_0x05_req: blk_offset: 0x%x\n", blk_offset);
+    DPRINTF("cmd_0x05_req: blk_offset: 0x%x\n", blk_offset);
     HEXDUMP("cmd_0x05_req: ssc_state->kbkdf_keys[kbkdf_index]",
             ssc_state->kbkdf_keys[kbkdf_index], KBKDF_CMAC_OUTPUT_LEN);
 
@@ -4446,7 +4384,7 @@ static int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
                       CMD_METADATA_DATA_PAYLOAD_LENGTH,
                       &request[MSG_PREFIX_LENGTH], req_dec_out, false, false);
     if (err0 == 0) {
-        DBGLOG("%s: invalid CMAC\n", __func__);
+        DPRINTF("%s: invalid CMAC\n", __func__);
         do_response_prefix(request, response, SSC_RESPONSE_FLAG_CMAC_INVALID);
         return 0;
     }
@@ -4470,32 +4408,32 @@ static int answer_cmd_0x5_metadata_data_write(struct AppleSSCState *ssc_state,
 static int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
                                         uint8_t *request, uint8_t *response)
 {
-    DBGLOG("%s: entered function\n", __func__);
+    DPRINTF("%s: entered function\n", __func__);
     HEXDUMP("cmd_0x06_req", request, SSC_REQUEST_SIZE_CMD_0x6);
 
     uint8_t kbkdf_index_key = request[1];
     uint8_t kbkdf_index_dataslot = request[2];
     uint8_t copy = request[3];
-    DBGLOG("cmd_0x06_req: kbkdf_index_key: %u\n", kbkdf_index_key);
-    DBGLOG("cmd_0x06_req: kbkdf_index_dataslot: %u\n", kbkdf_index_dataslot);
-    DBGLOG("cmd_0x06_req: copy: %u\n", copy);
+    DPRINTF("cmd_0x06_req: kbkdf_index_key: %u\n", kbkdf_index_key);
+    DPRINTF("cmd_0x06_req: kbkdf_index_dataslot: %u\n", kbkdf_index_dataslot);
+    DPRINTF("cmd_0x06_req: copy: %u\n", copy);
     if (copy >= SSC_REQUEST_MAX_COPIES) {
-        DBGLOG("%s: invalid copy: %u\n", __func__, copy);
+        DPRINTF("%s: invalid copy: %u\n", __func__, copy);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         return 0;
     }
     if (kbkdf_index_key >= KBKDF_KEY_MAX_SLOTS ||
         !is_keyslot_valid(ssc_state, kbkdf_index_key)) {
-        DBGLOG("%s: invalid kbkdf_index_key: %u\n", __func__, kbkdf_index_key);
+        DPRINTF("%s: invalid kbkdf_index_key: %u\n", __func__, kbkdf_index_key);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
     }
     if (kbkdf_index_dataslot == 0 ||
         kbkdf_index_dataslot >= KBKDF_KEY_MAX_SLOTS) {
-        DBGLOG("%s: invalid kbkdf_index_dataslot: %u\n", __func__,
-               kbkdf_index_dataslot);
+        DPRINTF("%s: invalid kbkdf_index_dataslot: %u\n", __func__,
+                kbkdf_index_dataslot);
         do_response_prefix(request, response,
                            SSC_RESPONSE_FLAG_KEYSLOT_INVALID);
         return 0;
@@ -4507,7 +4445,7 @@ static int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
         (KBKDF_KEY_KEY_FILE_OFFSET * CMD_METADATA_DATA_PAYLOAD_LENGTH *
          SSC_REQUEST_MAX_COPIES) +
         (kbkdf_index_dataslot * KBKDF_KEY_KEY_LENGTH);
-    DBGLOG("cmd_0x06_req: blk_offset: 0x%x\n", blk_offset);
+    DPRINTF("cmd_0x06_req: blk_offset: 0x%x\n", blk_offset);
     HEXDUMP("cmd_0x06_req: ssc_state->kbkdf_keys[kbkdf_index_key]",
             ssc_state->kbkdf_keys[kbkdf_index_key], KBKDF_CMAC_OUTPUT_LEN);
 
@@ -4516,7 +4454,7 @@ static int answer_cmd_0x6_metadata_read(struct AppleSSCState *ssc_state,
         aes_ccm_crypt(ssc_state, kbkdf_index_key, &request[0x00], 0x0,
                       &request[MSG_PREFIX_LENGTH], req_nop_out, false, false);
     if (err0 == 0) {
-        DBGLOG("%s: invalid CMAC\n", __func__);
+        DPRINTF("%s: invalid CMAC\n", __func__);
         do_response_prefix(request, response, SSC_RESPONSE_FLAG_CMAC_INVALID);
         return 0;
     }
@@ -4543,7 +4481,7 @@ static int answer_cmd_0x7_init0(struct AppleSSCState *ssc_state,
                                 uint8_t *request, uint8_t *response)
 {
     struct ecc_point ecc_pub;
-    DBGLOG("%s: entered function\n", __func__);
+    DPRINTF("%s: entered function\n", __func__);
 
     const char *priv_str = "cccccccccccccccccccccccccccccccccccccccccccccccc"
                            "cccccccccccccccccccccccccccccccccccccccccccccccc";
@@ -4571,7 +4509,7 @@ static int answer_cmd_0x7_init0(struct AppleSSCState *ssc_state,
 static int answer_cmd_0x8_sleep(struct AppleSSCState *ssc_state,
                                 uint8_t *request, uint8_t *response)
 {
-    DBGLOG("%s: entered function\n", __func__);
+    DPRINTF("%s: entered function\n", __func__);
     do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
     HEXDUMP("cmd_0x08_resp", response, SSC_RESPONSE_SIZE_CMD_0x8);
     return 0;
@@ -4580,7 +4518,7 @@ static int answer_cmd_0x8_sleep(struct AppleSSCState *ssc_state,
 static int answer_cmd_0x9_panic(struct AppleSSCState *ssc_state,
                                 uint8_t *request, uint8_t *response)
 {
-    DBGLOG("%s: entered function\n", __func__);
+    DPRINTF("%s: entered function\n", __func__);
     ////apple_ssc_reset(DEVICE(ssc_state));
     do_response_prefix(request, response, SSC_RESPONSE_FLAG_OK);
     // uint8_t panic_data[0x24] = {...};
@@ -4600,7 +4538,7 @@ static uint8_t apple_ssc_rx(I2CSlave *i2c)
     // ssc->req_cur = 0;
 
     if (ssc->resp_cur >= sizeof(ssc->resp_cmd)) {
-        qemu_log_mask(LOG_UNIMP, "%s: ssc->resp_cur too high 0x%02x\n",
+        qemu_log_mask(LOG_GUEST_ERROR, "%s: ssc->resp_cur too high 0x%02x\n",
                       __func__, ssc->resp_cur);
         return 0;
     }
@@ -4614,12 +4552,12 @@ static uint8_t apple_ssc_rx(I2CSlave *i2c)
     if (ssc->resp_cur == 1) {
         uint8_t cmd = ssc->req_cmd[0];
         if (cmd > 0x09) {
-            qemu_log_mask(LOG_UNIMP, "%s: cmd %u: invalid command > 0x09",
+            qemu_log_mask(LOG_GUEST_ERROR, "%s: cmd %u: invalid command > 0x09",
                           __func__, cmd);
             do_response_prefix(ssc->req_cmd, ssc->resp_cmd,
                                SSC_RESPONSE_FLAG_COMMAND_OR_FIELD_INVALID);
         } else if (ssc->req_cur != ssc_request_sizes[cmd]) {
-            qemu_log_mask(LOG_UNIMP,
+            qemu_log_mask(LOG_GUEST_ERROR,
                           "%s: cmd %u: invalid cmdsize mismatch req_cur "
                           "is 0x%02x != should 0x%02x\n",
                           __func__, cmd, ssc->req_cur, ssc_request_sizes[cmd]);
@@ -4656,8 +4594,8 @@ static uint8_t apple_ssc_rx(I2CSlave *i2c)
     }
 
     ret = ssc->resp_cmd[ssc->resp_cur++];
-    qemu_log_mask(LOG_UNIMP, "apple_ssc_rx: resp_cur=0x%02x ret=0x%02x\n",
-                  ssc->resp_cur - 1, ret);
+    DPRINTF("apple_ssc_rx: resp_cur=0x%02x ret=0x%02x\n", ssc->resp_cur - 1,
+            ret);
 #if 0
     MachineState *machine = MACHINE(qdev_get_machine());
     AppleSEPState *sep;
@@ -4677,13 +4615,13 @@ static int apple_ssc_tx(I2CSlave *i2c, uint8_t data)
     }
 
     if (ssc->req_cur >= sizeof(ssc->req_cmd)) {
-        qemu_log_mask(LOG_UNIMP, "apple_ssc_tx: ssc->req_cur too high 0x%02x\n",
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "apple_ssc_tx: ssc->req_cur too high 0x%02x\n",
                       ssc->req_cur);
         return 0;
     }
 
-    qemu_log_mask(LOG_UNIMP, "apple_ssc_tx: req_cur=0x%02x data=0x%02x\n",
-                  ssc->req_cur, data);
+    DPRINTF("apple_ssc_tx: req_cur=0x%02x data=0x%02x\n", ssc->req_cur, data);
     ssc->req_cmd[ssc->req_cur++] = data;
     return 0;
 }
@@ -4691,7 +4629,7 @@ static int apple_ssc_tx(I2CSlave *i2c, uint8_t data)
 static void apple_ssc_reset(DeviceState *state)
 {
     AppleSSCState *ssc = APPLE_SSC(state);
-    qemu_log_mask(LOG_UNIMP, "%s: called\n", __func__);
+    DPRINTF("%s: called\n", __func__);
 
     ssc->req_cur = 0;
     ssc->resp_cur = 0;
