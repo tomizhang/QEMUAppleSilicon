@@ -1,21 +1,5 @@
 arm_ss = ss.source_set()
 arm_ss.add(files('boot.c'))
-arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
-    'apple-silicon/a13.c',
-    'apple-silicon/a13_gxf.c',
-    'apple-silicon/a9.c',
-    'apple-silicon/boot.c',
-    'apple-silicon/dtb.c',
-    'apple-silicon/mem.c',
-    'apple-silicon/mt-spi.c',
-    'apple-silicon/s8000.c',
-    'apple-silicon/sep-sim.c',
-    'apple-silicon/sep.c',
-    'apple-silicon/t8030.c',
-    'apple-silicon/xnu_kpf.c',
-    'apple-silicon/xnu_pf.c',
-    'apple-silicon/lm-backlight.c',
-))
 arm_ss.add(when: 'CONFIG_APPLE_SOC', if_true: tasn1)
 arm_ss.add(when: 'CONFIG_APPLE_DART', if_true: files('apple-silicon/dart.c'),
                                       if_false: files('apple-silicon/dart-stub.c'))
@@ -83,6 +67,8 @@ arm_ss.add(when: 'CONFIG_XEN', if_true: files(
   'xen-stubs.c',
   'xen-pvh.c',
 ))
+
+subdir('apple-silicon')
 
 system_ss.add(when: 'CONFIG_ARM_SMMUV3', if_true: files('smmu-common.c'))
 system_ss.add(when: 'CONFIG_COLLIE', if_true: files('collie.c'))

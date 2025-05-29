@@ -143,20 +143,6 @@ system_ss.add(when: 'CONFIG_MSF2', if_true: files('msf2-sysreg.c'))
 system_ss.add(when: 'CONFIG_NRF51_SOC', if_true: files('nrf51_rng.c'))
 
 system_ss.add(when: 'CONFIG_GRLIB', if_true: files('grlib_ahb_apb_pnp.c'))
-system_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
-    'apple-silicon/aes.c',
-    'apple-silicon/a7iop/core.c',
-    'apple-silicon/a7iop/mailbox/core.c',
-    'apple-silicon/a7iop/mailbox/regs-v2.c',
-    'apple-silicon/a7iop/mailbox/regs-v4.c',
-    'apple-silicon/a7iop/regs-v2.c',
-    'apple-silicon/a7iop/regs-v4.c',
-    'apple-silicon/a7iop/rtkit.c',
-    'apple-silicon/smc.c',
-    'apple-silicon/roswell.c',
-    'apple-silicon/chestnut.c',
-    'apple-silicon/pmu-d2255.c'))
-system_ss.add(when: 'CONFIG_APPLE_SPMI_PMU', if_true: files('apple-silicon/spmi-pmu.c'))
 
 system_ss.add(when: 'CONFIG_I2C_ECHO', if_true: files('i2c-echo.c'))
 
@@ -171,3 +157,5 @@ system_ss.add(when: 'CONFIG_SBSA_REF', if_true: files('sbsa_ec.c'))
 
 # HPPA devices
 system_ss.add(when: 'CONFIG_LASI', if_true: files('lasi.c'))
+
+subdir('apple-silicon')
