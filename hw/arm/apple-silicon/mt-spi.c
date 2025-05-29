@@ -953,6 +953,7 @@ static const VMStateDescription vmstate_apple_mt_spi = {
     .minimum_version_id = 0,
     .fields =
         (const VMStateField[]){
+            VMSTATE_SSI_PERIPHERAL(parent_obj, AppleMTSPIState),
             VMSTATE_STRUCT(tx, AppleMTSPIState, 0, vmstate_apple_mt_spi_buffer,
                            AppleMTSPIBuffer),
             VMSTATE_STRUCT(rx, AppleMTSPIState, 0, vmstate_apple_mt_spi_buffer,
