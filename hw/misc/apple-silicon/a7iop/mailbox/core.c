@@ -410,7 +410,7 @@ uint32_t apple_a7iop_interrupt_status_pop(AppleA7IOPMailbox *s)
     apple_a7iop_mailbox_update_irq(s);
     if (ret) {
         qemu_log_mask(
-            LOG_UNIMP,
+            LOG_GUEST_ERROR,
             "%s: apple_a7iop_interrupt_status_pop: msg==%s: status=0x%05x\n",
             s->role, (msg != NULL) ? "True" : "False", ret);
     }
