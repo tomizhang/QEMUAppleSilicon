@@ -187,7 +187,8 @@ static void apple_a7iop_mailbox_send(AppleA7IOPMailbox *s,
     g_assert_nonnull(msg);
 
     QEMU_LOCK_GUARD(&s->lock);
-    trace_apple_a7iop_mailbox_send(s->role, msg->data[0], msg->data[1]);
+    trace_apple_a7iop_mailbox_send(s->role, ldq_le_p(msg->data),
+                                   ldq_le_p(msg->data + sizeof(uint64_t)));
     QTAILQ_INSERT_TAIL(&s->inbox, msg, next);
     s->count++;
     apple_a7iop_mailbox_update_irq(s);
@@ -259,7 +260,8 @@ static AppleA7IOPMessage *apple_a7iop_mailbox_recv(AppleA7IOPMailbox *s)
     }
     QTAILQ_REMOVE(&s->inbox, msg, next);
     stl_le_p(msg->data + 0xC, ldl_le_p(msg->data + 0xC) | CTRL_COUNT(s->count));
-    trace_apple_a7iop_mailbox_recv(s->role, msg->data[0], msg->data[1]);
+    trace_apple_a7iop_mailbox_recv(s->role, ldq_le_p(msg->data),
+                                   ldq_le_p(msg->data + sizeof(uint64_t)));
     s->count--;
     apple_a7iop_mailbox_update_irq(s);
     return msg;
