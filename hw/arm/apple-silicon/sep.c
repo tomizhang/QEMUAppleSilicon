@@ -446,8 +446,10 @@ static void debug_trace_reg_write(void *opaque, hwaddr addr, uint64_t data,
     }
 
     offset = ((uint32_t *)s->debug_trace_regs)[0x4 / 4];
-    offset -= 1;
-    offset <<= 6;
+    if (offset != 0) {
+        offset -= 1;
+        offset <<= 6;
+    }
 
     memcpy(&s->debug_trace_regs[addr], &data, size);
 
@@ -1810,12 +1812,18 @@ static void aess_keywrap_uid(AppleAESSState *s, uint8_t *in, uint8_t *out,
     qcrypto_cipher_setiv(cipher, iv, sizeof(iv), &error_abort);
     uint8_t enc_temp[0x20] = { 0 };
     memcpy(enc_temp, in, sizeof(enc_temp));
+
     // TODO: iteration register is actually for the iterations inside the
     // algorithm, not how often the algorihm is being called.
-    do {
+    if (s->reg_0x14_keywrap_iterations_counter == 0) {
+        s->reg_0x14_keywrap_iterations_counter = 1;
+    }
+    while (s->reg_0x14_keywrap_iterations_counter) {
         qcrypto_cipher_encrypt(cipher, enc_temp, enc_temp, sizeof(enc_temp),
                                &error_abort);
-    } while (s->reg_0x14_keywrap_iterations_counter--);
+        s->reg_0x14_keywrap_iterations_counter--;
+    }
+
     memcpy(out, enc_temp, data_len);
     HEXDUMP("aess_keywrap_uid: out1", out, data_len);
     s->reg_0x14_keywrap_iterations_counter = 0;
