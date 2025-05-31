@@ -158,12 +158,12 @@ static int apple_spmi_pmu_recv(SPMISlave *s, uint8_t *data, uint8_t len)
     for (addr = p->addr; addr < p->addr + len; addr++) {
         if (addr >= p->reg_rtc && addr < p->reg_rtc + 6) {
             uint64_t now = rtc_get_tick(p, NULL);
-            p->reg[p->reg_rtc] = now << 1;
-            p->reg[p->reg_rtc + 1] = now >> 7;
-            p->reg[p->reg_rtc + 2] = now >> 15;
-            p->reg[p->reg_rtc + 3] = now >> 23;
-            p->reg[p->reg_rtc + 4] = now >> 31;
-            p->reg[p->reg_rtc + 5] = now >> 39;
+            p->reg[p->reg_rtc] = (now << 1) & 0xFF;
+            p->reg[p->reg_rtc + 1] = (now >> 7) & 0xFF;
+            p->reg[p->reg_rtc + 2] = (now >> 15) & 0xFF;
+            p->reg[p->reg_rtc + 3] = (now >> 23) & 0xFF;
+            p->reg[p->reg_rtc + 4] = (now >> 31) & 0xFF;
+            p->reg[p->reg_rtc + 5] = (now >> 39) & 0xFF;
         }
         data[addr - p->addr] = p->reg[addr];
     }
