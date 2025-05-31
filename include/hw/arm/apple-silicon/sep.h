@@ -202,7 +202,6 @@ struct AppleSSCState {
 #define AESH_BASE_REG_SIZE (0x10000)
 #define PKA_BASE_REG_SIZE (0x10000)
 #define PKA_TMM_REG_SIZE (0x4000)
-#define MISC0_REG_SIZE (0x4000) // ?
 #define MISC2_REG_SIZE (0x4000) // ?
 #define PROGRESS_REG_SIZE (0x4000) // ?
 #define BOOT_MONITOR_REG_SIZE (0x4000) // ?
@@ -238,7 +237,6 @@ struct AppleSEPState {
     MemoryRegion aesh_base_mr;
     MemoryRegion pka_base_mr;
     MemoryRegion pka_tmm_mr;
-    MemoryRegion misc0_mr;
     MemoryRegion misc2_mr;
     MemoryRegion progress_mr;
     MemoryRegion boot_monitor_mr;
@@ -254,7 +252,6 @@ struct AppleSEPState {
     uint8_t aesh_base_regs[AESH_BASE_REG_SIZE];
     uint8_t pka_base_regs[PKA_BASE_REG_SIZE];
     uint8_t pka_tmm_regs[PKA_TMM_REG_SIZE];
-    uint8_t misc0_regs[MISC0_REG_SIZE];
     uint8_t misc2_regs[MISC2_REG_SIZE];
     uint8_t progress_regs[PROGRESS_REG_SIZE];
     uint8_t boot_monitor_regs[PROGRESS_REG_SIZE];

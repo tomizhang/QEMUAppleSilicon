@@ -32,6 +32,7 @@
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/misc/apple-silicon/a7iop/private.h"
+#include "hw/misc/unimp.h"
 #include "hw/nvram/eeprom_at24c.h"
 #include "hw/or-irq.h"
 #include "hw/qdev-properties-system.h"
@@ -2325,6 +2326,7 @@ static void aesh_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
+    // from misc0: Maybe the SHA engine: case 0xb4: 0x40 bytes from TRNG
     default:
         memcpy(&s->aesh_base_regs[addr], &data, size);
 #if 0
@@ -2346,6 +2348,11 @@ static uint64_t aesh_base_reg_read(void *opaque, hwaddr addr, unsigned size)
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
+    // from misc0: 0xc, 0xf4
+    case 0xc: // ???? bit1 clear, bit0 set
+        return (0 << 1) | (1 << 0);
+    case 0xf4: // ????
+        return 0x0;
     default:
         memcpy(&ret, &s->aesh_base_regs[addr], size);
 #if 0
@@ -2589,61 +2596,6 @@ static uint64_t pka_tmm_reg_read(void *opaque, hwaddr addr, unsigned size)
 static const MemoryRegionOps pka_tmm_reg_ops = {
     .write = pka_tmm_reg_write,
     .read = pka_tmm_reg_read,
-    .endianness = DEVICE_NATIVE_ENDIAN,
-    .valid.min_access_size = 4,
-    .valid.max_access_size = 4,
-    .impl.min_access_size = 4,
-    .impl.max_access_size = 4,
-    .valid.unaligned = false,
-};
-
-static void misc0_reg_write(void *opaque, hwaddr addr, uint64_t data,
-                            unsigned size)
-{
-    AppleSEPState *s = APPLE_SEP(opaque);
-
-#ifdef ENABLE_CPU_DUMP_STATE
-    cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
-#endif
-    switch (addr) {
-    // Maybe the SHA engine: case 0xb4: 0x40 bytes from TRNG
-    default:
-        memcpy(&s->misc0_regs[addr], &data, size);
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP MISC0: Unknown write at 0x" HWADDR_FMT_plx
-                      " with value 0x%" PRIx64 "\n",
-                      addr, data);
-        break;
-    }
-}
-
-static uint64_t misc0_reg_read(void *opaque, hwaddr addr, unsigned size)
-{
-    AppleSEPState *s = APPLE_SEP(opaque);
-    uint64_t ret = 0;
-
-#ifdef ENABLE_CPU_DUMP_STATE
-    cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
-#endif
-    switch (addr) {
-    case 0xc: // ???? bit1 clear, bit0 set
-        return (0 << 1) | (1 << 0);
-    case 0xf4: // ????
-        return 0x0;
-    default:
-        memcpy(&ret, &s->misc0_regs[addr], size);
-        qemu_log_mask(LOG_UNIMP,
-                      "SEP MISC0: Unknown read at 0x" HWADDR_FMT_plx "\n",
-                      addr);
-        break;
-    }
-
-    return ret;
-}
-
-static const MemoryRegionOps misc0_reg_ops = {
-    .write = misc0_reg_write,
-    .read = misc0_reg_read,
     .endianness = DEVICE_NATIVE_ENDIAN,
     .valid.min_access_size = 4,
     .valid.max_access_size = 4,
@@ -3408,9 +3360,6 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     memory_region_init_io(&s->pka_tmm_mr, OBJECT(dev), &pka_tmm_reg_ops, s,
                           "sep.pka_tmm", PKA_TMM_REG_SIZE); // T8030
     sysbus_init_mmio(sbd, &s->pka_tmm_mr);
-    memory_region_init_io(&s->misc0_mr, OBJECT(dev), &misc0_reg_ops, s,
-                          "sep.misc0", MISC0_REG_SIZE);
-    sysbus_init_mmio(sbd, &s->misc0_mr);
     memory_region_init_io(&s->misc2_mr, OBJECT(dev), &misc2_reg_ops, s,
                           "sep.misc2", MISC2_REG_SIZE);
     sysbus_init_mmio(sbd, &s->misc2_mr);
@@ -3497,6 +3446,11 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
     s->ool_as = g_new0(AddressSpace, 1);
     g_assert_nonnull(s->ool_as);
     address_space_init(s->ool_as, s->ool_mr, "sep.ool");
+#endif
+#if 0
+    if (s->chip_id >= 0x8020) {
+        create_unimplemented_device("sep_unimp0", 0x242140000, 0x4000);
+    }
 #endif
 
     return s;
@@ -3621,7 +3575,6 @@ static void apple_sep_reset_hold(Object *obj, ResetType type)
     memset(s->aesh_base_regs, 0, sizeof(s->aesh_base_regs));
     memset(s->pka_base_regs, 0, sizeof(s->pka_base_regs));
     memset(s->pka_tmm_regs, 0, sizeof(s->pka_tmm_regs));
-    memset(s->misc0_regs, 0, sizeof(s->misc0_regs));
     memset(s->misc2_regs, 0, sizeof(s->misc2_regs));
     memset(s->boot_monitor_regs, 0, sizeof(s->boot_monitor_regs));
     memset(s->progress_regs, 0, sizeof(s->progress_regs));

@@ -349,6 +349,9 @@ static uint64_t apple_pcie_host_common_read(void *opaque, hwaddr addr,
     switch (addr) {
     // case 0x0:
     //     break;
+    case 0x28:
+        val = 0x10; // refclk good ; for T8030
+        break;
     default:
         // val = 0;
         val = root->common_regs[addr >> 2];
@@ -420,9 +423,17 @@ static uint64_t apple_pcie_root_host_phy_read(void *opaque, hwaddr addr,
     ApplePCIEHost *host = apple_pcie_root_to_host(root);
     uint32_t val = 0;
 
+// #ifdef ENABLE_CPU_DUMP_STATE
+#if 0
+    cpu_dump_state(CPU(first_cpu), stderr, CPU_DUMP_CODE);
+#endif
+
     switch (addr) {
     case 0x0:
         val = root->phy_enabled;
+        break;
+    case 0x10000:
+        val = root->refclk_buffer_enabled;
         break;
     default:
         val = 0;
@@ -455,6 +466,17 @@ static void apple_pcie_root_host_phy_write(void *opaque, hwaddr addr,
         }
         root->phy_enabled = data;
         DPRINTF("phy_enabled after == 0x%x\n", root->phy_enabled);
+        break;
+    case 0x10000: // for refclk buffer
+        DPRINTF("refclk_buffer_enabled before == 0x%x\n", root->refclk_buffer_enabled);
+        if ((data & (1 << 0)) != 0) {
+            data |= (1 << 2);
+        }
+        if ((data & (1 << 1)) != 0) {
+            data |= (1 << 1); // yes, REALLY bit1
+        }
+        root->refclk_buffer_enabled = data;
+        DPRINTF("refclk_buffer_enabled after == 0x%x\n", root->refclk_buffer_enabled);
         break;
     default:
         break;
@@ -611,6 +633,7 @@ static void apple_pcie_root_reset(DeviceState *dev)
                               QEMU_PCI_EXP_LNK_8GT);
     // tested, will not reset on its own(==by other reset methods).
     root->phy_enabled = 0x0;
+    root->refclk_buffer_enabled = 0x0;
     memset(root->common_regs, 0, sizeof(root->common_regs));
 
     // pci_set_long(pci_conf + PCI_PREF_LIMIT_UPPER32, 0x11);

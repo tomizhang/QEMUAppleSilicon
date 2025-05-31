@@ -48,6 +48,7 @@
 #include "hw/misc/apple-silicon/roswell.h"
 #include "hw/misc/apple-silicon/smc.h"
 #include "hw/misc/apple-silicon/spmi-pmu.h"
+#include "hw/misc/unimp.h"
 #include "hw/nvram/apple_nvram.h"
 #include "hw/pci-host/apcie.h"
 #include "hw/spmi/apple_spmi.h"
@@ -74,7 +75,10 @@
 #define T8030_DRAM_BASE (0x800000000)
 
 #define T8030_SEPROM_BASE (0x240000000)
-#define T8030_SEPROM_SIZE (0x4000000)
+// SEPROM can even be 1 MiB big, but T8030's one is much smaller with 84 KiB
+//#define T8030_SEPROM_SIZE (0x004000000)
+//#define T8030_SEPROM_SIZE (0x000100000)
+#define T8030_SEPROM_SIZE (84 * KiB)
 
 #define T8030_GPIO_FORCE_DFU (161)
 
@@ -622,6 +626,34 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
                           MEMTXATTRS_UNSPECIFIED);
         address_space_rw(nsas, T8030_SEPROM_BASE, MEMTXATTRS_UNSPECIFIED,
                          (uint8_t *)seprom, fsize, true);
+        //allocate_ram(t8030_machine->sys_mem, "SEP_UNKN0", 0x242140108ULL, 0x8, 0);
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN0", 0x242140000ULL, 0x4000, 0);
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN1", 0x242200000ULL,
+                     0x4000, 0);
+        allocate_ram(t8030_machine->sys_mem, "SEP_TTBR0", 0x242204000ULL,
+                     0x4000, 0);
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN2", 0x242208000ULL,
+                     0x4000, 0);
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN3", 0x24220C000ULL,
+                     0x4000, 0);
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN4", 0x242210000ULL,
+                     0x4000, 0);
+#if 0
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN1", 0x242200000ULL,
+                     0x14000, 0);
+#endif
+        //allocate_ram(t8030_machine->sys_mem, "SEP_UNKN5", 0x242223fc0ULL, 0x8, 0);
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN5", 0x242220000ULL, 0x4000, 0); // for pstate_spsel?
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN6", 0x24221c000ULL, 0x4000, 0); // for vbar_el1?
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN7", 0x242218000ULL, 0x4000, 0);
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN8", 0x242214000ULL, 0x4000, 0);
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN9", 0x241244000ULL, 0x4000, 0);
+        ////allocate_ram(t8030_machine->sys_mem, "SEP_UNKN10", 0x242400000ULL, 0x4000, 0); // AKF apple-a7iop.SEP.regs, actually 0x10000
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN10", 0x242150000ULL, 0x4000, 0); // for last_jump
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN11", 0x241010000ULL, 0x4000, 0);
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN12", 0x241240000ULL, 0x4000, 0);
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN13", 0x24020c000ULL, 0x4000, 0); // stack for 0x340005bf4/SEPFW
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN14", 0x240a80000ULL, 0x4000, 0); // for SEP Panic: [elfour panic] [/,&&&&+&] exception.c:'&.
 
         g_free(seprom);
 
@@ -634,9 +666,9 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
         // uint32_t value32_mov_w0_0 = 0x52800000; // mov w0, #0x0
         // uint32_t value32_mov_w8_0x1000 = 0x52820008;
 #if 1 // for T8030 SEPROM
-      // _entry: prevent busy-loop (data section):
-      // 240000024: data_242140108 = 0x4 should set
-      // (data_242140108 & 0x8000000000000000) != 0
+        // _entry: prevent busy-loop (data section):
+        // 240000024: data_242140108 = 0x4 should set
+        // (data_242140108 & 0x8000000000000000) != 0
         address_space_write(nsas, t8030_machine->soc_base_pa + 0x42140108,
                             MEMTXATTRS_UNSPECIFIED, &value, sizeof(value));
 
@@ -2251,13 +2283,11 @@ static void t8030_create_sep(T8030MachineState *t8030_machine)
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 12,
                     t8030_machine->soc_base_pa + 0x41504000); // PKA_TMM T8030
     sysbus_mmio_map(SYS_BUS_DEVICE(sep), 13,
-                    t8030_machine->soc_base_pa + 0x41080000); // MISC0 T80[23]0
-    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 14,
                     t8030_machine->soc_base_pa + 0x410C4000); // MISC2 T80[23]0
-    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 15,
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 14,
                     t8030_machine->soc_base_pa +
                         0x41280000); // encrypted progress counter T8030
-    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 16,
+    sysbus_mmio_map(SYS_BUS_DEVICE(sep), 15,
                     t8030_machine->soc_base_pa +
                         0x41500000); // boot monitor T8030
 

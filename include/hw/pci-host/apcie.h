@@ -75,6 +75,7 @@ struct ApplePCIERoot {
     ApplePCIEMSI msi;
 #endif
     uint32_t phy_enabled;
+    uint32_t refclk_buffer_enabled;
     uint32_t common_regs[APCIE_COMMON_REGS_LENGTH / sizeof(uint32_t)];
 };
 
