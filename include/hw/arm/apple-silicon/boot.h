@@ -344,15 +344,14 @@ bool xnu_contains_boot_arg(const char *bootArgs, const char *arg,
                            bool prefixmatch);
 
 void apple_monitor_setup_boot_args(
-    const char *name, AddressSpace *as, MemoryRegion *mem, hwaddr bootargs_addr,
-    hwaddr virt_base, hwaddr phys_base, hwaddr mem_size, hwaddr kern_args,
-    hwaddr kern_entry, hwaddr kern_phys_base, hwaddr kern_phys_slide,
-    hwaddr kern_virt_slide, hwaddr kern_text_section_off);
-void macho_setup_bootargs(const char *name, AddressSpace *as, MemoryRegion *mem,
-                          hwaddr addr, hwaddr virt_base, hwaddr phys_base,
-                          hwaddr mem_size, hwaddr kernel_top, hwaddr dtb_va,
-                          hwaddr dtb_size, AppleVideoArgs *video_args,
-                          const char *cmdline);
+    AddressSpace *as, MemoryRegion *mem, hwaddr bootargs_addr, hwaddr virt_base,
+    hwaddr phys_base, hwaddr mem_size, hwaddr kern_args, hwaddr kern_entry,
+    hwaddr kern_phys_base, hwaddr kern_phys_slide, hwaddr kern_virt_slide,
+    hwaddr kern_text_section_off);
+void macho_setup_bootargs(AddressSpace *as, MemoryRegion *mem, hwaddr addr,
+                          hwaddr virt_base, hwaddr phys_base, hwaddr mem_size,
+                          hwaddr kernel_top, hwaddr dtb_va, hwaddr dtb_size,
+                          AppleVideoArgs *video_args, const char *cmdline);
 
 void macho_allocate_segment_records(DTBNode *memory_map, MachoHeader64 *mh);
 
@@ -360,19 +359,16 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
                       DTBNode *memory_map, hwaddr phys_base, hwaddr virt_slide);
 
 void macho_load_raw_file(const char *filename, AddressSpace *as,
-                         MemoryRegion *mem, const char *name, hwaddr file_pa,
-                         uint64_t *size);
+                         MemoryRegion *mem, hwaddr file_pa, uint64_t *size);
 
-DTBNode *load_dtb_from_file(char *filename);
+DTBNode *load_dtb_from_file(const char *filename);
 
 void macho_populate_dtb(DTBNode *root, AppleBootInfo *info);
 
 void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
-                    const char *name, AppleBootInfo *info);
+                    AppleBootInfo *info);
 
 uint8_t *load_trustcache_from_file(const char *filename, uint64_t *size);
-void macho_load_trustcache(void *trustcache, uint64_t size, AddressSpace *as,
-                           MemoryRegion *mem, hwaddr pa);
 
 void macho_load_ramdisk(const char *filename, AddressSpace *as,
                         MemoryRegion *mem, hwaddr pa, uint64_t *size);

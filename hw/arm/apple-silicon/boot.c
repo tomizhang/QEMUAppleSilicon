@@ -184,13 +184,6 @@ static const char *REM_PROPS[] = {
     "siri-gesture",
 };
 
-static void allocate_and_copy(MemoryRegion *mem, AddressSpace *as,
-                              const char *name, hwaddr pa, hwaddr size,
-                              void *buf)
-{
-    address_space_rw(as, pa, MEMTXATTRS_UNSPECIFIED, buf, size, 1);
-}
-
 static void *srawmemchr(void *str, int chr)
 {
     uint8_t *ptr = (uint8_t *)str;
@@ -434,12 +427,16 @@ static void extract_im4p_payload(const char *filename, char *payload_type,
     *length = len;
 }
 
-DTBNode *load_dtb_from_file(char *filename)
+DTBNode *load_dtb_from_file(const char *filename)
 {
     DTBNode *root = NULL;
     uint8_t *file_data = NULL;
     uint32_t fsize;
     char payload_type[4];
+
+    if (filename == NULL) {
+        return NULL;
+    }
 
     extract_im4p_payload(filename, payload_type, &file_data, &fsize, NULL);
 
@@ -559,7 +556,7 @@ static void set_or_remove_memory_range(DTBNode *root, const char *name,
 }
 
 void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
-                    const char *name, AppleBootInfo *info)
+                    AppleBootInfo *info)
 {
     g_autofree uint8_t *buf = NULL;
 
@@ -605,20 +602,20 @@ void macho_load_dtb(DTBNode *root, AddressSpace *as, MemoryRegion *mem,
                      dtb_get_serialised_node_size(root));
     buf = g_malloc0(info->device_tree_size);
     dtb_serialise(buf, root);
-    allocate_and_copy(mem, as, name, info->device_tree_addr,
-                      info->device_tree_size, buf);
+    address_space_rw(as, info->device_tree_addr, MEMTXATTRS_UNSPECIFIED, buf,
+                     info->device_tree_size, true);
 }
 
 uint8_t *load_trustcache_from_file(const char *filename, uint64_t *size)
 {
-    uint32_t *trustcache_data = NULL;
-    uint64_t trustcache_size = 0;
-    g_autofree uint8_t *file_data = NULL;
-    unsigned long file_size = 0;
-    uint32_t length = 0;
+    uint32_t *trustcache_data;
+    uint64_t trustcache_size;
+    g_autofree uint8_t *file_data;
+    unsigned long file_size;
+    uint32_t length;
     char payload_type[4];
     uint32_t trustcache_version, trustcache_entry_count, expected_file_size;
-    uint32_t trustcache_entry_size = 0;
+    uint32_t trustcache_entry_size;
 
     extract_im4p_payload(filename, payload_type, &file_data, &length, NULL);
 
@@ -662,7 +659,7 @@ uint8_t *load_trustcache_from_file(const char *filename, uint64_t *size)
             &error_fatal,
             "invalid trustcache header in `%s` (expected v1 or v2, got %d)",
             filename, trustcache_version);
-        break;
+        return NULL;
     }
 
     // 24 is header size
@@ -672,12 +669,6 @@ uint8_t *load_trustcache_from_file(const char *filename, uint64_t *size)
 
     *size = trustcache_size;
     return (uint8_t *)trustcache_data;
-}
-
-void macho_load_trustcache(void *trustcache, uint64_t size, AddressSpace *as,
-                           MemoryRegion *mem, hwaddr pa)
-{
-    allocate_and_copy(mem, as, "TrustCache", pa, size, trustcache);
 }
 
 void macho_load_ramdisk(const char *filename, AddressSpace *as,
@@ -698,21 +689,22 @@ void macho_load_ramdisk(const char *filename, AddressSpace *as,
     file_size = length;
     file_data = g_realloc(file_data, file_size);
 
-    allocate_and_copy(mem, as, "RamDisk", pa, file_size, file_data);
+    address_space_rw(as, pa, MEMTXATTRS_UNSPECIFIED, file_data, file_size,
+                     true);
     *size = file_size;
     g_free(file_data);
 }
 
 void macho_load_raw_file(const char *filename, AddressSpace *as,
-                         MemoryRegion *mem, const char *name, hwaddr file_pa,
-                         uint64_t *size)
+                         MemoryRegion *mem, hwaddr file_pa, uint64_t *size)
 {
-    uint8_t *file_data = NULL;
+    uint8_t *file_data;
     gsize sizef;
 
-    if (g_file_get_contents(filename, (char **)&file_data, &sizef, NULL)) {
+    if (g_file_get_contents(filename, (gchar **)&file_data, &sizef, NULL)) {
         *size = sizef;
-        allocate_and_copy(mem, as, name, file_pa, *size, file_data);
+        address_space_rw(as, file_pa, MEMTXATTRS_UNSPECIFIED, file_data, sizef,
+                         true);
         g_free(file_data);
     } else {
         error_setg(&error_fatal, "file read for `%s` failed", filename);
@@ -743,10 +735,10 @@ bool xnu_contains_boot_arg(const char *bootArgs, const char *arg,
 }
 
 void apple_monitor_setup_boot_args(
-    const char *name, AddressSpace *as, MemoryRegion *mem, hwaddr addr,
-    hwaddr virt_base, hwaddr phys_base, hwaddr mem_size, hwaddr kern_args,
-    hwaddr kern_entry, hwaddr kern_phys_base, hwaddr kern_phys_slide,
-    hwaddr kern_virt_slide, hwaddr kern_text_section_off)
+    AddressSpace *as, MemoryRegion *mem, hwaddr addr, hwaddr virt_base,
+    hwaddr phys_base, hwaddr mem_size, hwaddr kern_args, hwaddr kern_entry,
+    hwaddr kern_phys_base, hwaddr kern_phys_slide, hwaddr kern_virt_slide,
+    hwaddr kern_text_section_off)
 {
     AppleMonitorBootArgs boot_args;
 
@@ -763,14 +755,14 @@ void apple_monitor_setup_boot_args(
     boot_args.kern_text_section_off = kern_text_section_off;
     qcrypto_random_bytes(&boot_args.random_bytes, 0x10, NULL);
 
-    allocate_and_copy(mem, as, name, addr, sizeof(boot_args), &boot_args);
+    address_space_rw(as, addr, MEMTXATTRS_UNSPECIFIED, &boot_args,
+                     sizeof(boot_args), true);
 }
 
-void macho_setup_bootargs(const char *name, AddressSpace *as, MemoryRegion *mem,
-                          hwaddr addr, hwaddr virt_base, hwaddr phys_base,
-                          hwaddr mem_size, hwaddr kernel_top, hwaddr dtb_va,
-                          hwaddr dtb_size, AppleVideoArgs *video_args,
-                          const char *cmdline)
+void macho_setup_bootargs(AddressSpace *as, MemoryRegion *mem, hwaddr addr,
+                          hwaddr virt_base, hwaddr phys_base, hwaddr mem_size,
+                          hwaddr kernel_top, hwaddr dtb_va, hwaddr dtb_size,
+                          AppleVideoArgs *video_args, const char *cmdline)
 {
     AppleKernelBootArgs boot_args;
 
@@ -790,7 +782,8 @@ void macho_setup_bootargs(const char *name, AddressSpace *as, MemoryRegion *mem,
         g_strlcpy(boot_args.cmdline, cmdline, sizeof(boot_args.cmdline));
     }
 
-    allocate_and_copy(mem, as, name, addr, sizeof(boot_args), &boot_args);
+    address_space_rw(as, addr, MEMTXATTRS_UNSPECIFIED, &boot_args,
+                     sizeof(boot_args), true);
 }
 
 void macho_highest_lowest(MachoHeader64 *mh, uint64_t *lowaddr,
@@ -1247,8 +1240,8 @@ hwaddr arm_load_macho(MachoHeader64 *mh, AddressSpace *as, MemoryRegion *mem,
 #endif
             uint8_t *buf = g_malloc0(segCmd->vmsize);
             memcpy(buf, load_from, segCmd->filesize);
-            allocate_and_copy(mem, as, region_name, load_to, segCmd->vmsize,
-                              buf);
+            address_space_rw(as, load_to, MEMTXATTRS_UNSPECIFIED, buf,
+                             segCmd->vmsize, true);
             g_free(buf);
 
             if (!is_fileset) {

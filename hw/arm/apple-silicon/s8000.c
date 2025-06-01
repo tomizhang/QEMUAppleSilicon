@@ -238,18 +238,15 @@ static void s8000_load_classic_kc(S8000MachineState *s8000_machine,
     phys_ptr += g_phys_slide;
     g_virt_base += g_virt_slide - g_phys_slide;
 
-    // TrustCache
     info->trustcache_addr =
         vtop_static(prelink_text_base + g_virt_slide) - info->trustcache_size;
-    info_report("__PRELINK_TEXT = " HWADDR_FMT_plx " + " HWADDR_FMT_plx,
-                prelink_text_base, g_virt_slide);
-    info_report("info->trustcache_pa = " HWADDR_FMT_plx, info->trustcache_addr);
 
-    macho_load_trustcache(s8000_machine->trustcache, info->trustcache_size,
-                          nsas, sysmem, info->trustcache_addr);
+    address_space_rw(nsas, info->trustcache_addr, MEMTXATTRS_UNSPECIFIED,
+                     s8000_machine->trustcache, info->trustcache_size, true);
 
     info->kern_entry =
         arm_load_macho(hdr, nsas, sysmem, memory_map, phys_ptr, g_virt_slide);
+
     info_report("Kernel virtual base: 0x" TARGET_FMT_lx, g_virt_base);
     info_report("Kernel physical base: 0x" TARGET_FMT_lx, g_phys_base);
     info_report("Kernel text off: 0x" TARGET_FMT_lx, info->kern_text_off);
@@ -277,7 +274,7 @@ static void s8000_load_classic_kc(S8000MachineState *s8000_machine,
     info->sep_fw_addr = phys_ptr;
     if (s8000_machine->sep_fw_filename) {
         macho_load_raw_file(s8000_machine->sep_fw_filename, nsas, sysmem,
-                            "sepfw", info->sep_fw_addr, &info->sep_fw_size);
+                            info->sep_fw_addr, &info->sep_fw_size);
     }
     info->sep_fw_size = ROUND_UP_16K(8 * MiB);
     phys_ptr += info->sep_fw_size;
@@ -287,14 +284,13 @@ static void s8000_load_classic_kc(S8000MachineState *s8000_machine,
     info->kern_boot_args_size = 0x4000;
     phys_ptr += info->kern_boot_args_size;
 
-    macho_load_dtb(s8000_machine->device_tree, nsas, sysmem, "DeviceTree",
-                   info);
+    macho_load_dtb(s8000_machine->device_tree, nsas, sysmem, info);
 
     top_of_kernel_data_pa = (ROUND_UP_16K(phys_ptr) + 0x3000ull) & ~0x3FFFull;
 
     info_report("Boot args: [%s]", cmdline);
-    macho_setup_bootargs("BootArgs", nsas, sysmem, info->kern_boot_args_addr,
-                         g_virt_base, g_phys_base, S8000_KERNEL_REGION_SIZE,
+    macho_setup_bootargs(nsas, sysmem, info->kern_boot_args_addr, g_virt_base,
+                         g_phys_base, S8000_KERNEL_REGION_SIZE,
                          top_of_kernel_data_pa, dtb_va, info->device_tree_size,
                          &s8000_machine->video_args, cmdline);
     g_virt_base = virt_low;
@@ -316,12 +312,12 @@ static void s8000_load_classic_kc(S8000MachineState *s8000_machine,
         S8000_TZ1_BASE + (S8000_TZ1_SIZE - sizeof(AppleMonitorBootArgs));
     info_report("TrustZone 1 boot args address: " TARGET_FMT_lx,
                 tz1_boot_args_pa);
-    apple_monitor_setup_boot_args(
-        "TZ1_BOOTARGS", sas, s8000_machine->sys_mem, tz1_boot_args_pa,
-        tz1_virt_low, S8000_TZ1_BASE, S8000_TZ1_SIZE,
-        s8000_machine->boot_info.kern_boot_args_addr,
-        s8000_machine->boot_info.kern_entry, g_phys_base, g_phys_slide,
-        g_virt_slide, info->kern_text_off);
+    apple_monitor_setup_boot_args(sas, s8000_machine->sys_mem, tz1_boot_args_pa,
+                                  tz1_virt_low, S8000_TZ1_BASE, S8000_TZ1_SIZE,
+                                  s8000_machine->boot_info.kern_boot_args_addr,
+                                  s8000_machine->boot_info.kern_entry,
+                                  g_phys_base, g_phys_slide, g_virt_slide,
+                                  info->kern_text_off);
     s8000_machine->boot_info.tz1_entry = tz1_entry;
     s8000_machine->boot_info.tz1_boot_args_pa = tz1_boot_args_pa;
 }
@@ -1346,9 +1342,15 @@ static void s8000_machine_init(MachineState *machine)
     s8000_patch_kernel(hdr);
 
     s8000_machine->device_tree = load_dtb_from_file(machine->dtb);
+    if (s8000_machine->device_tree == NULL) {
+        error_setg(&error_abort, "Failed to load device tree");
+        return;
+    }
+
     s8000_machine->trustcache =
         load_trustcache_from_file(s8000_machine->trustcache_filename,
                                   &s8000_machine->boot_info.trustcache_size);
+
     dtb_set_prop_u32(s8000_machine->device_tree, "clock-frequency", 24000000);
     child = dtb_get_node(s8000_machine->device_tree, "arm-io");
     g_assert_nonnull(child);
@@ -1409,46 +1411,29 @@ static void s8000_machine_init(MachineState *machine)
     dtb_set_prop_u32(child, "device-color-policy", 0);
 
     s8000_cpu_setup(s8000_machine);
-
     s8000_create_aic(s8000_machine);
-
     s8000_create_s3c_uart(s8000_machine, serial_hd(0));
-
     s8000_pmgr_setup(s8000_machine);
-
     s8000_create_dart(s8000_machine, "dart-disp0", false);
     s8000_create_dart(s8000_machine, "dart-apcie0", true);
-
     s8000_create_pcie(s8000_machine);
-
     s8000_create_nvme(s8000_machine);
-
     s8000_create_gpio(s8000_machine, "gpio");
     s8000_create_gpio(s8000_machine, "aop-gpio");
-
     s8000_create_i2c(s8000_machine, "i2c0");
     s8000_create_i2c(s8000_machine, "i2c1");
     s8000_create_i2c(s8000_machine, "i2c2");
-
     s8000_create_usb(s8000_machine);
-
     s8000_create_wdt(s8000_machine);
-
     s8000_create_aes(s8000_machine);
-
     s8000_create_spi0(s8000_machine);
     s8000_create_spi(s8000_machine, "spi1");
     s8000_create_spi(s8000_machine, "spi2");
     s8000_create_spi(s8000_machine, "spi3");
-
     s8000_create_sep(s8000_machine);
-
     s8000_create_pmu(s8000_machine);
-
     s8000_create_chestnut(s8000_machine);
-
     s8000_display_create(s8000_machine);
-
     s8000_create_backlight(s8000_machine);
 
     s8000_machine->init_done_notifier.notify = s8000_machine_init_done;

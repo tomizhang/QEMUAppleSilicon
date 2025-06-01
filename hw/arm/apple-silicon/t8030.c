@@ -325,11 +325,10 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     g_phys_base = T8030_DRAM_BASE;
     g_virt_base += g_virt_slide - g_phys_slide;
 
-    // TrustCache
     info->trustcache_addr = vtop_slid(text_base) - info->trustcache_size;
 
-    macho_load_trustcache(t8030_machine->trustcache, info->trustcache_size,
-                          nsas, sysmem, info->trustcache_addr);
+    address_space_rw(nsas, info->trustcache_addr, MEMTXATTRS_UNSPECIFIED,
+                     t8030_machine->trustcache, info->trustcache_size, true);
 
     info->kern_entry = arm_load_macho(hdr, nsas, sysmem, memory_map,
                                       g_phys_base + g_phys_slide, g_virt_slide);
@@ -342,7 +341,8 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     virt_end += g_virt_slide;
     phys_ptr = vtop_static(ROUND_UP_16K(virt_end));
 
-    amcc_lower = info->trustcache_addr;
+    amcc_lower = info->trustcache_addr == 0 ? vtop_slid(text_base) :
+                                              info->trustcache_addr;
     amcc_upper = vtop_slid(last_base) + last_seg->vmsize - 1;
     for (int i = 0; i < 4; i++) {
         AMCC_REG(t8030_machine, AMCC_LOWER(i)) =
@@ -364,7 +364,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     info->sep_fw_addr = phys_ptr;
     if (t8030_machine->sep_fw_filename != NULL) {
         macho_load_raw_file(t8030_machine->sep_fw_filename, nsas, sysmem,
-                            "sepfw", info->sep_fw_addr, &info->sep_fw_size);
+                            info->sep_fw_addr, &info->sep_fw_size);
         AppleSEPState *sep = APPLE_SEP(object_property_get_link(
             OBJECT(t8030_machine), "sep", &error_fatal));
         sep->sep_fw_addr = info->sep_fw_addr;
@@ -392,16 +392,15 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     mem_size = carveout_alloc_finalise(ca);
     info_report("mem_size: 0x%" PRIx64 "", mem_size);
 
-    macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
-                   info);
+    macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, info);
 
     info->top_of_kernel_data_pa = ROUND_UP_16K(phys_ptr);
 
     info_report("Boot args: [%s]", cmdline);
-    macho_setup_bootargs(
-        "BootArgs", nsas, sysmem, info->kern_boot_args_addr, g_virt_base,
-        g_phys_base, mem_size, info->top_of_kernel_data_pa, dtb_va,
-        info->device_tree_size, &t8030_machine->video_args, cmdline);
+    macho_setup_bootargs(nsas, sysmem, info->kern_boot_args_addr, g_virt_base,
+                         g_phys_base, mem_size, info->top_of_kernel_data_pa,
+                         dtb_va, info->device_tree_size,
+                         &t8030_machine->video_args, cmdline);
     g_virt_base = virt_low;
 }
 
@@ -451,20 +450,19 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     phys_ptr += g_phys_slide;
     phys_ptr -= extradata_size;
 
-    // Device tree
     info->device_tree_addr = phys_ptr;
     phys_ptr += info->device_tree_size;
 
-    // TrustCache
     info->trustcache_addr = phys_ptr;
-    macho_load_trustcache(t8030_machine->trustcache, info->trustcache_size,
-                          nsas, sysmem, info->trustcache_addr);
+    address_space_rw(nsas, info->trustcache_addr, MEMTXATTRS_UNSPECIFIED,
+                     t8030_machine->trustcache, info->trustcache_size, true);
     phys_ptr += ROUND_UP_16K(info->trustcache_size);
 
     g_virt_base += g_virt_slide;
     g_virt_base -= phys_ptr - g_phys_base;
     info->kern_entry =
         arm_load_macho(hdr, nsas, sysmem, memory_map, phys_ptr, g_virt_slide);
+
     info_report("Kernel virtual base: 0x" TARGET_FMT_lx, g_virt_base);
     info_report("Kernel physical base: 0x" TARGET_FMT_lx, g_phys_base);
     info_report("Kernel virtual slide: 0x" TARGET_FMT_lx, g_virt_slide);
@@ -494,11 +492,10 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
         phys_ptr += info->ramdisk_size;
     }
 
-    // SEPFW
     info->sep_fw_addr = phys_ptr;
     if (t8030_machine->sep_fw_filename != NULL) {
         macho_load_raw_file(t8030_machine->sep_fw_filename, nsas, sysmem,
-                            "sepfw", info->sep_fw_addr, &info->sep_fw_size);
+                            info->sep_fw_addr, &info->sep_fw_size);
         AppleSEPState *sep = APPLE_SEP(object_property_get_link(
             OBJECT(t8030_machine), "sep", &error_fatal));
         sep->sep_fw_addr = info->sep_fw_addr;
@@ -509,23 +506,21 @@ static void t8030_load_fileset_kc(T8030MachineState *t8030_machine,
     info->sep_fw_size = SEPFW_MAPPING_SIZE;
     phys_ptr += info->sep_fw_size;
 
-    // Kernel boot args
     info->kern_boot_args_addr = phys_ptr;
     info->kern_boot_args_size = 0x4000;
     phys_ptr += info->kern_boot_args_size;
 
     mem_size = carveout_alloc_finalise(ca);
 
-    macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, "DeviceTree",
-                   info);
+    macho_load_dtb(t8030_machine->device_tree, nsas, sysmem, info);
 
     info->top_of_kernel_data_pa = ROUND_UP_16K(phys_ptr);
 
     info_report("Boot args: [%s]", cmdline);
-    macho_setup_bootargs(
-        "BootArgs", nsas, sysmem, info->kern_boot_args_addr, g_virt_base,
-        g_phys_base, mem_size, info->top_of_kernel_data_pa, dtb_va,
-        info->device_tree_size, &t8030_machine->video_args, cmdline);
+    macho_setup_bootargs(nsas, sysmem, info->kern_boot_args_addr, g_virt_base,
+                         g_phys_base, mem_size, info->top_of_kernel_data_pa,
+                         dtb_va, info->device_tree_size,
+                         &t8030_machine->video_args, cmdline);
     g_virt_base = virt_low;
 }
 
@@ -2503,7 +2498,7 @@ static void t8030_machine_init(MachineState *machine)
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN9", 0x241244000ULL,
                      0x4000, 0);
         ////allocate_ram(t8030_machine->sys_mem, "SEP_UNKN10", 0x242400000ULL,
-        ///0x4000, 0); // AKF apple-a7iop.SEP.regs, actually 0x10000
+        /// 0x4000, 0); // AKF apple-a7iop.SEP.regs, actually 0x10000
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN10", 0x242150000ULL,
                      0x4000, 0); // for last_jump
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN11", 0x241010000ULL,
@@ -2573,9 +2568,15 @@ static void t8030_machine_init(MachineState *machine)
     t8030_patch_kernel(hdr, build_version);
 
     t8030_machine->device_tree = load_dtb_from_file(machine->dtb);
+    if (t8030_machine->device_tree == NULL) {
+        error_setg(&error_abort, "Failed to load device tree");
+        return;
+    }
+
     t8030_machine->trustcache =
         load_trustcache_from_file(t8030_machine->trustcache_filename,
                                   &t8030_machine->boot_info.trustcache_size);
+
     dtb_set_prop_u32(t8030_machine->device_tree, "clock-frequency", 24000000);
     child = dtb_get_node(t8030_machine->device_tree, "arm-io");
     g_assert_nonnull(child);
@@ -2644,7 +2645,6 @@ static void t8030_machine_init(MachineState *machine)
     dtb_set_prop_u32(child, "device-color-policy", 0);
 
     t8030_cpu_setup(t8030_machine);
-
     t8030_create_aic(t8030_machine);
 
     for (int i = 0; i < T8030_NUM_UARTS; i++) {
@@ -2653,43 +2653,34 @@ static void t8030_machine_init(MachineState *machine)
 
     t8030_pmgr_setup(t8030_machine);
     t8030_amcc_setup(t8030_machine);
-
     t8030_create_pcie(t8030_machine);
-
     t8030_create_ans(t8030_machine);
-
     t8030_create_gpio(t8030_machine, "gpio");
     t8030_create_gpio(t8030_machine, "smc-gpio");
     t8030_create_gpio(t8030_machine, "nub-gpio");
     t8030_create_gpio(t8030_machine, "aop-gpio");
-
     t8030_create_i2c(t8030_machine, "i2c0");
     t8030_create_i2c(t8030_machine, "i2c1");
     t8030_create_i2c(t8030_machine, "i2c2");
     t8030_create_i2c(t8030_machine, "i2c3");
     t8030_create_i2c(t8030_machine, "smc-i2c0");
     t8030_create_i2c(t8030_machine, "smc-i2c1");
-
     t8030_create_dart(t8030_machine, "dart-usb", false);
     t8030_create_dart(t8030_machine, "dart-sio", false);
     t8030_create_dart(t8030_machine, "dart-disp0", false);
     t8030_create_dart(t8030_machine, "dart-sep", false);
-    ////t8030_create_dart(t8030_machine, "dart-apcie2", true);
+#ifdef ENABLE_BASEBAND
+    t8030_create_dart(t8030_machine, "dart-apcie2", true);
+#endif
     t8030_create_usb(t8030_machine);
-
     t8030_create_wdt(t8030_machine);
-
     t8030_create_aes(t8030_machine);
-
     t8030_create_spmi(t8030_machine, "spmi0");
     t8030_create_spmi(t8030_machine, "spmi1");
     t8030_create_spmi(t8030_machine, "spmi2");
-
     t8030_create_pmu(t8030_machine, "spmi0", "spmi-pmu");
-
     t8030_create_smc(t8030_machine);
     t8030_create_sio(t8030_machine);
-
     t8030_create_spi(t8030_machine, 1);
     t8030_create_spi(t8030_machine, 3);
 
@@ -2700,14 +2691,10 @@ static void t8030_machine_init(MachineState *machine)
     }
 
     t8030_create_roswell(t8030_machine);
-
     t8030_create_backlight(t8030_machine);
     t8030_create_chestnut(t8030_machine);
-
     t8030_create_misc(t8030_machine);
-
     t8030_create_display(t8030_machine);
-
     t8030_create_mt_spi(t8030_machine);
 
     t8030_machine->init_done_notifier.notify = t8030_machine_init_done;
