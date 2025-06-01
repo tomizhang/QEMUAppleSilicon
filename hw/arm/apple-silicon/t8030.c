@@ -2703,6 +2703,11 @@ static void t8030_machine_init(MachineState *machine)
     qemu_add_machine_init_done_notifier(&t8030_machine->init_done_notifier);
 }
 
+static ram_addr_t t8030_machine_fixup_ram_size(ram_addr_t size)
+{
+    return ROUND_UP_16K(size);
+}
+
 static void t8030_set_trustcache_filename(Object *obj, const char *value,
                                           Error **errp)
 {
@@ -2853,11 +2858,6 @@ static bool t8030_get_kaslr_off(Object *obj, Error **errp)
     return t8030_machine->kaslr_off;
 }
 
-static ram_addr_t t8030_machine_fixup_ram_size(ram_addr_t size)
-{
-    return ROUND_UP_16K(size);
-}
-
 static void t8030_set_force_dfu(Object *obj, bool value, Error **errp)
 {
     T8030MachineState *t8030_machine;
@@ -2898,6 +2898,7 @@ static void t8030_set_usb_conn_addr(Object *obj, const char *value,
     T8030MachineState *t8030_machine;
 
     t8030_machine = T8030_MACHINE(obj);
+    g_free(t8030_machine->usb_conn_addr);
     t8030_machine->usb_conn_addr = g_strdup(value);
 }
 
@@ -2907,7 +2908,7 @@ static char *t8030_get_usb_conn_addr(Object *obj, Error **errp)
 
     t8030_machine = T8030_MACHINE(obj);
 
-    return t8030_machine->usb_conn_addr;
+    return g_strdup(t8030_machine->usb_conn_addr);
 }
 
 static void t8030_get_usb_conn_port(Object *obj, Visitor *v, const char *name,
