@@ -232,6 +232,9 @@ static void t8030_patch_kernel(MachoHeader64 *hdr, uint32_t build_version)
     // AND SHOULD BE PROSECUTED TO THE FULL EXTENT OF THE LAW.
     // We do NOT endorse nor approve the theft of property.
     memcpy((char *)vtop_slid(0xFFFFFFF00703884E), "profile", 8);
+
+    // _doprnt_hide_pointers = false;
+    *(uint32_t *)vtop_slid(0xFFFFFFF00981061C) = 0;
 }
 
 static bool t8030_check_panic(T8030MachineState *t8030_machine)
