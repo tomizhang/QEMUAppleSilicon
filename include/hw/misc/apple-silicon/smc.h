@@ -10,6 +10,6 @@
 #define APPLE_SMC_MMIO_SRAM (2)
 
 SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
-                               uint32_t protocol_version);
+                               uint32_t protocol_version, uint32_t sram_size);
 
 #endif /* HW_MISC_APPLE_SILICON_SMC_H */

@@ -660,6 +660,7 @@ static void apple_a13_reset_hold(Object *obj, ResetType type)
 static void apple_a13_instance_init(Object *obj)
 {
     ARMCPU *cpu = ARM_CPU(obj);
+
     object_property_set_uint(obj, "cntfrq", 24000000, &error_fatal);
     object_property_add_uint64_ptr(obj, "pauth-mlo", &cpu->m_key_lo,
                                    OBJ_PROP_FLAG_READWRITE);
@@ -905,7 +906,7 @@ static void apple_a13_cluster_class_init(ObjectClass *klass, void *data)
 
 static const TypeInfo apple_a13_info = {
     .name = TYPE_APPLE_A13,
-    .parent = ARM_CPU_TYPE_NAME("max"),
+    .parent = ARM_CPU_TYPE_NAME("apple-gxf"),
     .instance_size = sizeof(AppleA13State),
     .instance_init = apple_a13_instance_init,
     .class_size = sizeof(AppleA13Class),

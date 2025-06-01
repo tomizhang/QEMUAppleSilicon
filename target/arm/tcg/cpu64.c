@@ -1285,8 +1285,6 @@ void aarch64_max_tcg_initfn(Object *obj)
 #endif
     cpu->gm_blocksize = 6;  /*  256 bytes */
 
-    set_feature(&cpu->env, ARM_FEATURE_GXF);
-
     cpu->sve_vq.supported = MAKE_64BIT_MASK(0, ARM_MAX_VQ);
     cpu->sme_vq.supported = SVE_VQ_POW2_MAP;
 

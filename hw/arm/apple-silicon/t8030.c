@@ -1912,8 +1912,11 @@ static void t8030_create_smc(T8030MachineState *t8030_machine)
     iop_nub = dtb_get_node(child, "iop-smc-nub");
     g_assert_nonnull(iop_nub);
 
+    prop = dtb_find_prop(iop_nub, "region-size");
+    g_assert_nonnull(prop);
     smc = apple_smc_create(child, APPLE_A7IOP_V4,
-                           t8030_machine->rtkit_protocol_ver);
+                           t8030_machine->rtkit_protocol_ver,
+                           ldl_le_p(prop->data));
     g_assert_nonnull(smc);
 
     object_property_add_child(OBJECT(t8030_machine), "smc", OBJECT(smc));

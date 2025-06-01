@@ -182,7 +182,8 @@ struct AppleSMCState {
     QTAILQ_HEAD(, SMCKey) keys;
     QTAILQ_HEAD(, SMCKeyData) key_data;
     uint32_t key_count;
-    uint8_t sram[0x4000];
+    uint8_t *sram;
+    uint32_t sram_size;
 };
 
 static SMCKey *smc_get_key(AppleSMCState *s, uint32_t key)
@@ -524,7 +525,7 @@ static const MemoryRegionOps ascv2_core_reg_ops = {
 };
 
 SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
-                               uint32_t protocol_version)
+                               uint32_t protocol_version, uint32_t sram_size)
 {
     DeviceState *dev;
     AppleSMCState *s;
@@ -560,9 +561,11 @@ SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
     sysbus_init_mmio(sbd, s->iomems[APPLE_SMC_MMIO_ASC]);
 
     s->iomems[APPLE_SMC_MMIO_SRAM] = g_new(MemoryRegion, 1);
+    s->sram = g_malloc0(sram_size);
+    s->sram_size = sram_size;
     memory_region_init_ram_device_ptr(s->iomems[APPLE_SMC_MMIO_SRAM],
                                       OBJECT(dev), TYPE_APPLE_SMC_IOP ".sram",
-                                      sizeof(s->sram), s->sram);
+                                      s->sram_size, s->sram);
     sysbus_init_mmio(sbd, s->iomems[APPLE_SMC_MMIO_SRAM]);
 
 
@@ -710,7 +713,7 @@ static const VMStateDescription vmstate_apple_smc = {
             VMSTATE_QTAILQ_V(key_data, AppleSMCState, 0,
                              vmstate_apple_smc_key_data, SMCKeyData, next),
             VMSTATE_UINT32(key_count, AppleSMCState),
-            VMSTATE_BUFFER(sram, AppleSMCState),
+            VMSTATE_VBUFFER_ALLOC_UINT32(sram, AppleSMCState, 0, NULL, sram_size),
             VMSTATE_END_OF_LIST(),
         },
 };
