@@ -2672,7 +2672,7 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_dart(t8030_machine, "dart-disp0", false);
     t8030_create_dart(t8030_machine, "dart-sep", false);
 #ifdef ENABLE_BASEBAND
-    t8030_create_dart(t8030_machine, "dart-apcie2", true);
+    t8030_create_dart(t8030_machine, "dart-apcie3", true);
 #endif
     t8030_create_usb(t8030_machine);
     t8030_create_wdt(t8030_machine);
