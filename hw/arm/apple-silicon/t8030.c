@@ -235,6 +235,18 @@ static void t8030_patch_kernel(MachoHeader64 *hdr, uint32_t build_version)
 
     // _doprnt_hide_pointers = false;
     *(uint32_t *)vtop_slid(0xFFFFFFF00981061C) = 0;
+
+    // _ubc_cs_check_validation_bitmap return 0
+    *(uint32_t *)vtop_slid(0xFFFFFFF007EBDF40) = cpu_to_le32(0xD2800000);
+    *(uint32_t *)vtop_slid(0xFFFFFFF007EBDF44) = cpu_to_le32(0xD65F03C0);
+
+    // _pmap_cs_enforce_library_validation return 0
+    *(uint32_t *)vtop_slid(0xFFFFFFF0097E4D2C) = cpu_to_le32(0xD2800000);
+    *(uint32_t *)vtop_slid(0xFFFFFFF0097E4D30) = cpu_to_le32(0xD65F03C0);
+
+    // pmap_cs_enforce return 0
+    *(uint32_t *)vtop_slid(0xFFFFFFF0097EB5A8) = cpu_to_le32(0xD2800000);
+    *(uint32_t *)vtop_slid(0xFFFFFFF0097EB5AC) = cpu_to_le32(0xD65F03C0);
 }
 
 static bool t8030_check_panic(T8030MachineState *t8030_machine)
