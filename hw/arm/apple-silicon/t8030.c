@@ -344,8 +344,7 @@ static void t8030_load_classic_kc(T8030MachineState *t8030_machine,
     virt_end += g_virt_slide;
     phys_ptr = vtop_static(ROUND_UP_16K(virt_end));
 
-    amcc_lower = info->trustcache_addr == 0 ? vtop_slid(text_base) :
-                                              info->trustcache_addr;
+    amcc_lower = info->trustcache_addr;
     amcc_upper = vtop_slid(last_base) + last_seg->vmsize - 1;
     for (int i = 0; i < 4; i++) {
         AMCC_REG(t8030_machine, AMCC_LOWER(i)) =
