@@ -76,6 +76,7 @@ typedef struct {
 typedef struct {
     void (*start)(void *opaque);
     void (*wakeup)(void *opaque);
+    void (*boot_done)(void *opaque);
 } AppleRTKitOps;
 
 struct AppleRTKitClass {

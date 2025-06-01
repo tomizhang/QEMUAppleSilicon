@@ -238,6 +238,10 @@ static void apple_rtkit_handle_mgmt_msg(void *opaque, uint32_t ep,
             s->ep0_status = EP0_IDLE;
             trace_apple_rtkit_rollcall_finished(a7iop->role);
             apple_rtkit_send_msg(s, ep, m.raw);
+
+            if (s->ops != NULL && s->ops->boot_done != NULL) {
+                s->ops->boot_done(s->opaque);
+            }
         } else {
             AppleA7IOPMessage *m2 = QTAILQ_FIRST(&s->rollcall);
             QTAILQ_REMOVE(&s->rollcall, m2, next);
