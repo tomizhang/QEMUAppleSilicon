@@ -787,7 +787,7 @@ static void apple_mt_spi_send_path_update(AppleMTSPIState *s,
     packet->type = LL_PACKET_LOSSLESS_OUTPUT;
     apple_mt_spi_push_report_hdr(&packet->buf, HID_TRANSFER_PACKET_OUTPUT,
                                  HID_REPORT_BINARY_PATH_OR_IMAGE,
-                                 HID_PACKET_STATUS_SUCCESS, s->frame, 27 + 28);
+                                 HID_PACKET_STATUS_SUCCESS, s->frame, 27 + 22);
     apple_mt_spi_buf_push_byte(&packet->buf, s->frame);
     apple_mt_spi_buf_push_byte(&packet->buf, 28); // header len
     apple_mt_spi_buf_push_byte(&packet->buf, 0);
@@ -799,7 +799,7 @@ static void apple_mt_spi_send_path_update(AppleMTSPIState *s,
     apple_mt_spi_buf_push_word(&packet->buf, 0);
     apple_mt_spi_buf_push_word(&packet->buf, 0); // image len
     apple_mt_spi_buf_push_byte(&packet->buf, 1); // path count
-    apple_mt_spi_buf_push_byte(&packet->buf, 28); // path len
+    apple_mt_spi_buf_push_byte(&packet->buf, 22); // path len
     apple_mt_spi_buf_push_word(&packet->buf, 0);
     apple_mt_spi_buf_push_word(&packet->buf, 0);
     apple_mt_spi_buf_push_word(&packet->buf, 0);
@@ -810,32 +810,32 @@ static void apple_mt_spi_send_path_update(AppleMTSPIState *s,
 
     // path 0
     apple_mt_spi_buf_push_byte(&packet->buf, 1); // id
-    apple_mt_spi_buf_push_byte(&packet->buf, path_stage);
+    apple_mt_spi_buf_push_byte(&packet->buf, path_stage); // event
     apple_mt_spi_buf_push_byte(&packet->buf, 1); // finger id
     apple_mt_spi_buf_push_byte(&packet->buf, 1); // hand id
     apple_mt_spi_buf_push_word(&packet->buf, s->x);
     apple_mt_spi_buf_push_word(&packet->buf, s->y);
     apple_mt_spi_buf_push_word(&packet->buf,
-                               (s->x - s->prev_x) / (ts - s->prev_ts + 1) *
+                               (s->x - s->prev_x) / (ts + 1 - s->prev_ts) *
                                    1000); // x vel
     apple_mt_spi_buf_push_word(&packet->buf,
-                               (s->y - s->prev_y) / (ts - s->prev_ts + 1) *
+                               (s->y - s->prev_y) / (ts + 1 - s->prev_ts) *
                                    1000); // y vel
-    apple_mt_spi_buf_push_word(&packet->buf, 0); // rad2
-    apple_mt_spi_buf_push_word(&packet->buf, 0); // rad3
-    apple_mt_spi_buf_push_word(&packet->buf, 0); // angle
-    apple_mt_spi_buf_push_word(&packet->buf, 0); // rad1
-    apple_mt_spi_buf_push_word(&packet->buf, 0); // contact density
-    apple_mt_spi_buf_push_word(&packet->buf, 0);
-    apple_mt_spi_buf_push_word(&packet->buf, 0);
-    apple_mt_spi_buf_push_word(&packet->buf, 0);
+    apple_mt_spi_buf_push_word(&packet->buf, 660); // rad2
+    apple_mt_spi_buf_push_word(&packet->buf, 580); // rad3
+    apple_mt_spi_buf_push_word(&packet->buf, 19317); // angle
+    apple_mt_spi_buf_push_word(&packet->buf, 100); // rad1
+    apple_mt_spi_buf_push_word(&packet->buf, 150); // contact density
 
     apple_mt_spi_buf_push_crc16(&packet->buf);
 
     QTAILQ_INSERT_TAIL(&s->pending_fw, packet, next);
     qemu_irq_lower(s->irq);
-
-    s->frame = !s->frame;
+    if (s->frame < 0xFF) {
+        s->frame += 1;
+    } else {
+        s->frame = 0;
+    }
     s->prev_ts = ts;
 }
 
@@ -847,11 +847,13 @@ static void touch_timer_tick(void *opaque)
 
     QEMU_LOCK_GUARD(&s->lock);
 
-    apple_mt_spi_send_path_update(s, PATH_STAGE_TOUCHING);
+    if (s->prev_x != s->x || s->prev_y != s->y) {
+        apple_mt_spi_send_path_update(s, PATH_STAGE_TOUCHING);
+    }
 
     if (s->btn_state & MOUSE_EVENT_LBUTTON) {
         timer_mod(s->timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                                NANOSECONDS_PER_SECOND / 20);
+                                NANOSECONDS_PER_SECOND / 10);
     }
 }
 
