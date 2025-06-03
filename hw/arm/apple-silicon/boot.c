@@ -470,7 +470,7 @@ void macho_populate_dtb(DTBNode *root, AppleBootInfo *info)
 
     dtb_set_prop_hwaddr(child, "dram-base", info->dram_base);
     dtb_set_prop_hwaddr(child, "dram-size", info->dram_size);
-    dtb_set_prop(child, "firmware-version", 28, "ChefKiss QEMU Apple Silicon");
+    dtb_set_prop_str(child, "firmware-version", "ChefKiss QEMU Apple Silicon");
 
     if (info->nvram_size > XNU_MAX_NVRAM_SIZE) {
         warn_report("NVRAM size is larger than expected. (0x%" PRIx32 " vs %X)",

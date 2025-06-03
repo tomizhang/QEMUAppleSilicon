@@ -1367,27 +1367,16 @@ static void s8000_machine_init(MachineState *machine)
     s8000_machine->soc_base_pa = ranges[1];
     s8000_machine->soc_size = ranges[2];
 
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "s8000", 5);
-    dtb_set_prop(s8000_machine->device_tree, "platform-name", 32, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "MWL72", 5);
-    dtb_set_prop(s8000_machine->device_tree, "model-number", 32, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "LL/A", 4);
-    dtb_set_prop(s8000_machine->device_tree, "region-info", 32, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    dtb_set_prop(s8000_machine->device_tree, "config-number", 0x40, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "C39ZRMDEN72J", 12);
-    dtb_set_prop(s8000_machine->device_tree, "serial-number", 32, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "C39948108J9N72J1F", 17);
-    dtb_set_prop(s8000_machine->device_tree, "mlb-serial-number", 32, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "A2111", 5);
-    dtb_set_prop(s8000_machine->device_tree, "regulatory-model-number", 32,
-                 buffer);
+    dtb_set_prop_strn(s8000_machine->device_tree, "platform-name", 32, "s8000");
+    dtb_set_prop_strn(s8000_machine->device_tree, "model-number", 32, "MWL72");
+    dtb_set_prop_strn(s8000_machine->device_tree, "region-info", 32, "LL/A");
+    dtb_set_prop_strn(s8000_machine->device_tree, "config-number", 64, "");
+    dtb_set_prop_strn(s8000_machine->device_tree, "serial-number", 32,
+                      "C39ZRMDEN72J");
+    dtb_set_prop_strn(s8000_machine->device_tree, "mlb-serial-number", 32,
+                      "C39948108J9N72J1F");
+    dtb_set_prop_strn(s8000_machine->device_tree, "regulatory-model-number", 32,
+                      "A2111");
 
     child = dtb_get_node(s8000_machine->device_tree, "chosen");
     dtb_set_prop_u32(child, "chip-id", 0x8000);
@@ -1406,8 +1395,8 @@ static void s8000_machine_init(MachineState *machine)
     child = dtb_get_node(s8000_machine->device_tree, "product");
 
     dtb_set_prop_u32(child, "oled-display", 1);
-    dtb_set_prop(child, "graphics-featureset-class", 1, "");
-    dtb_set_prop(child, "graphics-featureset-fallbacks", 1, "");
+    dtb_set_prop_str(child, "graphics-featureset-class", "");
+    dtb_set_prop_str(child, "graphics-featureset-fallbacks", "");
     dtb_set_prop_u32(child, "device-color-policy", 0);
 
     s8000_cpu_setup(s8000_machine);

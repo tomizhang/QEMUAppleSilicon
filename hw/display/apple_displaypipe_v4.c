@@ -836,7 +836,7 @@ SysBusDevice *adp_v4_create(DTBNode *node, MemoryRegion *dma_mr,
 
     s->update_disp_image_bh = qemu_bh_new(adp_v4_update_disp_image_bh, s);
 
-    dtb_set_prop(node, "display-target", 15, "DisplayTarget5");
+    dtb_set_prop_str(node, "display-target", "DisplayTarget5");
     dtb_set_prop(node, "display-timing-info", sizeof(adp_timing_info),
                  adp_timing_info);
     dtb_set_prop_u32(node, "bics-param-set", 0xD);

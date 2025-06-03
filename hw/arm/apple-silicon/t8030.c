@@ -554,8 +554,8 @@ static void t8030_rtkit_mem_setup(T8030MachineState *t8030_machine,
     iop_nub = dtb_get_node(child, nub_name);
     g_assert_nonnull(iop_nub);
 
-    dtb_set_prop(child, "segment-names", 14, "__TEXT;__DATA");
-    dtb_set_prop(iop_nub, "segment-names", 14, "__TEXT;__DATA");
+    dtb_set_prop_str(child, "segment-names", "__TEXT;__DATA");
+    dtb_set_prop_str(iop_nub, "segment-names", "__TEXT;__DATA");
 
     segranges[0].phys = carveout_alloc_mem(ca, text_size + data_size);
     segranges[0].virt = 0;
@@ -801,14 +801,11 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     }
 
     if (!xnu_contains_boot_arg(cmdline, "rd=", true)) {
-        DTBProp *prop = dtb_find_prop(chosen, "root-matching");
-
-        if (prop) {
-            snprintf((char *)prop->data, prop->length,
-                     "<dict><key>IOProviderClass</key><string>IOMedia</"
-                     "string><key>IOPropertyMatch</key><dict><key>Partition "
-                     "ID</key><integer>1</integer></dict></dict>");
-        }
+        dtb_set_prop_str(
+            chosen, "root-matching",
+            "<dict><key>IOProviderClass</key><string>IOMedia</"
+            "string><key>IOPropertyMatch</key><dict><key>Partition "
+            "ID</key><integer>1</integer></dict></dict>");
     }
 
     DTBNode *pram = dtb_get_node(t8030_machine->device_tree, "pram");
@@ -2640,10 +2637,10 @@ static void t8030_machine_init(MachineState *machine)
     child = dtb_get_node(t8030_machine->device_tree, "product");
     dtb_set_prop_u64(child, "display-corner-radius", 0x100000027);
     dtb_set_prop_u32(child, "oled-display", 1);
-    dtb_set_prop(child, "graphics-featureset-class", 1, "");
-    dtb_set_prop(child, "graphics-featureset-fallbacks", 1, "");
+    dtb_set_prop_str(child, "graphics-featureset-class", "");
+    dtb_set_prop_str(child, "graphics-featureset-fallbacks", "");
     // TODO: PMP
-    dtb_set_prop(t8030_machine->device_tree, "target-type", 4, "sim");
+    dtb_set_prop_str(t8030_machine->device_tree, "target-type", "sim");
     dtb_set_prop_u32(child, "device-color-policy", 0);
 
     t8030_cpu_setup(t8030_machine);
@@ -2927,7 +2924,7 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
     oprop = object_class_property_add_str(klass, "regulatory-sn",
                                           t8030_get_regulatory_serial_number,
                                           t8030_set_regulatory_serial_number);
-    object_property_set_default_str(oprop, "A1234");
+    object_property_set_default_str(oprop, "A2111");
     object_class_property_set_description(klass, "regulatory-sn",
                                           "Regulatory Serial Number");
 }

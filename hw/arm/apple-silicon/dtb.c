@@ -77,7 +77,7 @@ DTBNode *dtb_create_node(DTBNode *parent, const char *name)
     node = dtb_new_node();
 
     if (name != NULL) {
-        dtb_set_prop(node, "name", strlen(name), name);
+        dtb_set_prop_str(node, "name", name);
     }
 
     if (parent != NULL) {
@@ -253,7 +253,7 @@ DTBProp *dtb_set_prop_hwaddr(DTBNode *node, const char *name, hwaddr val)
 
 DTBProp *dtb_set_prop_str(DTBNode *node, const char *name, const char *val)
 {
-    return dtb_set_prop(node, name, strlen(val), val);
+    return dtb_set_prop(node, name, strlen(val) + 1, val);
 }
 
 DTBProp *dtb_set_prop_strn(DTBNode *node, const char *name, uint32_t max_len,

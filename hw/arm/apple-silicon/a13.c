@@ -738,7 +738,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     if (tcpu->cpu_id == 0 || node == NULL) {
         if (node != NULL) {
-            dtb_set_prop(node, "state", 8, "running");
+            dtb_set_prop_str(node, "state", "running");
         }
         object_property_set_bool(obj, "start-powered-off", false, NULL);
     } else {
