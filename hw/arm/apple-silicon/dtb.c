@@ -253,7 +253,7 @@ DTBProp *dtb_set_prop_hwaddr(DTBNode *node, const char *name, hwaddr val)
 
 DTBProp *dtb_set_prop_str(DTBNode *node, const char *name, const char *val)
 {
-    return dtb_set_prop(node, name, strlen(name), val);
+    return dtb_set_prop(node, name, strlen(val), val);
 }
 
 DTBProp *dtb_set_prop_strn(DTBNode *node, const char *name, uint32_t max_len,
