@@ -50,6 +50,9 @@ DTBProp *dtb_set_prop_null(DTBNode *node, const char *name);
 DTBProp *dtb_set_prop_u32(DTBNode *node, const char *name, uint32_t val);
 DTBProp *dtb_set_prop_u64(DTBNode *node, const char *name, uint64_t val);
 DTBProp *dtb_set_prop_hwaddr(DTBNode *node, const char *name, hwaddr val);
+DTBProp *dtb_set_prop_str(DTBNode *node, const char *name, const char *val);
+DTBProp *dtb_set_prop_strn(DTBNode *node, const char *name, uint32_t max_len,
+                           const char *val);
 DTBNode *dtb_get_node(DTBNode *n, const char *path);
 uint64_t dtb_get_serialised_node_size(DTBNode *node);
 DTBProp *dtb_find_prop(DTBNode *node, const char *name);

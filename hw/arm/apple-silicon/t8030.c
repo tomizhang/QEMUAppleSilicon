@@ -109,7 +109,7 @@ static size_t t8030_real_cpu_count(T8030MachineState *t8030_machine)
 
     machine = MACHINE(t8030_machine);
 
-    return (t8030_machine->seprom_filename || t8030_machine->sep_fw_filename) ?
+    return (t8030_machine->sep_rom_filename || t8030_machine->sep_fw_filename) ?
                machine->smp.cpus - 1 :
                machine->smp.cpus;
 }
@@ -621,11 +621,11 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     t8030_rtkit_mem_setup(t8030_machine, ca, "ans", "iop-ans-nub",
                           T8030_ANS_TEXT_SIZE, T8030_ANS_DATA_SIZE, false);
 
-    if (t8030_machine->seprom_filename) {
-        if (!g_file_get_contents(t8030_machine->seprom_filename, &seprom,
+    if (t8030_machine->sep_rom_filename) {
+        if (!g_file_get_contents(t8030_machine->sep_rom_filename, &seprom,
                                  &fsize, NULL)) {
             error_setg(&error_fatal, "Could not load data from file '%s'",
-                       t8030_machine->seprom_filename);
+                       t8030_machine->sep_rom_filename);
             return;
         }
         // Apparently needed because of a bug occurring on XNU
@@ -2454,16 +2454,13 @@ static void t8030_machine_init(MachineState *machine)
     MachoHeader64 *hdr;
     uint64_t kernel_low, kernel_high;
     uint32_t build_version;
-    uint8_t buffer[0x40];
     DTBNode *child;
     DTBProp *prop;
     hwaddr *ranges;
 
-    memset(buffer, 0, sizeof(buffer));
-
     t8030_machine = T8030_MACHINE(machine);
 
-    if (!t8030_machine->sep_fw_filename != !t8030_machine->seprom_filename) {
+    if (!t8030_machine->sep_fw_filename != !t8030_machine->sep_rom_filename) {
         error_setg(&error_abort,
                    "You need to specify both the SEPROM and the decrypted "
                    "SEPFW in order to use SEP emulation!");
@@ -2477,7 +2474,7 @@ static void t8030_machine_init(MachineState *machine)
                  T8030_SRAM_SIZE, 0);
     allocate_ram(t8030_machine->sys_mem, "DRAM", T8030_DRAM_BASE,
                  machine->maxram_size, 0);
-    if (t8030_machine->seprom_filename) {
+    if (t8030_machine->sep_rom_filename) {
         allocate_ram(t8030_machine->sys_mem, "SEPROM", T8030_SEPROM_BASE,
                      T8030_SEPROM_SIZE, 0);
         allocate_ram(t8030_machine->sys_mem, "DRAM_30", 0x300000000ULL,
@@ -2611,27 +2608,19 @@ static void t8030_machine_init(MachineState *machine)
     t8030_machine->soc_base_pa = ranges[1];
     t8030_machine->soc_size = ranges[2];
 
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "t8030", 5);
-    dtb_set_prop(t8030_machine->device_tree, "platform-name", 32, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "MWL72", 5);
-    dtb_set_prop(t8030_machine->device_tree, "model-number", 32, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "LL/A", 4);
-    dtb_set_prop(t8030_machine->device_tree, "region-info", 32, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    dtb_set_prop(t8030_machine->device_tree, "config-number", 0x40, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "C39ZRMDEN72J", 12);
-    dtb_set_prop(t8030_machine->device_tree, "serial-number", 32, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "C39948108J9N72J1F", 17);
-    dtb_set_prop(t8030_machine->device_tree, "mlb-serial-number", 32, buffer);
-    memset(buffer, 0, sizeof(buffer));
-    memcpy(buffer, "A2111", 5);
-    dtb_set_prop(t8030_machine->device_tree, "regulatory-model-number", 32,
-                 buffer);
+    dtb_set_prop_strn(t8030_machine->device_tree, "platform-name", 32, "t8030");
+    dtb_set_prop_strn(t8030_machine->device_tree, "model-number", 32,
+                      t8030_machine->model_number);
+    dtb_set_prop_strn(t8030_machine->device_tree, "region-info", 32,
+                      t8030_machine->region_info);
+    dtb_set_prop_strn(t8030_machine->device_tree, "config-number", 64,
+                      t8030_machine->config_number);
+    dtb_set_prop_strn(t8030_machine->device_tree, "serial-number", 32,
+                      t8030_machine->serial_number);
+    dtb_set_prop_strn(t8030_machine->device_tree, "mlb-serial-number", 32,
+                      t8030_machine->mlb_serial_number);
+    dtb_set_prop_strn(t8030_machine->device_tree, "regulatory-serial-number",
+                      32, t8030_machine->regulatory_serial_number);
 
     child = dtb_get_node(t8030_machine->device_tree, "chosen");
     // TODO: Basic AGX emulation, as QuartzCore & co expect graphics
@@ -2642,10 +2631,6 @@ static void t8030_machine_init(MachineState *machine)
     dtb_set_prop_u32(child, "board-id", t8030_machine->board_id);
     dtb_set_prop_u32(child, "certificate-production-status", 1);
     dtb_set_prop_u32(child, "certificate-security-mode", 1);
-
-    if (t8030_machine->ecid == 0) {
-        t8030_machine->ecid = 0x1122334455667788;
-    }
     dtb_set_prop_u64(child, "unique-chip-id", t8030_machine->ecid);
 
     // Update the display parameters
@@ -2701,7 +2686,7 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_spi(t8030_machine, 1);
     t8030_create_spi(t8030_machine, 3);
 
-    if (t8030_machine->seprom_filename && t8030_machine->sep_fw_filename) {
+    if (t8030_machine->sep_rom_filename && t8030_machine->sep_fw_filename) {
         t8030_create_sep(t8030_machine);
     } else {
         t8030_create_sep_sim(t8030_machine);
@@ -2723,103 +2708,50 @@ static ram_addr_t t8030_machine_fixup_ram_size(ram_addr_t size)
     return ROUND_UP_16K(size);
 }
 
-static void t8030_set_trustcache_filename(Object *obj, const char *value,
-                                          Error **errp)
-{
-    T8030MachineState *t8030_machine;
+#define PROP_STR_GETTER_SETTER(_name)                             \
+    static char *t8030_get_##_name(Object *obj, Error **errp)     \
+    {                                                             \
+        return g_strdup(T8030_MACHINE(obj)->_name);               \
+    }                                                             \
+                                                                  \
+    static void t8030_set_##_name(Object *obj, const char *value, \
+                                  Error **errp)                   \
+    {                                                             \
+        T8030MachineState *t8030_machine;                         \
+                                                                  \
+        t8030_machine = T8030_MACHINE(obj);                       \
+        g_free(t8030_machine->_name);                             \
+        t8030_machine->_name = g_strdup(value);                   \
+    }
 
-    t8030_machine = T8030_MACHINE(obj);
-    g_free(t8030_machine->trustcache_filename);
-    t8030_machine->trustcache_filename = g_strdup(value);
-}
-
-static char *t8030_get_trustcache_filename(Object *obj, Error **errp)
-{
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    return g_strdup(t8030_machine->trustcache_filename);
-}
-
-static void t8030_set_ticket_filename(Object *obj, const char *value,
-                                      Error **errp)
-{
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    g_free(t8030_machine->ticket_filename);
-    t8030_machine->ticket_filename = g_strdup(value);
-}
-
-static char *t8030_get_ticket_filename(Object *obj, Error **errp)
-{
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    return g_strdup(t8030_machine->ticket_filename);
-}
-
-static void t8030_set_seprom_filename(Object *obj, const char *value,
-                                      Error **errp)
-{
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    g_free(t8030_machine->seprom_filename);
-    t8030_machine->seprom_filename = g_strdup(value);
-}
-
-static char *t8030_get_seprom_filename(Object *obj, Error **errp)
-{
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    return g_strdup(t8030_machine->seprom_filename);
-}
-
-static void t8030_set_sepfw_filename(Object *obj, const char *value,
-                                     Error **errp)
-{
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    g_free(t8030_machine->sep_fw_filename);
-    t8030_machine->sep_fw_filename = g_strdup(value);
-}
-
-static char *t8030_get_sepfw_filename(Object *obj, Error **errp)
-{
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    return g_strdup(t8030_machine->sep_fw_filename);
-}
+PROP_STR_GETTER_SETTER(trustcache_filename);
+PROP_STR_GETTER_SETTER(ticket_filename);
+PROP_STR_GETTER_SETTER(sep_rom_filename);
+PROP_STR_GETTER_SETTER(sep_fw_filename);
 
 static void t8030_set_boot_mode(Object *obj, const char *value, Error **errp)
 {
-    T8030MachineState *t8030_machine;
+    BootMode boot_mode;
 
-    t8030_machine = T8030_MACHINE(obj);
     if (g_str_equal(value, "auto")) {
-        t8030_machine->boot_mode = kBootModeAuto;
+        boot_mode = kBootModeAuto;
     } else if (g_str_equal(value, "manual")) {
-        t8030_machine->boot_mode = kBootModeManual;
+        boot_mode = kBootModeManual;
     } else if (g_str_equal(value, "enter_recovery")) {
-        t8030_machine->boot_mode = kBootModeEnterRecovery;
+        boot_mode = kBootModeEnterRecovery;
     } else if (g_str_equal(value, "exit_recovery")) {
-        t8030_machine->boot_mode = kBootModeExitRecovery;
+        boot_mode = kBootModeExitRecovery;
     } else {
-        t8030_machine->boot_mode = kBootModeAuto;
         error_setg(errp, "Invalid boot mode: %s", value);
+        return;
     }
+
+    T8030_MACHINE(obj)->boot_mode = boot_mode;
 }
 
 static char *t8030_get_boot_mode(Object *obj, Error **errp)
 {
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    switch (t8030_machine->boot_mode) {
+    switch (T8030_MACHINE(obj)->boot_mode) {
     case kBootModeManual:
         return g_strdup("manual");
     case kBootModeEnterRecovery:
@@ -2834,129 +2766,86 @@ static char *t8030_get_boot_mode(Object *obj, Error **errp)
 static void t8030_get_ecid(Object *obj, Visitor *v, const char *name,
                            void *opaque, Error **errp)
 {
-    T8030MachineState *t8030_machine;
-    int64_t value;
+    uint64_t value;
 
-    t8030_machine = T8030_MACHINE(obj);
-    value = t8030_machine->ecid;
-    visit_type_int(v, name, &value, errp);
+    value = T8030_MACHINE(obj)->ecid;
+    visit_type_uint64(v, name, &value, errp);
 }
 
 static void t8030_set_ecid(Object *obj, Visitor *v, const char *name,
                            void *opaque, Error **errp)
 {
-    T8030MachineState *t8030_machine;
-    int64_t value;
+    uint64_t value;
 
-    t8030_machine = T8030_MACHINE(obj);
-
-    if (!visit_type_int(v, name, &value, errp)) {
-        return;
+    if (visit_type_uint64(v, name, &value, errp)) {
+        T8030_MACHINE(obj)->ecid = value;
     }
-
-    t8030_machine->ecid = value;
 }
 
 static void t8030_set_kaslr_off(Object *obj, bool value, Error **errp)
 {
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    t8030_machine->kaslr_off = value;
+    T8030_MACHINE(obj)->kaslr_off = value;
 }
 
 static bool t8030_get_kaslr_off(Object *obj, Error **errp)
 {
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    return t8030_machine->kaslr_off;
+    return T8030_MACHINE(obj)->kaslr_off;
 }
 
 static void t8030_set_force_dfu(Object *obj, bool value, Error **errp)
 {
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    t8030_machine->force_dfu = value;
+    T8030_MACHINE(obj)->force_dfu = value;
 }
 
 static bool t8030_get_force_dfu(Object *obj, Error **errp)
 {
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-
-    return t8030_machine->force_dfu;
+    return T8030_MACHINE(obj)->force_dfu;
 }
 
 static void t8030_set_usb_conn_type(Object *obj, int value, Error **errp)
 {
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    t8030_machine->usb_conn_type = value;
+    T8030_MACHINE(obj)->usb_conn_type = value;
 }
 
 static int t8030_get_usb_conn_type(Object *obj, Error **errp)
 {
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-
-    return t8030_machine->usb_conn_type;
+    return T8030_MACHINE(obj)->usb_conn_type;
 }
 
-static void t8030_set_usb_conn_addr(Object *obj, const char *value,
-                                    Error **errp)
-{
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-    g_free(t8030_machine->usb_conn_addr);
-    t8030_machine->usb_conn_addr = g_strdup(value);
-}
-
-static char *t8030_get_usb_conn_addr(Object *obj, Error **errp)
-{
-    T8030MachineState *t8030_machine;
-
-    t8030_machine = T8030_MACHINE(obj);
-
-    return g_strdup(t8030_machine->usb_conn_addr);
-}
+PROP_STR_GETTER_SETTER(usb_conn_addr);
 
 static void t8030_get_usb_conn_port(Object *obj, Visitor *v, const char *name,
                                     void *opaque, Error **errp)
 {
-    T8030MachineState *t8030_machine;
-    int64_t value;
+    uint16_t value;
 
-    t8030_machine = T8030_MACHINE(obj);
-    value = t8030_machine->usb_conn_port;
-    visit_type_int(v, name, &value, errp);
+    value = T8030_MACHINE(obj)->usb_conn_port;
+    visit_type_uint16(v, name, &value, errp);
 }
 
 static void t8030_set_usb_conn_port(Object *obj, Visitor *v, const char *name,
                                     void *opaque, Error **errp)
 {
-    T8030MachineState *t8030_machine;
-    int64_t value;
+    uint16_t value;
 
-    t8030_machine = T8030_MACHINE(obj);
-
-    if (!visit_type_int(v, name, &value, errp)) {
-        return;
+    if (visit_type_uint16(v, name, &value, errp)) {
+        T8030_MACHINE(obj)->usb_conn_port = value;
     }
-
-    t8030_machine->usb_conn_port = value;
 }
+
+PROP_STR_GETTER_SETTER(model_number);
+PROP_STR_GETTER_SETTER(region_info);
+PROP_STR_GETTER_SETTER(config_number);
+PROP_STR_GETTER_SETTER(serial_number);
+PROP_STR_GETTER_SETTER(mlb_serial_number);
+PROP_STR_GETTER_SETTER(regulatory_serial_number);
 
 static void t8030_machine_class_init(ObjectClass *klass, void *data)
 {
     MachineClass *mc = MACHINE_CLASS(klass);
+    ObjectProperty *oprop;
 
-    mc->desc = "T8030";
+    mc->desc = "t8030";
     mc->init = t8030_machine_init;
     mc->reset = t8030_machine_reset;
     mc->max_cpus = A13_MAX_CPU + 1;
@@ -2972,25 +2861,22 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
     object_class_property_add_str(klass, "trustcache",
                                   t8030_get_trustcache_filename,
                                   t8030_set_trustcache_filename);
-    object_class_property_set_description(klass, "trustcache",
-                                          "Trustcache to be loaded");
+    object_class_property_set_description(klass, "trustcache", "TrustCache");
     object_class_property_add_str(klass, "ticket", t8030_get_ticket_filename,
                                   t8030_set_ticket_filename);
-    object_class_property_set_description(klass, "ticket",
-                                          "APTicket to be loaded");
-    object_class_property_add_str(klass, "seprom", t8030_get_seprom_filename,
-                                  t8030_set_seprom_filename);
-    object_class_property_set_description(klass, "seprom",
-                                          "SEPROM to be loaded");
-    object_class_property_add_str(klass, "sepfw", t8030_get_sepfw_filename,
-                                  t8030_set_sepfw_filename);
-    object_class_property_set_description(klass, "sepfw", "SEPFW to be loaded");
+    object_class_property_set_description(klass, "ticket", "AP Ticket");
+    object_class_property_add_str(klass, "sep-rom", t8030_get_sep_rom_filename,
+                                  t8030_set_sep_rom_filename);
+    object_class_property_set_description(klass, "sep-rom", "SEP ROM");
+    object_class_property_add_str(klass, "sep-fw", t8030_get_sep_fw_filename,
+                                  t8030_set_sep_fw_filename);
+    object_class_property_set_description(klass, "sep-fw", "SEP Firmware");
     object_class_property_add_str(klass, "boot-mode", t8030_get_boot_mode,
                                   t8030_set_boot_mode);
-    object_class_property_set_description(klass, "boot-mode",
-                                          "Boot mode of the machine");
-    object_class_property_add(klass, "ecid", "uint64", t8030_get_ecid,
-                              t8030_set_ecid, NULL, NULL);
+    object_class_property_set_description(klass, "boot-mode", "Boot Mode");
+    oprop = object_class_property_add(klass, "ecid", "uint64", t8030_get_ecid,
+                                      t8030_set_ecid, NULL, NULL);
+    object_property_set_default_uint(oprop, 0x1122334455667788);
     object_class_property_set_description(klass, "ecid", "Device ECID");
     object_class_property_add_bool(klass, "kaslr-off", t8030_get_kaslr_off,
                                    t8030_set_kaslr_off);
@@ -3009,11 +2895,41 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
                                   t8030_set_usb_conn_addr);
     object_class_property_set_description(klass, "usb-conn-addr",
                                           "USB Connection Address");
-    object_class_property_add(klass, "usb-conn-port", "uint64",
+    object_class_property_add(klass, "usb-conn-port", "uint16",
                               t8030_get_usb_conn_port, t8030_set_usb_conn_port,
                               NULL, NULL);
     object_class_property_set_description(klass, "usb-conn-port",
                                           "USB Connection Port");
+    oprop = object_class_property_add_str(
+        klass, "model", t8030_get_model_number, t8030_set_model_number);
+    object_property_set_default_str(oprop, "CKQ12");
+    object_class_property_set_description(klass, "model", "Model Number");
+    oprop = object_class_property_add_str(
+        klass, "region-info", t8030_get_region_info, t8030_set_region_info);
+    object_property_set_default_str(oprop, "LL/A");
+    object_class_property_set_description(klass, "region-info", "Region Info");
+    oprop = object_class_property_add_str(klass, "config-number",
+                                          t8030_get_config_number,
+                                          t8030_set_config_number);
+    object_property_set_default_str(oprop, "");
+    object_class_property_set_description(klass, "config-number",
+                                          "Config Number");
+    oprop = object_class_property_add_str(klass, "serial-number",
+                                          t8030_get_serial_number,
+                                          t8030_set_serial_number);
+    object_property_set_default_str(oprop, "CKQEMUAS1122");
+    object_class_property_set_description(klass, "serial-number",
+                                          "Serial Number");
+    oprop = object_class_property_add_str(
+        klass, "mlb", t8030_get_mlb_serial_number, t8030_set_mlb_serial_number);
+    object_property_set_default_str(oprop, "CKQEMUASMLB1122");
+    object_class_property_set_description(klass, "mlb", "MLB Serial Number");
+    oprop = object_class_property_add_str(klass, "regulatory-sn",
+                                          t8030_get_regulatory_serial_number,
+                                          t8030_set_regulatory_serial_number);
+    object_property_set_default_str(oprop, "A1234");
+    object_class_property_set_description(klass, "regulatory-sn",
+                                          "Regulatory Serial Number");
 }
 
 static const TypeInfo t8030_machine_info = {

@@ -65,7 +65,7 @@ typedef struct {
     AppleVideoArgs video_args;
     char *trustcache_filename;
     char *ticket_filename;
-    char *seprom_filename;
+    char *sep_rom_filename;
     char *sep_fw_filename;
     BootMode boot_mode;
     uint32_t rtkit_protocol_ver;
@@ -85,6 +85,12 @@ typedef struct {
     USBTCPRemoteConnType usb_conn_type;
     char *usb_conn_addr;
     uint16_t usb_conn_port;
+    char *model_number;
+    char *region_info;
+    char *config_number;
+    char *serial_number;
+    char *mlb_serial_number;
+    char *regulatory_serial_number;
 } T8030MachineState;
 
 #endif /* HW_ARM_APPLE_SILICON_T8030_H */

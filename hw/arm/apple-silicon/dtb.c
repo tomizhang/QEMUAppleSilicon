@@ -251,6 +251,21 @@ DTBProp *dtb_set_prop_hwaddr(DTBNode *node, const char *name, hwaddr val)
     return dtb_set_prop(node, name, sizeof(val), &val);
 }
 
+DTBProp *dtb_set_prop_str(DTBNode *node, const char *name, const char *val)
+{
+    return dtb_set_prop(node, name, strlen(name), val);
+}
+
+DTBProp *dtb_set_prop_strn(DTBNode *node, const char *name, uint32_t max_len,
+                           const char *val)
+{
+    g_autofree char *buf;
+
+    buf = g_new0(char, max_len);
+    strncpy(buf, val, max_len);
+    return dtb_set_prop(node, name, max_len, buf);
+}
+
 static uint32_t dtb_get_placeholder_size(DTBProp *prop, const char *name)
 {
     char *string;
