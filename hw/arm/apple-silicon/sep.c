@@ -2991,11 +2991,11 @@ static void progress_reg_write(void *opaque, hwaddr addr, uint64_t data,
     case 0x8:
         if (data == 0x23BFDFE7) {
             hwaddr phys_addr = 0x0;
-            // easy way of retrieving the sepb random_0 address T8020:
-            // b *0x340000000 ; p/x $x0+0x80 == e.g. 0x340736380
-            // easy way of retrieving the sepb random_0 address T8030:
-            // go to the first SYS_ACC_PWR_DN_SAVE read in the kernel, and
-            // then do p/x $x0+0x80 == e.g. 0x3407ca380
+            // easy way of retrieving the sepb random_0 address
+            // T8020: b *0x340000000 ; p/x $x0+0x80 == e.g. 0x340736380
+            // easy way of retrieving the sepb random_0 address
+            // T8030: go to the first SYS_ACC_PWR_DN_SAVE read in the kernel,
+            // and then do p/x $x0+0x80 == e.g. 0x3407ca380
             if (s->chip_id == 0x8015) {
                 phys_addr = 0x34015FD40ull; // T8015
             } else if (s->chip_id >= 0x8020) {

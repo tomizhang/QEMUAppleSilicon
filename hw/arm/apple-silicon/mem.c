@@ -58,14 +58,12 @@ hwaddr vtop_slid(hwaddr va)
     return vtop_static(va + g_virt_slide);
 }
 
-MemoryRegion *allocate_ram(MemoryRegion *top, const char *name, hwaddr addr,
-                           hwaddr size, int priority)
+void allocate_ram(MemoryRegion *top, const char *name, hwaddr addr, hwaddr size,
+                  int priority)
 {
     MemoryRegion *sec = g_new(MemoryRegion, 1);
-    g_assert_nonnull(sec);
     memory_region_init_ram(sec, NULL, name, size, &error_fatal);
     memory_region_add_subregion_overlap(top, addr, sec, priority);
-    return sec;
 }
 
 struct CarveoutAllocator {

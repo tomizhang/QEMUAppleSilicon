@@ -2457,7 +2457,7 @@ static void t8030_machine_init(MachineState *machine)
 
     t8030_machine = T8030_MACHINE(machine);
 
-    if (!t8030_machine->sep_fw_filename != !t8030_machine->sep_rom_filename) {
+    if ((t8030_machine->sep_fw_filename == NULL) != (t8030_machine->sep_rom_filename == NULL)) {
         error_setg(&error_abort,
                    "You need to specify both the SEPROM and the decrypted "
                    "SEPFW in order to use SEP emulation!");
@@ -2471,7 +2471,7 @@ static void t8030_machine_init(MachineState *machine)
                  T8030_SRAM_SIZE, 0);
     allocate_ram(t8030_machine->sys_mem, "DRAM", T8030_DRAM_BASE,
                  machine->maxram_size, 0);
-    if (t8030_machine->sep_rom_filename) {
+    if (t8030_machine->sep_rom_filename != NULL) {
         allocate_ram(t8030_machine->sys_mem, "SEPROM", T8030_SEPROM_BASE,
                      T8030_SEPROM_SIZE, 0);
         allocate_ram(t8030_machine->sys_mem, "DRAM_30", 0x300000000ULL,
