@@ -75,6 +75,7 @@ static inline void apple_rtkit_register_ep(AppleRTKit *s, uint32_t ep,
     AppleRTKitEPData *data;
 
     g_assert_nonnull(opaque);
+    g_assert_null(g_tree_lookup(s->endpoints, GUINT_TO_POINTER(ep)));
     data = g_new0(AppleRTKitEPData, 1);
     data->opaque = opaque;
     data->handler = handler;
