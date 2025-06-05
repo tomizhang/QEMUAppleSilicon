@@ -30,17 +30,17 @@
 
 // #define DEBUG_PMU_D2255
 
-enum PMUOpState : uint8_t {
+typedef enum {
     PMU_OP_STATE_NONE,
     PMU_OP_STATE_RECV,
     PMU_OP_STATE_SEND,
-};
+} PMUOpState;
 
-enum PMUAddrState : uint8_t {
+typedef enum {
     PMU_ADDR_UPPER,
     PMU_ADDR_LOWER,
     PMU_ADDR_RECEIVED,
-};
+} PMUAddrState;
 
 #define REG_SIZE (0x8800)
 
@@ -48,14 +48,15 @@ struct PMUD2255State {
     /*< private >*/
     I2CSlave i2c;
 
+    /*< public >*/
     uint8_t reg[REG_SIZE];
     QEMUTimer *timer;
     qemu_irq irq;
     uint32_t tick_period;
     uint64_t rtc_offset;
-    enum PMUOpState op_state;
+    PMUOpState op_state;
+    PMUAddrState address_state;
     uint16_t address;
-    enum PMUAddrState address_state;
 };
 
 #define RTC_TICK_FREQ (32768)
@@ -436,9 +437,9 @@ static const VMStateDescription pmu_d2255_vmstate = {
             VMSTATE_TIMER_PTR(timer, PMUD2255State),
             VMSTATE_UINT32(tick_period, PMUD2255State),
             VMSTATE_UINT64(rtc_offset, PMUD2255State),
-            VMSTATE_UINT8(op_state, PMUD2255State),
+            VMSTATE_UINT32(op_state, PMUD2255State),
             VMSTATE_UINT16(address, PMUD2255State),
-            VMSTATE_UINT8(address_state, PMUD2255State),
+            VMSTATE_UINT32(address_state, PMUD2255State),
             VMSTATE_END_OF_LIST(),
         },
 };
