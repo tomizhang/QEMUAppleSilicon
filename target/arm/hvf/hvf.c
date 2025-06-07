@@ -2004,11 +2004,11 @@ int hvf_vcpu_exec(CPUState *cpu)
 
         if (iswrite) {
             val = hvf_get_reg(cpu, srt);
-            address_space_write(&address_space_memory,
+            address_space_write(cpu->as,
                                 hvf_exit->exception.physical_address,
                                 MEMTXATTRS_UNSPECIFIED, &val, len);
         } else {
-            address_space_read(&address_space_memory,
+            address_space_read(cpu->as,
                                hvf_exit->exception.physical_address,
                                MEMTXATTRS_UNSPECIFIED, &val, len);
             if (sse) {
