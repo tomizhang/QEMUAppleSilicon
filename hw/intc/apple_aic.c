@@ -199,10 +199,6 @@ static void apple_aic_reset(DeviceState *dev)
     /* mask all IRQs */
     memset(s->eir_mask, 0xFF, sizeof(uint32_t) * s->numEIR);
 
-#ifdef AIC_DEBUG_NEW_IRQ
-    memset(s->eir_mask_once, 0xFF, sizeof(uint32_t) * s->numEIR);
-#endif
-
     /* dest default to 0 */
     memset(s->eir_dest, 0, sizeof(uint32_t) * s->numIRQ);
 
@@ -338,18 +334,6 @@ static void apple_aic_write(void *opaque, hwaddr addr, uint64_t data,
         }
 
         s->eir_mask[eir] &= ~val;
-
-#ifdef AIC_DEBUG_NEW_IRQ
-        if ((s->eir_mask[eir] | s->eir_mask_once[eir]) != s->eir_mask[eir]) {
-            for (int i = 0; i < 32; i++) {
-                if ((s->eir_mask[eir] & (1 << i)) == 0 &&
-                    (s->eir_mask_once[eir] & (1 << i)) != 0) {
-                    trace_aic_new_irq(AIC_EIR_TO_SRC(eir, i));
-                }
-            }
-        }
-        s->eir_mask_once[eir] &= s->eir_mask[eir];
-#endif
         break;
     }
     case REG_AIC_WHOAMI_Pn(0)... REG_AIC_WHOAMI_Pn(AIC_CPU_COUNT) - 4: {
@@ -521,10 +505,6 @@ static void apple_aic_realize(DeviceState *dev, struct Error **errp)
     s->eir_dest = g_new0(uint32_t, s->numIRQ);
     s->eir_state = g_new0(uint32_t, s->numEIR);
 
-#ifdef AIC_DEBUG_NEW_IRQ
-    s->eir_mask_once = g_new0(uint32_t, s->numEIR);
-#endif
-
     s->timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, apple_aic_tick, dev);
     timer_mod_ns(s->timer, kAICWT);
     msi_nonbroken = true;
@@ -609,10 +589,6 @@ static const VMStateDescription vmstate_apple_aic = {
                                         vmstate_info_uint32, uint32_t),
             VMSTATE_VARRAY_UINT32_ALLOC(eir_state, AppleAICState, numEIR, 1,
                                         vmstate_info_uint32, uint32_t),
-#ifdef AIC_DEBUG_NEW_IRQ
-            VMSTATE_VARRAY_UINT32_ALLOC(eir_mask_once, AppleAICState, numEIR, 1,
-                                        vmstate_info_uint32, uint32_t),
-#endif
             VMSTATE_STRUCT_VARRAY_POINTER_UINT32(cpus, AppleAICState, numCPU,
                                                  vmstate_apple_aic_cpu,
                                                  AppleAICCPU),

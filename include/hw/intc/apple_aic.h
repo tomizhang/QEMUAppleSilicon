@@ -8,8 +8,6 @@
 #define TYPE_APPLE_AIC "apple.aic"
 OBJECT_DECLARE_SIMPLE_TYPE(AppleAICState, APPLE_AIC)
 
-#define AIC_DEBUG_NEW_IRQ
-
 typedef struct AppleAICState AppleAICState;
 
 typedef struct {
@@ -37,9 +35,6 @@ struct AppleAICState {
     uint32_t *eir_dest;
     AppleAICCPU *cpus;
     uint32_t *eir_state;
-#ifdef AIC_DEBUG_NEW_IRQ
-    uint32_t *eir_mask_once;
-#endif
 };
 
 
