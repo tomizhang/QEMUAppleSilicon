@@ -1438,6 +1438,8 @@ static int hvf_sysreg_read(CPUState *cpu, uint32_t reg, uint64_t *val)
             /* ID system registers read as RES0 */
             *val = 0;
             return 0;
+        } else if (hvf_sysreg_read_cp(cpu, reg, val)) {
+            return 0;
         }
     }
 
@@ -1749,6 +1751,11 @@ static int hvf_sysreg_write(CPUState *cpu, uint32_t reg, uint64_t val)
     case SYSREG_DBGWCR15_EL1:
         env->cp15.dbgwcr[SYSREG_CRM(reg)] = val;
         return 0;
+    default:
+        if (!is_id_sysreg(reg) && hvf_sysreg_write_cp(cpu, reg, val)) {
+            return 0;
+        }
+        break;
     }
 
     cpu_synchronize_state(cpu);
