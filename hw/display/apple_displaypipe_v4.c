@@ -94,7 +94,6 @@ struct AppleDisplayPipeV4State {
 
     /*< public >*/
     QemuMutex lock;
-    MemReentrancyGuard guard;
     uint32_t width;
     uint32_t height;
     pixman_image_t *disp_image;
@@ -835,7 +834,7 @@ SysBusDevice *adp_v4_create(DTBNode *node, MemoryRegion *dma_mr,
 
     qemu_mutex_init(&s->lock);
 
-    s->update_disp_image_bh = qemu_bh_new_guarded(adp_v4_update_disp_image_bh, s, &s->guard);
+    s->update_disp_image_bh = qemu_bh_new_guarded(adp_v4_update_disp_image_bh, s, &DEVICE(s)->mem_reentrancy_guard);
 
     dtb_set_prop_str(node, "display-target", "DisplayTarget5");
     dtb_set_prop(node, "display-timing-info", sizeof(adp_timing_info),

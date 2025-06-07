@@ -94,7 +94,6 @@ struct AppleRTKit {
     /*< public >*/
     const AppleRTKitOps *ops;
     QemuMutex lock;
-    MemReentrancyGuard guard;
     void *opaque;
     uint8_t ep0_status;
     uint32_t protocol_version;

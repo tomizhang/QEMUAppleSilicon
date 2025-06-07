@@ -355,7 +355,8 @@ void apple_rtkit_init(AppleRTKit *s, void *opaque, const char *role,
 
     a7iop = APPLE_A7IOP(s);
     apple_a7iop_init(a7iop, role, mmio_size, version, &apple_rtkit_iop_ops,
-                     qemu_bh_new_guarded(apple_rtkit_bh, s, &s->guard));
+                     qemu_bh_new_guarded(apple_rtkit_bh, s,
+                                         &DEVICE(s)->mem_reentrancy_guard));
 
     s->opaque = opaque ? opaque : s;
     s->endpoints = g_tree_new(g_uint_cmp);
