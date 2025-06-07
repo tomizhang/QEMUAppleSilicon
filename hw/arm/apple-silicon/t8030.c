@@ -75,10 +75,7 @@
 #define T8030_DRAM_BASE (0x800000000)
 
 #define T8030_SEPROM_BASE (0x240000000)
-// SEPROM can even be 1 MiB big, but T8030's one is much smaller with 84 KiB
-// #define T8030_SEPROM_SIZE (0x004000000)
-// #define T8030_SEPROM_SIZE (0x000100000)
-#define T8030_SEPROM_SIZE (84 * KiB)
+#define T8030_SEPROM_SIZE (8 * MiB)
 
 #define T8030_GPIO_FORCE_DFU (161)
 
@@ -2457,7 +2454,8 @@ static void t8030_machine_init(MachineState *machine)
 
     t8030_machine = T8030_MACHINE(machine);
 
-    if ((t8030_machine->sep_fw_filename == NULL) != (t8030_machine->sep_rom_filename == NULL)) {
+    if ((t8030_machine->sep_fw_filename == NULL) !=
+        (t8030_machine->sep_rom_filename == NULL)) {
         error_setg(&error_abort,
                    "You need to specify both the SEPROM and the decrypted "
                    "SEPFW in order to use SEP emulation!");
@@ -2478,38 +2476,12 @@ static void t8030_machine_init(MachineState *machine)
                      0x8000000ULL, 0); // 0x4000000 is too low
         allocate_ram(t8030_machine->sys_mem, "DRAM_34", 0x340000000ULL,
                      0x2000000ULL, 0); // 0x1000000 is too low
-        // allocate_ram(t8030_machine->sys_mem, "SEP_UNKN0", 0x242140108ULL,
-        // 0x8, 0);
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN0", 0x242140000ULL,
                      0x4000, 0);
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN1", 0x242200000ULL,
-                     0x4000, 0);
-        allocate_ram(t8030_machine->sys_mem, "SEP_TTBR0", 0x242204000ULL,
-                     0x4000, 0);
-        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN2", 0x242208000ULL,
-                     0x4000, 0);
-        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN3", 0x24220C000ULL,
-                     0x4000, 0);
-        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN4", 0x242210000ULL,
-                     0x4000, 0);
-#if 0
-        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN1", 0x242200000ULL,
-                     0x14000, 0);
-#endif
-        // allocate_ram(t8030_machine->sys_mem, "SEP_UNKN5", 0x242223fc0ULL,
-        // 0x8, 0);
-        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN5", 0x242220000ULL,
-                     0x4000, 0); // for pstate_spsel?
-        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN6", 0x24221c000ULL,
-                     0x4000, 0); // for vbar_el1?
-        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN7", 0x242218000ULL,
-                     0x4000, 0);
-        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN8", 0x242214000ULL,
-                     0x4000, 0);
+                     0x24000, 0);
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN9", 0x241244000ULL,
                      0x4000, 0);
-        ////allocate_ram(t8030_machine->sys_mem, "SEP_UNKN10", 0x242400000ULL,
-        /// 0x4000, 0); // AKF apple-a7iop.SEP.regs, actually 0x10000
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN10", 0x242150000ULL,
                      0x4000, 0); // for last_jump
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN11", 0x241010000ULL,
