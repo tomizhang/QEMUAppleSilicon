@@ -27,6 +27,17 @@
 #include "qemu/bswap.h"
 #include "qemu/cutils.h"
 
+// #define DTB_DEBUG
+
+#ifdef DTB_DEBUG
+#include "qemu/error-report.h"
+#define DWARN(fmt, ...) warn_report(fmt, ##__VA_ARGS__)
+#else
+#define DWARN(fmt, ...) \
+    do {                \
+    } while (0)
+#endif
+
 #define DT_PROP_NAME_LEN (32)
 #define DT_PROP_PLACEHOLDER (1 << 31)
 
@@ -335,12 +346,11 @@ static void dtb_serialise_node(DTBNode *node, uint8_t **buf)
         if (prop->placeholder) {
             placeholder_size = dtb_get_placeholder_size(prop, key);
             if (placeholder_size == 0) {
-                fprintf(stderr, "warning: removing prop `%s`\n", (char *)key);
+                DWARN("Removing prop `%s`", (char *)key);
                 prop_count -= 1;
                 continue;
             }
-            fprintf(stderr, "warning: expanding prop `%s` to default value\n",
-                    (char *)key);
+            DWARN("Expanding prop `%s` to default value", (char *)key);
             strncpy((char *)*buf, key, DT_PROP_NAME_LEN);
             *buf += DT_PROP_NAME_LEN;
             stl_le_p(*buf, placeholder_size);

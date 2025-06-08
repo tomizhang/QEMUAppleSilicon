@@ -35,6 +35,16 @@
 #include "lzfse.h"
 #include "lzss.h"
 
+// #define BOOT_DEBUG
+
+#ifdef BOOT_DEBUG
+#define DINFO(fmt, ...) info_report(fmt, ##__VA_ARGS__)
+#else
+#define DINFO(fmt, ...) \
+    do {                \
+    } while (0)
+#endif
+
 static const char *KEEP_COMP[] = {
     "adbe0,s8000\0$",
     "aes,s8000\0$",
@@ -226,10 +236,9 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
         }
         if (!found) {
             g_assert_nonnull(parent);
-            info_report(
-                "Removing node `%s` because its compatible property `%s` "
-                "is not whitelisted",
-                dtb_find_prop(node, "name")->data, prop->data);
+            DINFO("Removing node `%s` because its compatible property `%s` "
+                  "is not whitelisted",
+                  dtb_find_prop(node, "name")->data, prop->data);
             dtb_remove_node(parent, node);
             return;
         }
@@ -243,9 +252,8 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
             uint64_t size = MIN(prop->length, sstrlen(REM_NAMES[i]));
             if (memcmp(prop->data, REM_NAMES[i], size) == 0) {
                 g_assert_nonnull(parent);
-                info_report(
-                    "Removing node `%s` because its name is blacklisted",
-                    prop->data);
+                DINFO("Removing node `%s` because its name is blacklisted",
+                      prop->data);
                 dtb_remove_node(parent, node);
                 return;
             }
@@ -260,9 +268,9 @@ static void macho_dtb_node_process(DTBNode *node, DTBNode *parent)
             uint64_t size = MIN(prop->length, sstrlen(REM_DEV_TYPES[i]));
             if (memcmp(prop->data, REM_DEV_TYPES[i], size) == 0) {
                 g_assert_nonnull(parent);
-                info_report("Removing node `%s` because its device type "
-                            "property `%s` is blacklisted",
-                            dtb_find_prop(node, "name")->data, prop->data);
+                DINFO("Removing node `%s` because its device type "
+                      "property `%s` is blacklisted",
+                      dtb_find_prop(node, "name")->data, prop->data);
                 dtb_remove_node(parent, node);
                 return;
             }
@@ -410,8 +418,8 @@ static void extract_im4p_payload(const char *filename, char *payload_type,
         size_t monitor_off = compressed_size + sizeof(LzssCompHeader);
         if (secure_monitor && monitor_off < len) {
             size_t monitor_size = len - monitor_off;
-            info_report("Found AP Secure Monitor in payload with size 0x%zX!",
-                        monitor_size);
+            DINFO("Found AP Secure Monitor in payload with size 0x%zX!",
+                  monitor_size);
             *secure_monitor = g_malloc0(monitor_size);
             memcpy(*secure_monitor, payload_data + monitor_off, monitor_size);
         }
