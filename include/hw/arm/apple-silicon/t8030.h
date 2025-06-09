@@ -90,7 +90,7 @@ typedef struct {
     char *config_number;
     char *serial_number;
     char *mlb_serial_number;
-    char *regulatory_serial_number;
+    char *regulatory_model;
 } T8030MachineState;
 
 #endif /* HW_ARM_APPLE_SILICON_T8030_H */

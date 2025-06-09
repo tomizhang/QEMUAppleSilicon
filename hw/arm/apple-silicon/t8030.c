@@ -2588,8 +2588,8 @@ static void t8030_machine_init(MachineState *machine)
                       t8030_machine->serial_number);
     dtb_set_prop_strn(t8030_machine->device_tree, "mlb-serial-number", 32,
                       t8030_machine->mlb_serial_number);
-    dtb_set_prop_strn(t8030_machine->device_tree, "regulatory-serial-number",
-                      32, t8030_machine->regulatory_serial_number);
+    dtb_set_prop_strn(t8030_machine->device_tree, "regulatory-model-number", 32,
+                      t8030_machine->regulatory_model);
 
     child = dtb_get_node(t8030_machine->device_tree, "chosen");
     // TODO: Basic AGX emulation, as QuartzCore & co expect graphics
@@ -2807,7 +2807,7 @@ PROP_STR_GETTER_SETTER(region_info);
 PROP_STR_GETTER_SETTER(config_number);
 PROP_STR_GETTER_SETTER(serial_number);
 PROP_STR_GETTER_SETTER(mlb_serial_number);
-PROP_STR_GETTER_SETTER(regulatory_serial_number);
+PROP_STR_GETTER_SETTER(regulatory_model);
 
 static void t8030_machine_class_init(ObjectClass *klass, void *data)
 {
@@ -2893,12 +2893,12 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
         klass, "mlb", t8030_get_mlb_serial_number, t8030_set_mlb_serial_number);
     object_property_set_default_str(oprop, "CKQEMUASMLB1122");
     object_class_property_set_description(klass, "mlb", "MLB Serial Number");
-    oprop = object_class_property_add_str(klass, "regulatory-sn",
-                                          t8030_get_regulatory_serial_number,
-                                          t8030_set_regulatory_serial_number);
-    object_property_set_default_str(oprop, "A2111");
-    object_class_property_set_description(klass, "regulatory-sn",
-                                          "Regulatory Serial Number");
+    oprop = object_class_property_add_str(klass, "regulatory-model",
+                                          t8030_get_regulatory_model,
+                                          t8030_set_regulatory_model);
+    object_property_set_default_str(oprop, "CKQEMU8030");
+    object_class_property_set_description(klass, "regulatory-model",
+                                          "Regulatory Model Number");
 }
 
 static const TypeInfo t8030_machine_info = {
