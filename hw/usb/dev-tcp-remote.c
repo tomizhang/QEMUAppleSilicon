@@ -392,6 +392,12 @@ static void *usb_tcp_remote_thread(void *arg)
     return NULL;
 }
 
+#ifdef WIN32
+static void usb_tcp_remote_bind_unix(USBTCPRemoteState *s, Error **errp)
+{
+    error_setg(errp, "UNIX sockets are not supported on Windows");
+}
+#else
 static void usb_tcp_remote_bind_unix(USBTCPRemoteState *s, Error **errp)
 {
     struct sockaddr_un addr;
@@ -441,6 +447,7 @@ static void usb_tcp_remote_bind_unix(USBTCPRemoteState *s, Error **errp)
         warn_report("chmod('%s') failed: %s", s->conn_addr, strerror(errno));
     }
 }
+#endif
 
 static void usb_tcp_remote_bind_ipv4(USBTCPRemoteState *s, Error **errp)
 {

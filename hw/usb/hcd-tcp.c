@@ -318,6 +318,13 @@ static void coroutine_fn usb_tcp_host_msg_loop_co(void *opaque)
     return;
 }
 
+#ifdef WIN32
+static int usb_tcp_host_connect_unix(USBTCPHostState *s, Error **errp)
+{
+    error_setg(errp, "UNIX sockets are not supported on Windows");
+    return -1;
+}
+#else
 static int usb_tcp_host_connect_unix(USBTCPHostState *s, Error **errp)
 {
     struct sockaddr_un addr;
@@ -352,6 +359,7 @@ static int usb_tcp_host_connect_unix(USBTCPHostState *s, Error **errp)
 
     return sock;
 }
+#endif
 
 static int usb_tcp_host_connect_ipv4(USBTCPHostState *s, Error **errp)
 {
