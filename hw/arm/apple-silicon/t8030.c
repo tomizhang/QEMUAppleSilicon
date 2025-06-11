@@ -806,8 +806,8 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     }
 
     if (!xnu_contains_boot_arg(cmdline, "rd=", true)) {
-        dtb_set_prop_str(
-            chosen, "root-matching",
+        dtb_set_prop_strn(
+            chosen, "root-matching", 256,
             "<dict><key>IOProviderClass</key><string>IOMedia</"
             "string><key>IOPropertyMatch</key><dict><key>Partition "
             "ID</key><integer>1</integer></dict></dict>");
