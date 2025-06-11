@@ -741,6 +741,14 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     }
     apple_nvram_load(nvram);
 
+    if (machine->initrd_filename == NULL &&
+        (t8030_machine->boot_mode != kBootModeAuto ||
+         !env_get_bool(nvram, "auto-boot", false))) {
+        t8030_machine->boot_mode = kBootModeExitRecovery;
+        warn_report(
+            "No RAM Disk specified but auto boot disabled, exiting recovery.");
+    }
+
     info_report("boot_mode: %u", t8030_machine->boot_mode);
     switch (t8030_machine->boot_mode) {
     case kBootModeEnterRecovery:
@@ -2840,8 +2848,9 @@ static void t8030_machine_class_init(ObjectClass *klass, void *data)
     object_class_property_add_str(klass, "sep-fw", t8030_get_sep_fw_filename,
                                   t8030_set_sep_fw_filename);
     object_class_property_set_description(klass, "sep-fw", "SEP Firmware");
-    object_class_property_add_str(klass, "boot-mode", t8030_get_boot_mode,
-                                  t8030_set_boot_mode);
+    oprop = object_class_property_add_str(
+        klass, "boot-mode", t8030_get_boot_mode, t8030_set_boot_mode);
+    object_property_set_default_str(oprop, "auto");
     object_class_property_set_description(klass, "boot-mode", "Boot Mode");
     oprop = object_class_property_add(klass, "ecid", "uint64", t8030_get_ecid,
                                       t8030_set_ecid, NULL, NULL);
