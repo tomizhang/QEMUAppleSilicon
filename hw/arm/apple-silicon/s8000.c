@@ -757,8 +757,8 @@ static void s8000_create_pcie(S8000MachineState *s8000_machine)
     reg = (uint64_t *)prop->data;
 
     // TODO: Hook up all ports
-    sysbus_mmio_map(pcie, 0, reg[0 * 2]);
-    sysbus_mmio_map(pcie, 1, reg[9 * 2]);
+    //sysbus_mmio_map(pcie, 0, reg[0 * 2]);
+    //sysbus_mmio_map(pcie, 1, reg[9 * 2]);
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
@@ -782,16 +782,16 @@ static void s8000_create_nvme(S8000MachineState *s8000_machine)
     AppleNVMeMMUState *s;
     DTBNode *child;
     ApplePCIEHost *apcie_host;
-    ApplePCIERoot *apcie_root;
 
     child = dtb_get_node(s8000_machine->device_tree, "arm-io/nvme-mmu0");
     g_assert_nonnull(child);
 
-    PCIHostState *pci = PCI_HOST_BRIDGE(object_property_get_link(
+    //PCIHostState *pci = PCI_HOST_BRIDGE(object_property_get_link(OBJECT(s8000_machine), "pcie.host", &error_fatal));
+    //apcie_host = APPLE_PCIE_HOST(pci);
+    PCIBridge *pci = PCI_BRIDGE(object_property_get_link(
         OBJECT(s8000_machine), "pcie.bridge0", &error_fatal));
-    apcie_host = APPLE_PCIE_HOST(pci);
-    apcie_root = &apcie_host->root;
-    PCIBus *sec_bus = &PCI_BRIDGE(apcie_root)->sec_bus;
+    PCIBus *sec_bus = pci_bridge_get_sec_bus(pci);
+    //apcie_host = APPLE_PCIE_HOST(object_property_get_link(OBJECT(s8000_machine), "pcie.host", &error_fatal));
     nvme = apple_nvme_mmu_create(child, sec_bus);
     g_assert_nonnull(nvme);
     object_property_add_child(OBJECT(s8000_machine), "nvme", OBJECT(nvme));
@@ -1405,6 +1405,8 @@ static void s8000_machine_init(MachineState *machine)
     s8000_pmgr_setup(s8000_machine);
     s8000_create_dart(s8000_machine, "dart-disp0", false);
     s8000_create_dart(s8000_machine, "dart-apcie0", true);
+    //s8000_create_dart(s8000_machine, "dart-apcie1", true);
+    //s8000_create_dart(s8000_machine, "dart-apcie2", true);
     s8000_create_pcie(s8000_machine);
     s8000_create_nvme(s8000_machine);
     s8000_create_gpio(s8000_machine, "gpio");

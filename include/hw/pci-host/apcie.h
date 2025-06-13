@@ -26,23 +26,26 @@
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/pci/pci_bridge.h"
 #include "hw/pci/pcie_host.h"
+#include "hw/pci/pcie_port.h"
 #include "hw/sysbus.h"
 #include "qom/object.h"
 
 #define TYPE_APPLE_PCIE_ROOT_BUS "apple-pcie-root-BUS"
 OBJECT_DECLARE_SIMPLE_TYPE(ApplePCIERootBus, APPLE_PCIE_ROOT_BUS)
 
+#define TYPE_APPLE_PCIE_PORT "apple-pcie-port"
+OBJECT_DECLARE_SIMPLE_TYPE(ApplePCIEPort, APPLE_PCIE_PORT)
+
 #define TYPE_APPLE_PCIE_HOST "apple-pcie-host"
 OBJECT_DECLARE_SIMPLE_TYPE(ApplePCIEHost, APPLE_PCIE_HOST)
-
-#define TYPE_APPLE_PCIE_ROOT "apple-pcie-root"
-OBJECT_DECLARE_SIMPLE_TYPE(ApplePCIERoot, APPLE_PCIE_ROOT)
 
 #define TYPE_APPLE_PCIE "apple-pcie"
 OBJECT_DECLARE_SIMPLE_TYPE(ApplePCIEState, APPLE_PCIE)
 
 // sizes: s8000 == 0x8000 ; t8030 == 0x4000
 #define APCIE_COMMON_REGS_LENGTH 0x8000
+
+#define APCIE_MAX_PORTS 4
 
 struct ApplePCIERootBus {
     PCIBus parent;
@@ -65,37 +68,48 @@ typedef struct ApplePCIEMSI {
 } ApplePCIEMSI;
 #endif
 
-struct ApplePCIERoot {
-    PCIBridge parent_obj;
-
-    MemoryRegion cfg;
-    MemoryRegion common;
-    MemoryRegion phy;
-#if 0
-    ApplePCIEMSI msi;
-#endif
-    uint32_t phy_enabled;
-    uint32_t refclk_buffer_enabled;
-    uint32_t common_regs[APCIE_COMMON_REGS_LENGTH / sizeof(uint32_t)];
-};
-
 struct ApplePCIEHost {
     PCIExpressHost parent_obj;
 
-    ApplePCIERoot root;
 #if 0
     PCIExpLinkSpeed speed;
     PCIExpLinkWidth width;
 #endif
     MemoryRegion mmio, io;
-    qemu_irq irq;
-    char bus_path[8];
-    char name[16];
+    qemu_irq irqs[4];
+    qemu_irq msi;
+
+#if 0
+    ApplePCIEMSI msi;
+#endif
+    //uint32_t clkreq_gpio_id;
+    //uint32_t clkreq_gpio_value;
+
+    MemoryRegion root_cfg;
+    MemoryRegion root_common;
+    MemoryRegion root_phy;
+    uint32_t root_phy_enabled;
+    uint32_t root_refclk_buffer_enabled;
+    uint32_t root_common_regs[APCIE_COMMON_REGS_LENGTH / sizeof(uint32_t)];
+};
+
+struct ApplePCIEPort {
+    PCIESlot parent_obj;
+
+    //char bus_path[8];
+    //char name[16];
 
     uint32_t bus_nr;
-    uint32_t clkreq_gpio_id;
-    uint32_t clkreq_gpio_value;
     uint32_t device_id;
+
+    MemoryRegion port_cfg;
+    MemoryRegion port_phy_glue;
+    MemoryRegion port_phy_ip;
+
+    uint32_t port_cfg_port_config; // 0x800
+    uint32_t port_cfg_refclk_config; // 0x810
+    uint32_t port_cfg_rootport_perst; // 0x814
+    uint32_t port_refclk_buffer_enabled;
 };
 
 struct ApplePCIEState {
@@ -105,10 +119,8 @@ struct ApplePCIEState {
     /*< public >*/
     DTBNode *node;
 
-    qemu_irq irqs[4];
-    qemu_irq msi;
-
-    ApplePCIEHost *pcie[4];
+    ApplePCIEHost *host;
+    ApplePCIEPort *ports[APCIE_MAX_PORTS];
 };
 
 SysBusDevice *apple_pcie_create(DTBNode *node);

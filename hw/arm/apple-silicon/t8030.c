@@ -1491,7 +1491,6 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io");
     DTBNode *iop_nub;
     ApplePCIEHost *apcie_host;
-    ApplePCIERoot *apcie_root;
 
     g_assert_nonnull(child);
     child = dtb_get_node(child, "ans");
@@ -1516,15 +1515,14 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     // be used at all, no freaking idea unsure if ans/nvme under t8030 is
     // actually exposed on the pci bus
 
-    PCIHostState *pci = PCI_HOST_BRIDGE(object_property_get_link(
-        OBJECT(t8030_machine), "pcie.bridge1", &error_fatal));
-    apcie_host = APPLE_PCIE_HOST(pci);
-    apcie_root = &apcie_host->root;
-    PCIBus *sec_bus = &PCI_BRIDGE(apcie_root)->sec_bus;
-    ans = apple_ans_create(child, APPLE_A7IOP_V4,
-                           t8030_machine->rtkit_protocol_ver, sec_bus);
-    // ans = apple_ans_create(child, APPLE_A7IOP_V4,
-    // t8030_machine->rtkit_protocol_ver, pci->bus);
+    PCIDevice *pci_dev = PCI_DEVICE(object_property_get_link(OBJECT(t8030_machine), "pcie.bridge1", &error_fatal));
+    //PCIDevice *pci_dev = PCI_DEVICE(object_property_get_link(OBJECT(t8030_machine), "pcie.bridge0", &error_fatal));
+    PCIBridge *pci_bridge = PCI_BRIDGE(pci_dev);
+    PCIBus *sec_bus = pci_bridge_get_sec_bus(pci_bridge);
+    //PCIBus *bus = pci_get_bus(pci_dev);
+    apcie_host = APPLE_PCIE_HOST(object_property_get_link(OBJECT(t8030_machine), "pcie.host", &error_fatal));
+    ans = apple_ans_create(child, APPLE_A7IOP_V4, t8030_machine->rtkit_protocol_ver, sec_bus);
+    //ans = apple_ans_create(child, APPLE_A7IOP_V4, t8030_machine->rtkit_protocol_ver, bus);
     g_assert_nonnull(ans);
     g_assert_nonnull(object_property_add_const_link(
         OBJECT(ans), "dma-mr", OBJECT(sysbus_mmio_get_region(sart, 1))));
@@ -1551,9 +1549,13 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     // out_named/in_named seems to be the cleanest solution
     // qdev_connect_gpio_out_named(DEVICE(pci), "interrupt_pci", 0,
     // qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[4]));
-    qdev_connect_gpio_out_named(
-        DEVICE(pci), "interrupt_pci", 0,
-        qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    //qdev_connect_gpio_out_named(DEVICE(pci), "interrupt_pci", 0, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    //qdev_connect_gpio_out_named(DEVICE(pci_dev), "interrupt_pci", 0, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    //qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 0, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    //qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 0, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    //qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 1, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    //qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 2, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 3, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
 
     sysbus_realize_and_unref(ans, &error_fatal);
 }
@@ -2056,6 +2058,8 @@ static void t8030_create_pcie(T8030MachineState *t8030_machine)
     DTBProp *prop;
     uint64_t *reg;
     SysBusDevice *pcie;
+    //char temp_name[32];
+    //uint32_t port_index, port_entries;
 
     DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io");
     g_assert_nonnull(child);
@@ -2074,10 +2078,40 @@ static void t8030_create_pcie(T8030MachineState *t8030_machine)
     g_assert_nonnull(prop);
     reg = (uint64_t *)prop->data;
 
+#if 0
+#define PORT_COUNT 4
+#define ROOT_MAPPINGS 3
+#define PORT_MAPPINGS 3
+#define PORT_ENTRIES 4
+
     // TODO: Hook up all ports
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < ROOT_MAPPINGS; i++) {
+        ////sysbus_mmio_map(pcie, (PORT_COUNT * PORT_MAPPINGS) + i, reg[i * 2]);
         sysbus_mmio_map(pcie, i, reg[i * 2]);
     }
+#if 0
+    for (i = 0; i < PORT_COUNT; i++) {
+        snprintf(temp_name, sizeof(temp_name), "port%u_config", i);
+        create_unimplemented_device(temp_name, reg[(6 + (i * PORT_ENTRIES) + 0) * 2 + 0], reg[(6 + (i * PORT_ENTRIES) + 0) * 2 + 1]);
+        snprintf(temp_name, sizeof(temp_name), "port%u_config_ltssm_debug", i);
+        create_unimplemented_device(temp_name, reg[(6 + (i * PORT_ENTRIES) + 1) * 2 + 0], reg[(6 + (i * PORT_ENTRIES) + 1) * 2 + 1]);
+        snprintf(temp_name, sizeof(temp_name), "port%u_phy_glue", i);
+        create_unimplemented_device(temp_name, reg[(6 + (i * PORT_ENTRIES) + 2) * 2 + 0], reg[(6 + (i * PORT_ENTRIES) + 2) * 2 + 1]);
+        snprintf(temp_name, sizeof(temp_name), "port%u_phy_ip", i);
+        create_unimplemented_device(temp_name, reg[(6 + (i * PORT_ENTRIES) + 3) * 2 + 0], reg[(6 + (i * PORT_ENTRIES) + 3) * 2 + 1]);
+    }
+#endif
+#if 1
+    port_index = 6;
+    port_entries = 4;
+    // this has to come later, as root and port phy's will overlap otherwise
+    for (i = 0; i < PORT_COUNT; i++) {
+        sysbus_mmio_map(pcie, ROOT_MAPPINGS + (i * PORT_MAPPINGS) + 0, reg[(port_index + (i * port_entries) + 0) * 2 + 0]);
+        sysbus_mmio_map(pcie, ROOT_MAPPINGS + (i * PORT_MAPPINGS) + 1, reg[(port_index + (i * port_entries) + 2) * 2 + 0]);
+        sysbus_mmio_map(pcie, ROOT_MAPPINGS + (i * PORT_MAPPINGS) + 2, reg[(port_index + (i * port_entries) + 3) * 2 + 0]);
+    }
+#endif
+#endif
 
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
@@ -2649,6 +2683,12 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_dart(t8030_machine, "dart-disp0", false);
     t8030_create_dart(t8030_machine, "dart-sep", false);
 #ifdef ENABLE_BASEBAND
+//#if 0
+    t8030_create_dart(t8030_machine, "dart-apcie3", true);
+#endif
+//#if 1
+#if 0
+    //t8030_create_dart(t8030_machine, "dart-apcie2", true);
     t8030_create_dart(t8030_machine, "dart-apcie3", true);
 #endif
     t8030_create_usb(t8030_machine);

@@ -295,6 +295,13 @@ static void apple_ans_realize(DeviceState *dev, Error **errp)
                               QEMU_PCI_EXP_LNK_8GT);
     pcie_aer_init(pci_dev, PCI_ERR_VER, 0x100, PCI_ERR_SIZEOF, &error_fatal);
     pci_config_set_class(pci_dev->config, PCI_CLASS_STORAGE_OTHER);
+#if 1
+    pci_config_set_interrupt_pin(pci_dev->config, 1);
+    pci_set_byte(pci_dev->config + PCI_INTERRUPT_LINE, 0xff);
+    //pci_dev->config[PCI_INTERRUPT_LINE] = 0xff;
+    pci_dev->wmask[PCI_INTERRUPT_LINE] = 0x0;
+    //pci_default_write_config(pci_dev, PCI_INTERRUPT_LINE, 0xff, 1);
+#endif
 
     sysbus_realize(SYS_BUS_DEVICE(s->rtk), errp);
 }
