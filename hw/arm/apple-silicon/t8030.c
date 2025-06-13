@@ -917,13 +917,13 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     switch (base + addr) {
     case 0x3D280088: // PMGR_AON
         return 0xFF;
-    case 0x3D2BC000: // CURRENT_PROD?
-    case 0x3D2BC400: // ??? maybe T8030 current_prod???
+    case 0x3D2BC000: // T8030 CURRENT_PROD
         // if 0xBC404 returns 1==0xA55AC33C, this will get ignored
         if (current_prod == 1)
             return 0xA55AC33C; // IBFL | 0x10 // CPFM | 0x03 ; IBFL_base == 0x0C
         return 0xA050C030; // IBFL | 0x00 // CPFM | 0x00 ; IBFL_base == 0x04
-    case 0x3D2BC200: // RAW_PROD T8020 AP/SEP
+    //case 0x3D2BC200: // RAW_PROD T8020 AP/SEP
+    case 0x3D2BC400: // T8030 RAW_PROD
         // if (sep->pmgr_base_regs[0x68] != 0) // if T8020 AP/SEP current_prod
         // and raw_prod are disabled, scrd sets a flag
         //     return 0xA050C030;
@@ -935,24 +935,25 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
     case 0x3D2BC004: // Current Secure Mode SEP T8020
         // handle SEP DSEC demotion
         if (sep != NULL && sep->pmgr_fuse_changer_bit1_was_set)
-            return 0xA050C030; // SEP DSEC img4 tag demotion active
-        QEMU_FALLTHROUGH;
-    case 0x3D2BC404: // maybe T8030 current secure mode???
+            current_secure_mode = 0; // SEP DSEC img4 tag demotion active
         if (current_secure_mode)
             return 0xA55AC33C; // CPFM | 0x01 ; IBFL_base == 0x0C
         return 0xA050C030; // CPFM | 0x00 ; IBFL_base == 0x04
-    case 0x3D2BC204: // Raw Secure Mode AP/SEP T8020
-    case 0x3D2BC604: //? maybe also raw secure mode for T8030???
+    //case 0x3D2BC204: // Raw Secure Mode AP/SEP T8020
+    case 0x3D2BC404: // Raw Secure Mode AP/SEP T8030
+    ////case 0x3D2BC604: //? maybe also raw secure mode for T8030???
         if (raw_secure_mode)
             return 0xA55AC33C; // CPFM | 0x01 ; IBFL_base == 0x0C
         return 0xA050C030;
     case 0x3D2BC008:
-    case 0x3D2BC208: // Security (raw?) Domain BIT0 T8020 SEP
+    case 0x3D2BC408: // raw for t8030?
+    //case 0x3D2BC208: // Security (raw?) Domain BIT0 T8020 SEP
         if ((security_domain & (1 << 0)) != 0)
             return 0xA55AC33C; // security domain | 0x1
         return 0xA050C030;
     case 0x3D2BC00C:
-    case 0x3D2BC20C: // Security Domain (raw?) BIT1 T8020 SEP
+    case 0x3D2BC40C: // raw for t8030?
+    //case 0x3D2BC20C: // Security Domain (raw?) BIT1 T8020 SEP
         if ((security_domain & (1 << 1)) != 0)
             return 0xA55AC33C; // security domain | 0x2
         return 0xA050C030; // security domain | 0x0
@@ -960,8 +961,9 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         sep_bit30_current_value =
             ((sep == NULL) ? 0 : (sep->pmgr_fuse_changer_bit0_was_set << 30));
         QEMU_FALLTHROUGH;
-    case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO?
-                     // AppleSEPROM-A12-D331pAP
+    //case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO?
+    //                 // AppleSEPROM-A12-D331pAP
+    case 0x3D2BC410: // raw board id and epoch t8030
         return ((t8030_machine->board_id >> 5) & 0x7) |
                ((security_epoch & 0x7f) << 5) | sep_bit30_current_value |
                (1 << 31);
@@ -990,13 +992,13 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
                (0 << 1); // LOW&HIGH NIBBLE T8030, T8020 and
                          // AppleSEPROM-S4-S5-B1 // maybe 0x1c0 instead of 0x7 ;
                          // bit1 being set causes kernel data abort
-    case 0x3D2BC100: // ECID LOW T8020
-    case 0x3D2BC300: // TODO
+    //case 0x3D2BC100: // ECID LOW T8020
+    case 0x3D2BC300: // ECID LOW T8030
         return t8030_machine->ecid & 0xffffffff; // ECID lower
-    case 0x3D2BC104: // ECID HIGH T8020
-    case 0x3D2BC304: // TODO
+    //case 0x3D2BC104: // ECID HIGH T8020
+    case 0x3D2BC304: // ECID HIGH T8030
         return t8030_machine->ecid >> 32; // ECID upper
-    case 0x3D2BC10C: // T8020 SEP Chip Revision
+    //case 0x3D2BC10C: // T8020 SEP Chip Revision
     case 0x3D2BC30C: // T8030 SEP Chip Revision
         // case 0x3D2BC30c: // Maybe the T8030 SEP equivalent?
         //  1 vs. not 1: TRNG/Monitor
@@ -2056,7 +2058,7 @@ static void t8030_create_pcie(T8030MachineState *t8030_machine)
     int i;
     uint32_t *ints;
     DTBProp *prop;
-    uint64_t *reg;
+    //uint64_t *reg;
     SysBusDevice *pcie;
     //char temp_name[32];
     //uint32_t port_index, port_entries;
@@ -2074,9 +2076,11 @@ static void t8030_create_pcie(T8030MachineState *t8030_machine)
     g_assert_nonnull(pcie);
     object_property_add_child(OBJECT(t8030_machine), "pcie", OBJECT(pcie));
 
+#if 0
     prop = dtb_find_prop(child, "reg");
     g_assert_nonnull(prop);
     reg = (uint64_t *)prop->data;
+#endif
 
 #if 0
 #define PORT_COUNT 4
