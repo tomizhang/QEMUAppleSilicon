@@ -2514,25 +2514,30 @@ void usb_ehci_realize(EHCIState *s, DeviceState *dev, Error **errp)
         error_setg(errp, "Too many ports! Max. port number is %d.",
                    EHCI_PORTS);
         return;
-    }
+    }    
     if (s->maxframes < 8 || s->maxframes > 512)  {
         error_setg(errp, "maxframes %d out if range (8 .. 512)",
                    s->maxframes);
         return;
-    }
+    }    
 
     memory_region_add_subregion(&s->mem, s->capsbase, &s->mem_caps);
     memory_region_add_subregion(&s->mem, s->opregbase, &s->mem_opreg);
     memory_region_add_subregion(&s->mem, s->opregbase + s->portscbase,
                                 &s->mem_ports);
 
+    // Add these lines to disable reentrancy guards
+    s->mem_caps.disable_reentrancy_guard = true;
+    s->mem_opreg.disable_reentrancy_guard = true;
+    s->mem_ports.disable_reentrancy_guard = true;
+
     usb_bus_new(&s->bus, sizeof(s->bus), s->companion_enable ?
                 &ehci_bus_ops_companion : &ehci_bus_ops_standalone, dev);
     for (i = 0; i < s->portnr; i++) {
         usb_register_port(&s->bus, &s->ports[i], s, i, &ehci_port_ops,
                           USB_SPEED_MASK_HIGH);
-        s->ports[i].dev = 0;
-    }
+        s->ports[i].dev = 0; 
+    }    
 
     s->frame_timer = timer_new_ns(QEMU_CLOCK_VIRTUAL, ehci_work_timer, s);
     s->async_bh = qemu_bh_new_guarded(ehci_work_bh, s,
