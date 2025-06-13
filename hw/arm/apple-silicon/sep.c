@@ -2713,6 +2713,9 @@ static uint64_t boot_monitor_reg_read(void *opaque, hwaddr addr, unsigned size)
     switch (addr) {
     case 0x04: // some status flag, bit0
         goto jump_default;
+    case 0x0c: // must return 0x0
+        ret = 0x0;
+        return ret;
     default:
         qemu_log_mask(
             LOG_UNIMP,
