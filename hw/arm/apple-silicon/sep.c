@@ -2334,7 +2334,7 @@ static void aesh_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
-    // from misc0: Maybe the SHA engine: case 0xb4: 0x40 bytes from TRNG
+    // case 0xb4: 0x40 bytes from TRNG
     default:
         memcpy(&s->aesh_base_regs[addr], &data, size);
 #if 0
@@ -3313,6 +3313,7 @@ AppleSEPState *apple_sep_create(DTBNode *node, MemoryRegion *ool_mr, vaddr base,
         s->cpu = ARM_CPU(apple_a13_cpu_create(NULL, g_strdup("sep-cpu"), cpu_id,
                                               0, -1, 'P'));
         memory_region_add_subregion(&APPLE_A13(s->cpu)->memory, 0, mr0);
+        unset_feature(&s->cpu->env, ARM_FEATURE_PMSA);
     } else {
         s->cpu = ARM_CPU(apple_a9_create(NULL, g_strdup("sep-cpu"), cpu_id, 0));
         object_property_set_bool(OBJECT(s->cpu), "aarch64", false, NULL);
