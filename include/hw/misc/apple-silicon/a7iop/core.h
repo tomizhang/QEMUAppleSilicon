@@ -27,8 +27,6 @@ struct AppleA7IOP {
     MemoryRegion mmio;
     const AppleA7IOPOps *ops;
     QemuMutex lock;
-    // qemu_irq iop_irq;
-    // QTAILQ_HEAD(, AppleA7IOPInterruptStatusMessage) interrupt_status;
     AppleA7IOPMailbox *ap_mailbox;
     AppleA7IOPMailbox *iop_mailbox;
     uint32_t cpu_status;
@@ -44,7 +42,6 @@ uint32_t apple_a7iop_get_cpu_status(AppleA7IOP *s);
 void apple_a7iop_set_cpu_status(AppleA7IOP *s, uint32_t value);
 uint32_t apple_a7iop_get_cpu_ctrl(AppleA7IOP *s);
 void apple_a7iop_set_cpu_ctrl(AppleA7IOP *s, uint32_t value);
-// void apple_a7iop_interrupt_status_push(AppleA7IOP *s, uint32_t status);
 void apple_a7iop_init(AppleA7IOP *s, const char *role, uint64_t mmio_size,
                       AppleA7IOPVersion version, const AppleA7IOPOps *ops,
                       QEMUBH *iop_bh);

@@ -95,7 +95,6 @@ void apple_a7iop_mailbox_send_ap(AppleA7IOPMailbox *s, AppleA7IOPMessage *msg);
 void apple_a7iop_mailbox_send_iop(AppleA7IOPMailbox *s, AppleA7IOPMessage *msg);
 AppleA7IOPMessage *apple_a7iop_inbox_peek(AppleA7IOPMailbox *s);
 void apple_a7iop_interrupt_status_push(AppleA7IOPMailbox *s, uint32_t status);
-uint32_t apple_a7iop_interrupt_status_pop(AppleA7IOPMailbox *s);
 AppleA7IOPMessage *apple_a7iop_mailbox_recv_iop(AppleA7IOPMailbox *s);
 AppleA7IOPMessage *apple_a7iop_mailbox_recv_ap(AppleA7IOPMailbox *s);
 AppleA7IOPMailbox *apple_a7iop_mailbox_new(const char *role,

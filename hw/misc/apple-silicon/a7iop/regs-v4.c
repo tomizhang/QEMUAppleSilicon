@@ -3,6 +3,7 @@
 #include "exec/memory.h"
 #include "hw/misc/apple-silicon/a7iop/core.h"
 #include "hw/sysbus.h"
+#include "qemu/lockable.h"
 #include "qemu/log.h"
 #include "private.h"
 
@@ -57,7 +58,6 @@ static void apple_a7iop_reg_write(void *opaque, hwaddr addr,
                                   const uint64_t data, unsigned size)
 {
     AppleA7IOP *s = APPLE_A7IOP(opaque);
-    uint32_t interrupt_index = 0;
 
     switch (addr) {
     case REG_CPU_CTRL:
@@ -67,35 +67,24 @@ static void apple_a7iop_reg_write(void *opaque, hwaddr addr,
     case REG_SEP_AKF_DISABLE_INTERRUPT_BASE + 0x04: // group 1
     case REG_SEP_AKF_DISABLE_INTERRUPT_BASE + 0x08: // group 2
     case REG_SEP_AKF_DISABLE_INTERRUPT_BASE + 0x0C: // group 3
-#if 0
-        qemu_log_mask(
-            LOG_UNIMP,
-            "%s AKF: SEP AKF DISABLE INTERRUPT write to 0x" HWADDR_FMT_plx
-            " of value 0x" HWADDR_FMT_plx " lowest_bit_position: %u \n",
-            s->role, addr, data, __builtin_ctzl(data));
-#endif
-        interrupt_index = (addr - REG_SEP_AKF_DISABLE_INTERRUPT_BASE) >> 2;
-        s->iop_mailbox->interrupts_enabled[interrupt_index] &= ~data;
+        WITH_QEMU_LOCK_GUARD(&s->iop_mailbox->lock)
+        {
+            s->iop_mailbox->interrupts_enabled
+                [(addr - REG_SEP_AKF_DISABLE_INTERRUPT_BASE) >> 2] &= ~data;
+            apple_a7iop_mailbox_update_irq(s->iop_mailbox);
+        }
 
         break;
     case REG_SEP_AKF_ENABLE_INTERRUPT_BASE + 0x00: // group 0
     case REG_SEP_AKF_ENABLE_INTERRUPT_BASE + 0x04: // group 1
     case REG_SEP_AKF_ENABLE_INTERRUPT_BASE + 0x08: // group 2
     case REG_SEP_AKF_ENABLE_INTERRUPT_BASE + 0x0C: // group 3
-#if 0
-        qemu_log_mask(
-            LOG_UNIMP,
-            "%s AKF: SEP AKF ENABLE INTERRUPT write to 0x" HWADDR_FMT_plx
-            " of value 0x" HWADDR_FMT_plx " lowest_bit_position: %u \n",
-            s->role, addr, data, __builtin_ctzl(data));
-#endif
-        interrupt_index = (addr - REG_SEP_AKF_ENABLE_INTERRUPT_BASE) >> 2;
-        s->iop_mailbox->interrupts_enabled[interrupt_index] |= data;
-#if 0
-        ap_update_irq(s);
-        iop_update_irq(s);
-#endif
-        apple_a7iop_mailbox_update_irq(s->iop_mailbox);
+        WITH_QEMU_LOCK_GUARD(&s->iop_mailbox->lock)
+        {
+            s->iop_mailbox->interrupts_enabled
+                [(addr - REG_SEP_AKF_ENABLE_INTERRUPT_BASE) >> 2] |= data;
+            apple_a7iop_mailbox_update_irq(s->iop_mailbox);
+        }
         break;
     case REG_KIC_MAILBOX_EXT_CLR:
         break;
@@ -131,23 +120,26 @@ static uint64_t apple_a7iop_reg_read(void *opaque, hwaddr addr, unsigned size)
         AppleA7IOPMailbox *a7iop_mbox = s->iop_mailbox;
         uint32_t interrupt_status =
             apple_a7iop_interrupt_status_pop(a7iop_mbox);
-        apple_a7iop_mailbox_update_irq_status(a7iop_mbox);
-        if (interrupt_status) {
-            ret = interrupt_status;
-            qemu_log_mask(LOG_GUEST_ERROR,
-                          "%s: REG_V3_INTERRUPT_STATUS: returning "
-                          "interrupt_status: 0x%05" PRIX64 "\n",
-                          s->role, ret);
-        } else if (a7iop_mbox->iop_nonempty) {
-            ret = 0x40000;
-        } else if (a7iop_mbox->iop_empty) {
-            ret = 0x40001;
-        } else if (a7iop_mbox->ap_nonempty) {
-            ret = 0x40002;
-        } else if (a7iop_mbox->ap_empty) {
-            ret = 0x40003;
-        } else {
-            ret = 0x70001;
+        WITH_QEMU_LOCK_GUARD(&s->lock)
+        {
+            apple_a7iop_mailbox_update_irq_status(a7iop_mbox);
+            if (interrupt_status) {
+                ret = interrupt_status;
+                qemu_log_mask(LOG_GUEST_ERROR,
+                              "%s: REG_V3_INTERRUPT_STATUS: returning "
+                              "interrupt_status: 0x%05" PRIX64 "\n",
+                              s->role, ret);
+            } else if (a7iop_mbox->iop_nonempty) {
+                ret = 0x40000;
+            } else if (a7iop_mbox->iop_empty) {
+                ret = 0x40001;
+            } else if (a7iop_mbox->ap_nonempty) {
+                ret = 0x40002;
+            } else if (a7iop_mbox->ap_empty) {
+                ret = 0x40003;
+            } else {
+                ret = 0x70001;
+            }
         }
         break;
     }

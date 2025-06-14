@@ -3,6 +3,9 @@
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/a7iop/base.h"
 #include "hw/misc/apple-silicon/a7iop/mailbox/core.h"
+#include "hw/misc/apple-silicon/a7iop/mailbox/private.h"
+#include "hw/misc/apple-silicon/a7iop/mailbox/trace.h"
+#include "hw/misc/apple-silicon/a7iop/private.h"
 #include "hw/qdev-core.h"
 #include "hw/sysbus.h"
 #include "migration/vmstate.h"
@@ -10,8 +13,6 @@
 #include "qemu/lockable.h"
 #include "qemu/log.h"
 #include "qemu/queue.h"
-#include "private.h"
-#include "trace.h"
 
 #define MAX_MESSAGE_COUNT 15
 
@@ -394,6 +395,8 @@ uint32_t apple_a7iop_interrupt_status_pop(AppleA7IOPMailbox *s)
     AppleA7IOPInterruptStatusMessage *msg;
     AppleA7IOPInterruptStatusMessage *lowest_msg;
 
+    QEMU_LOCK_GUARD(&s->lock);
+
     lowest_msg = NULL;
     QTAILQ_FOREACH (msg, &s->interrupt_status, entry) {
         if (is_interrupt_enabled(s, msg->status)) {
@@ -472,8 +475,9 @@ static void apple_a7iop_mailbox_reset(DeviceState *dev)
 
     s = APPLE_A7IOP_MAILBOX(dev);
 
-    g_assert_true(s->iop_mailbox != s->ap_mailbox);
     QEMU_LOCK_GUARD(&s->lock);
+
+    g_assert_true(s->iop_mailbox != s->ap_mailbox);
     s->count = 0;
     s->iop_dir_en = true;
     s->ap_dir_en = true;

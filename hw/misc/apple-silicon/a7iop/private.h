@@ -10,4 +10,6 @@
 void apple_a7iop_init_mmio_v2(AppleA7IOP *s, uint64_t mmio_size);
 void apple_a7iop_init_mmio_v4(AppleA7IOP *s, uint64_t mmio_size);
 
+uint32_t apple_a7iop_interrupt_status_pop(AppleA7IOPMailbox *s);
+
 #endif /* HW_MISC_APPLE_SILICON_A7IOP_PRIVATE_H */
