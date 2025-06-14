@@ -9,6 +9,7 @@
 #include "cpu.h"
 #include "internals.h"
 #include "cpu-features.h"
+#include "exec/breakpoint.h"
 #include "exec/exec-all.h"
 #include "exec/helper-proto.h"
 
@@ -244,9 +245,10 @@ void arm_deliver_fault(ARMCPU *cpu, vaddr addr,
 
     if (access_type == MMU_INST_FETCH) {
         syn = syn_insn_abort(same_el, fi->ea, fi->s1ptw, fsc);
-        exc = EXCP_PREFETCH_ABORT;
         if (fi->type == ARMFault_GXF_Abort) {
             exc = EXCP_GXF_ABORT;
+        } else {
+            exc = EXCP_PREFETCH_ABORT;
         }
     } else {
         syn = merge_syn_data_abort(env->exception.syndrome, fi, target_el,

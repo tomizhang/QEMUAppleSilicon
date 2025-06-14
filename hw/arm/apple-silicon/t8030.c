@@ -67,7 +67,7 @@
 #include "system/system.h"
 
 #define T8030_SROM_BASE (0x100000000)
-#define T8030_SROM_SIZE (0x80000)
+#define T8030_SROM_SIZE (512 * KiB)
 
 #define T8030_SRAM_BASE (0x19C000000)
 #define T8030_SRAM_SIZE (0x400000)
@@ -922,7 +922,7 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         if (current_prod == 1)
             return 0xA55AC33C; // IBFL | 0x10 // CPFM | 0x03 ; IBFL_base == 0x0C
         return 0xA050C030; // IBFL | 0x00 // CPFM | 0x00 ; IBFL_base == 0x04
-    //case 0x3D2BC200: // RAW_PROD T8020 AP/SEP
+    // case 0x3D2BC200: // RAW_PROD T8020 AP/SEP
     case 0x3D2BC400: // T8030 RAW_PROD
         // if (sep->pmgr_base_regs[0x68] != 0) // if T8020 AP/SEP current_prod
         // and raw_prod are disabled, scrd sets a flag
@@ -939,21 +939,21 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         if (current_secure_mode)
             return 0xA55AC33C; // CPFM | 0x01 ; IBFL_base == 0x0C
         return 0xA050C030; // CPFM | 0x00 ; IBFL_base == 0x04
-    //case 0x3D2BC204: // Raw Secure Mode AP/SEP T8020
+    // case 0x3D2BC204: // Raw Secure Mode AP/SEP T8020
     case 0x3D2BC404: // Raw Secure Mode AP/SEP T8030
-    ////case 0x3D2BC604: //? maybe also raw secure mode for T8030???
+        ////case 0x3D2BC604: //? maybe also raw secure mode for T8030???
         if (raw_secure_mode)
             return 0xA55AC33C; // CPFM | 0x01 ; IBFL_base == 0x0C
         return 0xA050C030;
     case 0x3D2BC008:
     case 0x3D2BC408: // raw for t8030?
-    //case 0x3D2BC208: // Security (raw?) Domain BIT0 T8020 SEP
+        // case 0x3D2BC208: // Security (raw?) Domain BIT0 T8020 SEP
         if ((security_domain & (1 << 0)) != 0)
             return 0xA55AC33C; // security domain | 0x1
         return 0xA050C030;
     case 0x3D2BC00C:
     case 0x3D2BC40C: // raw for t8030?
-    //case 0x3D2BC20C: // Security Domain (raw?) BIT1 T8020 SEP
+        // case 0x3D2BC20C: // Security Domain (raw?) BIT1 T8020 SEP
         if ((security_domain & (1 << 1)) != 0)
             return 0xA55AC33C; // security domain | 0x2
         return 0xA050C030; // security domain | 0x0
@@ -961,8 +961,8 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
         sep_bit30_current_value =
             ((sep == NULL) ? 0 : (sep->pmgr_fuse_changer_bit0_was_set << 30));
         QEMU_FALLTHROUGH;
-    //case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO?
-    //                 // AppleSEPROM-A12-D331pAP
+    // case 0x3D2BC210: // (raw?) board id/minimum epoch? //CEPO? SEPO?
+    //                  // AppleSEPROM-A12-D331pAP
     case 0x3D2BC410: // raw board id and epoch t8030
         return ((t8030_machine->board_id >> 5) & 0x7) |
                ((security_epoch & 0x7f) << 5) | sep_bit30_current_value |
@@ -992,13 +992,13 @@ static uint64_t pmgr_unk_reg_read(void *opaque, hwaddr addr, unsigned size)
                (0 << 1); // LOW&HIGH NIBBLE T8030, T8020 and
                          // AppleSEPROM-S4-S5-B1 // maybe 0x1c0 instead of 0x7 ;
                          // bit1 being set causes kernel data abort
-    //case 0x3D2BC100: // ECID LOW T8020
+    // case 0x3D2BC100: // ECID LOW T8020
     case 0x3D2BC300: // ECID LOW T8030
         return t8030_machine->ecid & 0xffffffff; // ECID lower
-    //case 0x3D2BC104: // ECID HIGH T8020
+    // case 0x3D2BC104: // ECID HIGH T8020
     case 0x3D2BC304: // ECID HIGH T8030
         return t8030_machine->ecid >> 32; // ECID upper
-    //case 0x3D2BC10C: // T8020 SEP Chip Revision
+    // case 0x3D2BC10C: // T8020 SEP Chip Revision
     case 0x3D2BC30C: // T8030 SEP Chip Revision
         // case 0x3D2BC30c: // Maybe the T8030 SEP equivalent?
         //  1 vs. not 1: TRNG/Monitor
@@ -1517,14 +1517,20 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     // be used at all, no freaking idea unsure if ans/nvme under t8030 is
     // actually exposed on the pci bus
 
-    PCIDevice *pci_dev = PCI_DEVICE(object_property_get_link(OBJECT(t8030_machine), "pcie.bridge1", &error_fatal));
-    //PCIDevice *pci_dev = PCI_DEVICE(object_property_get_link(OBJECT(t8030_machine), "pcie.bridge0", &error_fatal));
+    PCIDevice *pci_dev = PCI_DEVICE(object_property_get_link(
+        OBJECT(t8030_machine), "pcie.bridge1", &error_fatal));
+    // PCIDevice *pci_dev =
+    // PCI_DEVICE(object_property_get_link(OBJECT(t8030_machine),
+    // "pcie.bridge0", &error_fatal));
     PCIBridge *pci_bridge = PCI_BRIDGE(pci_dev);
     PCIBus *sec_bus = pci_bridge_get_sec_bus(pci_bridge);
-    //PCIBus *bus = pci_get_bus(pci_dev);
-    apcie_host = APPLE_PCIE_HOST(object_property_get_link(OBJECT(t8030_machine), "pcie.host", &error_fatal));
-    ans = apple_ans_create(child, APPLE_A7IOP_V4, t8030_machine->rtkit_protocol_ver, sec_bus);
-    //ans = apple_ans_create(child, APPLE_A7IOP_V4, t8030_machine->rtkit_protocol_ver, bus);
+    // PCIBus *bus = pci_get_bus(pci_dev);
+    apcie_host = APPLE_PCIE_HOST(object_property_get_link(
+        OBJECT(t8030_machine), "pcie.host", &error_fatal));
+    ans = apple_ans_create(child, APPLE_A7IOP_V4,
+                           t8030_machine->rtkit_protocol_ver, sec_bus);
+    // ans = apple_ans_create(child, APPLE_A7IOP_V4,
+    // t8030_machine->rtkit_protocol_ver, bus);
     g_assert_nonnull(ans);
     g_assert_nonnull(object_property_add_const_link(
         OBJECT(ans), "dma-mr", OBJECT(sysbus_mmio_get_region(sart, 1))));
@@ -1551,13 +1557,21 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     // out_named/in_named seems to be the cleanest solution
     // qdev_connect_gpio_out_named(DEVICE(pci), "interrupt_pci", 0,
     // qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[4]));
-    //qdev_connect_gpio_out_named(DEVICE(pci), "interrupt_pci", 0, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
-    //qdev_connect_gpio_out_named(DEVICE(pci_dev), "interrupt_pci", 0, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
-    //qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 0, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
-    //qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 0, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
-    //qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 1, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
-    //qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 2, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
-    qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 3, qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    // qdev_connect_gpio_out_named(DEVICE(pci), "interrupt_pci", 0,
+    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    // qdev_connect_gpio_out_named(DEVICE(pci_dev), "interrupt_pci", 0,
+    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    // qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 0,
+    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    // qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 0,
+    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    // qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 1,
+    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    // qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 2,
+    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+    qdev_connect_gpio_out_named(
+        DEVICE(apcie_host), "interrupt_pci", 3,
+        qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
 
     sysbus_realize_and_unref(ans, &error_fatal);
 }
@@ -2058,10 +2072,10 @@ static void t8030_create_pcie(T8030MachineState *t8030_machine)
     int i;
     uint32_t *ints;
     DTBProp *prop;
-    //uint64_t *reg;
+    // uint64_t *reg;
     SysBusDevice *pcie;
-    //char temp_name[32];
-    //uint32_t port_index, port_entries;
+    // char temp_name[32];
+    // uint32_t port_index, port_entries;
 
     DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io");
     g_assert_nonnull(child);
@@ -2687,10 +2701,10 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_dart(t8030_machine, "dart-disp0", false);
     t8030_create_dart(t8030_machine, "dart-sep", false);
 #ifdef ENABLE_BASEBAND
-//#if 0
+    // #if 0
     t8030_create_dart(t8030_machine, "dart-apcie3", true);
 #endif
-//#if 1
+// #if 1
 #if 0
     //t8030_create_dart(t8030_machine, "dart-apcie2", true);
     t8030_create_dart(t8030_machine, "dart-apcie3", true);

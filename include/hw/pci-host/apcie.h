@@ -82,8 +82,8 @@ struct ApplePCIEHost {
 #if 0
     ApplePCIEMSI msi;
 #endif
-    //uint32_t clkreq_gpio_id;
-    //uint32_t clkreq_gpio_value;
+    // uint32_t clkreq_gpio_id;
+    // uint32_t clkreq_gpio_value;
 
     MemoryRegion root_cfg;
     MemoryRegion root_common;
@@ -96,8 +96,8 @@ struct ApplePCIEHost {
 struct ApplePCIEPort {
     PCIESlot parent_obj;
 
-    //char bus_path[8];
-    //char name[16];
+    // char bus_path[8];
+    // char name[16];
 
     uint32_t bus_nr;
     uint32_t device_id;
