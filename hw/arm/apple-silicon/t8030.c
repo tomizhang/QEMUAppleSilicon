@@ -35,6 +35,9 @@
 #include "hw/arm/apple-silicon/t8030-config.c.inc"
 #include "hw/arm/apple-silicon/t8030.h"
 #include "hw/arm/apple-silicon/xnu_pf.h"
+#include "hw/audio/apple-silicon/aop-audio.h"
+#include "hw/audio/apple-silicon/cs35l27.h"
+#include "hw/audio/apple-silicon/cs42l77.h"
 #include "hw/block/apple_ans.h"
 #include "hw/char/apple_uart.h"
 #include "hw/display/apple_displaypipe_v4.h"
@@ -44,6 +47,7 @@
 #include "hw/intc/apple_aic.h"
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/aes.h"
+#include "hw/misc/apple-silicon/aop.h"
 #include "hw/misc/apple-silicon/chestnut.h"
 #include "hw/misc/apple-silicon/roswell.h"
 #include "hw/misc/apple-silicon/smc.h"
@@ -244,6 +248,9 @@ static void t8030_patch_kernel(MachoHeader64 *hdr, uint32_t build_version)
     // pmap_cs_enforce return 0
     *(uint32_t *)vtop_slid(0xFFFFFFF0097EB5A8) = cpu_to_le32(0xD2800000);
     *(uint32_t *)vtop_slid(0xFFFFFFF0097EB5AC) = cpu_to_le32(0xD65F03C0);
+
+    // AppleAOPAudioLog::mLogLevel = LogLevelDebug;
+    *(uint32_t *)vtop_slid(0xFFFFFFF009881658) = cpu_to_le32(4);
 }
 
 static bool t8030_check_panic(T8030MachineState *t8030_machine)
@@ -2430,6 +2437,113 @@ static void t8030_create_mt_spi(T8030MachineState *t8030_machine)
                                 qdev_get_gpio_in(aop_gpio, ints[0]));
 }
 
+static void t8030_create_aop(T8030MachineState *t8030_machine)
+{
+    int i;
+    uint32_t *ints;
+    DTBProp *prop;
+    uint64_t *reg;
+    SysBusDevice *aop;
+    AppleDARTState *dart;
+    DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io");
+    DTBNode *iop_nub;
+    IOMMUMemoryRegion *dma_mr = NULL;
+    DTBNode *dart_aop = dtb_get_node(child, "dart-aop");
+    DTBNode *dart_aop_mapper = dtb_get_node(dart_aop, "mapper-aop");
+    SysBusDevice *sbd;
+
+    g_assert_nonnull(child);
+    child = dtb_get_node(child, "aop");
+    g_assert_nonnull(child);
+    iop_nub = dtb_get_node(child, "iop-aop-nub");
+    g_assert_nonnull(iop_nub);
+
+    aop = apple_aop_create(child, APPLE_A7IOP_V4,
+                           t8030_machine->rtkit_protocol_ver);
+    g_assert_nonnull(aop);
+
+    object_property_add_child(OBJECT(t8030_machine), "aop", OBJECT(aop));
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    reg = (uint64_t *)prop->data;
+
+    for (i = 0; i < 2; i++) {
+        sysbus_mmio_map(aop, i, t8030_machine->soc_base_pa + reg[i * 2]);
+    }
+
+    prop = dtb_find_prop(child, "interrupts");
+    g_assert_nonnull(prop);
+    ints = (uint32_t *)prop->data;
+
+    for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
+        sysbus_connect_irq(
+            aop, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
+    }
+
+    dart = APPLE_DART(object_property_get_link(OBJECT(t8030_machine),
+                                               "dart-aop", &error_fatal));
+    g_assert_nonnull(dart);
+
+    prop = dtb_find_prop(dart_aop_mapper, "reg");
+
+    dma_mr = apple_dart_iommu_mr(dart, *(uint32_t *)prop->data);
+    g_assert_nonnull(dma_mr);
+    g_assert_nonnull(
+        object_property_add_const_link(OBJECT(aop), "dma-mr", OBJECT(dma_mr)));
+
+    sbd = apple_aop_audio_create(APPLE_AOP(aop));
+    g_assert_nonnull(sbd);
+    object_property_add_child(OBJECT(aop), "aop-audio", OBJECT(sbd));
+    sysbus_realize_and_unref(sbd, &error_fatal);
+
+    sysbus_realize_and_unref(aop, &error_fatal);
+}
+
+static void t8030_create_mca(T8030MachineState *t8030_machine)
+{
+    DTBNode *child;
+    DTBProp *prop;
+    uint64_t *reg;
+    AppleI2CState *i2c;
+    AppleSPIState *spi;
+    DeviceState *device;
+
+    child = dtb_get_node(t8030_machine->device_tree, "arm-io/mca-switch");
+    g_assert_nonnull(child);
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    reg = (uint64_t *)prop->data;
+
+    create_unimplemented_device("mca.sio", t8030_machine->soc_base_pa + reg[0],
+                                reg[1]);
+    create_unimplemented_device("mca.dma", t8030_machine->soc_base_pa + reg[2],
+                                reg[3]);
+    create_unimplemented_device("mca.mclk_cfg",
+                                t8030_machine->soc_base_pa + reg[4], reg[5]);
+    create_unimplemented_device("mca.unk", t8030_machine->soc_base_pa + reg[6],
+                                reg[7]);
+
+    child = dtb_get_node(t8030_machine->device_tree,
+                         "arm-io/i2c2/audio-speaker-top");
+    g_assert_nonnull(child);
+
+    prop = dtb_find_prop(child, "reg");
+    g_assert_nonnull(prop);
+    i2c = APPLE_I2C(
+        object_property_get_link(OBJECT(t8030_machine), "i2c2", &error_fatal));
+    i2c_slave_create_simple(i2c->bus, TYPE_APPLE_CS35L27,
+                            *(uint32_t *)prop->data);
+
+    spi = APPLE_SPI(
+        object_property_get_link(OBJECT(t8030_machine), "spi3", &error_fatal));
+    device = ssi_create_peripheral(apple_spi_get_bus(spi), TYPE_APPLE_CS42L77);
+
+    child = dtb_get_node(t8030_machine->device_tree, "arm-io/spi3/audio-codec");
+    g_assert_nonnull(child);
+}
+
 static void t8030_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
 {
     T8030MachineState *t8030_machine;
@@ -2709,6 +2823,7 @@ static void t8030_machine_init(MachineState *machine)
     //t8030_create_dart(t8030_machine, "dart-apcie2", true);
     t8030_create_dart(t8030_machine, "dart-apcie3", true);
 #endif
+    t8030_create_dart(t8030_machine, "dart-aop", false);
     t8030_create_usb(t8030_machine);
     t8030_create_wdt(t8030_machine);
     t8030_create_aes(t8030_machine);
@@ -2733,6 +2848,8 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_misc(t8030_machine);
     t8030_create_display(t8030_machine);
     t8030_create_mt_spi(t8030_machine);
+    t8030_create_aop(t8030_machine);
+    t8030_create_mca(t8030_machine);
 
     t8030_machine->init_done_notifier.notify = t8030_machine_init_done;
     qemu_add_machine_init_done_notifier(&t8030_machine->init_done_notifier);

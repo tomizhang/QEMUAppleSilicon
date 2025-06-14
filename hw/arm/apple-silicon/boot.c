@@ -47,6 +47,32 @@
 
 static const char *KEEP_COMP[] = {
     "adbe0,s8000\0$",
+    "aop-audio\0$",
+    "aop-audio-control\0$",
+    "aop-audio-speaker\0$",
+    "audio-aop-lp-mic-in\0$",
+    "audio-aop-mca2\0$",
+    "audio-aop-pcmaudiomgr\0$",
+    // "alc,t8030\0$",
+    // "audio-data,aop-audio-haptic\0$",
+    // "audio-data,halogen\0$",
+    // "audio-data,hawking\0$",
+    // "audio-data,baseband-voice\0$",
+    // "audio-data,dsp-debug1\0$",
+    // "audio-data,mikeybus-secondary\0$",
+    // "audio-data,aop-audio-hpdb\0$",
+    // "halle-sensor,aop-ad5860-config\0$",
+    // "audio-aop-hall\0$",
+    // "audio-aop-hpdbg\0$",
+    // "audio-aop-haptic\0$",
+    // "audio-aop-haptic-leap\0$",
+    // "audio-aop-hapticmgr\0$",
+    "audio,embedded-resource-manager\0$",
+    "audio-control,cs35l27\0$",
+    "audio-data,audio-loopback\0$",
+    "audio-data,cs35l27\0$",
+    "audio-data,cs42l77\0$",
+    "audio-control,cs42l77\0$",
     "aes,s8000\0$",
     "aic,1\0$",
     "apple,lightning\0ARM,v8\0$",
@@ -81,7 +107,9 @@ static const char *KEEP_COMP[] = {
     "iop-nub,rtbuddy-v2\0$",
     "iop,s8000\0$",
     "iop-nub,sep\0$",
-    // "iop-nub,sio\0$",
+    "mca-switch,t8030\0$",
+    "mcaCluster,t8030\0$",
+    "mca,t8030\0$",
     "N104AP\0iPhone12,1\0AppleARM\0$",
     "N104DEV\0iPhone12,1\0AppleARM\0$",
     "N66AP\0iPhone8,2\0AppleARM\0$",
@@ -117,9 +145,8 @@ static const char *KEEP_COMP[] = {
 };
 
 static const char *REM_NAMES[] = {
-    "gfx-asc\0$",      "smc-aop\0$",
-    "amfm\0$",         "dart-ane\0$",
-    "dart-aop\0$",     "dart-avd\0$",
+    "gfx-asc\0$",      "amfm\0$",
+    "dart-ane\0$",     "dart-avd\0$",
     "dart-ave\0$",     "dart-isp\0$",
     "dart-jpeg0\0$",   "dart-jpeg1\0$",
     "dart-pmp\0$",     "dart-rsm\0$",
@@ -148,7 +175,7 @@ static const char *REM_NAMES[] = {
 };
 
 static const char *REM_DEV_TYPES[] = {
-    "bluetooth\0$",     "wlan\0$",          "aop\0$", "pmp\0$",
+    "bluetooth\0$",     "wlan\0$",          "pmp\0$",
 #ifndef ENABLE_BASEBAND
     "baseband\0$",      "baseband-spmi\0$",
 #endif

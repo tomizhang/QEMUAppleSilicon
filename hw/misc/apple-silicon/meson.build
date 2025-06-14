@@ -11,6 +11,7 @@ system_ss.add(when: 'CONFIG_APPLE_SOC', if_true: files(
     'roswell.c',
     'chestnut.c',
     'pmu-d2255.c',
+    'aop.c',
 ))
 system_ss.add(when: 'CONFIG_APPLE_SPMI_PMU', if_true: files('spmi-pmu.c'))
 
