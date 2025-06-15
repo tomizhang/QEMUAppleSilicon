@@ -170,6 +170,7 @@ static void t8030_patch_kernel(MachoHeader64 *hdr, uint32_t build_version)
     }
 
     const uint32_t nop = cpu_to_le32(0xD503201F);
+    const uint32_t ret = cpu_to_le32(0xD65F03C0);
 
     // disable_kprintf_output = 0;
     *(uint32_t *)vtop_slid(0xFFFFFFF0077142C8) = 0;
@@ -239,15 +240,15 @@ static void t8030_patch_kernel(MachoHeader64 *hdr, uint32_t build_version)
 
     // _ubc_cs_check_validation_bitmap return 0
     *(uint32_t *)vtop_slid(0xFFFFFFF007EBDF40) = cpu_to_le32(0xD2800000);
-    *(uint32_t *)vtop_slid(0xFFFFFFF007EBDF44) = cpu_to_le32(0xD65F03C0);
+    *(uint32_t *)vtop_slid(0xFFFFFFF007EBDF44) = ret;
 
     // _pmap_cs_enforce_library_validation return 0
     *(uint32_t *)vtop_slid(0xFFFFFFF0097E4D2C) = cpu_to_le32(0xD2800000);
-    *(uint32_t *)vtop_slid(0xFFFFFFF0097E4D30) = cpu_to_le32(0xD65F03C0);
+    *(uint32_t *)vtop_slid(0xFFFFFFF0097E4D30) = ret;
 
     // pmap_cs_enforce return 0
     *(uint32_t *)vtop_slid(0xFFFFFFF0097EB5A8) = cpu_to_le32(0xD2800000);
-    *(uint32_t *)vtop_slid(0xFFFFFFF0097EB5AC) = cpu_to_le32(0xD65F03C0);
+    *(uint32_t *)vtop_slid(0xFFFFFFF0097EB5AC) = ret;
 
     // AppleAOPAudioLog::mLogLevel = LogLevelDebug;
     *(uint32_t *)vtop_slid(0xFFFFFFF009881658) = cpu_to_le32(4);
