@@ -10908,7 +10908,7 @@ static void arm_cpu_do_interrupt_aarch64(CPUState *cs)
 
     qemu_log_mask(CPU_LOG_INT, "...with SPSR 0x%x\n", old_mode);
     if (genter || arm_is_guarded(env)) {
-        qemu_log_mask(CPU_LOG_INT, "...with ELR 0x%" PRIx64 "\n",
+        qemu_log_mask(CPU_LOG_INT, "...with ELR_GL 0x%" PRIx64 "\n",
                     env->gxf.elr_gl[new_el]);
     } else {
         qemu_log_mask(CPU_LOG_INT, "...with ELR 0x%" PRIx64 "\n",

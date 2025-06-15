@@ -10121,41 +10121,40 @@ static bool disas_apple_insn(DisasContext *s, uint32_t insn)
     }
 
     switch (opcode) {
-    case 2: /* WKdmC */
+    case 2: // WKdmC
         tcg_rd = cpu_reg_sp(s, rd);
         gen_helper_wkdmc(tcg_rd, tcg_env, tcg_rd, cpu_reg_sp(s, rn));
         return true;
-    case 3: /* WKdmD */
+    case 3: // WKdmD
         tcg_rd = cpu_reg_sp(s, rd);
         gen_helper_wkdmd(tcg_rd, tcg_env, tcg_rd, cpu_reg_sp(s, rn));
         return true;
     case 5:
-        if (s->gxf_active) {
-            switch (rn) {
-                case 1: /* GENTER */
-                    if (s->guarded) {
-                        return false;
-                    }
-                    gen_a64_update_pc(s, 0);
-                    gen_ss_advance(s);
-                    gen_exception_insn(s, 4, EXCP_GENTER,
-                                       syn_aa64_genter(rd));
-                    return true;
-
-                case 0: /* GEXIT */
-                    if (!s->guarded) {
-                        return false;
-                    }
-                    gen_helper_gexit(tcg_env);
-                    s->base.is_jmp = DISAS_EXIT;
-                    return true;
-                default:
-                    return false;
-            }
+        if (!s->gxf_active) {
+            return false;
         }
-        return false;
+        switch (rn) {
+            case 1: // GENTER
+                if (s->guarded) {
+                    return false;
+                }
+                gen_a64_update_pc(s, 0);
+                gen_ss_advance(s);
+                gen_exception_insn(s, 4, EXCP_GENTER, syn_aa64_genter(rd));
+                return true;
+            case 0: // GEXIT
+                if (!s->guarded) {
+                    return false;
+                }
+                gen_helper_gexit(tcg_env);
+                s->base.is_jmp = DISAS_EXIT;
+                return true;
+            default:
+                break;
+        }
+        break;
     default:
-        return false;
+        break;
     }
     return false;
 }
@@ -10221,7 +10220,7 @@ static void aarch64_tr_init_disas_context(DisasContextBase *dcbase,
     dc->ata[1] = EX_TBFLAG_A64(tb_flags, ATA0);
     dc->mte_active[0] = EX_TBFLAG_A64(tb_flags, MTE_ACTIVE);
     dc->mte_active[1] = EX_TBFLAG_A64(tb_flags, MTE0_ACTIVE);
-    dc->guarded = dc->gxf_active && arm_is_guarded(env);
+    dc->guarded = arm_is_guarded(env);
     dc->pstate_sm = EX_TBFLAG_A64(tb_flags, PSTATE_SM);
     dc->pstate_za = EX_TBFLAG_A64(tb_flags, PSTATE_ZA);
     dc->sme_trap_nonstreaming = EX_TBFLAG_A64(tb_flags, SME_TRAP_NONSTREAMING);

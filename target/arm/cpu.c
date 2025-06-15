@@ -1563,9 +1563,6 @@ static const Property arm_cpu_has_el2_property =
 
 static const Property arm_cpu_has_el3_property =
             DEFINE_PROP_BOOL("has_el3", ARMCPU, has_el3, true);
-
-static Property arm_cpu_has_gxf_property =
-            DEFINE_PROP_BOOL("has_gxf", ARMCPU, has_gxf, false);
 #endif
 
 static const Property arm_cpu_cfgend_property =
@@ -1777,10 +1774,6 @@ void arm_cpu_post_init(Object *obj)
 
     if (arm_feature(&cpu->env, ARM_FEATURE_EL2)) {
         qdev_property_add_static(DEVICE(obj), &arm_cpu_has_el2_property);
-    }
-
-    if (arm_feature(&cpu->env, ARM_FEATURE_GXF)) {
-        qdev_property_add_static(DEVICE(obj), &arm_cpu_has_gxf_property);
     }
 #endif
 
@@ -2362,10 +2355,6 @@ static void arm_cpu_realizefn(DeviceState *dev, Error **errp)
         /* Disable the realm management extension, which requires EL3. */
         cpu->isar.id_aa64pfr0 = FIELD_DP64(cpu->isar.id_aa64pfr0,
                                            ID_AA64PFR0, RME, 0);
-    }
-
-    if (!cpu->has_gxf) {
-        unset_feature(env, ARM_FEATURE_GXF);
     }
 
     if (!cpu->has_el2) {

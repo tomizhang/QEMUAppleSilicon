@@ -49,12 +49,7 @@ static void vbar_el1_write(CPUARMState *env, const ARMCPRegInfo *ri,
 {
     if (arm_is_guarded(env)) {
         env->gxf.vbar_gl[1] = value & ~0x1FULL;
-    } else {
-        if (!arm_is_guarded(env) &&
-            env->cp15.vmsa_lock_el1 & VMSA_LOCK_VBAR_EL1) {
-            return;
-        }
-
+    } else if (!(env->cp15.vmsa_lock_el1 & VMSA_LOCK_VBAR_EL1)) {
         raw_write(env, ri, value & ~0x1FULL);
     }
 }
@@ -606,11 +601,14 @@ static const ARMCPRegInfo apple_a13_gxf_cp_reginfo[] = {
 
 void apple_a13_init_gxf_override(AppleA13State *cpu)
 {
-    define_arm_cp_regs(ARM_CPU(cpu), apple_a13_gxf_cp_override_reginfo);
+    if (arm_feature(&ARM_CPU(cpu)->env, ARM_FEATURE_GXF)) {
+        define_arm_cp_regs(ARM_CPU(cpu), apple_a13_gxf_cp_override_reginfo);
+    }
 }
 
 void apple_a13_init_gxf(AppleA13State *cpu)
 {
-    define_arm_cp_regs(ARM_CPU(cpu), apple_a13_gxf_cp_reginfo);
-    object_property_set_bool(OBJECT(cpu), "has_gxf", true, &error_abort);
+    if (arm_feature(&ARM_CPU(cpu)->env, ARM_FEATURE_GXF)) {
+        define_arm_cp_regs(ARM_CPU(cpu), apple_a13_gxf_cp_reginfo);
+    }
 }

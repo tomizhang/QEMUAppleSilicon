@@ -999,8 +999,6 @@ struct ArchCPU {
     bool has_el2;
     /* CPU has security extension */
     bool has_el3;
-    /* CPU has Apple's GXF support */
-    bool has_gxf;
     /* CPU has PMU (Performance Monitor Unit) */
     bool has_pmu;
     /* CPU has VFP */
