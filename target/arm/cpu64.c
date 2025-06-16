@@ -774,8 +774,9 @@ static void aarch64_max_initfn(Object *obj)
 
 static void aarch64_apple_gxf_initfn(Object *obj) {
     aarch64_max_initfn(obj);
-    ARMCPU *cpu = ARM_CPU(obj);
-    set_feature(&cpu->env, ARM_FEATURE_GXF);
+    if (tcg_enabled()) {
+        set_feature(&ARM_CPU(obj)->env, ARM_FEATURE_GXF);
+    }
 }
 
 static const ARMCPUInfo aarch64_cpus[] = {
