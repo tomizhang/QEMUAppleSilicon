@@ -1,6 +1,16 @@
 #include "hw/audio/apple-silicon/aop-audio.h"
 #include "hw/misc/apple-silicon/aop.h"
 
+// #define DEBUG_AOP_AUDIO
+
+#ifdef DEBUG_AOP_AUDIO
+#define DPRINTF(v, ...) fprintf(stderr, v, ##__VA_ARGS__)
+#else
+#define DPRINTF(v, ...) \
+    do {                \
+    } while (0)
+#endif
+
 #define OP_COMMAND (0x20)
 
 #define COMMAND_GET_DEVICE_ID (0xC3000001)
@@ -19,6 +29,9 @@
 #define DEV_PROP_MCA_TX_STATUS_LEN (0x30)
 #define DEV_PROP_MCA_RX0_SHIM_OVERRUN (0xD7)
 #define DEV_PROP_MCA_RX0_SHIM_OVERRUN_LEN (4)
+
+#define DEV_PROP_PCM_NUM_SUPPORTED_ASSETS (0xC8)
+#define DEV_PROP_PCM_NUM_SUPPORTED_ASSETS_LEN (4)
 
 #define DEV_PROP_STATE (0xC8)
 #define DEV_PROP_STATE_LEN (4)
@@ -72,7 +85,8 @@ type_init(apple_aop_audio_register_types);
 static AppleAOPResult apple_aop_audio_get_prop(void *opaque, uint32_t prop,
                                                void *out)
 {
-    // fprintf(stderr, "AOPAudio GetProperty 0x%X\n", prop);
+    DPRINTF("AOPAudio GetProperty 0x%X\n", prop);
+
     switch (prop) {
     case PROPERTY_IDENTITY:
         stl_le_p(out, 'aop ');
@@ -105,8 +119,9 @@ apple_aop_audio_handle_command(void *opaque, uint32_t type, uint8_t category,
 
     switch (ldl_le_p(payload + sizeof(uint32_t))) {
     case COMMAND_GET_DEVICE_ID:
-        // fprintf(stderr, "AOPAudio GetDeviceID %d\n",
-        //         ldl_le_p(payload + COMMAND_HDR_LEN));
+        DPRINTF("AOPAudio GetDeviceID %d\n",
+                ldl_le_p(payload + COMMAND_HDR_LEN));
+
         switch (ldl_le_p(payload + COMMAND_HDR_LEN)) {
         case 0:
             stl_le_p(payload_out, 'lpai');
@@ -120,9 +135,10 @@ apple_aop_audio_handle_command(void *opaque, uint32_t type, uint8_t category,
         }
         break;
     case COMMAND_GET_DEVICE_PROP:
-        // fprintf(stderr, "AOPAudio GetDeviceProperty %X 0x%X\n",
-        //         ldl_le_p(payload + COMMAND_HDR_LEN),
-        //         ldl_le_p(payload + COMMAND_HDR_LEN + 4));
+        DPRINTF("AOPAudio GetDeviceProperty %X 0x%X\n",
+                ldl_le_p(payload + COMMAND_HDR_LEN),
+                ldl_le_p(payload + COMMAND_HDR_LEN + 4));
+
         switch (ldl_le_p(payload + COMMAND_HDR_LEN)) {
         case 'lpai':
             switch (ldl_le_p(payload + COMMAND_HDR_LEN + 4)) {
@@ -156,6 +172,10 @@ apple_aop_audio_handle_command(void *opaque, uint32_t type, uint8_t category,
                 stl_le_p(payload_out, DEV_PROP_STATE_LEN);
                 stl_le_p(payload_out + 4, 'idle');
                 break;
+            case DEV_PROP_SUPPORTS_HISTORICAL_DATA:
+                stl_le_p(payload_out, DEV_PROP_SUPPORTS_HISTORICAL_DATA_LEN);
+                stl_le_p(payload_out + 4, 0);
+                break;
             }
             break;
         case 'mca0':
@@ -180,12 +200,21 @@ apple_aop_audio_handle_command(void *opaque, uint32_t type, uint8_t category,
                 break;
             }
             break;
+        case 'pcmM':
+            switch (ldl_le_p(payload + COMMAND_HDR_LEN + 4)) {
+            case DEV_PROP_PCM_NUM_SUPPORTED_ASSETS:
+                stl_le_p(payload_out, DEV_PROP_PCM_NUM_SUPPORTED_ASSETS_LEN);
+                stl_le_p(payload_out + 4, 2);
+                break;
+            }
+            break;
         }
         break;
     case COMMAND_SET_DEVICE_PROP:
-        // fprintf(stderr, "AOPAudio SetDeviceProperty %X 0x%X\n",
-        //         ldl_le_p(payload + COMMAND_HDR_LEN),
-        //         ldl_le_p(payload + COMMAND_HDR_LEN + 4));
+        DPRINTF("AOPAudio SetDeviceProperty %X 0x%X\n",
+                ldl_le_p(payload + COMMAND_HDR_LEN),
+                ldl_le_p(payload + COMMAND_HDR_LEN + 4));
+
         switch (ldl_le_p(payload + COMMAND_HDR_LEN)) {
         case 'lpai':
             switch (ldl_le_p(payload + COMMAND_HDR_LEN + 4)) {
