@@ -43,8 +43,8 @@ hwaddr vtop_mmu(hwaddr va, CPUState *cs);
 hwaddr vtop_bases(hwaddr va, hwaddr phys_base, hwaddr virt_base);
 hwaddr ptov_bases(hwaddr pa, hwaddr phys_base, hwaddr virt_base);
 
-void allocate_ram(MemoryRegion *top, const char *name, hwaddr addr, hwaddr size,
-                  int priority);
+MemoryRegion *allocate_ram(MemoryRegion *top, const char *name, hwaddr addr,
+                           hwaddr size, int priority);
 
 typedef struct CarveoutAllocator CarveoutAllocator;
 

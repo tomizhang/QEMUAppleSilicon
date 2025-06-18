@@ -98,7 +98,9 @@ struct AppleDisplayPipeV4State {
     uint32_t height;
     pixman_image_t *disp_image;
     MemoryRegion up_regs;
-    MemoryRegion vram;
+    MemoryRegion *vram_mr;
+    hwaddr vram_off;
+    uint64_t vram_size;
     MemoryRegion *dma_mr;
     AddressSpace dma_as;
     MemoryRegionSection vram_section;
@@ -537,8 +539,8 @@ static void adp_v4_gfx_update(void *opaque)
     int first = 0, last = 0;
 
     if (s->invalidated) {
-        framebuffer_update_memory_section(&s->vram_section, &s->vram, 0,
-                                          s->height, stride);
+        framebuffer_update_memory_section(&s->vram_section, s->vram_mr,
+                                          s->vram_off, s->height, stride);
         s->invalidated = false;
     }
 
@@ -558,6 +560,17 @@ static const GraphicHwOps adp_v4_ops = {
     .gfx_update = adp_v4_gfx_update,
 };
 
+static void *adp_v4_get_ram_ptr(AppleDisplayPipeV4State *s)
+{
+    return memory_region_get_ram_ptr(s->vram_mr) + s->vram_off;
+}
+
+static void adp_v4_set_dirty(AppleDisplayPipeV4State *s, hwaddr off,
+                             hwaddr size)
+{
+    memory_region_set_dirty(s->vram_mr, s->vram_off + off, size);
+}
+
 static void adp_v4_blit_rect_black(AppleDisplayPipeV4State *s, uint16_t width,
                                    uint16_t height)
 {
@@ -566,9 +579,8 @@ static void adp_v4_blit_rect_black(AppleDisplayPipeV4State *s, uint16_t width,
 
     for (y = 0; y < height; y += 1) {
         off = y * s->width * sizeof(uint32_t);
-        memset(memory_region_get_ram_ptr(&s->vram) + off, 0,
-               s->width * sizeof(uint32_t));
-        memory_region_set_dirty(&s->vram, off, width * sizeof(uint32_t));
+        memset(adp_v4_get_ram_ptr(s) + off, 0, s->width * sizeof(uint32_t));
+        adp_v4_set_dirty(s, off, width * sizeof(uint32_t));
     }
 }
 
@@ -576,8 +588,7 @@ static void adp_v4_update_disp_image_ptr(AppleDisplayPipeV4State *s)
 {
     qemu_pixman_image_unref(s->disp_image);
     s->disp_image = pixman_image_create_bits(
-        PIXMAN_a8r8g8b8, s->width, s->height,
-        (uint32_t *)memory_region_get_ram_ptr(&s->vram),
+        PIXMAN_a8r8g8b8, s->width, s->height, (uint32_t *)adp_v4_get_ram_ptr(s),
         s->width * sizeof(uint32_t));
 }
 
@@ -738,11 +749,11 @@ static void adp_v4_update_disp_image_bh(void *opaque)
             g_assert_nonnull(layer_1_gp->buf);
             for (i = 0; i < layer_1_gp->buf_height; i += 1) {
                 off = i * s->width * sizeof(uint32_t);
-                memcpy(memory_region_get_ram_ptr(&s->vram) + off,
+                memcpy(adp_v4_get_ram_ptr(s) + off,
                        layer_1_gp->buf + i * layer_1_gp->stride,
                        layer_1_gp->buf_width * sizeof(uint32_t));
-                memory_region_set_dirty(
-                    &s->vram, off, layer_1_gp->buf_width * sizeof(uint32_t));
+                adp_v4_set_dirty(s, off,
+                                 layer_1_gp->buf_width * sizeof(uint32_t));
             }
         }
         layer_1_gp->dirty = false;
@@ -753,11 +764,11 @@ static void adp_v4_update_disp_image_bh(void *opaque)
             g_assert_nonnull(layer_0_gp->buf);
             for (i = 0; i < layer_0_gp->buf_height; i += 1) {
                 off = i * s->width * sizeof(uint32_t);
-                memcpy(memory_region_get_ram_ptr(&s->vram) + off,
+                memcpy(adp_v4_get_ram_ptr(s) + off,
                        layer_0_gp->buf + i * layer_0_gp->stride,
                        layer_0_gp->buf_width * sizeof(uint32_t));
-                memory_region_set_dirty(
-                    &s->vram, off, layer_0_gp->buf_width * sizeof(uint32_t));
+                adp_v4_set_dirty(s, off,
+                                 layer_0_gp->buf_width * sizeof(uint32_t));
             }
         }
         layer_0_gp->dirty = false;
@@ -792,8 +803,7 @@ static void adp_v4_update_disp_image_bh(void *opaque)
         pixman_image_unref(layer_0_img);
         pixman_image_unref(layer_1_img);
 
-        memory_region_set_dirty(&s->vram, 0,
-                                s->height * s->width * sizeof(uint32_t));
+        adp_v4_set_dirty(s, 0, s->height * s->width * sizeof(uint32_t));
 
         layer_0_gp->dirty = false;
         layer_1_gp->dirty = false;
@@ -806,7 +816,7 @@ static uint32_t adp_timing_info[] = { 0x33C, 0x90, 0x1, 0x1,
                                       0x700, 0x1,  0x1, 0x1 };
 
 SysBusDevice *adp_v4_create(DTBNode *node, MemoryRegion *dma_mr,
-                            AppleVideoArgs *video_args, uint64_t vram_size)
+                            AppleVideoArgs *video_args)
 {
     DeviceState *dev;
     SysBusDevice *sbd;
@@ -827,10 +837,6 @@ SysBusDevice *adp_v4_create(DTBNode *node, MemoryRegion *dma_mr,
     video_args->height = s->height;
     video_args->depth.depth = sizeof(uint32_t) * 8;
     video_args->depth.rotate = 1;
-
-    memory_region_init_ram(&s->vram, OBJECT(sbd), "vram", vram_size,
-                           &error_fatal);
-    object_property_add_const_link(OBJECT(sbd), "vram", OBJECT(&s->vram));
 
     qemu_mutex_init(&s->lock);
 
@@ -866,10 +872,10 @@ SysBusDevice *adp_v4_create(DTBNode *node, MemoryRegion *dma_mr,
 }
 
 void adp_v4_update_vram_mapping(AppleDisplayPipeV4State *s, MemoryRegion *mr,
-                                hwaddr base)
+                                hwaddr base, uint64_t size)
 {
-    if (memory_region_is_mapped(&s->vram)) {
-        memory_region_del_subregion(mr, &s->vram);
-    }
-    memory_region_add_subregion_overlap(mr, base, &s->vram, 1);
+    s->vram_mr = mr;
+    s->vram_off = base;
+    s->vram_size = size;
+    s->invalidated = true;
 }

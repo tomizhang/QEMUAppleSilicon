@@ -83,7 +83,7 @@
 
 #define T8030_GPIO_FORCE_DFU (161)
 
-#define T8030_DISPLAY_SIZE (67 * MiB)
+#define T8030_DISPLAY_SIZE (68 * MiB)
 
 #define T8030_DWC2_IRQ (495)
 
@@ -834,15 +834,17 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
 
     DTBNode *vram = dtb_get_node(t8030_machine->device_tree, "vram");
     if (vram) {
+        t8030_machine->video_args.base_addr =
+            carveout_alloc_mem(ca, T8030_DISPLAY_SIZE);
         uint64_t vram_reg[2];
-        vram_reg[0] = carveout_alloc_mem(ca, T8030_DISPLAY_SIZE);
+        vram_reg[0] = t8030_machine->video_args.base_addr;
         vram_reg[1] = T8030_DISPLAY_SIZE;
         dtb_set_prop(vram, "reg", sizeof(vram_reg), &vram_reg);
-        t8030_machine->video_args.base_addr = vram_reg[0];
         adp_v4_update_vram_mapping(
             APPLE_DISPLAY_PIPE_V4(object_property_get_link(
                 OBJECT(t8030_machine), "disp0", &error_abort)),
-            t8030_machine->sys_mem, vram_reg[0]);
+            t8030_machine->dram,
+            t8030_machine->video_args.base_addr - T8030_DRAM_BASE, vram_reg[1]);
     }
 
     hdr = t8030_machine->kernel;
@@ -2229,7 +2231,7 @@ static void t8030_create_display(T8030MachineState *t8030_machine)
     sbd = adp_v4_create(
         child,
         MEMORY_REGION(apple_dart_iommu_mr(dart, *(uint32_t *)prop->data)),
-        &t8030_machine->video_args, T8030_DISPLAY_SIZE);
+        &t8030_machine->video_args);
 
     t8030_machine->video_args.display =
         !xnu_contains_boot_arg(machine->kernel_cmdline, "-s", false) &&
@@ -2642,8 +2644,9 @@ static void t8030_machine_init(MachineState *machine)
                  T8030_SROM_SIZE, 0);
     allocate_ram(t8030_machine->sys_mem, "SRAM", T8030_SRAM_BASE,
                  T8030_SRAM_SIZE, 0);
-    allocate_ram(t8030_machine->sys_mem, "DRAM", T8030_DRAM_BASE,
-                 machine->maxram_size, 0);
+    t8030_machine->dram =
+        allocate_ram(t8030_machine->sys_mem, "DRAM", T8030_DRAM_BASE,
+                     machine->maxram_size, 0);
     if (t8030_machine->sep_rom_filename != NULL) {
         allocate_ram(t8030_machine->sys_mem, "SEPROM", T8030_SEPROM_BASE,
                      T8030_SEPROM_SIZE, 0);

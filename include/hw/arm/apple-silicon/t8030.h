@@ -58,6 +58,7 @@ typedef struct {
     AppleA13Cluster clusters[A13_MAX_CLUSTER];
     SysBusDevice *aic;
     MemoryRegion *sys_mem;
+    MemoryRegion *dram;
     MachoHeader64 *kernel;
     DTBNode *device_tree;
     uint8_t *trustcache;
