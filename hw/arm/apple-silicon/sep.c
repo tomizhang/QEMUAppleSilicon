@@ -80,6 +80,7 @@
 #define SEP_ENABLE_OVERWRITE_SHMBUF_OBJECTS
 #define SEP_DISABLE_ASLR
 
+// only used for SEP_ENABLE_TRACE_BUFFER and SEP_DISABLE_ASLR
 #define SEP_USE_IOS14_OVERRIDE
 
 #define SEP_AESS_CMD_FLAG_KEYSIZE_AES128 0x0
@@ -2334,7 +2335,7 @@ static void aesh_base_reg_write(void *opaque, hwaddr addr, uint64_t data,
     cpu_dump_state(CPU(s->cpu), stderr, CPU_DUMP_CODE);
 #endif
     switch (addr) {
-    // from misc0: Maybe the SHA engine: case 0xb4: 0x40 bytes from TRNG
+    // case 0xb4: 0x40 bytes from TRNG
     default:
         memcpy(&s->aesh_base_regs[addr], &data, size);
 #if 0

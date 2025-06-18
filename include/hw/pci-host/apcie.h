@@ -105,7 +105,9 @@ struct ApplePCIEPort {
     MemoryRegion port_cfg;
     MemoryRegion port_phy_glue;
     MemoryRegion port_phy_ip;
+    MemoryRegion port_config_ltssm_debug;
 
+    uint32_t port_last_interrupt; // 0x100
     uint32_t port_cfg_port_config; // 0x800
     uint32_t port_cfg_refclk_config; // 0x810
     uint32_t port_cfg_rootport_perst; // 0x814

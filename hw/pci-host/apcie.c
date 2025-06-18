@@ -384,12 +384,30 @@ static uint64_t apple_pcie_port_config_read(void *opaque, hwaddr addr,
     is_port_enabled = (port->port_cfg_port_config & 1) != 0;
 
     switch (addr) {
-    case 0x208: // for getLinkUp/isLinkInL2. I've no idea what I should return
-                // for bit6
+    case 0x100: // pcielint
+        //val = 0xdeadbeef;
+        //val |= 0x1000; // link-up interrupt
+        //val |= 0x4000; // link-down interrupt
+        //val |= 0x8000; // AF timeout interrupt
+        //val |= 0x20000; // bad-request-interrupt: malformed mmu request
+        //val |= 0x40000; // bad-request-interrupt: msi error
+        //val |= 0x80000; // bad-request-interrupt: msi data miscompare
+        //val |= 0x200000; // bad-request-interrupt: read response error
+        //val |= 0x800000; // completion-timeout interrupt
+        //val |= 0x2000000; // completer-abort interrupt
+        //val |= 0x4000000; // bad-request-interrupt: requester-to-sid mapping error
+        val = port->port_last_interrupt;
+        // Don't reset/clear the value here, iOS will do that!
+        ////port->port_last_interrupt = 0;
+        break;
+    case 0x208: // linksts ; for getLinkUp/isLinkInL2. I've no idea what I
+                // should return for bit6
         ////val = (1 << 0); // getLinkUp
         val = (is_port_enabled << 0); // getLinkUp
         val |= (0 << 6); // isLinkInL2
         // val |= (1 << 6); // isLinkInL2
+        break;
+    case 0x210: // linkcdmsts
         break;
     case 0x800: // for setPortEnable/initializeRootComplex/expressCapOffset?
                 // bit0 seems to be "enable port"
@@ -424,6 +442,17 @@ static void apple_pcie_port_config_write(void *opaque, hwaddr addr,
             "\n",
             __func__, port->bus_nr, addr, data);
     switch (addr) {
+    case 0x100: // pcielint? ; and enableInterrupts?
+        if (data == 0x0) {
+            port->port_last_interrupt = data;
+        }
+        break;
+    case 0x13c:
+        if ((data & 0x100) != 0) {
+            // return 0x4000 at offset 0x100
+            port->port_last_interrupt |= 0x4000; // link-down interrupt
+        }
+        break;
     case 0x800: // for setPortEnable/initializeRootComplex/expressCapOffset?
                 // bit0 seems to be "enable port"
         port->port_cfg_port_config = data;
@@ -442,6 +471,56 @@ static void apple_pcie_port_config_write(void *opaque, hwaddr addr,
 static const MemoryRegionOps apple_pcie_port_config_ops = {
     .read = apple_pcie_port_config_read,
     .write = apple_pcie_port_config_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+    .valid = {
+        .min_access_size = 1,
+        .max_access_size = 4,
+    },
+};
+
+static uint64_t apple_pcie_port_config_ltssm_debug_read(void *opaque, hwaddr addr,
+                                            unsigned size)
+{
+    ApplePCIEPort *port = opaque;
+    uint32_t val = 0;
+
+// #ifdef ENABLE_CPU_DUMP_STATE
+#if 0
+    cpu_dump_state(CPU(first_cpu), stderr, CPU_DUMP_CODE);
+#endif
+
+    switch (addr) {
+    case 0x30:
+        val = 0xffffffff;
+        break;
+    default:
+        val = 0;
+        break;
+    }
+
+    DPRINTF("%s: Port %u: READ @ 0x" HWADDR_FMT_plx " value: 0x%x"
+            "\n",
+            __func__, port->bus_nr, addr, val);
+    return val;
+}
+
+static void apple_pcie_port_config_ltssm_debug_write(void *opaque, hwaddr addr,
+                                         uint64_t data, unsigned size)
+{
+    ApplePCIEPort *port = opaque;
+
+    DPRINTF("%s: Port %u: WRITE @ 0x" HWADDR_FMT_plx " value: 0x" HWADDR_FMT_plx
+            "\n",
+            __func__, port->bus_nr, addr, data);
+    switch (addr) {
+    default:
+        break;
+    }
+}
+
+static const MemoryRegionOps apple_pcie_port_config_ltssm_debug_ops = {
+    .read = apple_pcie_port_config_ltssm_debug_read,
+    .write = apple_pcie_port_config_ltssm_debug_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
     .valid = {
         .min_access_size = 1,
@@ -670,8 +749,8 @@ static ApplePCIEPort *apple_pcie_create_port(DTBNode *node, uint32_t bus_nr,
 
     // dev = qdev_new(TYPE_APPLE_PCIE_PORT);
     // object_property_add_child(qdev_get_machine(), link_name, OBJECT(dev));
-    pci_dev = pci_new(-1, TYPE_APPLE_PCIE_PORT);
-    // pci_dev = pci_new(PCI_DEVFN(bus_nr, 0), TYPE_APPLE_PCIE_PORT);
+    //pci_dev = pci_new(-1, TYPE_APPLE_PCIE_PORT);
+    pci_dev = pci_new(PCI_DEVFN(bus_nr, 0), TYPE_APPLE_PCIE_PORT);
     object_property_add_child(qdev_get_machine(), link_name, OBJECT(pci_dev));
 
     qdev_prop_set_uint32(DEVICE(pci_dev), "bus_nr", bus_nr);
@@ -743,9 +822,6 @@ SysBusDevice *apple_pcie_create(DTBNode *node)
         root_mappings = 2;
         port_mappings = 1;
         use_t8030 = false;
-
-        // s->ports[3] = NULL;
-
     } else {
         DPRINTF("%s: compatible check: use T8030(/T8020) mode\n", __func__);
 
@@ -754,22 +830,15 @@ SysBusDevice *apple_pcie_create(DTBNode *node)
         port_count = 4;
         port_entries = 4;
         root_mappings = 3;
-        port_mappings = 3;
+        port_mappings = 4;
         use_t8030 = true;
     }
 
     sysbus_realize_and_unref(SYS_BUS_DEVICE(host_dev), &error_fatal);
     pci = PCI_HOST_BRIDGE(host_dev);
     for (i = 0; i < port_count; i++) {
-        if (i == 1)
-            continue;
-        // s->ports[i] = apple_pcie_create_port(node, i, s->irqs[i], use_t8030,
-        // pci->bus);
-        s->ports[i] =
-            apple_pcie_create_port(node, i, host->irqs[i], use_t8030, pci->bus);
+        s->ports[i] = apple_pcie_create_port(node, i, host->irqs[i], use_t8030, pci->bus);
     }
-    s->ports[1] =
-        apple_pcie_create_port(node, 1, host->irqs[1], use_t8030, pci->bus);
     g_assert_cmpuint(reg[common_index * 2 + 1], <=, APCIE_COMMON_REGS_LENGTH);
 
     memory_region_init_io(&host->root_cfg, OBJECT(host),
@@ -806,9 +875,13 @@ SysBusDevice *apple_pcie_create(DTBNode *node)
         if (use_t8030) {
             snprintf(temp_name, sizeof(temp_name), "port%u_config_ltssm_debug",
                      i);
-            create_unimplemented_device(
-                temp_name, reg[(port_index + (i * port_entries) + 1) * 2 + 0],
+            memory_region_init_io(
+                &port->port_config_ltssm_debug, OBJECT(port),
+                &apple_pcie_port_config_ltssm_debug_ops, port, temp_name,
                 reg[(port_index + (i * port_entries) + 1) * 2 + 1]);
+            sysbus_init_mmio(sbd, &port->port_config_ltssm_debug);
+            sysbus_mmio_map(sbd, root_mappings + 1 + (i * port_mappings),
+                            reg[(port_index + (i * port_entries) + 1) * 2 + 0]);
 
             snprintf(temp_name, sizeof(temp_name), "port%u_phy_glue", i);
             memory_region_init_io(
@@ -816,7 +889,7 @@ SysBusDevice *apple_pcie_create(DTBNode *node)
                 &apple_pcie_port_phy_glue_ops, port, temp_name,
                 reg[(port_index + (i * port_entries) + 2) * 2 + 1]);
             sysbus_init_mmio(sbd, &port->port_phy_glue);
-            sysbus_mmio_map(sbd, root_mappings + 1 + (i * port_mappings),
+            sysbus_mmio_map(sbd, root_mappings + 2 + (i * port_mappings),
                             reg[(port_index + (i * port_entries) + 2) * 2 + 0]);
 
             snprintf(temp_name, sizeof(temp_name), "port%u_phy_ip", i);
@@ -825,7 +898,7 @@ SysBusDevice *apple_pcie_create(DTBNode *node)
                 port, temp_name,
                 reg[(port_index + (i * port_entries) + 3) * 2 + 1]);
             sysbus_init_mmio(sbd, &port->port_phy_ip);
-            sysbus_mmio_map(sbd, root_mappings + 2 + (i * port_mappings),
+            sysbus_mmio_map(sbd, root_mappings + 3 + (i * port_mappings),
                             reg[(port_index + (i * port_entries) + 3) * 2 + 0]);
         } else {
             snprintf(temp_name, sizeof(temp_name), "port%u_phy", i);
@@ -835,10 +908,12 @@ SysBusDevice *apple_pcie_create(DTBNode *node)
         }
     }
 
-    // PCIDevice *pci_dev_last_bridge = PCI_DEVICE(s->ports[port_count-1]);
-    // pci_set_power(pci_dev_last_bridge, false);
-    PCIDevice *pci_dev_second_bridge = PCI_DEVICE(s->ports[1]);
-    pci_set_power(pci_dev_second_bridge, false);
+    if (use_t8030) {
+        pci_set_power(PCI_DEVICE(s->ports[0]), false);
+        pci_set_power(PCI_DEVICE(s->ports[1]), false);
+    } else {
+        pci_set_power(PCI_DEVICE(s->ports[3]), false);
+    }
 
     DPRINTF("%s: reg[1] == 0x" HWADDR_FMT_plx "\n", __func__, reg[1]);
 
@@ -868,6 +943,7 @@ static void apple_pcie_port_reset_hold(Object *obj, ResetType type)
     pcie_cap_fill_link_ep_usp(pci_dev, QEMU_PCI_EXP_LNK_X2,
                               QEMU_PCI_EXP_LNK_8GT);
 
+    port->port_last_interrupt = 0x0;
     port->port_cfg_port_config = 0x0;
     port->port_cfg_refclk_config = 0x0;
     port->port_cfg_rootport_perst = 0x0;
@@ -994,8 +1070,9 @@ static void apple_pcie_port_realize(DeviceState *dev, Error **errp)
     DPRINTF("%s: is_bridge == %u\n", __func__, is_bridge);
 
 #if 1
-    // sizes: 0x50 for the bridges and qualcomm baseband, 0x3c for broadcom
-    // wifi, 0x48 for nvme versions: 1 for broadcom wifi, 2 for the rest
+    // sizes: 0x50 for the bridges and qualcomm baseband,
+    // 0x3c for broadcom wifi, 0x48 for nvme
+    // versions: 1 for broadcom wifi, 2 for the rest
     ////pcie_aer_init(pci_dev, 1, 0x100, PCI_ERR_SIZEOF, &error_fatal);
     // pcie_aer_init(pci_dev, PCI_ERR_VER, 0x100, 0x50, &error_fatal);
 #endif

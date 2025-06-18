@@ -1515,32 +1515,18 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
                                                    "sart-ans", &error_fatal));
 
     // bridge0 and bridge1 don't exist in the t8030 device tree
-    // so either run in under e.g. bridge2 with sec_bus (working, but likely not
-    // actual behavior) or next to the bridges/bridge2 with pci->bus (also
-    // working, might be actual behavior) however, putting it next to bridge0
-    // with pci->bus will result in the usual panic but putting it next to
-    // bridge1 (also undefined, next to bridge0) with pci->bus is working
-    // somehow but I'll put it under bridge1 sec_bus, so every device will be
-    // under a bridge (also working) all bridges but the first one seem to work
-    // with either pci->bus or sec_bus, so ans seems to strongly dislike the
-    // first bridge maybe bridge0 has some hardcoded msi crap, or it shouldn't
-    // be used at all, no freaking idea unsure if ans/nvme under t8030 is
-    // actually exposed on the pci bus
+    // at least one bridge must exist
+    // NVMe can be e.g. attached to bridge2 in order to test the apcie subsystem
+    // for that, change the bridge? string and the bridge_index variable below.
+    // the number must match
 
-    PCIDevice *pci_dev = PCI_DEVICE(object_property_get_link(
-        OBJECT(t8030_machine), "pcie.bridge1", &error_fatal));
-    // PCIDevice *pci_dev =
-    // PCI_DEVICE(object_property_get_link(OBJECT(t8030_machine),
-    // "pcie.bridge0", &error_fatal));
+    PCIDevice *pci_dev = PCI_DEVICE(object_property_get_link(OBJECT(t8030_machine), "pcie.bridge0", &error_fatal));
     PCIBridge *pci_bridge = PCI_BRIDGE(pci_dev);
     PCIBus *sec_bus = pci_bridge_get_sec_bus(pci_bridge);
-    // PCIBus *bus = pci_get_bus(pci_dev);
     apcie_host = APPLE_PCIE_HOST(object_property_get_link(
         OBJECT(t8030_machine), "pcie.host", &error_fatal));
     ans = apple_ans_create(child, APPLE_A7IOP_V4,
                            t8030_machine->rtkit_protocol_ver, sec_bus);
-    // ans = apple_ans_create(child, APPLE_A7IOP_V4,
-    // t8030_machine->rtkit_protocol_ver, bus);
     g_assert_nonnull(ans);
     g_assert_nonnull(object_property_add_const_link(
         OBJECT(ans), "dma-mr", OBJECT(sysbus_mmio_get_region(sart, 1))));
@@ -1563,24 +1549,10 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
         sysbus_connect_irq(
             ans, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
     }
-    // both of those are working, so does pci_bus_irqs, but using
-    // out_named/in_named seems to be the cleanest solution
-    // qdev_connect_gpio_out_named(DEVICE(pci), "interrupt_pci", 0,
-    // qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[4]));
-    // qdev_connect_gpio_out_named(DEVICE(pci), "interrupt_pci", 0,
-    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
-    // qdev_connect_gpio_out_named(DEVICE(pci_dev), "interrupt_pci", 0,
-    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
-    // qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 0,
-    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
-    // qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 0,
-    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
-    // qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 1,
-    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
-    // qdev_connect_gpio_out_named(DEVICE(apcie_host), "interrupt_pci", 2,
-    // qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
+
+    uint32_t bridge_index = 0;
     qdev_connect_gpio_out_named(
-        DEVICE(apcie_host), "interrupt_pci", 3,
+        DEVICE(apcie_host), "interrupt_pci", bridge_index,
         qdev_get_gpio_in_named(DEVICE(ans), "interrupt_pci", 0));
 
     sysbus_realize_and_unref(ans, &error_fatal);
@@ -2818,15 +2790,8 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_dart(t8030_machine, "dart-sio", false);
     t8030_create_dart(t8030_machine, "dart-disp0", false);
     t8030_create_dart(t8030_machine, "dart-sep", false);
-#ifdef ENABLE_BASEBAND
-    // #if 0
+    t8030_create_dart(t8030_machine, "dart-apcie2", true);
     t8030_create_dart(t8030_machine, "dart-apcie3", true);
-#endif
-// #if 1
-#if 0
-    //t8030_create_dart(t8030_machine, "dart-apcie2", true);
-    t8030_create_dart(t8030_machine, "dart-apcie3", true);
-#endif
     t8030_create_dart(t8030_machine, "dart-aop", false);
     t8030_create_usb(t8030_machine);
     t8030_create_wdt(t8030_machine);

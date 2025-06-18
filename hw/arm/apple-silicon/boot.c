@@ -156,12 +156,6 @@ static const char *REM_NAMES[] = {
 #ifndef ENABLE_BASEBAND
     "baseband\0$",     "baseband-spmi\0$",
     "baseband-vol\0$",
-    "pci-bridge3\0$", "dart-apcie3\0$",
-#endif
-#if 1
-    //"pci-bridge1\0$", "dart-apcie1\0$",
-    "pci-bridge2\0$", "dart-apcie2\0$",
-    //"pci-bridge3\0$", "dart-apcie3\0$",
 #endif
 #ifndef ENABLE_SEP
     "sep\0$",          "dart-sep\0$",

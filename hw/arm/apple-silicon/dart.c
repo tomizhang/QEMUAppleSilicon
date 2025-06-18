@@ -276,6 +276,9 @@ static uint64_t base_reg_read(void *opaque, hwaddr addr, unsigned size)
 
     if (o->type == DART_DART) {
         switch (addr) {
+        case REG_DART_PARAMS1:
+            // TODO: added hack against panic
+            return o->base_reg[addr >> 2] | (1 << 31);
         case REG_DART_TLB_OP:
             return qatomic_read(&o->tlb_op);
         case REG_DART_ERROR_STATUS:
