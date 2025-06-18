@@ -1520,7 +1520,8 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     // for that, change the bridge? string and the bridge_index variable below.
     // the number must match
 
-    PCIDevice *pci_dev = PCI_DEVICE(object_property_get_link(OBJECT(t8030_machine), "pcie.bridge0", &error_fatal));
+    PCIDevice *pci_dev = PCI_DEVICE(object_property_get_link(
+        OBJECT(t8030_machine), "pcie.bridge0", &error_fatal));
     PCIBridge *pci_bridge = PCI_BRIDGE(pci_dev);
     PCIBus *sec_bus = pci_bridge_get_sec_bus(pci_bridge);
     apcie_host = APPLE_PCIE_HOST(object_property_get_link(
@@ -2480,9 +2481,6 @@ static void t8030_create_mca(T8030MachineState *t8030_machine)
     DTBNode *child;
     DTBProp *prop;
     uint64_t *reg;
-    AppleI2CState *i2c;
-    AppleSPIState *spi;
-    DeviceState *device;
 
     child = dtb_get_node(t8030_machine->device_tree, "arm-io/mca-switch");
     g_assert_nonnull(child);
@@ -2499,6 +2497,13 @@ static void t8030_create_mca(T8030MachineState *t8030_machine)
                                 t8030_machine->soc_base_pa + reg[4], reg[5]);
     create_unimplemented_device("mca.unk", t8030_machine->soc_base_pa + reg[6],
                                 reg[7]);
+}
+
+static void t8030_create_audio_speaker_top(T8030MachineState *t8030_machine)
+{
+    DTBNode *child;
+    DTBProp *prop;
+    AppleI2CState *i2c;
 
     child = dtb_get_node(t8030_machine->device_tree,
                          "arm-io/i2c2/audio-speaker-top");
@@ -2510,13 +2515,16 @@ static void t8030_create_mca(T8030MachineState *t8030_machine)
         object_property_get_link(OBJECT(t8030_machine), "i2c2", &error_fatal));
     i2c_slave_create_simple(i2c->bus, TYPE_APPLE_CS35L27,
                             *(uint32_t *)prop->data);
+}
+
+static void t8030_create_audio_speaker_bottom(T8030MachineState *t8030_machine)
+{
+    AppleSPIState *spi;
+    DeviceState *device;
 
     spi = APPLE_SPI(
         object_property_get_link(OBJECT(t8030_machine), "spi3", &error_fatal));
     device = ssi_create_peripheral(apple_spi_get_bus(spi), TYPE_APPLE_CS42L77);
-
-    child = dtb_get_node(t8030_machine->device_tree, "arm-io/spi3/audio-codec");
-    g_assert_nonnull(child);
 }
 
 static void t8030_cpu_reset_work(CPUState *cpu, run_on_cpu_data data)
@@ -2544,11 +2552,13 @@ static void t8030_cpu_reset(T8030MachineState *t8030_machine)
         if (tcpu->cpu_id == A13_MAX_CPU + 1) {
             continue;
         }
+
         object_property_set_uint(OBJECT(cpu), "rvbar",
                                  t8030_machine->boot_info.kern_entry & ~0xFFF,
                                  &error_abort);
         object_property_set_uint(OBJECT(cpu), "pauth-mlo", m_lo, &error_abort);
         object_property_set_uint(OBJECT(cpu), "pauth-mhi", m_hi, &error_abort);
+
         if (tcpu->cpu_id == 0) {
             async_run_on_cpu(cpu, t8030_cpu_reset_work,
                              RUN_ON_CPU_HOST_PTR(t8030_machine));
@@ -2566,6 +2576,7 @@ static void t8030_machine_reset(MachineState *machine, ResetType type)
     qemu_devices_reset(type);
 
     memset(&t8030_machine->pmgr_reg, 0, sizeof(t8030_machine->pmgr_reg));
+
     if (!runstate_check(RUN_STATE_RESTORE_VM) &&
         !runstate_check(RUN_STATE_PRELAUNCH)) {
         t8030_memory_setup(t8030_machine);
@@ -2575,10 +2586,11 @@ static void t8030_machine_reset(MachineState *machine, ResetType type)
         // Ah, what the heck. Let's do it.
         memset(pmgr_unk_e4000, 0, sizeof(pmgr_unk_e4000));
     }
+
     t8030_cpu_reset(t8030_machine);
+
     gpio = DEVICE(
         object_property_get_link(OBJECT(t8030_machine), "gpio", &error_fatal));
-
     qemu_set_irq(qdev_get_gpio_in(gpio, T8030_GPIO_FORCE_DFU),
                  t8030_machine->force_dfu);
 }
@@ -2622,27 +2634,31 @@ static void t8030_machine_init(MachineState *machine)
     if (t8030_machine->sep_rom_filename != NULL) {
         allocate_ram(t8030_machine->sys_mem, "SEPROM", T8030_SEPROM_BASE,
                      T8030_SEPROM_SIZE, 0);
+        // 0x4000000 is too low
         allocate_ram(t8030_machine->sys_mem, "DRAM_30", 0x300000000ULL,
-                     0x8000000ULL, 0); // 0x4000000 is too low
+                     0x8000000ULL, 0);
+        // 0x1000000 is too low
         allocate_ram(t8030_machine->sys_mem, "DRAM_34", 0x340000000ULL,
-                     0x2000000ULL, 0); // 0x1000000 is too low
+                     0x2000000ULL, 0);
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN0", 0x242140000ULL,
                      0x4000, 0);
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN1", 0x242200000ULL,
                      0x24000, 0);
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN9", 0x241244000ULL,
                      0x4000, 0);
+        // for last_jump
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN10", 0x242150000ULL,
-                     0x4000, 0); // for last_jump
+                     0x4000, 0);
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN11", 0x241010000ULL,
                      0x4000, 0);
         allocate_ram(t8030_machine->sys_mem, "SEP_UNKN12", 0x241240000ULL,
                      0x4000, 0);
-        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN13", 0x24020c000ULL,
-                     0x4000, 0); // stack for 0x340005bf4/SEPFW
-        allocate_ram(
-            t8030_machine->sys_mem, "SEP_UNKN14", 0x240a80000ULL, 0x4000,
-            0); // for SEP Panic: [elfour panic] [/,&&&&+&] exception.c:'&.
+        // stack for 0x340005BF4/SEPFW
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN13", 0x24020C000ULL,
+                     0x4000, 0);
+        // for SEP Panic: [elfour panic] [/,&&&&+&] exception.c:'&.
+        allocate_ram(t8030_machine->sys_mem, "SEP_UNKN14", 0x240A80000ULL,
+                     0x4000, 0);
     }
     if (t8030_machine->sep_fw_filename) {
         allocate_ram(t8030_machine->sys_mem, "SEPFW_", 0x0,
@@ -2819,6 +2835,8 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_mt_spi(t8030_machine);
     t8030_create_aop(t8030_machine);
     t8030_create_mca(t8030_machine);
+    t8030_create_audio_speaker_top(t8030_machine);
+    t8030_create_audio_speaker_bottom(t8030_machine);
 
     t8030_machine->init_done_notifier.notify = t8030_machine_init_done;
     qemu_add_machine_init_done_notifier(&t8030_machine->init_done_notifier);
