@@ -1,7 +1,7 @@
 /*
- * Apple CS42L77.
+ * Apple CS42L77 Amp.
  *
- * Copyright (c) 2023-2025 Visual Ehrmanntraut.
+ * Copyright (c) 2025 Visual Ehrmanntraut.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -27,5 +27,3 @@
 OBJECT_DECLARE_SIMPLE_TYPE(AppleCS42L77State, APPLE_CS42L77);
 
 #endif /* HW_MISC_APPLE_SILICON_CS42L77_H */
-
-

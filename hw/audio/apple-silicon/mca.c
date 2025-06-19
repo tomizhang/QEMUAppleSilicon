@@ -1,7 +1,7 @@
 /*
  * Apple Multi-Channel Audio Controller.
  *
- * Copyright (c) 2023-2025 Visual Ehrmanntraut.
+ * Copyright (c) 2025 Visual Ehrmanntraut.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
