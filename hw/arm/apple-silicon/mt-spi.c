@@ -780,7 +780,7 @@ static void apple_mt_spi_send_path_update(AppleMTSPIState *s,
     uint32_t ts;
     AppleMTSPILLPacket *packet;
 
-    ts = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) / 1000000;
+    ts = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) / SCALE_MS;
 
     packet = g_new0(AppleMTSPILLPacket, 1);
 

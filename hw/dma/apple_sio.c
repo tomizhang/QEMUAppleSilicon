@@ -75,16 +75,16 @@ struct AppleSIOState {
 
 typedef enum {
     OP_GET_PARAM = 2,
-    OP_GET_PARAM_RETURN = 103,
-    OP_CONFIG_SHIM = 5,
-    OP_SET_PARAM = 3,
     OP_ERROR = 2,
+    OP_SET_PARAM = 3,
     OP_SET_PARAM_ERROR = 3,
+    OP_CONFIG_SHIM = 5,
     OP_START_DMA = 6,
     OP_QUERY_DMA = 7,
     OP_STOP_DMA = 8,
     OP_ACK = 101,
     OP_ASYNC_ERROR = 102,
+    OP_GET_PARAM_RETURN = 103,
     OP_DMA_COMPLETE = 104,
     OP_QUERY_DMA_OK = 105,
 } SIOOp;
@@ -412,7 +412,9 @@ AppleSIODMAEndpoint *apple_sio_get_endpoint_from_node(AppleSIOState *s,
     if (idx >= count) {
         return NULL;
     }
+
     data = (uint32_t *)prop->data;
+
     return apple_sio_get_endpoint(s, data[8 * idx]);
 }
 

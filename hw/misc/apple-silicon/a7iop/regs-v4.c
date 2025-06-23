@@ -125,10 +125,12 @@ static uint64_t apple_a7iop_reg_read(void *opaque, hwaddr addr, unsigned size)
             apple_a7iop_mailbox_update_irq_status(a7iop_mbox);
             if (interrupt_status) {
                 ret = interrupt_status;
+#if 0
                 qemu_log_mask(LOG_GUEST_ERROR,
                               "%s: REG_V3_INTERRUPT_STATUS: returning "
                               "interrupt_status: 0x%05" PRIX64 "\n",
                               s->role, ret);
+#endif
             } else if (a7iop_mbox->iop_nonempty) {
                 ret = 0x40000;
             } else if (a7iop_mbox->iop_empty) {
