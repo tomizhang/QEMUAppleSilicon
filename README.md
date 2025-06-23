@@ -2,7 +2,7 @@
 
 This is a fork of QEMU which provides Apple ARM device guest support.
 
-Usage guide is location in the [wiki](https://github.com/ChefKissInc/QEMUAppleSilicon/wiki). 
+Usage guide is located in the [wiki](https://github.com/ChefKissInc/QEMUAppleSilicon/wiki). 
 
 ## Supported Devices
 
