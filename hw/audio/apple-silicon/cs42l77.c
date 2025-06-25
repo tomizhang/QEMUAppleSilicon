@@ -254,7 +254,7 @@ static uint32_t apple_cs42l77_transfer(SSIPeripheral *dev, uint32_t val)
 }
 
 static const VMStateDescription vmstate_apple_cs42l77 = {
-    .name = "Apple CS42L77 State",
+    .name = "AppleCS42L77State",
     .version_id = 0,
     .minimum_version_id = 0,
     .fields =
@@ -298,7 +298,7 @@ static void apple_cs42l77_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
     SSIPeripheralClass *c = SSI_PERIPHERAL_CLASS(klass);
 
-    dc->desc = "Apple CS42L77";
+    dc->desc = "Apple CS42L77 Amp";
     dc->user_creatable = false;
     dc->vmsd = &vmstate_apple_cs42l77;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
