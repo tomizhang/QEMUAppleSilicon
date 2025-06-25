@@ -750,8 +750,7 @@ static void t8030_memory_setup(T8030MachineState *t8030_machine)
     apple_nvram_load(nvram);
 
     if (machine->initrd_filename == NULL &&
-        (t8030_machine->boot_mode != kBootModeAuto ||
-         !env_get_bool(nvram, "auto-boot", false))) {
+        !env_get_bool(nvram, "auto-boot", false)) {
         t8030_machine->boot_mode = kBootModeExitRecovery;
         warn_report(
             "No RAM Disk specified but auto boot disabled, exiting recovery.");
