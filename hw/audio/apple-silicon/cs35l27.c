@@ -146,7 +146,7 @@ static int apple_cs35l27_event(I2CSlave *i2c, enum i2c_event event)
 }
 
 static const VMStateDescription vmstate_apple_cs35l27 = {
-    .name = "Apple CS35L27 State",
+    .name = "AppleCS35L27State",
     .version_id = 0,
     .minimum_version_id = 0,
     .fields =
@@ -164,7 +164,7 @@ static void apple_cs35l27_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
     I2CSlaveClass *c = I2C_SLAVE_CLASS(klass);
 
-    dc->desc = "Apple CS35L27";
+    dc->desc = "Apple CS35L27 Amp";
     dc->user_creatable = false;
     dc->vmsd = &vmstate_apple_cs35l27;
     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
