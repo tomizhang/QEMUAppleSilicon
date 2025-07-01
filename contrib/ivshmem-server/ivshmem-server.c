@@ -282,11 +282,11 @@ ivshmem_server_init(IvshmemServer *server, const char *unix_sock_path,
         return -1;
     }
 
-#ifndef __ANDROID__
+    #ifndef __ANDROID__
     server->use_shm_open = use_shm_open;
-#else
+    #else
     server->use_shm_open = false;
-#endif
+    #endif
     server->shm_size = shm_size;
     server->n_vectors = n_vectors;
 
@@ -308,7 +308,7 @@ ivshmem_server_start(IvshmemServer *server)
                              server->shm_path);
         shm_fd = shm_open(server->shm_path, O_CREAT | O_RDWR, S_IRWXU);
     } else {
-#ifdef __ANDROID__
+    #ifdef __ANDROID__
     if (shm_fd == -1) {
         perror("Failed to create temporary shm file");
         g_free(filename);
@@ -329,10 +329,10 @@ ivshmem_server_start(IvshmemServer *server)
         close(shm_fd);
         return -1;
     }
-#else
+    #else
         unlink(filename);
         g_free(filename);
-#endif
+    #endif
     }
 
     if (shm_fd < 0) {
@@ -384,9 +384,9 @@ err_close_sock:
     close(sock_fd);
 err_close_shm:
     if (server->use_shm_open) {
-#ifndef __ANDROID__
+        #ifndef __ANDROID__
         shm_unlink(server->shm_path);
-#endif
+        #endif
     }
     close(shm_fd);
     return -1;
@@ -406,9 +406,9 @@ ivshmem_server_close(IvshmemServer *server)
 
     unlink(server->unix_sock_path);
     if (server->use_shm_open) {
-#ifndef __ANDROID__
+        #ifndef __ANDROID__
         shm_unlink(server->shm_path);
-#endif
+        #endif
     }
     close(server->sock_fd);
     close(server->shm_fd);
