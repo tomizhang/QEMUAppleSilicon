@@ -303,12 +303,23 @@ ivshmem_server_start(IvshmemServer *server)
     int shm_fd, sock_fd, ret;
 
     /* open shm file */
+    #ifndef __ANDROID__
     if (server->use_shm_open) {
         IVSHMEM_SERVER_DEBUG(server, "Using POSIX shared memory: %s\n",
                              server->shm_path);
         shm_fd = shm_open(server->shm_path, O_CREAT | O_RDWR, S_IRWXU);
     } else {
+        gchar *filename = g_strdup_printf("%s/ivshmem.XXXXXX", server->shm_path);
+        IVSHMEM_SERVER_DEBUG(server, "Using file-backed shared memory: %s\n", server->shm_path);
+        shm_fd = mkstemp(filename);
+        unlink(filename);
+        g_free(filename);
+    }
+    #endif
     #ifdef __ANDROID__
+    gchar *filename = g_strdup_printf("%s/ivshmem.XXXXXX", server->shm_path);
+    IVSHMEM_SERVER_DEBUG(server, "Using file-backed shared memory: %s\n", server->shm_path);
+    shm_fd = mkstemp(filename);
     if (shm_fd == -1) {
         perror("Failed to create temporary shm file");
         g_free(filename);
@@ -328,11 +339,6 @@ ivshmem_server_start(IvshmemServer *server)
         perror("Failed to map shared memory");
         close(shm_fd);
         return -1;
-    }
-    #else
-        unlink(filename);
-        g_free(filename);
-    #endif
     }
 
     if (shm_fd < 0) {
