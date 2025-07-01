@@ -1899,7 +1899,11 @@ memfd_alloc(const char *name, size_t size, unsigned int flags, int *fd)
     void *ptr;
     int ret;
 
+#ifdef __ANDROID__
+    *fd = safe_memfd_create(name, MFD_ALLOW_SEALING);
+#else
     *fd = memfd_create(name, MFD_ALLOW_SEALING);
+#endif
     if (*fd < 0) {
 #ifdef __ANDROID__
         char path[] = "/data/data/com.termux/files/usr/tmp/memfd-XXXXXX";
