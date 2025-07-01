@@ -626,7 +626,7 @@ static ssize_t local_pwritev(FsContext *ctx, V9fsFidOpenState *fs,
          * We want to ensure that we don't leave dirty pages in the cache
          * after write when writeout=immediate is specified.
          */
-#ifndef defined(__ANDROID__)
+#ifndef __ANDROID__
         sync_file_range(fs->fd, offset, ret,
                         SYNC_FILE_RANGE_WAIT_BEFORE | SYNC_FILE_RANGE_WRITE);
 #else
