@@ -1,4 +1,4 @@
-#ifdef defined(__ANDROID__)
+#ifdef __ANDROID__
 #ifdef st_atime_nsec
 #undef st_atime_nsec
 #endif
