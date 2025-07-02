@@ -773,7 +773,11 @@ static void aarch64_max_initfn(Object *obj)
 }
 
 static void aarch64_apple_gxf_initfn(Object *obj) {
+    ARMCPU *cpu = ARM_CPU(obj);
+
     aarch64_max_initfn(obj);
+    cpu->isar.id_aa64isar1 = FIELD_DP64(cpu->isar.id_aa64isar1, ID_AA64ISAR1, APA, PauthFeat_2);
+
     if (tcg_enabled()) {
         set_feature(&ARM_CPU(obj)->env, ARM_FEATURE_GXF);
     }
