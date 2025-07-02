@@ -340,7 +340,7 @@ int main(void) { return 0; }
 EOF
 }
 
-if check_define __linux__ ; then
+if check_define __linux__ || check_define __ANDROID__ ; then
   host_os=linux
 elif check_define _WIN32 ; then
   host_os=windows
@@ -360,8 +360,6 @@ elif check_define __NetBSD__; then
   host_os=netbsd
 elif check_define __APPLE__; then
   host_os=darwin
-elif check_define __ANDROID__ ; then
-  host_os=android
 else
   # This is a fatal error, but don't report it yet, because we
   # might be going to just print the --help text, or it might
