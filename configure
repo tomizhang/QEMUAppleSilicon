@@ -427,6 +427,11 @@ else
   fi
 fi
 
+if check_define __ANDROID__ ; then
+  rm /data/data/com.termux/files/usr/include/linux/virtio_ring.h
+  cp /data/data/com.termux/files/QEMUAppleSilicon/include/standard-headers/linux/virtio_ring.h /data/data/com.termux/files/usr/include/linux/
+fi
+
 # Normalise host CPU name to the values used by Meson cross files and in source
 # directories, and set multilib cflags.  The canonicalization isn't really
 # necessary, because the architectures that we check for should not hit the
