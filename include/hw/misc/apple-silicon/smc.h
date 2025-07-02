@@ -4,6 +4,7 @@
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
 #include "hw/misc/apple-silicon/a7iop/base.h"
+#include "hw/misc/apple-silicon/a7iop/rtkit.h"
 #include "hw/sysbus.h"
 
 #define APPLE_SMC_MMIO_ASC (1)
@@ -107,6 +108,27 @@ typedef uint8_t (*KeyReader)(AppleSMCState *s, SMCKey *key, SMCKeyData *data,
                              void *payload, uint8_t length);
 typedef uint8_t (*KeyWriter)(AppleSMCState *s, SMCKey *key, SMCKeyData *data,
                              void *payload, uint8_t length);
+
+typedef struct {
+    uint8_t cmd;
+    uint8_t tag_and_id;
+    uint8_t length;
+    uint8_t payload_length;
+    uint32_t key;
+} QEMU_PACKED KeyMessage;
+
+typedef struct {
+    union {
+        struct {
+            uint8_t status;
+            uint8_t tag_and_id;
+            uint8_t length;
+            uint8_t unk3;
+            uint8_t response[4];
+        };
+        uint64_t raw;
+    };
+} QEMU_PACKED KeyResponse;
 
 typedef struct {
     uint8_t size;

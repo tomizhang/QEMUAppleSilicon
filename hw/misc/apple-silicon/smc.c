@@ -1,6 +1,5 @@
 #include "qemu/osdep.h"
 #include "hw/arm/apple-silicon/dtb.h"
-#include "hw/misc/apple-silicon/a7iop/rtkit.h"
 #include "hw/misc/apple-silicon/smc.h"
 #include "hw/qdev-core.h"
 #include "migration/vmstate.h"
@@ -11,27 +10,6 @@
 #include "system/runstate.h"
 
 #define kSMCKeyEndpoint 0
-
-typedef struct {
-    uint8_t cmd;
-    uint8_t tag_and_id;
-    uint8_t length;
-    uint8_t payload_length;
-    uint32_t key;
-} QEMU_PACKED KeyMessage;
-
-typedef struct {
-    union {
-        struct {
-            uint8_t status;
-            uint8_t tag_and_id;
-            uint8_t length;
-            uint8_t unk3;
-            uint8_t response[4];
-        };
-        uint64_t raw;
-    };
-} QEMU_PACKED KeyResponse;
 
 struct AppleSMCState {
     AppleRTKit parent_obj;
@@ -399,7 +377,7 @@ SysBusDevice *apple_smc_create(DTBNode *node, AppleA7IOPVersion version,
     sysbus_init_mmio(sbd, s->iomems[APPLE_SMC_MMIO_ASC]);
 
     s->iomems[APPLE_SMC_MMIO_SRAM] = g_new(MemoryRegion, 1);
-    s->sram = g_malloc0(sram_size);
+    s->sram = g_aligned_alloc0(1, sram_size, 0x4000);
     s->sram_size = sram_size;
     memory_region_init_ram_device_ptr(s->iomems[APPLE_SMC_MMIO_SRAM],
                                       OBJECT(dev), TYPE_APPLE_SMC_IOP ".sram",

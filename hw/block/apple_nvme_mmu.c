@@ -225,6 +225,7 @@ SysBusDevice *apple_nvme_mmu_create(DTBNode *node, PCIBus *pci_bus)
     reg = (uint64_t *)prop->data;
 
     sysbus_init_irq(sbd, &s->irq);
+    qdev_init_gpio_in_named(dev, apple_nvme_mmu_set_irq, "interrupt_pci", 1);
     memory_region_init_io(&s->common, OBJECT(dev),
                           &apple_nvme_mmu_common_reg_ops, s,
                           TYPE_APPLE_NVME_MMU ".common-reg", reg[1]);
@@ -242,7 +243,7 @@ static void apple_nvme_mmu_realize(DeviceState *dev, Error **errp)
     AppleNVMeMMUState *s = APPLE_NVME_MMU(dev);
 
     PCIDevice *pci_dev = PCI_DEVICE(s->nvme);
-    pci_bus_irqs(s->pci_bus, apple_nvme_mmu_set_irq, s, 4);
+    //pci_bus_irqs(s->pci_bus, apple_nvme_mmu_set_irq, s, 4);
     qdev_realize(DEVICE(s->nvme), BUS(s->pci_bus), &error_fatal);
     g_assert_true(pci_is_express(pci_dev));
     pcie_endpoint_cap_init(pci_dev, 0);
@@ -252,13 +253,22 @@ static void apple_nvme_mmu_realize(DeviceState *dev, Error **errp)
     // for root bridge: offset 0x50, only 1 vector for the first bridge, 64-bit
     // enabled, per-vector-mask disabled
     msi_init(pci_dev, 0, 1, true, false, &error_fatal);
+    //msi_init(pci_dev, 0, 8, true, false, &error_fatal);
 
     pci_pm_init(pci_dev, 0, &error_fatal);
-    pcie_cap_fill_link_ep_usp(pci_dev, QEMU_PCI_EXP_LNK_X2,
-                              QEMU_PCI_EXP_LNK_8GT);
+    // pcie_cap_fill_link_ep_usp(pci_dev, QEMU_PCI_EXP_LNK_X2,
+    //                           QEMU_PCI_EXP_LNK_8GT);
     pcie_aer_init(pci_dev, PCI_ERR_VER, 0x100, PCI_ERR_SIZEOF, &error_fatal);
     pci_config_set_class(pci_dev->config, PCI_CLASS_STORAGE_OTHER);
     apple_nvme_mmu_start(s);
+}
+
+static void apple_nvme_mmu_reset(DeviceState *qdev)
+{
+    AppleNVMeMMUState *s = APPLE_NVME_MMU(qdev);
+    PCIDevice *d = PCI_DEVICE(s->nvme);
+
+    pcie_cap_deverr_reset(d);
 }
 
 static void apple_nvme_mmu_class_init(ObjectClass *klass, void *data)
@@ -266,6 +276,7 @@ static void apple_nvme_mmu_class_init(ObjectClass *klass, void *data)
     DeviceClass *dc = DEVICE_CLASS(klass);
 
     dc->realize = apple_nvme_mmu_realize;
+    device_class_set_legacy_reset(dc, apple_nvme_mmu_reset);
     dc->desc = "Apple NVMe MMU";
     set_bit(DEVICE_CATEGORY_BRIDGE, dc->categories);
     dc->fw_name = "pci";

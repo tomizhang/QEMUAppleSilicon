@@ -56,5 +56,9 @@ DTBProp *dtb_set_prop_strn(DTBNode *node, const char *name, uint32_t max_len,
 DTBNode *dtb_get_node(DTBNode *n, const char *path);
 uint64_t dtb_get_serialised_node_size(DTBNode *node);
 DTBProp *dtb_find_prop(DTBNode *node, const char *name);
+void connect_function_prop_out_in(DeviceState *target_device, DeviceState *src_device, DTBProp *function_prop, const char *name);
+void connect_function_prop_out_in_gpio(DeviceState *src_device, DTBProp *function_prop, const char *gpio_name);
+void connect_function_prop_in_out(DeviceState *target_device, DeviceState *src_device, DTBProp *function_prop, const char *name);
+void connect_function_prop_in_out_gpio(DeviceState *src_device, DTBProp *function_prop, const char *gpio_name);
 
 #endif /* HW_ARM_APPLE_SILICON_DTB_H */

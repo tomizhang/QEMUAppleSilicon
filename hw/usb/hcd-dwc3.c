@@ -1670,9 +1670,9 @@ static void dwc3_usb_device_handle_packet(USBDevice *dev, USBPacket *p)
     DWC3Endpoint *ep;
 
     if (epid == -1) {
-        qemu_log_mask(LOG_GUEST_ERROR,
-                      "%s: Unable to find ep for nr: %d pid: 0x%x\n", __func__,
-                      p->ep->nr, p->pid);
+        // qemu_log_mask(LOG_GUEST_ERROR,
+        //               "%s: Unable to find ep for nr: %d pid: 0x%x\n", __func__,
+        //               p->ep->nr, p->pid);
         p->status = USB_RET_NAK;
         return;
     }

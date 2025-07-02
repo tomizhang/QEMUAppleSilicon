@@ -700,6 +700,7 @@ config APPLE_SOC
     select APPLE_SIO
     select APPLE_SPMI
     select APPLE_SPMI_PMU
+    select APPLE_SPMI_BASEBAND
     select APPLE_DART
     select APPLE_SART
     select APPLE_SPI

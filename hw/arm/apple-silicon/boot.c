@@ -75,6 +75,7 @@ static const char *KEEP_COMP[] = {
     "audio-control,cs42l77\0$",
     "aes,s8000\0$",
     "aic,1\0$",
+    "apcie-bridge\0$"
     "apple,lightning\0ARM,v8\0$",
     "apple,thunder\0ARM,v8\0$",
     "apple,twister\0ARM,v8\0$",
@@ -145,7 +146,10 @@ static const char *KEEP_COMP[] = {
 };
 
 static const char *REM_NAMES[] = {
-    "gfx-asc\0$",      "amfm\0$",
+    "gfx-asc\0$",
+#ifndef ENABLE_BASEBAND
+    "amfm\0$",
+#endif
     "dart-ane\0$",     "dart-avd\0$",
     "dart-ave\0$",     "dart-isp\0$",
     "dart-jpeg0\0$",   "dart-jpeg1\0$",
@@ -166,6 +170,15 @@ static const char *REM_NAMES[] = {
     "pearl-sep\0$",    "isp\0$",
     "Lynx\0$",
 #endif
+#if 1
+    "bluetooth\0$",
+    "bluetooth-pcie\0$",
+    "wlan\0$",
+#endif
+#if 1
+    "smc-ext-charger\0$",
+    "smc-charger\0$",
+#endif
 };
 
 static const char *REM_DEV_TYPES[] = {
@@ -175,6 +188,13 @@ static const char *REM_DEV_TYPES[] = {
 #endif
 #ifndef ENABLE_SEP_SECURITY // necessary?
     "spherecontrol\0$",
+#endif
+#if 0
+    "aop\0$",
+#endif
+#if 1
+    "smc-ext-charger\0$",
+    "smc-charger\0$",
 #endif
 };
 
@@ -215,6 +235,20 @@ static const char *REM_PROPS[] = {
     "face-detection-support",
 #endif
     "siri-gesture",
+#ifdef ENABLE_BASEBAND
+    //"function-pmu_exton_config", // smc-pmu
+    //"function-bb_on", // smc-pmu
+    //"function-pmu_exton", // smc-pmu
+    //---
+    //"function-coredump", // gpio
+    //"function-pcie_port_control", // apcie ; TODO manual-enable/function-pcie_port_control
+    //"function-sac", // sacm
+    //"function-reset_det", // gpio
+#endif
+#if 1
+    "pci-l1pm-control",
+    "pci-aspm-default",
+#endif
 };
 
 static void *srawmemchr(void *str, int chr)

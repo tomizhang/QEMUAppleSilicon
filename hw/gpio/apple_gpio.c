@@ -7,6 +7,16 @@
 #include "qemu/log.h"
 #include "qemu/module.h"
 
+// #define DEBUG_GPIO
+
+#ifdef DEBUG_GPIO
+#define DPRINTF(fmt, ...) fprintf(stderr, fmt "\n", __VA_ARGS__)
+#else
+#define DPRINTF(fmt, ...) \
+    do {                   \
+    } while (0);
+#endif
+
 #define GPIO_MAX_PIN_NR (512)
 #define GPIO_MAX_INT_GRP_NR (0x7)
 
@@ -221,6 +231,9 @@ static void apple_gpio_reset(DeviceState *dev)
 static void apple_gpio_cfg_write(AppleGPIOState *s, unsigned int pin,
                                  hwaddr addr, uint32_t value)
 {
+    DPRINTF("%s: WRITE addr 0x" HWADDR_FMT_plx " value 0x" HWADDR_FMT_plx
+            " pin %d/0x%x\n", __func__, addr, value, pin, pin);
+
     if (pin >= s->pin_count) {
         qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
@@ -234,6 +247,9 @@ static uint32_t apple_gpio_cfg_read(AppleGPIOState *s, unsigned int pin,
                                     hwaddr addr)
 {
     uint32_t val;
+
+    DPRINTF("%s: READ 0x" HWADDR_FMT_plx " pin %d/0x%x\n", __func__, addr, pin,
+            pin);
 
     if (pin >= s->pin_count) {
         qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
@@ -256,6 +272,9 @@ static void apple_gpio_int_write(AppleGPIOState *s, unsigned int group,
 {
     unsigned int offset;
 
+    DPRINTF("%s: WRITE addr 0x" HWADDR_FMT_plx " value 0x" HWADDR_FMT_plx
+            " group %d/0x%x\n", __func__, addr, value, group, group);
+
     if (group >= s->irq_group_count) {
         qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
@@ -277,6 +296,9 @@ static uint32_t apple_gpio_int_read(AppleGPIOState *s, unsigned int group,
 {
     unsigned int offset;
 
+    DPRINTF("%s: READ 0x" HWADDR_FMT_plx " group %d/0x%x\n", __func__, addr,
+            group, group);
+
     if (group >= s->irq_group_count) {
         qemu_log_mask(LOG_UNIMP, "%s: Bad offset 0x" HWADDR_FMT_plx "\n",
                       __func__, addr);
@@ -291,6 +313,9 @@ static void apple_gpio_reg_write(void *opaque, hwaddr addr, uint64_t data,
                                  unsigned size)
 {
     AppleGPIOState *s = APPLE_GPIO(opaque);
+
+    DPRINTF("%s: WRITE addr 0x" HWADDR_FMT_plx " data 0x" HWADDR_FMT_plx "\n",
+            __func__, addr, data);
 
     switch (addr) {
     case REG_GPIOCFG(0)... REG_GPIOCFG(GPIO_MAX_PIN_NR - 1):
@@ -321,6 +346,8 @@ static void apple_gpio_reg_write(void *opaque, hwaddr addr, uint64_t data,
 static uint64_t apple_gpio_reg_read(void *opaque, hwaddr addr, unsigned size)
 {
     AppleGPIOState *s = APPLE_GPIO(opaque);
+
+    DPRINTF("%s: READ 0x" HWADDR_FMT_plx "\n", __func__, addr);
 
     switch (addr) {
     case REG_GPIOCFG(0)... REG_GPIOCFG(GPIO_MAX_PIN_NR - 1):

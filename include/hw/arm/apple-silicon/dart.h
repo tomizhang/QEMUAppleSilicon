@@ -14,6 +14,11 @@ OBJECT_DECLARE_SIMPLE_TYPE(AppleDARTState, APPLE_DART)
 OBJECT_DECLARE_SIMPLE_TYPE(AppleDARTIOMMUMemoryRegion,
                            APPLE_DART_IOMMU_MEMORY_REGION)
 
+#define DART_DART_FORCE_ACTIVE "dart-dart_force_active"
+#define DART_DART_REQUEST_SID "dart-dart_request_sid"
+#define DART_DART_RELEASE_SID "dart-dart_release_sid"
+#define DART_DART_SELF "dart-dart_self"
+
 IOMMUMemoryRegion *apple_dart_iommu_mr(AppleDARTState *dart, uint32_t sid);
 IOMMUMemoryRegion *apple_dart_instance_iommu_mr(AppleDARTState *s,
                                                 uint32_t instance,

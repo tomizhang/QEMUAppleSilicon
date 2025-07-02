@@ -3811,8 +3811,7 @@ static int kbkdf_generate_key(uint8_t *cmac_key, uint8_t *label,
         cmac_aes256_update(&ctx, KBKDF_CMAC_LENGTH_SIZE, (uint8_t *)&be_cnt);
         cmac_aes256_update(&ctx, KBKDF_CMAC_LABEL_SIZE, label); // 0x10 bytes
         cmac_aes256_update(&ctx, 1, (uint8_t *)&zero);
-        cmac_aes256_update(&ctx, KBKDF_CMAC_CONTEXT_SIZE,
-                           context); // 0x04 bytes
+        cmac_aes256_update(&ctx, KBKDF_CMAC_CONTEXT_SIZE, context); // 4 bytes
         cmac_aes256_update(&ctx, KBKDF_CMAC_LENGTH_SIZE, (uint8_t *)&be_len);
         cmac_aes256_digest(&ctx, CMAC128_DIGEST_SIZE, digest);
         memcpy(&derived[i], digest, MIN(CMAC128_DIGEST_SIZE, length - i));
@@ -3892,9 +3891,8 @@ static int generate_kbkdf_keys(struct AppleSSCState *ssc_state,
 {
     const struct ecc_curve *ecc = nettle_get_secp_384r1();
     struct ecc_point T;
-    uint8_t shared_key_xy[SECP384_PUBLIC_XY_SIZE] = {
-        0
-    }; // shared_key == pub_x (first half)
+    // shared_key == pub_x (first half)
+    uint8_t shared_key_xy[SECP384_PUBLIC_XY_SIZE] = { 0 };
     uint8_t derived_key[SHA256_DIGEST_SIZE] = { 0 };
     DPRINTF("generate_kbkdf_keys: label: %s\n", label); // 0x10 bytes
     DPRINTF("generate_kbkdf_keys: context: %02x%02x%02x%02x\n", context[0x00],
@@ -3909,8 +3907,8 @@ static int generate_kbkdf_keys(struct AppleSSCState *ssc_state,
 
     struct hmac_sha256_ctx ctx;
     hmac_sha256_set_key(&ctx, SHA256_DIGEST_SIZE, hmac_key);
-    hmac_sha256_update(&ctx, SECP384_PUBLIC_SIZE,
-                       shared_key_xy); // only the first half is the shared_key
+    // only the first half is the shared_key
+    hmac_sha256_update(&ctx, SECP384_PUBLIC_SIZE, shared_key_xy);
     hmac_sha256_digest(&ctx, SHA256_DIGEST_SIZE, derived_key);
     HEXDUMP("generate_kbkdf_keys: derived_key", derived_key,
             SHA256_DIGEST_SIZE);

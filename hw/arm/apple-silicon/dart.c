@@ -165,7 +165,59 @@ struct AppleDARTState {
     uint32_t sids;
     uint32_t bypass;
     uint64_t bypass_address;
+    bool dart_dart_force_active_val;
+    bool dart_dart_request_sid_val;
+    bool dart_dart_release_sid_val;
+    bool dart_dart_self_val;
 };
+
+static void dart_dart_force_active(void *opaque, int n, int level)
+{
+    AppleDARTState *s = APPLE_DART(opaque);
+    bool val = !!level;
+    assert(n == 0);
+    DPRINTF("%s: old: %d ; new %d\n", __func__, s->dart_dart_force_active_val, val);
+    if (s->dart_dart_force_active_val != val) {
+        //
+    }
+    s->dart_dart_force_active_val = val;
+}
+
+static void dart_dart_request_sid(void *opaque, int n, int level)
+{
+    AppleDARTState *s = APPLE_DART(opaque);
+    bool val = !!level;
+    assert(n == 0);
+    DPRINTF("%s: old: %d ; new %d\n", __func__, s->dart_dart_request_sid_val, val);
+    if (s->dart_dart_request_sid_val != val) {
+        //
+    }
+    s->dart_dart_request_sid_val = val;
+}
+
+static void dart_dart_release_sid(void *opaque, int n, int level)
+{
+    AppleDARTState *s = APPLE_DART(opaque);
+    bool val = !!level;
+    assert(n == 0);
+    DPRINTF("%s: old: %d ; new %d\n", __func__, s->dart_dart_release_sid_val, val);
+    if (s->dart_dart_release_sid_val != val) {
+        //
+    }
+    s->dart_dart_release_sid_val = val;
+}
+
+static void dart_dart_self(void *opaque, int n, int level)
+{
+    AppleDARTState *s = APPLE_DART(opaque);
+    bool val = !!level;
+    assert(n == 0);
+    DPRINTF("%s: old: %d ; new %d\n", __func__, s->dart_dart_self_val, val);
+    if (s->dart_dart_self_val != val) {
+        //
+    }
+    s->dart_dart_self_val = val;
+}
 
 static int apple_dart_device_list(Object *obj, void *opaque)
 {
@@ -484,6 +536,23 @@ static void apple_dart_reset(DeviceState *dev)
             break;
         }
     }
+
+    s->dart_dart_force_active_val = 0;
+    s->dart_dart_request_sid_val = 0;
+    s->dart_dart_release_sid_val = 0;
+    s->dart_dart_self_val = 0;
+}
+
+static void apple_dart_realize(DeviceState *dev, Error **errp)
+{
+    AppleDARTState *s = APPLE_DART(dev);
+
+#if 0
+        qdev_init_gpio_in_named(DEVICE(s), dart_dart_force_active, DART_DART_FORCE_ACTIVE, 1);
+        qdev_init_gpio_in_named(DEVICE(s), dart_dart_request_sid, DART_DART_REQUEST_SID, 1);
+        qdev_init_gpio_in_named(DEVICE(s), dart_dart_release_sid, DART_DART_RELEASE_SID, 1);
+        qdev_init_gpio_in_named(DEVICE(s), dart_dart_self, DART_DART_SELF, 1);
+#endif
 }
 
 IOMMUMemoryRegion *apple_dart_iommu_mr(AppleDARTState *s, uint32_t sid)
@@ -779,6 +848,7 @@ static void apple_dart_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
 
+    dc->realize = apple_dart_realize;
     device_class_set_legacy_reset(dc, apple_dart_reset);
     dc->desc = "Apple DART IOMMU";
     dc->vmsd = &vmstate_apple_dart;

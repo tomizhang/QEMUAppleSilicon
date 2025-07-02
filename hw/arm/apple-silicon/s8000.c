@@ -786,15 +786,11 @@ static void s8000_create_nvme(S8000MachineState *s8000_machine)
     child = dtb_get_node(s8000_machine->device_tree, "arm-io/nvme-mmu0");
     g_assert_nonnull(child);
 
-    // PCIHostState *pci =
-    // PCI_HOST_BRIDGE(object_property_get_link(OBJECT(s8000_machine),
-    // "pcie.host", &error_fatal)); apcie_host = APPLE_PCIE_HOST(pci);
     PCIBridge *pci = PCI_BRIDGE(object_property_get_link(
         OBJECT(s8000_machine), "pcie.bridge0", &error_fatal));
     PCIBus *sec_bus = pci_bridge_get_sec_bus(pci);
-    // apcie_host =
-    // APPLE_PCIE_HOST(object_property_get_link(OBJECT(s8000_machine),
-    // "pcie.host", &error_fatal));
+    apcie_host = APPLE_PCIE_HOST(object_property_get_link(OBJECT(s8000_machine),
+                                 "pcie.host", &error_fatal));
     nvme = apple_nvme_mmu_create(child, sec_bus);
     g_assert_nonnull(nvme);
     object_property_add_child(OBJECT(s8000_machine), "nvme", OBJECT(nvme));
@@ -816,6 +812,11 @@ static void s8000_create_nvme(S8000MachineState *s8000_machine)
 
     sysbus_connect_irq(nvme, 0,
                        qdev_get_gpio_in(DEVICE(s8000_machine->aic), ints[0]));
+
+    uint32_t bridge_index = 0;
+    qdev_connect_gpio_out_named(
+        DEVICE(apcie_host), "interrupt_pci", bridge_index,
+        qdev_get_gpio_in_named(DEVICE(nvme), "interrupt_pci", 0));
 
     AppleDARTState *dart = APPLE_DART(object_property_get_link(
         OBJECT(s8000_machine), "dart-apcie0", &error_fatal));
@@ -1408,10 +1409,8 @@ static void s8000_machine_init(MachineState *machine)
     s8000_pmgr_setup(s8000_machine);
     s8000_create_dart(s8000_machine, "dart-disp0", false);
     s8000_create_dart(s8000_machine, "dart-apcie0", true);
-    // s8000_create_dart(s8000_machine, "dart-apcie1", true);
-    // s8000_create_dart(s8000_machine, "dart-apcie2", true);
-    s8000_create_pcie(s8000_machine);
-    s8000_create_nvme(s8000_machine);
+    s8000_create_dart(s8000_machine, "dart-apcie1", true);
+    s8000_create_dart(s8000_machine, "dart-apcie2", true);
     s8000_create_gpio(s8000_machine, "gpio");
     s8000_create_gpio(s8000_machine, "aop-gpio");
     s8000_create_i2c(s8000_machine, "i2c0");
@@ -1426,6 +1425,8 @@ static void s8000_machine_init(MachineState *machine)
     s8000_create_spi(s8000_machine, "spi3");
     s8000_create_sep(s8000_machine);
     s8000_create_pmu(s8000_machine);
+    s8000_create_pcie(s8000_machine);
+    s8000_create_nvme(s8000_machine);
     s8000_create_chestnut(s8000_machine);
     s8000_display_create(s8000_machine);
     s8000_create_backlight(s8000_machine);

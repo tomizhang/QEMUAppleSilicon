@@ -290,12 +290,13 @@ static void apple_ans_realize(DeviceState *dev, Error **errp)
     pcie_cap_deverr_init(pci_dev);
     msi_nonbroken = true;
     msi_init(pci_dev, 0, 1, true, false, &error_fatal);
+    //msi_init(pci_dev, 0, 8, true, false, &error_fatal);
     pci_pm_init(pci_dev, 0, &error_fatal);
-    pcie_cap_fill_link_ep_usp(pci_dev, QEMU_PCI_EXP_LNK_X2,
-                              QEMU_PCI_EXP_LNK_8GT);
+    // pcie_cap_fill_link_ep_usp(pci_dev, QEMU_PCI_EXP_LNK_X2,
+    //                           QEMU_PCI_EXP_LNK_8GT);
     pcie_aer_init(pci_dev, PCI_ERR_VER, 0x100, PCI_ERR_SIZEOF, &error_fatal);
     pci_config_set_class(pci_dev->config, PCI_CLASS_STORAGE_OTHER);
-#if 1
+#if 0
     pci_config_set_interrupt_pin(pci_dev->config, 1);
     pci_set_byte(pci_dev->config + PCI_INTERRUPT_LINE, 0xff);
     //pci_dev->config[PCI_INTERRUPT_LINE] = 0xff;
@@ -311,6 +312,14 @@ static void apple_ans_unrealize(DeviceState *dev)
     AppleANSState *s = APPLE_ANS(dev);
 
     qdev_unrealize(DEVICE(s->rtk));
+}
+
+static void apple_ans_reset(DeviceState *qdev)
+{
+    AppleANSState *s = APPLE_ANS(qdev);
+    PCIDevice *d = PCI_DEVICE(s->nvme);
+
+    pcie_cap_deverr_reset(d);
 }
 
 static int apple_ans_post_load(void *opaque, int version_id)
@@ -341,7 +350,7 @@ static void apple_ans_class_init(ObjectClass *klass, void *data)
 
     dc->realize = apple_ans_realize;
     dc->unrealize = apple_ans_unrealize;
-    // device_class_set_legacy_reset(dc, apple_ans_reset);
+    device_class_set_legacy_reset(dc, apple_ans_reset);
     dc->desc = "Apple NAND Storage (ANS)";
     dc->vmsd = &vmstate_apple_ans;
     set_bit(DEVICE_CATEGORY_BRIDGE, dc->categories);

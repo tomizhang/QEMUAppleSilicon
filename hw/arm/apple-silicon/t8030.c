@@ -48,10 +48,12 @@
 #include "hw/irq.h"
 #include "hw/misc/apple-silicon/aes.h"
 #include "hw/misc/apple-silicon/aop.h"
+#include "hw/misc/apple-silicon/baseband.h"
 #include "hw/misc/apple-silicon/chestnut.h"
 #include "hw/misc/apple-silicon/roswell.h"
 #include "hw/misc/apple-silicon/smc.h"
 #include "hw/misc/apple-silicon/spmi-pmu.h"
+#include "hw/misc/apple-silicon/spmi-baseband.h"
 #include "hw/misc/unimp.h"
 #include "hw/nvram/apple_nvram.h"
 #include "hw/pci-host/apcie.h"
@@ -1559,6 +1561,48 @@ static void t8030_create_ans(T8030MachineState *t8030_machine)
     sysbus_realize_and_unref(ans, &error_fatal);
 }
 
+static void t8030_create_baseband(T8030MachineState *t8030_machine)
+{
+    int i;
+    uint32_t *ints;
+    DTBProp *prop;
+    uint64_t *reg;
+    SysBusDevice *baseband;
+    DTBNode *child = dtb_get_node(t8030_machine->device_tree, "baseband");
+    ApplePCIEHost *apcie_host;
+    DeviceState *gpio = NULL;
+    int coredump_pin, reset_det_pin;
+
+    g_assert_nonnull(child);
+
+    ApplePCIEPort *port = APPLE_PCIE_PORT(object_property_get_link(
+        OBJECT(t8030_machine), "pcie.bridge3", &error_fatal));
+    PCIDevice *pci_dev = PCI_DEVICE(port);
+    PCIBridge *pci_bridge = PCI_BRIDGE(pci_dev);
+    PCIBus *sec_bus = pci_bridge_get_sec_bus(pci_bridge);
+    apcie_host = port->host;
+    baseband = apple_baseband_create(child, sec_bus, port);
+    g_assert_nonnull(baseband);
+    object_property_add_child(OBJECT(t8030_machine), "baseband", OBJECT(baseband));
+    sysbus_realize_and_unref(baseband, &error_fatal);
+#if 1
+    connect_function_prop_out_in_gpio(DEVICE(baseband), dtb_find_prop(child,
+                               "function-coredump"), BASEBAND_GPIO_COREDUMP);
+    connect_function_prop_out_in_gpio(DEVICE(baseband), dtb_find_prop(child,
+                               "function-reset_det"), BASEBAND_GPIO_RESET_DET_IN);
+    connect_function_prop_in_out_gpio(DEVICE(baseband), dtb_find_prop(child,
+                               "function-reset_det"), BASEBAND_GPIO_RESET_DET_OUT);
+#endif
+    // the interrupts prop in this node seem to be actually for baseband-spmi.
+
+#if 0
+    uint32_t bridge_index = 3;
+    qdev_connect_gpio_out_named(
+        DEVICE(apcie_host), "interrupt_pci", bridge_index,
+        qdev_get_gpio_in_named(DEVICE(baseband), "interrupt_pci", 0));
+#endif
+}
+
 static void t8030_create_gpio(T8030MachineState *t8030_machine,
                               const char *name)
 {
@@ -1911,6 +1955,43 @@ static void t8030_create_pmu(T8030MachineState *t8030_machine,
     qemu_register_wakeup_support();
 }
 
+static void t8030_create_baseband_spmi(T8030MachineState *t8030_machine,
+                             const char *parent, const char *name)
+{
+    DeviceState *baseband = NULL;
+    AppleSPMIState *spmi = NULL;
+    DTBProp *prop;
+    DTBNode *child = dtb_get_node(t8030_machine->device_tree, "arm-io");
+    uint32_t *ints;
+
+    g_assert_nonnull(child);
+    child = dtb_get_node(child, parent);
+    g_assert_nonnull(child);
+
+    spmi = APPLE_SPMI(
+        object_property_get_link(OBJECT(t8030_machine), parent, &error_fatal));
+    g_assert_nonnull(spmi);
+
+    child = dtb_get_node(child, name);
+    g_assert_nonnull(child);
+
+    baseband = apple_spmi_baseband_create(child);
+    g_assert_nonnull(baseband);
+    object_property_add_child(OBJECT(t8030_machine), name, OBJECT(baseband));
+
+#if 1
+    child = dtb_get_node(t8030_machine->device_tree, "baseband");
+    prop = dtb_find_prop(child, "interrupts");
+    g_assert_nonnull(prop);
+    ints = (uint32_t *)prop->data;
+
+    qdev_connect_gpio_out(baseband, 0, qdev_get_gpio_in(DEVICE(spmi), ints[0]));
+#endif
+    spmi_slave_realize_and_unref(SPMI_SLAVE(baseband), spmi->bus, &error_fatal);
+
+    qemu_register_wakeup_support();
+}
+
 static void t8030_create_smc(T8030MachineState *t8030_machine)
 {
     int i;
@@ -2065,9 +2146,10 @@ static void t8030_create_pcie(T8030MachineState *t8030_machine)
     child = dtb_get_node(child, "apcie");
     g_assert_nonnull(child);
 
-    dtb_set_prop_null(
-        child, "apcie-phy-tunables"); // TODO: S8000 needs it, and probably
-                                      // T8030 does need it as well.
+    // TODO: S8000 needs it, and T8030 probably does need it as well.
+    dtb_set_prop_null(child, "apcie-phy-tunables");
+    // do not use no-phy-power-gating for T8030
+    //// dtb_set_prop_null(child, "no-phy-power-gating");
 
     pcie = apple_pcie_create(child);
     g_assert_nonnull(pcie);
@@ -2117,10 +2199,21 @@ static void t8030_create_pcie(T8030MachineState *t8030_machine)
     prop = dtb_find_prop(child, "interrupts");
     g_assert_nonnull(prop);
     ints = (uint32_t *)prop->data;
+    int interrupts_count = prop->length / sizeof(uint32_t);
 
-    for (i = 0; i < prop->length / sizeof(uint32_t); i++) {
+    for (i = 0; i < interrupts_count; i++) {
         sysbus_connect_irq(
             pcie, i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), ints[i]));
+    }
+    prop = dtb_find_prop(child, "msi-vector-offset");
+    g_assert_nonnull(prop);
+    uint32_t msi_vector_offset = *(uint32_t *)prop->data;
+    prop = dtb_find_prop(child, "#msi-vectors");
+    g_assert_nonnull(prop);
+    uint32_t msi_vectors = *(uint32_t *)prop->data;
+    for (i = 0; i < msi_vectors; i++) {
+        sysbus_connect_irq(
+            pcie, interrupts_count + i, qdev_get_gpio_in(DEVICE(t8030_machine->aic), msi_vector_offset + i));
     }
 
     sysbus_realize_and_unref(pcie, &error_fatal);
@@ -2790,8 +2883,6 @@ static void t8030_machine_init(MachineState *machine)
 
     t8030_pmgr_setup(t8030_machine);
     t8030_amcc_setup(t8030_machine);
-    t8030_create_pcie(t8030_machine);
-    t8030_create_ans(t8030_machine);
     t8030_create_gpio(t8030_machine, "gpio");
     t8030_create_gpio(t8030_machine, "smc-gpio");
     t8030_create_gpio(t8030_machine, "nub-gpio");
@@ -2809,6 +2900,8 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_dart(t8030_machine, "dart-apcie2", true);
     t8030_create_dart(t8030_machine, "dart-apcie3", true);
     t8030_create_dart(t8030_machine, "dart-aop", false);
+    t8030_create_pcie(t8030_machine);
+    t8030_create_ans(t8030_machine);
     t8030_create_usb(t8030_machine);
     t8030_create_wdt(t8030_machine);
     t8030_create_aes(t8030_machine);
@@ -2817,6 +2910,10 @@ static void t8030_machine_init(MachineState *machine)
     t8030_create_spmi(t8030_machine, "spmi2");
     t8030_create_pmu(t8030_machine, "spmi0", "spmi-pmu");
     t8030_create_smc(t8030_machine);
+#ifdef ENABLE_BASEBAND
+    t8030_create_baseband_spmi(t8030_machine, "spmi1", "baseband-spmi");
+    t8030_create_baseband(t8030_machine);
+#endif
     t8030_create_sio(t8030_machine);
     t8030_create_spi(t8030_machine, 1);
     t8030_create_spi(t8030_machine, 3);

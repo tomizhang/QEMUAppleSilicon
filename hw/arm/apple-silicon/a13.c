@@ -268,7 +268,7 @@ static void apple_a13_cluster_realize(DeviceState *dev, Error **errp)
         memory_region_init_ram_device_ptr(
             &cluster->mr, OBJECT(cluster),
             TYPE_APPLE_A13_CLUSTER ".cpm-impl-reg", cluster->size,
-            g_malloc0(cluster->size));
+            g_aligned_alloc0(1, cluster->size, 0x4000));
     }
 }
 
@@ -775,7 +775,9 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
             memory_region_init_ram_device_ptr(&tcpu->impl_reg, obj,
                                               TYPE_APPLE_A13 ".impl-reg",
-                                              reg[1], g_malloc0(reg[1]));
+                                              reg[1],
+                                              g_aligned_alloc0(1, reg[1],
+                                                               0x4000));
             memory_region_add_subregion(get_system_memory(), reg[0],
                                         &tcpu->impl_reg);
         }
@@ -788,7 +790,9 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
             memory_region_init_ram_device_ptr(&tcpu->coresight_reg, obj,
                                               TYPE_APPLE_A13 ".coresight-reg",
-                                              reg[1], g_malloc0(reg[1]));
+                                              reg[1],
+                                              g_aligned_alloc0(1, reg[1],
+                                                               0x4000));
             memory_region_add_subregion(get_system_memory(), reg[0],
                                         &tcpu->coresight_reg);
         }
