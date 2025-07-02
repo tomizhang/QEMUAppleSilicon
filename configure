@@ -361,7 +361,7 @@ elif check_define __NetBSD__; then
 elif check_define __APPLE__; then
   host_os=darwin
 elif check_define __ANDROID__ ; then
-  host_os=linux
+  host_os=android
 else
   # This is a fatal error, but don't report it yet, because we
   # might be going to just print the --help text, or it might
