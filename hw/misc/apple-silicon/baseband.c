@@ -389,7 +389,6 @@ static uint8_t smc_key_gP07_write(AppleSMCState *s, SMCKey *key,
 {
     AppleRTKit *rtk;
     uint32_t value;
-    KeyResponse r;
 
     AppleBasebandState *baseband = APPLE_BASEBAND(object_property_get_link(
         OBJECT(qdev_get_machine()), "baseband", &error_fatal));
@@ -482,7 +481,6 @@ static uint8_t smc_key_gP09_write(AppleSMCState *s, SMCKey *key,
 {
     AppleRTKit *rtk;
     uint32_t value;
-    KeyResponse r;
 
     AppleBasebandState *baseband = APPLE_BASEBAND(object_property_get_link(
         OBJECT(qdev_get_machine()), "baseband", &error_fatal));
@@ -578,7 +576,6 @@ static uint8_t smc_key_gP11_write(AppleSMCState *s, SMCKey *key,
 {
     AppleRTKit *rtk;
     uint32_t value;
-    KeyResponse r;
 
     AppleBasebandState *baseband = APPLE_BASEBAND(object_property_get_link(
         OBJECT(qdev_get_machine()), "baseband", &error_fatal));
