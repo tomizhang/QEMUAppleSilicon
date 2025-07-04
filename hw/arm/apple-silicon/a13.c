@@ -760,6 +760,7 @@ AppleA13State *apple_a13_cpu_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     object_property_set_bool(obj, "has_el3", false, NULL);
     object_property_set_bool(obj, "has_el2", false, NULL);
+    object_property_set_bool(obj, "pmu", false, NULL); // KVM will throw up otherwise
 
     memory_region_init(&tcpu->memory, obj, "cpu-memory", UINT64_MAX);
     memory_region_init_alias(&tcpu->sysmem, obj, "sysmem", get_system_memory(),

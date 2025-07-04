@@ -695,7 +695,7 @@ uint8_t *load_trustcache_from_file(const char *filename, uint64_t *size)
     file_size = (unsigned long)length;
 
     trustcache_size = ROUND_UP_16K(file_size + 8);
-    trustcache_data = (uint32_t *)g_malloc(trustcache_size);
+    trustcache_data = (uint32_t *)g_malloc0(trustcache_size);
     trustcache_data[0] = 1; // #trustcaches
     trustcache_data[1] = 8; // offset
     memcpy(&trustcache_data[2], file_data, file_size);

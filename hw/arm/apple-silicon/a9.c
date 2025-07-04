@@ -225,6 +225,7 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
 
     object_property_set_bool(obj, "has_el3", true, NULL);
     object_property_set_bool(obj, "has_el2", true, NULL);
+    object_property_set_bool(obj, "pmu", false, NULL); // KVM will throw up otherwise
 
     memory_region_init(&tcpu->memory, obj, "cpu-memory", UINT64_MAX);
     memory_region_init_alias(&tcpu->sysmem, obj, "sysmem", get_system_memory(),
@@ -240,7 +241,8 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
 
             memory_region_init_ram_device_ptr(&tcpu->impl_reg, obj,
                                               TYPE_APPLE_A9 ".impl-reg", reg[1],
-                                              g_malloc0(reg[1]));
+                                              g_aligned_alloc0(1, reg[1],
+                                                               0x4000));
             memory_region_add_subregion(get_system_memory(), reg[0],
                                         &tcpu->impl_reg);
         }
@@ -253,7 +255,9 @@ AppleA9State *apple_a9_create(DTBNode *node, char *name, uint32_t cpu_id,
 
             memory_region_init_ram_device_ptr(&tcpu->coresight_reg, obj,
                                               TYPE_APPLE_A9 ".coresight-reg",
-                                              reg[1], g_malloc0(reg[1]));
+                                              reg[1],
+                                              g_aligned_alloc0(1, reg[1],
+                                                               0x4000));
             memory_region_add_subregion(get_system_memory(), reg[0],
                                         &tcpu->coresight_reg);
         }
