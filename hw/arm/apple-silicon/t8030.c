@@ -2721,9 +2721,17 @@ static void t8030_machine_init(MachineState *machine)
                  T8030_SROM_SIZE, 0);
     allocate_ram(t8030_machine->sys_mem, "SRAM", T8030_SRAM_BASE,
                  T8030_SRAM_SIZE, 0);
-    t8030_machine->dram =
-        allocate_ram(t8030_machine->sys_mem, "DRAM", T8030_DRAM_BASE,
-                     machine->maxram_size, 0);
+    if (machine->memdev != NULL) {
+        t8030_machine->dram = host_memory_backend_get_memory(machine->memdev);
+        memory_region_add_subregion_overlap(t8030_machine->sys_mem,
+                                            T8030_DRAM_BASE,
+                                            t8030_machine->dram,
+                                            0);
+    } else {
+        t8030_machine->dram =
+            allocate_ram(t8030_machine->sys_mem, "DRAM", T8030_DRAM_BASE,
+                         machine->maxram_size, 0);
+    }
     if (t8030_machine->sep_rom_filename != NULL) {
         allocate_ram(t8030_machine->sys_mem, "SEPROM", T8030_SEPROM_BASE,
                      T8030_SEPROM_SIZE, 0);
