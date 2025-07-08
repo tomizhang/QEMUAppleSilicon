@@ -196,12 +196,12 @@ static void adp_v4_update_irqs(AppleDisplayPipeV4State *s)
 static pixman_format_code_t adp_v4_gp_fmt_to_pixman(ADPV4GenPipeState *s)
 {
     if ((s->pixel_format & GP_PIXEL_FORMAT_BGRA) == GP_PIXEL_FORMAT_BGRA) {
-        ADP_INFO("[gp%d] Pixel Format is BGRA (0x%X).\n", s->index,
+        ADP_INFO("[gp%d] Pixel Format is BGRA (0x%X).", s->index,
                  s->pixel_format);
         return PIXMAN_b8g8r8a8;
     } else if ((s->pixel_format & GP_PIXEL_FORMAT_ARGB) ==
                GP_PIXEL_FORMAT_ARGB) {
-        ADP_INFO("[gp%d] Pixel Format is ARGB (0x%X).\n", s->index,
+        ADP_INFO("[gp%d] Pixel Format is ARGB (0x%X).", s->index,
                  s->pixel_format);
         return PIXMAN_a8r8g8b8;
     } else {
