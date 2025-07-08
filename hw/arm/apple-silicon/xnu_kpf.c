@@ -122,14 +122,14 @@ static bool kpf_amfi_callback(ApplePfPatch *patch, uint32_t *opcode_stream)
         if (adrp != NULL) {
             start = adrp;
         }
-        info_report("lookup_in_static_trust_cache @ 0x%" PRIx64 "\n",
+        info_report("lookup_in_static_trust_cache @ 0x%" PRIx64,
                     ptov_static((hwaddr)start));
         *(start++) = 0x52802020; // MOV W0, 0x101
         *(start++) = (pac ? RETAB : RET);
         return true;
     }
     case 1:
-        info_report("lookup_in_trust_cache_module @ 0x%" PRIx64 "\n",
+        info_report("lookup_in_trust_cache_module @ 0x%" PRIx64,
                     ptov_static((hwaddr)start));
         *(start++) = 0x52800040; // mov w0, 2
         *(start++) = 0x39000040; // strb w0, [x2]
@@ -168,7 +168,7 @@ static bool kpf_trustcache_callback(ApplePfPatch *patch,
     if (start == NULL) {
         return false;
     }
-    info_report("pmap_lookup_in_static_trust_cache_internal @ 0x%" PRIx64 "\n",
+    info_report("pmap_lookup_in_static_trust_cache_internal @ 0x%" PRIx64,
                 ptov_static((hwaddr)start));
     *(start++) = 0x52802020; // mov w0, 0x101
     *(start++) = RET;
