@@ -196,17 +196,18 @@ static void adp_v4_update_irqs(AppleDisplayPipeV4State *s)
 static pixman_format_code_t adp_v4_gp_fmt_to_pixman(ADPV4GenPipeState *s)
 {
     if ((s->pixel_format & GP_PIXEL_FORMAT_BGRA) == GP_PIXEL_FORMAT_BGRA) {
-        ADP_INFO("[gp%d] Pixel Format is BGRA (0x%X).", s->index,
+        ADP_INFO("[gp%d] Pixel Format is BGRA (0x%X).\n", s->index,
                  s->pixel_format);
         return PIXMAN_b8g8r8a8;
     } else if ((s->pixel_format & GP_PIXEL_FORMAT_ARGB) ==
                GP_PIXEL_FORMAT_ARGB) {
-        ADP_INFO("[gp%d] Pixel Format is ARGB (0x%X).", s->index,
+        ADP_INFO("[gp%d] Pixel Format is ARGB (0x%X).\n", s->index,
                  s->pixel_format);
         return PIXMAN_a8r8g8b8;
     } else {
-        qemu_log_mask(LOG_GUEST_ERROR, "[gp%d] Pixel Format is unknown (0x%X).",
-                      s->index, s->pixel_format);
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "[gp%d] Pixel Format is unknown (0x%X).\n", s->index,
+                      s->pixel_format);
         return 0;
     }
 }
@@ -218,7 +219,7 @@ static uint8_t *adp_v4_gp_read(ADPV4GenPipeState *s)
     // TODO: Decompress the data and display it properly.
     if (s->pixel_format & GP_PIXEL_FORMAT_COMPRESSED) {
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "[gp%d] Dropping frame as it's compressed.", s->index);
+                      "[gp%d] Dropping frame as it's compressed.\n", s->index);
         return NULL;
     }
 
@@ -229,14 +230,14 @@ static uint8_t *adp_v4_gp_read(ADPV4GenPipeState *s)
     if (s->buf_height == 0 || s->buf_width == 0 || s->stride == 0) {
         qemu_log_mask(
             LOG_GUEST_ERROR,
-            "[gp%d] Dropping frame as width, height or stride is zero.",
+            "[gp%d] Dropping frame as width, height or stride is zero.\n",
             s->index);
         return NULL;
     }
 
     if (s->buf_width > s->disp_width || s->buf_height > s->disp_height) {
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "[gp%d] Dropping frame as it's larger than the screen.",
+                      "[gp%d] Dropping frame as it's larger than the screen.\n",
                       s->index);
         return NULL;
     }
@@ -245,7 +246,7 @@ static uint8_t *adp_v4_gp_read(ADPV4GenPipeState *s)
     buf = g_malloc(s->buf_height * s->buf_width * s->stride);
     if (dma_memory_read(s->dma_as, s->base, buf, s->end - s->base,
                         MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
-        qemu_log_mask(LOG_GUEST_ERROR, "[gp%d] Failed to read from DMA.",
+        qemu_log_mask(LOG_GUEST_ERROR, "[gp%d] Failed to read from DMA.\n",
                       s->index);
         g_free(buf);
         return NULL;
